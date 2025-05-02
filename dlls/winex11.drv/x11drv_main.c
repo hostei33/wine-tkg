@@ -193,7 +193,8 @@ static const char * const atom_names[NB_XATOMS - FIRST_XATOM] =
     "text/richtext",
     "text/uri-list",
     "_NET_WM_HWND",
-    "_NET_WM_WOW64"
+    "_NET_WM_WOW64",
+    "_NET_WM_SURFACE"
 };
 
 /***********************************************************************

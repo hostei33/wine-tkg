@@ -2001,6 +2001,10 @@ Window create_client_window( HWND hwnd, const XVisualInfo *visual, Colormap colo
                                                CWBackingStore | CWColormap | CWBorderPixel, &attr );
     if (data->client_window)
     {
+        const BOOL is_surface = TRUE;
+        XChangeProperty( gdi_display, data->client_window, x11drv_atom(_NET_WM_SURFACE),
+                         XA_CARDINAL, 8, PropModeReplace, (unsigned char *)&is_surface, 1 );
+        
         XMapWindow( gdi_display, data->client_window );
         if (data->whole_window)
         {
