@@ -100,7 +100,7 @@ struct event
 };
 C_ASSERT(sizeof(struct event) == 8);
 
-static char shm_name[29];
+static char shm_name[200];
 static int shm_fd;
 static void **shm_addrs;
 static int shm_addrs_size;  /* length of the allocated shm_addrs array */
@@ -1317,13 +1317,13 @@ void esync_init(void)
 
     if (stat( config_dir, &st ) == -1)
         ERR("Cannot stat %s\n", config_dir);
+    
+    	if (st.st_ino != (unsigned long)st.st_ino)
+        	sprintf( shm_name, "/data/data/com.termux/files/usr/tmp/wine-%lx%08lx-esync", (unsigned long)((unsigned long long)st.st_ino >> 32), (unsigned long)st.st_ino );
+    	else
+        	sprintf( shm_name, "/data/data/com.termux/files/usr/tmp/wine-%lx-esync", (unsigned long)st.st_ino );
 
-    if (st.st_ino != (unsigned long)st.st_ino)
-        sprintf( shm_name, "/wine-%lx%08lx-esync", (unsigned long)((unsigned long long)st.st_ino >> 32), (unsigned long)st.st_ino );
-    else
-        sprintf( shm_name, "/wine-%lx-esync", (unsigned long)st.st_ino );
-
-    if ((shm_fd = shm_open( shm_name, O_RDWR, 0644 )) == -1)
+   if ( (shm_fd = open( shm_name, O_RDWR, 0644 )) == -1 )
     {
         /* probably the server isn't running with WINEESYNC, tell the user and bail */
         if (errno == ENOENT)
