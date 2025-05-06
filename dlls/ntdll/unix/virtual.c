@@ -2403,11 +2403,7 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
             break;
         case EACCES:
         case EPERM:  /* noexec filesystem, fall back to read() */
-            if (vprot & VPROT_WRITE)
-            {
-                if (prot & PROT_EXEC) ERR( "failed to set PROT_EXEC on file map, noexec filesystem?\n" );
-                return STATUS_ACCESS_DENIED;
-            }
+            
             if (prot & PROT_EXEC) WARN( "failed to set PROT_EXEC on file map, noexec filesystem?\n" );
             break;
         default:
