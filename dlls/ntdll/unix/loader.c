@@ -73,11 +73,13 @@
 # ifndef _POSIX_SPAWN_DISABLE_ASLR
 #  define _POSIX_SPAWN_DISABLE_ASLR 0x0100
 # endif
+# define environ (*_NSGetEnviron())
+#else
+  extern char **environ;
 #endif
 #ifdef __ANDROID__
 # include <jni.h>
 #endif
-extern char **environ;
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -113,6 +115,7 @@ void *pKiRaiseUserExceptionDispatcher = NULL;
 void *pKiUserExceptionDispatcher = NULL;
 void *pKiUserApcDispatcher = NULL;
 void *pKiUserCallbackDispatcher = NULL;
+void *pKiUserEmulationDispatcher = NULL;
 void *pLdrInitializeThunk = NULL;
 void *pRtlUserThreadStart = NULL;
 void *p__wine_ctrl_routine = NULL;
@@ -147,12 +150,6 @@ SYSTEM_SERVICE_TABLE KeServiceDescriptorTable[4] =
 
 #ifdef __GNUC__
 static void fatal_error( const char *err, ... ) __attribute__((noreturn, format(printf,1,2)));
-#endif
-
-#if defined(linux) || defined(__APPLE__)
-static const BOOL use_preloader = TRUE;
-#else
-static const BOOL use_preloader = FALSE;
 #endif
 
 static const char *bin_dir;
@@ -310,6 +307,42 @@ static char *build_path( const char *dir, const char *name )
     return ret;
 }
 
+/* build a path with the relative dir from 'from' to 'dest' appended to base */
+static char *build_relative_path( const char *base, const char *from, const char *dest )
+{
+    const char *start;
+    char *ret;
+    unsigned int dotdots = 0;
+
+    for (;;)
+    {
+        while (*from == '/') from++;
+        while (*dest == '/') dest++;
+        start = dest;  /* save start of next path element */
+        if (!*from) break;
+
+        while (*from && *from != '/' && *from == *dest) { from++; dest++; }
+        if ((!*from || *from == '/') && (!*dest || *dest == '/')) continue;
+
+        do  /* count remaining elements in 'from' */
+        {
+            dotdots++;
+            while (*from && *from != '/') from++;
+            while (*from == '/') from++;
+        }
+        while (*from);
+        break;
+    }
+
+    ret = malloc( strlen(base) + 3 * dotdots + strlen(start) + 2 );
+    strcpy( ret, base );
+    while (dotdots--) strcat( ret, "/.." );
+
+    if (!start[0]) return ret;
+    strcat( ret, "/" );
+    strcat( ret, start );
+    return ret;
+}
 
 /* build a path to a binary and exec it */
 static int build_path_and_exec( pid_t *pid, const char *dir, const char *name, char **argv )
@@ -494,8 +527,8 @@ static void init_paths( char *argv[] )
             free( path );
         }
 #endif
-        if (!bin_dir) bin_dir = build_path( dll_dir, DLL_TO_BINDIR );
-        data_dir = build_path( bin_dir, BIN_TO_DATADIR );
+        if (!bin_dir) bin_dir = build_relative_path( dll_dir, LIBDIR "/wine", BINDIR );
+        data_dir = build_relative_path( bin_dir, BINDIR, DATADIR "/wine" );
         wineloader = build_path( bin_dir, basename );
     }
     else
@@ -524,7 +557,8 @@ char *get_alternate_wineloader( WORD machine )
 
     if (machine == current_machine) return NULL;
 
-    if (machine == IMAGE_FILE_MACHINE_AMD64)  /* try the 64-bit loader */
+    /* try the 64-bit loader */
+    if (current_machine == IMAGE_FILE_MACHINE_I386 && machine == IMAGE_FILE_MACHINE_AMD64)
     {
         size_t len = strlen(wineloader);
 
@@ -543,31 +577,30 @@ char *get_alternate_wineloader( WORD machine )
 
 static void preloader_exec( char **argv )
 {
-    if (use_preloader)
-    {
-        static const char *preloader = "wine-preloader";
-        char *p;
+#ifdef HAVE_WINE_PRELOADER
+    static const char *preloader = "wine-preloader";
+    char *p;
 
-        if (!(p = strrchr( argv[1], '/' ))) p = argv[1];
-        else p++;
+    if (!(p = strrchr( argv[1], '/' ))) p = argv[1];
+    else p++;
 
-        if (strlen(p) > 2 && !strcmp( p + strlen(p) - 2, "64" )) preloader = "wine64-preloader";
-        argv[0] = malloc( p - argv[1] + strlen(preloader) + 1 );
-        memcpy( argv[0], argv[1], p - argv[1] );
-        strcpy( argv[0] + (p - argv[1]), preloader );
+    if (strlen(p) > 2 && !strcmp( p + strlen(p) - 2, "64" )) preloader = "wine64-preloader";
+    argv[0] = malloc( p - argv[1] + strlen(preloader) + 1 );
+    memcpy( argv[0], argv[1], p - argv[1] );
+    strcpy( argv[0] + (p - argv[1]), preloader );
 
 #ifdef __APPLE__
-        {
-            posix_spawnattr_t attr;
-            posix_spawnattr_init( &attr );
-            posix_spawnattr_setflags( &attr, POSIX_SPAWN_SETEXEC | _POSIX_SPAWN_DISABLE_ASLR );
-            posix_spawn( NULL, argv[0], NULL, &attr, argv, *_NSGetEnviron() );
-            posix_spawnattr_destroy( &attr );
-        }
-#endif
-        execv( argv[0], argv );
-        free( argv[0] );
+    {
+        posix_spawnattr_t attr;
+        posix_spawnattr_init( &attr );
+        posix_spawnattr_setflags( &attr, POSIX_SPAWN_SETEXEC | _POSIX_SPAWN_DISABLE_ASLR );
+        posix_spawn( NULL, argv[0], NULL, &attr, argv, *_NSGetEnviron() );
+        posix_spawnattr_destroy( &attr );
     }
+#endif
+    execv( argv[0], argv );
+    free( argv[0] );
+#endif
     execv( argv[1], argv + 1 );
 }
 
@@ -587,7 +620,7 @@ static NTSTATUS loader_exec( char **argv, WORD machine )
  *
  * argv[0] and argv[1] must be reserved for the preloader and loader respectively.
  */
-NTSTATUS exec_wineloader( char **argv, int socketfd, const pe_image_info_t *pe_info )
+NTSTATUS exec_wineloader( char **argv, int socketfd, const struct pe_image_info *pe_info )
 {
     WORD machine = pe_info->machine;
     ULONGLONG res_start = pe_info->base;
@@ -597,6 +630,8 @@ NTSTATUS exec_wineloader( char **argv, int socketfd, const pe_image_info_t *pe_i
 
     if (pe_info->wine_fakedll) res_start = res_end = 0;
     if (pe_info->image_flags & IMAGE_FLAGS_ComPlusNativeReady) machine = native_machine;
+
+    unsetenv( "WINE_LD_PRELOAD" );
 
     /* HACK: Unset LD_PRELOAD before executing explorer.exe to disable buggy gameoverlayrenderer.so */
     if (ld_preload && argv[2] && !strcmp( argv[2], "C:\\windows\\system32\\explorer.exe" ) &&
@@ -626,7 +661,10 @@ NTSTATUS exec_wineloader( char **argv, int socketfd, const pe_image_info_t *pe_i
         while (*next);
 
         putenv( env );
+        ld_preload = NULL;
     }
+
+    if (ld_preload) setenv( "WINE_LD_PRELOAD", ld_preload, 1 );
 
     signal( SIGPIPE, SIG_DFL );
 
@@ -930,7 +968,7 @@ static const void *get_module_data_dir( HMODULE module, ULONG dir, ULONG *size )
 /***********************************************************************
  *           fill_builtin_image_info
  */
-static void fill_builtin_image_info( void *module, pe_image_info_t *info )
+static void fill_builtin_image_info( void *module, struct pe_image_info *info )
 {
     const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)module;
     const IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((const BYTE *)dos + dos->e_lfanew);
@@ -961,7 +999,7 @@ static void fill_builtin_image_info( void *module, pe_image_info_t *info )
  *           dlopen_dll
  */
 static NTSTATUS dlopen_dll( const char *so_name, UNICODE_STRING *nt_name, void **ret_module,
-                            pe_image_info_t *image_info, BOOL prefer_native )
+                            struct pe_image_info *image_info, BOOL prefer_native )
 {
     void *module, *handle;
     const IMAGE_NT_HEADERS *nt;
@@ -1022,7 +1060,7 @@ static NTSTATUS load_so_dll( void *args )
     UNICODE_STRING *nt_name = &params->nt_name;
     OBJECT_ATTRIBUTES attr;
     UNICODE_STRING redir;
-    pe_image_info_t info;
+    struct pe_image_info info;
     char *unix_name;
     NTSTATUS status;
     DWORD len;
@@ -1066,13 +1104,18 @@ void *steamclient_handle_fault( LPCVOID addr, DWORD err )
     return NULL;
 }
 
-static void steamclient_write_jump(void *src_addr, void *tgt_addr)
+static void steamclient_write_jump_x64(void *src_addr, ULONGLONG tgt_addr)
 {
-#ifdef _WIN64
     static const char mov[] = {0x48, 0xb8};
-#else
+    static const char jmp[] = {0xff, 0xe0};
+    memcpy(src_addr, mov, sizeof(mov));
+    memcpy((char *)src_addr + sizeof(mov), &tgt_addr, sizeof(tgt_addr));
+    memcpy((char *)src_addr + sizeof(mov) + sizeof(tgt_addr), jmp, sizeof(jmp));
+}
+
+static void steamclient_write_jump_x86(void *src_addr, ULONG tgt_addr)
+{
     static const char mov[] = {0xb8};
-#endif
     static const char jmp[] = {0xff, 0xe0};
     memcpy(src_addr, mov, sizeof(mov));
     memcpy((char *)src_addr + sizeof(mov), &tgt_addr, sizeof(tgt_addr));
@@ -1082,12 +1125,14 @@ static void steamclient_write_jump(void *src_addr, void *tgt_addr)
 static NTSTATUS steamclient_setup_trampolines( void *args )
 {
     static int noexec_cached = -1;
+
     struct steamclient_setup_trampolines_params *params = args;
     HMODULE src_mod = params->src_mod, tgt_mod = params->tgt_mod;
     SYSTEM_BASIC_INFORMATION info;
-    IMAGE_NT_HEADERS *src_nt = (IMAGE_NT_HEADERS *)((UINT_PTR)src_mod + ((IMAGE_DOS_HEADER *)src_mod)->e_lfanew);
-    IMAGE_NT_HEADERS *tgt_nt = (IMAGE_NT_HEADERS *)((UINT_PTR)tgt_mod + ((IMAGE_DOS_HEADER *)tgt_mod)->e_lfanew);
-    IMAGE_SECTION_HEADER *src_sec = (IMAGE_SECTION_HEADER *)(src_nt + 1);
+    IMAGE_NT_HEADERS *src_nt = get_rva( src_mod, ((IMAGE_DOS_HEADER *)src_mod)->e_lfanew );
+    IMAGE_NT_HEADERS *tgt_nt = get_rva( tgt_mod, ((IMAGE_DOS_HEADER *)tgt_mod)->e_lfanew );
+    IMAGE_SECTION_HEADER *src_sec = IMAGE_FIRST_SECTION( src_nt );
+    BOOL x64 = src_nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC;
     const IMAGE_EXPORT_DIRECTORY *src_exp, *tgt_exp;
     const DWORD *names;
     SIZE_T size;
@@ -1122,16 +1167,35 @@ static NTSTATUS steamclient_setup_trampolines( void *args )
         assert(steamclient_count < ARRAY_SIZE(steamclient_srcs));
         steamclient_srcs[steamclient_count] = src_addr;
         steamclient_tgts[steamclient_count] = tgt_addr;
-        if (!noexec_cached) steamclient_write_jump(src_addr, tgt_addr);
+        if (!noexec_cached)
+        {
+            if (x64) steamclient_write_jump_x64( src_addr, (ULONG_PTR)tgt_addr );
+            else steamclient_write_jump_x86( src_addr, PtrToUlong(tgt_addr) );
+        }
         else steamclient_count++;
     }
 
-    src_addr = (void *)((UINT_PTR)src_mod + src_nt->OptionalHeader.AddressOfEntryPoint);
-    tgt_addr = (void *)((UINT_PTR)tgt_mod + tgt_nt->OptionalHeader.AddressOfEntryPoint);
+    if (x64)
+    {
+        IMAGE_NT_HEADERS64 *src_nt64 = (IMAGE_NT_HEADERS64 *)src_nt, *tgt_nt64 = (IMAGE_NT_HEADERS64 *)tgt_nt;
+        src_addr = (void *)((UINT_PTR)src_mod + src_nt64->OptionalHeader.AddressOfEntryPoint);
+        tgt_addr = (void *)((UINT_PTR)tgt_mod + tgt_nt64->OptionalHeader.AddressOfEntryPoint);
+    }
+    else
+    {
+        IMAGE_NT_HEADERS32 *src_nt32 = (IMAGE_NT_HEADERS32 *)src_nt, *tgt_nt32 = (IMAGE_NT_HEADERS32 *)tgt_nt;
+        src_addr = (void *)((UINT_PTR)src_mod + src_nt32->OptionalHeader.AddressOfEntryPoint);
+        tgt_addr = (void *)((UINT_PTR)tgt_mod + tgt_nt32->OptionalHeader.AddressOfEntryPoint);
+    }
+
     assert(steamclient_count < ARRAY_SIZE(steamclient_srcs));
     steamclient_srcs[steamclient_count] = src_addr;
     steamclient_tgts[steamclient_count] = tgt_addr;
-    if (!noexec_cached) steamclient_write_jump(src_addr, tgt_addr);
+    if (!noexec_cached)
+    {
+        if (x64) steamclient_write_jump_x64( src_addr, (ULONG_PTR)tgt_addr );
+        else steamclient_write_jump_x86( src_addr, PtrToUlong(tgt_addr) );
+    }
     else steamclient_count++;
 
     return STATUS_SUCCESS;
@@ -1209,6 +1273,31 @@ static const unixlib_entry_t unix_call_funcs[] =
 static NTSTATUS wow64_load_so_dll( void *args ) { return STATUS_INVALID_IMAGE_FORMAT; }
 static NTSTATUS wow64_unwind_builtin_dll( void *args ) { return STATUS_UNSUCCESSFUL; }
 
+static NTSTATUS wow64_steamclient_setup_trampolines( void *args )
+{
+    struct
+    {
+        ULONG src_mod;
+        ULONG tgt_mod;
+    } const *params32 = args;
+    struct steamclient_setup_trampolines_params params;
+    params.src_mod = (HMODULE)(UINT_PTR)params32->src_mod;
+    params.tgt_mod = (HMODULE)(UINT_PTR)params32->tgt_mod;
+    return steamclient_setup_trampolines( &params );
+}
+
+static NTSTATUS wow64_debugstr_pc( void *args )
+{
+    struct
+    {
+        ULONG        pc;
+        ULONG        buffer;
+        unsigned int size;
+    } const *params32 = args;
+    return debugstr_pc_impl( ULongToPtr( params32->pc ), ULongToPtr( params32->buffer ), params32->size )
+               ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
+}
+
 const unixlib_entry_t unix_call_wow64_funcs[] =
 {
     wow64_load_so_dll,
@@ -1219,6 +1308,9 @@ const unixlib_entry_t unix_call_wow64_funcs[] =
     wow64_wine_server_handle_to_fd,
     wow64_wine_spawnvp,
     system_time_precise,
+    wow64_steamclient_setup_trampolines,
+    is_pc_in_native_so,
+    wow64_debugstr_pc,
 };
 
 #endif  /* _WIN64 */
@@ -1352,7 +1444,7 @@ static NTSTATUS open_builtin_so_file( const char *name, OBJECT_ATTRIBUTES *attr,
 
     if (check_library_arch( fd ))
     {
-        pe_image_info_t info;
+        struct pe_image_info info;
 
         status = dlopen_dll( name, attr->ObjectName, module, &info, prefer_native );
         if (!status) virtual_fill_image_information( &info, image_info );
@@ -1494,12 +1586,13 @@ done:
  * Load the builtin dll if specified by load order configuration.
  * Return STATUS_IMAGE_ALREADY_LOADED if we should keep the native one that we have found.
  */
-NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename, USHORT machine,
-                       void **module, SIZE_T *size, ULONG_PTR limit_low, ULONG_PTR limit_high )
+NTSTATUS load_builtin( const struct pe_image_info *image_info, WCHAR *filename, USHORT machine,
+                       SECTION_IMAGE_INFORMATION *info, void **module, SIZE_T *size,
+                       ULONG_PTR limit_low, ULONG_PTR limit_high )
 {
     NTSTATUS status;
     UNICODE_STRING nt_name;
-    SECTION_IMAGE_INFORMATION info;
+    USHORT search_machine = image_info->machine;
     enum loadorder loadorder;
 
     init_unicode_string( &nt_name, filename );
@@ -1519,17 +1612,20 @@ NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename, USHOR
         loadorder = LO_BUILTIN;  /* builtin with no fallback since mapping a fake dll is not useful */
     }
 
+    if (is_arm64ec() && image_info->is_hybrid && search_machine == IMAGE_FILE_MACHINE_AMD64)
+        search_machine = current_machine;
+
     switch (loadorder)
     {
     case LO_NATIVE:
     case LO_NATIVE_BUILTIN:
         return STATUS_IMAGE_ALREADY_LOADED;
     case LO_BUILTIN:
-        return find_builtin_dll( &nt_name, module, size, &info, limit_low, limit_high,
-                                 image_info->machine, machine, FALSE );
+        return find_builtin_dll( &nt_name, module, size, info, limit_low, limit_high,
+                                 search_machine, machine, FALSE );
     default:
-        status = find_builtin_dll( &nt_name, module, size, &info, limit_low, limit_high,
-                                   image_info->machine, machine, (loadorder == LO_DEFAULT) );
+        status = find_builtin_dll( &nt_name, module, size, info, limit_low, limit_high,
+                                   search_machine, machine, (loadorder == LO_DEFAULT) );
         if (status == STATUS_DLL_NOT_FOUND || status == STATUS_NOT_SUPPORTED)
             return STATUS_IMAGE_ALREADY_LOADED;
         return status;
@@ -1599,7 +1695,7 @@ static NTSTATUS open_main_image( WCHAR *image, void **module, SECTION_IMAGE_INFO
     static const WCHAR soW[] = {'.','s','o',0};
     UNICODE_STRING nt_name;
     OBJECT_ATTRIBUTES attr;
-    pe_image_info_t pe_info;
+    struct pe_image_info pe_info;
     SIZE_T size = 0;
     char *unix_name;
     NTSTATUS status;
@@ -1734,6 +1830,7 @@ static void load_ntdll_functions( HMODULE module )
 {
     void **p__wine_syscall_dispatcher;
     void **p__wine_unix_call_dispatcher;
+    void **p__wine_unix_call_dispatcher_arm64ec = NULL;
     unixlib_handle_t *p__wine_unixlib_handle;
     const IMAGE_EXPORT_DIRECTORY *exports;
 
@@ -1756,9 +1853,20 @@ static void load_ntdll_functions( HMODULE module )
     GET_FUNC( __wine_syscall_dispatcher );
     GET_FUNC( __wine_unix_call_dispatcher );
     GET_FUNC( __wine_unixlib_handle );
+    if (is_arm64ec())
+    {
+        GET_FUNC( __wine_unix_call_dispatcher_arm64ec );
+        GET_FUNC( KiUserEmulationDispatcher );
+    }
     *p__wine_syscall_dispatcher = __wine_syscall_dispatcher;
-    *p__wine_unix_call_dispatcher = __wine_unix_call_dispatcher;
     *p__wine_unixlib_handle = (UINT_PTR)unix_call_funcs;
+    if (p__wine_unix_call_dispatcher_arm64ec)
+    {
+        /* redirect __wine_unix_call_dispatcher to __wine_unix_call_dispatcher_arm64ec */
+        *p__wine_unix_call_dispatcher = *p__wine_unix_call_dispatcher_arm64ec;
+        *p__wine_unix_call_dispatcher_arm64ec = __wine_unix_call_dispatcher;
+    }
+    else *p__wine_unix_call_dispatcher = __wine_unix_call_dispatcher;
 #undef GET_FUNC
 }
 
@@ -1803,24 +1911,23 @@ static void load_ntdll_wow64_functions( HMODULE module )
 
 
 /***********************************************************************
- *           redirect_arm64ec_ptr
+ *           redirect_arm64ec_rva
  *
- * Redirect a function pointer through the arm64ec redirection table.
+ * Redirect an address through the arm64ec redirection table.
  */
-static void *redirect_arm64ec_ptr( void *module, void *ptr,
-                                   const IMAGE_ARM64EC_REDIRECTION_ENTRY *map, ULONG map_count )
+ULONG_PTR redirect_arm64ec_rva( void *base, ULONG_PTR rva, const IMAGE_ARM64EC_METADATA *metadata )
 {
-    int min = 0, max = map_count - 1;
-    ULONG_PTR rva = (char *)ptr - (char *)module;
+    const IMAGE_ARM64EC_REDIRECTION_ENTRY *map = get_rva( base, metadata->RedirectionMetadata );
+    int min = 0, max = metadata->RedirectionMetadataCount - 1;
 
     while (min <= max)
     {
         int pos = (min + max) / 2;
-        if (map[pos].Source == rva) return get_rva( module, map[pos].Destination );
+        if (map[pos].Source == rva) return map[pos].Destination;
         if (map[pos].Source < rva) min = pos + 1;
         else max = pos - 1;
     }
-    return ptr;
+    return rva;
 }
 
 
@@ -1833,18 +1940,17 @@ static void redirect_ntdll_functions( HMODULE module )
 {
     const IMAGE_LOAD_CONFIG_DIRECTORY *loadcfg;
     const IMAGE_ARM64EC_METADATA *metadata;
-    const IMAGE_ARM64EC_REDIRECTION_ENTRY *map;
 
     if (!(loadcfg = get_module_data_dir( module, IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG, NULL ))) return;
     if (!(metadata = (void *)loadcfg->CHPEMetadataPointer)) return;
-    if (!(map = get_rva( module, metadata->RedirectionMetadata ))) return;
 #define REDIRECT(name) \
-        p##name = redirect_arm64ec_ptr( module, p##name, map, metadata->RedirectionMetadataCount )
+    p##name = get_rva( module, redirect_arm64ec_rva( module, (char *)p##name - (char *)module, metadata ))
     REDIRECT( DbgUiRemoteBreakin );
     REDIRECT( KiRaiseUserExceptionDispatcher );
     REDIRECT( KiUserExceptionDispatcher );
     REDIRECT( KiUserApcDispatcher );
     REDIRECT( KiUserCallbackDispatcher );
+    REDIRECT( KiUserEmulationDispatcher );
     REDIRECT( LdrInitializeThunk );
     REDIRECT( RtlUserThreadStart );
 #undef REDIRECT
@@ -1859,6 +1965,7 @@ static void load_ntdll(void)
     static WCHAR path[] = {'\\','?','?','\\','C',':','\\','w','i','n','d','o','w','s','\\',
                            's','y','s','t','e','m','3','2','\\','n','t','d','l','l','.','d','l','l',0};
     const char *pe_dir = get_pe_dir( current_machine );
+    USHORT machine = current_machine;
     unsigned int status;
     SECTION_IMAGE_INFORMATION info;
     OBJECT_ATTRIBUTES attr;
@@ -1872,7 +1979,9 @@ static void load_ntdll(void)
 
     if (build_dir) asprintf( &name, "%s%s/ntdll.dll", ntdll_dir, pe_dir );
     else asprintf( &name, "%s%s/ntdll.dll", dll_dir, pe_dir );
-    status = open_builtin_pe_file( name, &attr, &module, &size, &info, 0, 0, current_machine, FALSE );
+
+    if (is_arm64ec()) machine = main_image_info.Machine;
+    status = open_builtin_pe_file( name, &attr, &module, &size, &info, 0, 0, machine, FALSE );
     if (status == STATUS_DLL_NOT_FOUND)
     {
         free( name );
@@ -2019,7 +2128,6 @@ BOOL ac_odyssey;
 BOOL fsync_simulate_sched_quantum;
 BOOL alert_simulate_sched_quantum;
 BOOL fsync_yield_to_waiters;
-BOOL no_priv_elevation;
 BOOL localsystem_sid;
 BOOL simulate_writecopy;
 BOOL wine_allocs_2g_limit;
@@ -2082,16 +2190,10 @@ static void hacks_init(void)
     case 202990: /* CoD Black Ops II Multiplayer */
     case 212910: /* CoD Black Ops II Zombies */
     case 247910: /* Sniper Elite: Nazi Zombie Army 2 */
+    case 227100: /* Sniper Elite: Nazi Zombie Army */
         setenv( "WINESTEAMNOEXEC", "1", 0 );
         break;
     }
-
-    env_str = getenv("WINE_NO_PRIV_ELEVATION");
-    if (env_str)  no_priv_elevation = atoi(env_str);
-    else if (main_argc > 1 && strstr(main_argv[1], "playway-launcher-installer.exe")) no_priv_elevation = TRUE;
-    else if (sgi) no_priv_elevation = !strcmp(sgi, "1584660");
-    if (no_priv_elevation)
-        ERR("HACK: no_priv_elevation");
 
     env_str = getenv("WINE_UNIX_PC_AS_NTDLL");
     if (env_str)  report_native_pc_as_ntdll = atoi(env_str);
@@ -2178,7 +2280,9 @@ static void start_main_thread(void)
     init_cpu_info();
     init_files();
 
+#if defined(__x86_64__) || defined(__i386__)
     set_thread_teb( teb );
+#endif
 
     init_startup_info();
     *(ULONG_PTR *)&peb->CloudFileFlags = get_image_address();
@@ -2274,7 +2378,6 @@ static jstring wine_init_jni( JNIEnv *env, jobject obj, jobjectArray cmdline, jo
 
     main_argc = argc;
     main_argv = argv;
-    main_envp = environ;
 
     init_paths( argv );
     virtual_init();
@@ -2388,18 +2491,7 @@ static void apple_main_thread(void)
 #endif  /* __APPLE__ */
 
 
-#ifdef __ANDROID__
-
-static int pre_exec(void)
-{
-#if defined(__i386__) || defined(__x86_64__)
-    return 1;  /* we have a preloader */
-#else
-    return 0;  /* no exec needed */
-#endif
-}
-
-#elif defined(__linux__) && (defined(__i386__) || defined(__arm__))
+#if defined(__linux__) && !defined(__ANDROID__) && (defined(__i386__) || defined(__arm__))
 
 static void check_vmsplit( void *stack )
 {
@@ -2420,20 +2512,6 @@ static int pre_exec(void)
     return 1;  /* we have a preloader on x86/arm */
 }
 
-#elif defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
-
-static int pre_exec(void)
-{
-    return 1;  /* we have a preloader on x86-64/arm64 */
-}
-
-#elif defined(__APPLE__) && (defined(__i386__) || defined(__x86_64__))
-
-static int pre_exec(void)
-{
-    return 1;  /* we have a preloader */
-}
-
 #elif (defined(__FreeBSD__) || defined (__FreeBSD_kernel__) || defined(__DragonFly__))
 
 static int pre_exec(void)
@@ -2450,7 +2528,11 @@ static int pre_exec(void)
 
 static int pre_exec(void)
 {
+#ifdef HAVE_WINE_PRELOADER
+    return 1;  /* we have a preloader */
+#else
     return 0;  /* no exec needed */
+#endif
 }
 
 #endif
@@ -2491,11 +2573,10 @@ static void check_command_line( int argc, char *argv[] )
  *
  * Main entry point called by the wine loader.
  */
-DECLSPEC_EXPORT void __wine_main( int argc, char *argv[], char *envp[] )
+DECLSPEC_EXPORT void __wine_main( int argc, char *argv[] )
 {
     main_argc = argc;
     main_argv = argv;
-    main_envp = envp;
 
     init_paths( argv );
 

@@ -44,6 +44,10 @@
 #ifdef __APPLE__
 # include <CoreFoundation/CFLocale.h>
 # include <CoreFoundation/CFString.h>
+# include <crt_externs.h>
+# define environ (*_NSGetEnviron())
+#else
+  extern char **environ;
 #endif
 
 #include "ntstatus.h"
@@ -71,7 +75,6 @@ static const WCHAR bootstrapW[] = {'W','I','N','E','B','O','O','T','S','T','R','
 
 int main_argc = 0;
 char **main_argv = NULL;
-char **main_envp = NULL;
 WCHAR **main_wargv = NULL;
 
 static LCID user_lcid, system_lcid;
@@ -400,7 +403,7 @@ DWORD ntdll_umbstowcs( const char *src, DWORD srclen, WCHAR *dst, DWORD dstlen )
  */
 int ntdll_wcstoumbs( const WCHAR *src, DWORD srclen, char *dst, DWORD dstlen, BOOL strict )
 {
-    unsigned int i, reslen = 0;
+    unsigned int i, reslen;
 
     if (unix_cp.CodePage != CP_UTF8)
     {
@@ -950,12 +953,12 @@ static WCHAR *get_initial_environment( SIZE_T *pos, SIZE_T *size )
 
     /* estimate needed size */
     *size = 1;
-    for (e = main_envp; *e; e++) *size += strlen(*e) + 1;
+    for (e = environ; *e; e++) *size += strlen(*e) + 1;
 
     env = malloc( *size * sizeof(WCHAR) );
     ptr = env;
     end = env + *size - 1;
-    for (e = main_envp; *e && ptr < end; e++)
+    for (e = environ; *e && ptr < end; e++)
     {
         char *str = *e;
 
@@ -1101,6 +1104,7 @@ static void add_dynamic_environment( WCHAR **env, SIZE_T *pos, SIZE_T *size )
 {
     const char *overrides = getenv( "WINEDLLOVERRIDES" );
     const char *wineloader = getenv( "WINELOADER" );
+    const char *var;
     unsigned int i;
     char str[22];
 
@@ -1128,6 +1132,9 @@ static void add_dynamic_environment( WCHAR **env, SIZE_T *pos, SIZE_T *size )
     append_envA( env, pos, size, "WINEUSERLOCALE", user_locale );
     append_envA( env, pos, size, "SystemDrive", "C:" );
     append_envA( env, pos, size, "SystemRoot", "C:\\windows" );
+
+    if ((var = getenv( "VR_CONFIG_PATH" ))) add_path_var( env, pos, size, "VR_CONFIG_PATH", var );
+    if ((var = getenv( "VR_LOG_PATH" ))) add_path_var( env, pos, size, "VR_LOG_PATH", var );
 }
 
 
@@ -1856,7 +1863,7 @@ static void *build_wow64_parameters( const RTL_USER_PROCESS_PARAMETERS *params )
                    + ((params->RuntimeInfo.MaximumLength + 1) & ~1)
                    + params->EnvironmentSize);
 
-    status = NtAllocateVirtualMemory( NtCurrentProcess(), (void **)&wow64_params, 0, &size,
+    status = NtAllocateVirtualMemory( NtCurrentProcess(), (void **)&wow64_params, limit_2g - 1, &size,
                                       MEM_COMMIT, PAGE_READWRITE );
     assert( !status );
 
@@ -2073,7 +2080,7 @@ void init_startup_info(void)
     unsigned int status;
     SIZE_T size, info_size, env_size, env_pos;
     RTL_USER_PROCESS_PARAMETERS *params = NULL;
-    startup_info_t *info;
+    struct startup_info_data *info;
     USHORT machine;
 
     if (!startup_info_size)
@@ -2198,9 +2205,9 @@ static BOOL is_console_handle( HANDLE handle )
  */
 void *create_startup_info( const UNICODE_STRING *nt_image, ULONG process_flags,
                            const RTL_USER_PROCESS_PARAMETERS *params,
-                           const pe_image_info_t *pe_info, DWORD *info_size )
+                           const struct pe_image_info *pe_info, DWORD *info_size )
 {
-    startup_info_t *info;
+    struct startup_info_data *info;
     UNICODE_STRING dos_image = *nt_image;
     DWORD size;
     void *ptr;

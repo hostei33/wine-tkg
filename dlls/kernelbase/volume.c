@@ -199,8 +199,6 @@ BOOL WINAPI DECLSPEC_HOTPATCH GetVolumeInformationW( LPCWSTR root, LPWSTR label,
     if (status)
     {
         TRACE( "cannot open device %s: %lx\n", debugstr_w(nt_name.Buffer), status );
-        if (status == STATUS_ACCESS_DENIED)
-            MESSAGE( "wine: Read access denied for device %s, FS volume label and serial are not available.\n", debugstr_w(nt_name.Buffer) );
         status = NtOpenFile( &handle, SYNCHRONIZE, &attr, &io, 0,
                                       FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT );
     }
@@ -400,7 +398,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH DefineDosDeviceW( DWORD flags, const WCHAR *device
     InitializeObjectAttributes( &attr, &nt_name, OBJ_CASE_INSENSITIVE | OBJ_PERMANENT, 0, NULL );
     if (flags & DDD_REMOVE_DEFINITION)
     {
-        if (!set_ntstatus( NtOpenSymbolicLinkObject( &handle, 0, &attr ) ))
+        if (!set_ntstatus( NtOpenSymbolicLinkObject( &handle, DELETE, &attr ) ))
             return FALSE;
 
         status = NtMakeTemporaryObject( handle );
@@ -735,6 +733,43 @@ BOOL WINAPI DECLSPEC_HOTPATCH GetDiskFreeSpaceA( LPCSTR root, LPDWORD cluster_se
 
     if (root && !(rootW = file_name_AtoW( root, FALSE ))) return FALSE;
     return GetDiskFreeSpaceW( rootW, cluster_sectors, sector_bytes, free_clusters, total_clusters );
+}
+
+
+/***********************************************************************
+ *           GetDiskSpaceInformationW   (kernelbase.@)
+ */
+HRESULT WINAPI GetDiskSpaceInformationW( LPCWSTR root, DISK_SPACE_INFORMATION *info )
+{
+    IO_STATUS_BLOCK io;
+    NTSTATUS status;
+    HANDLE handle;
+
+    TRACE( "%s,%p\n", debugstr_w(root), info );
+
+    if (!info)
+        return HRESULT_FROM_NT( ERROR_INVALID_DATA | ERROR_SEVERITY_WARNING | ERROR_SEVERITY_INFORMATIONAL );
+
+    if (!open_device_root( root, &handle )) return HRESULT_FROM_WIN32( ERROR_PATH_NOT_FOUND );
+
+    status = NtQueryVolumeInformationFile( handle, &io, (FILE_FS_FULL_SIZE_INFORMATION_EX *)info, sizeof(*info),
+                                           FileFsFullSizeInformationEx );
+    NtClose( handle );
+    if (!set_ntstatus( status )) return status;
+
+    return S_OK;
+}
+
+
+/***********************************************************************
+ *           GetDiskSpaceInformationA   (kernelbase.@)
+ */
+HRESULT WINAPI GetDiskSpaceInformationA( LPCSTR root, DISK_SPACE_INFORMATION *info )
+{
+    WCHAR *rootW = NULL;
+
+    if (root && !(rootW = file_name_AtoW( root, FALSE ))) return FALSE;
+    return GetDiskSpaceInformationW( rootW, info );
 }
 
 

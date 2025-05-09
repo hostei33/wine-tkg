@@ -56,10 +56,10 @@ WINE_DEFAULT_DEBUG_CHANNEL(appwizcpl);
 #define GECKO_SHA "???"
 #endif
 
-#define MONO_VERSION "9.3.1"
+#define MONO_VERSION "9.4.0"
 #if defined(__i386__) || defined(__x86_64__)
 #define MONO_ARCH "x86"
-#define MONO_SHA "a15314a417792ff46907ec95b77a348e05dfcc45804e4e1f58309824a3f154cc"
+#define MONO_SHA "cf6173ae94b79e9de13d9a74cdb2560a886fc3d271f9489acb1cfdbd961cacb2"
 #else
 #define MONO_ARCH ""
 #define MONO_SHA "???"
@@ -95,7 +95,7 @@ static const addon_info_t addons_info[] = {
         L"wine-mono-" MONO_VERSION "-" MONO_ARCH ".msi",
         L"mono",
         MONO_SHA,
-        "https://github.com/madewokherd/wine-mono/releases/download/wine-mono-" MONO_VERSION "/wine-mono-" MONO_VERSION "-" MONO_ARCH ".msi",
+        "http://source.winehq.org/winemono.php",
         "Dotnet", "MonoUrl", "MonoCabDir",
         MAKEINTRESOURCEW(ID_DWL_MONO_DIALOG)
     }
@@ -108,8 +108,7 @@ static LPWSTR url = NULL;
 static IBinding *dwl_binding;
 static WCHAR *msi_file;
 
-extern const char * CDECL wine_get_version(void);
-
+static const char * (CDECL *p_wine_get_version)(void);
 static WCHAR * (CDECL *p_wine_get_dos_file_name)(const char*);
 
 static BOOL sha_check(const WCHAR *file_name)
@@ -610,7 +609,7 @@ static void append_url_params( WCHAR *url )
     len += MultiByteToWideChar(CP_ACP, 0, addon->version, -1, url+len, size/sizeof(WCHAR)-len)-1;
     lstrcpyW(url+len, L"&winev=");
     len += lstrlenW(L"&winev=");
-    MultiByteToWideChar(CP_ACP, 0, wine_get_version(), -1, url+len, size/sizeof(WCHAR)-len);
+    MultiByteToWideChar(CP_ACP, 0, p_wine_get_version ? p_wine_get_version() : 0, -1, url+len, size/sizeof(WCHAR)-len);
 }
 
 static LPWSTR get_url(void)
@@ -751,6 +750,7 @@ BOOL install_addon(addon_t addon_type)
     addon = addons_info+addon_type;
 
     p_wine_get_dos_file_name = (void *)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "wine_get_dos_file_name");
+    p_wine_get_version = (void *)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version");
 
     /*
      * Try to find addon .msi file in following order:

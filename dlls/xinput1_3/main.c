@@ -123,7 +123,6 @@ static HMODULE xinput_instance;
 static HANDLE start_event;
 static HANDLE update_event;
 static HANDLE steam_overlay_event;
-static HANDLE steam_keyboard_event;
 
 static void check_value_caps(struct xinput_controller *controller, USHORT usage, HIDP_VALUE_CAPS *caps)
 {
@@ -462,7 +461,7 @@ static BOOL device_is_overridden(HANDLE device)
     return disable;
 }
 
-static void open_device_at_index(const WCHAR *device_path, int index)
+static BOOL open_device_at_index(const WCHAR *device_path, int index)
 {
     SP_DEVICE_INTERFACE_DATA iface = {sizeof(iface)};
     PHIDP_PREPARSED_DATA preparsed;
@@ -472,7 +471,7 @@ static void open_device_at_index(const WCHAR *device_path, int index)
 
     device = CreateFileW(device_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                          NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING, NULL);
-    if (device == INVALID_HANDLE_VALUE) return;
+    if (device == INVALID_HANDLE_VALUE) return TRUE;
 
     preparsed = NULL;
     if (!HidD_GetPreparsedData(device, &preparsed))
@@ -491,11 +490,12 @@ static void open_device_at_index(const WCHAR *device_path, int index)
     else
     {
         TRACE("opened device %s at index %u\n", debugstr_w(device_path), index);
-        return;
+        return TRUE;
     }
 
     CloseHandle(device);
     HidD_FreePreparsedData(preparsed);
+    return TRUE;
 }
 
 static BOOL find_opened_device(const WCHAR *device_path, int *free_slot)
@@ -507,16 +507,6 @@ static BOOL find_opened_device(const WCHAR *device_path, int *free_slot)
     {
         if (!controllers[i - 1].device) *free_slot = i - 1;
         else if (!wcsicmp(device_path, controllers[i - 1].device_path)) return TRUE;
-    }
-
-    /* CW-Bug-Id: #20528 Keep steam virtual controller ordered, swap existing controllers out of the slot */
-    if ((swscanf(device_path, L"\\\\?\\hid#vid_045e&pid_028e&xi_%02x#", &i) == 1 ||
-         swscanf(device_path, L"\\\\?\\HID#VID_045E&PID_028E&XI_%02X#", &i) == 1) &&
-        i > 0 && i <= XUSER_MAX_COUNT && *free_slot != i - 1)
-    {
-        controller_destroy(&controllers[i - 1], TRUE);
-        if (*free_slot != XUSER_MAX_COUNT) open_device_at_index(controllers[i - 1].device_path, *free_slot);
-        *free_slot = i - 1;
     }
 
     /* CW-Bug-Id: #23185 Emulate Steam Input native hooks for native SDL */
@@ -539,8 +529,7 @@ static BOOL try_add_device(const WCHAR *device_path)
 
     if (find_opened_device(device_path, &i)) return TRUE; /* already opened */
     if (i == XUSER_MAX_COUNT) return FALSE; /* no more slots */
-    open_device_at_index(device_path, i);
-    return TRUE;
+    return open_device_at_index(device_path, i);
 }
 
 static void try_remove_device(const WCHAR *device_path)
@@ -774,7 +763,6 @@ static BOOL WINAPI start_update_thread_once( INIT_ONCE *once, void *param, void 
         WARN("Failed to increase module's reference count, error: %lu\n", GetLastError());
 
     steam_overlay_event = CreateEventA(NULL, TRUE, FALSE, "__wine_steamclient_GameOverlayActivated");
-    steam_keyboard_event = CreateEventA(NULL, TRUE, FALSE, "__wine_steamclient_KeyboardActivated");
 
     start_event = CreateEventA(NULL, FALSE, FALSE, NULL);
     if (!start_event) ERR("failed to create start event, error %lu\n", GetLastError());
@@ -863,7 +851,6 @@ DWORD WINAPI DECLSPEC_HOTPATCH XInputSetState(DWORD index, XINPUT_VIBRATION *vib
     if (!controller_lock(&controllers[index])) return ERROR_DEVICE_NOT_CONNECTED;
 
     if (WaitForSingleObject(steam_overlay_event, 0) == WAIT_OBJECT_0) ret = ERROR_SUCCESS;
-    else if (WaitForSingleObject(steam_keyboard_event, 0) == WAIT_OBJECT_0) ret = ERROR_SUCCESS;
     else ret = HID_set_state(&controllers[index], vibration);
 
     controller_unlock(&controllers[index]);
@@ -883,7 +870,6 @@ static DWORD xinput_get_state(DWORD index, XINPUT_STATE *state)
     if (!controller_lock(&controllers[index])) return ERROR_DEVICE_NOT_CONNECTED;
 
     if (WaitForSingleObject(steam_overlay_event, 0) == WAIT_OBJECT_0) memset(state, 0, sizeof(*state));
-    else if (WaitForSingleObject(steam_keyboard_event, 0) == WAIT_OBJECT_0) memset(state, 0, sizeof(*state));
     else *state = controllers[index].state;
 
     controller_unlock(&controllers[index]);
@@ -1129,9 +1115,8 @@ DWORD WINAPI DECLSPEC_HOTPATCH XInputGetCapabilities(DWORD index, DWORD flags, X
     XINPUT_CAPABILITIES_EX caps_ex;
     DWORD ret;
 
-    TRACE("index %lu, flags %#lx, capabilities %p.\n", index, flags, capabilities);
+    ret = XInputGetCapabilitiesEx(1, index, flags, &caps_ex);
 
-    ret = XInputGetCapabilitiesEx(0, index, flags, &caps_ex);
     if (!ret) *capabilities = caps_ex.Capabilities;
 
     return ret;
@@ -1162,8 +1147,8 @@ DWORD WINAPI DECLSPEC_HOTPATCH XInputGetBatteryInformation(DWORD index, BYTE typ
 
 DWORD WINAPI DECLSPEC_HOTPATCH XInputGetCapabilitiesEx(DWORD unk, DWORD index, DWORD flags, XINPUT_CAPABILITIES_EX *caps)
 {
-    DWORD ret = ERROR_SUCCESS;
     HIDD_ATTRIBUTES attr;
+    DWORD ret = ERROR_SUCCESS;
 
     TRACE("unk %lu, index %lu, flags %#lx, capabilities %p.\n", unk, index, flags, caps);
 

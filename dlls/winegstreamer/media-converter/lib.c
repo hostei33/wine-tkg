@@ -21,13 +21,25 @@
 #pragma makedep unix
 #endif
 
+#include "config.h"
 #include "media-converter.h"
+
+#ifdef _WINEDMO
+
+#include <errno.h>
+#include "wine/debug.h"
+WINE_DEFAULT_DEBUG_CHANNEL(dmo);
+
+#else /*  _WINEDMO */
 
 GST_ELEMENT_REGISTER_DECLARE(protonvideoconverter);
 GST_ELEMENT_REGISTER_DECLARE(protonaudioconverter);
 GST_ELEMENT_REGISTER_DECLARE(protonaudioconverterbin);
+GST_ELEMENT_REGISTER_DECLARE(protondemuxer);
 
 GST_DEBUG_CATEGORY(media_converter_debug);
+
+#endif /* _WINEDMO */
 
 static void get_dirname(const char *path, char *result)
 {
@@ -259,6 +271,8 @@ int create_placeholder_file(const char *file_name)
     char path[1024];
     int ret;
 
+    GST_INFO("Creating tag file %s.", file_name);
+
     if ((shader_path = getenv("STEAM_COMPAT_TRANSCODED_MEDIA_PATH")))
     {
         path_concat(path, shader_path, file_name);
@@ -302,6 +316,8 @@ void dump_fozdb_close(struct dump_fozdb *db)
     }
 }
 
+#ifndef _WINEDMO
+
 bool media_converter_init(void)
 {
     GST_DEBUG_CATEGORY_INIT(media_converter_debug,
@@ -325,5 +341,13 @@ bool media_converter_init(void)
         return false;
     }
 
+    if (!GST_ELEMENT_REGISTER(protondemuxer, NULL))
+    {
+        GST_ERROR("Failed to register protondemuxer.");
+        return false;
+    }
+
     return true;
 }
+
+#endif /* _WINEDMO */

@@ -162,8 +162,10 @@
 @ stdcall CompareStringW(long long wstr long wstr long)
 @ stdcall ConnectNamedPipe(long ptr)
 @ stdcall ContinueDebugEvent(long long long)
+@ stdcall ConvertAuxiliaryCounterToPerformanceCounter(int64 ptr ptr)
 @ stdcall ConvertDefaultLocale(long)
 @ stdcall ConvertFiberToThread()
+@ stdcall ConvertPerformanceCounterToAuxiliaryCounter(int64 ptr ptr)
 @ stdcall ConvertThreadToFiber(ptr)
 @ stdcall ConvertThreadToFiberEx(ptr long)
 @ stdcall ConvertToAutoInheritPrivateObjectSecurity(ptr ptr ptr ptr long ptr)
@@ -363,7 +365,7 @@
 @ stdcall FindFirstFileA(str ptr)
 @ stdcall FindFirstFileExA(str long ptr long ptr long)
 @ stdcall FindFirstFileExW(wstr long ptr long ptr long)
-# @ stub FindFirstFileNameW
+@ stdcall FindFirstFileNameW(wstr long ptr ptr)
 @ stdcall FindFirstFileW(wstr ptr)
 @ stdcall FindFirstFreeAce(ptr ptr)
 @ stdcall FindFirstStreamW(wstr long ptr long)
@@ -490,7 +492,7 @@
 @ stdcall GetCurrentPackageFamilyName(ptr ptr)
 @ stdcall GetCurrentPackageFullName(ptr ptr)
 @ stdcall GetCurrentPackageId(ptr ptr)
-# @ stub GetCurrentPackageInfo
+@ stdcall GetCurrentPackageInfo(long ptr ptr ptr)
 @ stdcall GetCurrentPackagePath(ptr ptr)
 # @ stub GetCurrentPackageResourcesContext
 # @ stub GetCurrentPackageSecurityContext
@@ -513,6 +515,8 @@
 @ stdcall GetDiskFreeSpaceExA(str ptr ptr ptr)
 @ stdcall GetDiskFreeSpaceExW(wstr ptr ptr ptr)
 @ stdcall GetDiskFreeSpaceW(wstr ptr ptr ptr ptr)
+@ stdcall GetDiskSpaceInformationA(str ptr)
+@ stdcall GetDiskSpaceInformationW(wstr ptr)
 @ stdcall GetDriveTypeA(str)
 @ stdcall GetDriveTypeW(wstr)
 # @ stub GetDurationFormatEx
@@ -740,6 +744,8 @@
 # @ stub GetTargetPlatformContext
 @ stdcall GetTempFileNameA(str str long ptr)
 @ stdcall GetTempFileNameW(wstr wstr long ptr)
+@ stdcall GetTempPath2W(long ptr)
+@ stdcall GetTempPath2A(long ptr)
 @ stdcall GetTempPathA(long ptr)
 @ stdcall GetTempPathW(long ptr)
 @ stdcall GetThreadContext(long ptr)
@@ -1748,10 +1754,12 @@
 @ stdcall WakeByAddressSingle(ptr) ntdll.RtlWakeAddressSingle
 @ stdcall WakeConditionVariable(ptr) ntdll.RtlWakeConditionVariable
 @ stdcall WerGetFlags(ptr ptr)
+@ stdcall WerRegisterCustomMetadata(wstr wstr)
 @ stdcall WerRegisterFile(wstr long long)
 @ stdcall WerRegisterMemoryBlock(ptr long)
 @ stdcall WerRegisterRuntimeExceptionModule(wstr ptr)
 @ stdcall WerSetFlags(long)
+@ stdcall WerUnregisterCustomMetadata(wstr)
 @ stdcall WerUnregisterFile(wstr)
 @ stdcall WerUnregisterMemoryBlock(ptr)
 @ stdcall WerUnregisterRuntimeExceptionModule(wstr ptr)
@@ -1760,8 +1768,11 @@
 @ stdcall WideCharToMultiByte(long long wstr long ptr long ptr ptr)
 @ stdcall Wow64DisableWow64FsRedirection(ptr)
 @ stdcall Wow64EnableWow64FsRedirection(long) kernelbase_Wow64EnableWow64FsRedirection
+@ stdcall Wow64GetThreadContext(long ptr)
 @ stdcall Wow64RevertWow64FsRedirection(ptr)
+@ stdcall Wow64SetThreadContext(long ptr)
 # @ stub Wow64SetThreadDefaultGuestMachine
+# @ stub Wow64SuspendThread
 # @ stub -arch=i386 Wow64Transition
 @ stdcall WriteConsoleA(long ptr long ptr ptr)
 @ stdcall WriteConsoleInputA(long ptr long ptr)

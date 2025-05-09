@@ -2774,6 +2774,12 @@ BOOL WINAPI RSAENH_CPDecrypt(HCRYPTPROV hProv, HCRYPTKEY hKey, HCRYPTHASH hHash,
         return FALSE;
     }
 
+    if (Final && !*pdwDataLen)
+    {
+        SetLastError(NTE_BAD_LEN);
+        return FALSE;
+    }
+
     dwMax=*pdwDataLen;
 
     if (GET_ALG_TYPE(pCryptKey->aiAlgid) == ALG_TYPE_BLOCK) {
@@ -3651,6 +3657,10 @@ BOOL WINAPI RSAENH_CPGenKey(HCRYPTPROV hProv, ALG_ID Algid, DWORD dwFlags, HCRYP
                         pCryptKey->abKeyValue[0] = RSAENH_TLS1_VERSION_MAJOR;
                         pCryptKey->abKeyValue[1] = RSAENH_TLS1_VERSION_MINOR;
                         break;
+                    case CALG_RC4:
+                        if (!(dwFlags & CRYPT_CREATE_SALT))
+                            memset(pCryptKey->abKeyValue + pCryptKey->dwKeyLen, 0, pCryptKey->dwSaltLen);
+                        break;
                 }
                 setup_key(pCryptKey);
             }
@@ -3808,7 +3818,7 @@ BOOL WINAPI RSAENH_CPGetHashParam(HCRYPTPROV hProv, HCRYPTHASH hHash, DWORD dwPa
  *                     CRYPT_EXPORT, CRYPT_READ, CRYPT_WRITE, CRYPT_MAC
  *   - KP_IV: Initialization vector
  */
-BOOL WINAPI RSAENH_CPSetKeyParam(HCRYPTPROV hProv, HCRYPTKEY hKey, DWORD dwParam, BYTE *pbData, 
+BOOL WINAPI RSAENH_CPSetKeyParam(HCRYPTPROV hProv, HCRYPTKEY hKey, DWORD dwParam, BYTE *pbData,
                                  DWORD dwFlags)
 {
     CRYPTKEY *pCryptKey;
@@ -3826,13 +3836,19 @@ BOOL WINAPI RSAENH_CPSetKeyParam(HCRYPTPROV hProv, HCRYPTKEY hKey, DWORD dwParam
         SetLastError(NTE_BAD_FLAGS);
         return FALSE;
     }
-    
+
     if (!lookup_handle(&handle_table, hKey, RSAENH_MAGIC_KEY, (OBJECTHDR**)&pCryptKey))
     {
         SetLastError(NTE_BAD_KEY);
         return FALSE;
     }
-    
+
+    if (!pbData)
+    {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+
     switch (dwParam) {
         case KP_PADDING:
             /* The MS providers only support PKCS5_PADDING */

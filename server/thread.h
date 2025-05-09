@@ -52,6 +52,7 @@ struct thread
     struct object          obj;           /* object header */
     struct list            entry;         /* entry in system-wide thread list */
     struct list            proc_entry;    /* entry in per-process thread list */
+    struct list            desktop_entry; /* entry in per-desktop thread list */
     struct process        *process;
     thread_id_t            id;            /* thread id */
     struct list            mutex_list;    /* list of currently owned mutexes */
@@ -95,10 +96,6 @@ struct thread
     struct list            kernel_object; /* list of kernel object pointers */
     data_size_t            desc_len;      /* thread description length in bytes */
     WCHAR                 *desc;          /* thread description string */
-    struct object         *queue_shared_mapping; /* thread queue shared memory mapping */
-    queue_shm_t           *queue_shared;  /* thread queue shared memory ptr */
-    struct object         *input_shared_mapping; /* thread input shared memory mapping */
-    input_shm_t           *input_shared;  /* thread input shared memory ptr */
     struct completion_wait *completion_wait; /* completion port wait object the thread is associated with */
 };
 
@@ -113,7 +110,7 @@ extern struct thread *get_thread_from_handle( obj_handle_t handle, unsigned int 
 extern struct thread *get_thread_from_tid( int tid );
 extern struct thread *get_thread_from_pid( int pid );
 extern struct thread *get_wait_queue_thread( struct wait_queue_entry *entry );
-extern enum select_op get_wait_queue_select_op( struct wait_queue_entry *entry );
+extern enum select_opcode get_wait_queue_select_op( struct wait_queue_entry *entry );
 extern client_ptr_t get_wait_queue_key( struct wait_queue_entry *entry );
 extern void make_wait_abandoned( struct wait_queue_entry *entry );
 extern void set_wait_status( struct wait_queue_entry *entry, int status );
@@ -124,7 +121,7 @@ extern int add_queue( struct object *obj, struct wait_queue_entry *entry );
 extern void remove_queue( struct object *obj, struct wait_queue_entry *entry );
 extern void kill_thread( struct thread *thread, int violent_death );
 extern void wake_up( struct object *obj, int max );
-extern int thread_queue_apc( struct process *process, struct thread *thread, struct object *owner, const apc_call_t *call_data );
+extern int thread_queue_apc( struct process *process, struct thread *thread, struct object *owner, const union apc_call *call_data );
 extern void thread_cancel_apc( struct thread *thread, struct object *owner, enum apc_type type );
 extern int thread_add_inflight_fd( struct thread *thread, int client, int server );
 extern int thread_get_inflight_fd( struct thread *thread, int client );
@@ -138,8 +135,8 @@ extern int resume_thread( struct thread *thread );
 
 extern void sigchld_callback(void);
 extern void init_thread_context( struct thread *thread );
-extern void get_thread_context( struct thread *thread, context_t *context, unsigned int flags );
-extern void set_thread_context( struct thread *thread, const context_t *context, unsigned int flags );
+extern void get_thread_context( struct thread *thread, struct context_data *context, unsigned int flags );
+extern void set_thread_context( struct thread *thread, const struct context_data *context, unsigned int flags );
 extern int send_thread_signal( struct thread *thread, int sig );
 extern void get_selector_entry( struct thread *thread, int entry, unsigned int *base,
                                 unsigned int *limit, unsigned char *flags );

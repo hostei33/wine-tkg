@@ -27,27 +27,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(quartz);
 
-static inline const char *debugstr_time(REFERENCE_TIME time)
-{
-    ULONGLONG abstime = time >= 0 ? time : -time;
-    unsigned int i = 0, j = 0;
-    char buffer[23], rev[23];
-
-    while (abstime || i <= 8)
-    {
-        buffer[i++] = '0' + (abstime % 10);
-        abstime /= 10;
-        if (i == 7) buffer[i++] = '.';
-    }
-    if (time < 0) buffer[i++] = '-';
-
-    while (i--) rev[j++] = buffer[i];
-    while (rev[j-1] == '0' && rev[j-2] != '.') --j;
-    rev[j] = 0;
-
-    return wine_dbg_sprintf("%s", rev);
-}
-
 struct buffer
 {
     INSSBuffer INSSBuffer_iface;
@@ -840,7 +819,7 @@ static HRESULT WINAPI reader_callback_OnStatus(IWMReaderCallback *iface, WMT_STA
                     /* King of Fighters XIII requests the WMV decoder filter pins by name
                      * to connect them to a Sample Grabber filter.
                      */
-                    if (sgi && !strcmp(sgi, "222940"))
+                    if (sgi && (!strcmp(sgi, "222940") || !strcmp(sgi, "3050220")))
                         swprintf(name, ARRAY_SIZE(name), L"out0");
                     else
                         swprintf(name, ARRAY_SIZE(name), L"Raw Video %u", stream->index);
@@ -1089,7 +1068,7 @@ HRESULT asf_reader_create(IUnknown *outer, IUnknown **out)
     strmbase_filter_init(&object->filter, outer, &CLSID_WMAsfReader, &filter_ops);
     object->IFileSourceFilter_iface.lpVtbl = &file_source_vtbl;
 
-    InitializeCriticalSection(&object->status_cs);
+    InitializeCriticalSectionEx(&object->status_cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
     object->status_cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": status_cs");
 
     TRACE("Created WM ASF reader %p.\n", object);

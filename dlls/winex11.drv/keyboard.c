@@ -46,7 +46,7 @@
 #include "winuser.h"
 #include "winreg.h"
 #include "winnls.h"
-#include "ime.h"
+#include "kbd.h"
 #include "wine/server.h"
 #include "wine/debug.h"
 
@@ -97,19 +97,6 @@ static const WORD main_key_scan_abnt_qwerty[MAIN_LEN] =
  /* \      z    x    c    v    b    n    m    ,    .    / */
    0x5e,0x2C,0x2D,0x2E,0x2F,0x30,0x31,0x32,0x33,0x34,0x35,
    0x56, /* the 102nd key (actually to the right of l-shift) */
-};
-
-static const WORD main_key_scan_dvorak[MAIN_LEN] =
-{
- /* `    1    2    3    4    5    6    7    8    9    0    [    ] */
-   0x29,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x1A,0x1B,
- /* '    ,    .    p    y    f    g    c    r    l    /    = */
-   0x28,0x33,0x34,0x19,0x15,0x21,0x22,0x2E,0x13,0x26,0x35,0x0D,
- /* a    o    e    u    i    d    h    t    n    s    -    \ */
-   0x1E,0x18,0x12,0x16,0x17,0x20,0x23,0x14,0x31,0x1F,0x0C,0x2B,
- /* ;    q    j    k    x    b    m    w    v    z */
-   0x27,0x10,0x24,0x25,0x2D,0x30,0x32,0x11,0x2F,0x2C,
-   0x56 /* the 102nd key (actually to the right of l-shift) */
 };
 
 static const WORD main_key_scan_qwerty_jp106[MAIN_LEN] =
@@ -237,6 +224,16 @@ static const char main_key_US_dvorak[MAIN_LEN][4] =
  "'\"",",<",".>","pP","yY","fF","gG","cC","rR","lL","/?","=+",
  "aA","oO","eE","uU","iI","dD","hH","tT","nN","sS","-_","\\|",
  ";:","qQ","jJ","kK","xX","bB","mM","wW","vV","zZ"
+};
+
+/*** United States keyboard layout (dvorak phantom key version) */
+static const char main_key_US_dvorak_phantom[MAIN_LEN][4] =
+{
+ "`~","1!","2@","3#","4$","5%","6^","7&","8*","9(","0)","[{","]}",
+ "'\"",",<",".>","pP","yY","fF","gG","cC","rR","lL","/?","=+",
+ "aA","oO","eE","uU","iI","dD","hH","tT","nN","sS","-_","\\|",
+ ";:","qQ","jJ","kK","xX","bB","mM","wW","vV","zZ",
+ "<>"
 };
 
 /*** British keyboard layout */
@@ -866,7 +863,9 @@ static const struct {
 } main_key_tab[]={
  {0x0409, "United States keyboard layout", &main_key_US, &main_key_scan_qwerty, &main_key_vkey_qwerty},
  {0x0409, "United States keyboard layout (phantom key version)", &main_key_US_phantom, &main_key_scan_qwerty, &main_key_vkey_qwerty},
- {0x0409, "United States keyboard layout (dvorak)", &main_key_US_dvorak, &main_key_scan_dvorak, &main_key_vkey_dvorak},
+ /* Dvorak users tend to run QWERTY keyboards and rely on Windows/X11/Wayland to translate to the correct keysyms */
+ {0x0409, "United States keyboard layout (dvorak)", &main_key_US_dvorak, &main_key_scan_qwerty, &main_key_vkey_dvorak},
+ {0x0409, "United States keyboard layout (dvorak with phantom key)", &main_key_US_dvorak_phantom, &main_key_scan_qwerty, &main_key_vkey_dvorak},
  {0x0409, "United States International keyboard layout", &main_key_US_intl, &main_key_scan_qwerty, &main_key_vkey_qwerty},
  {0x0809, "British keyboard layout", &main_key_UK, &main_key_scan_qwerty, &main_key_vkey_qwerty},
  {0x0407, "German keyboard layout", &main_key_DE, &main_key_scan_qwerty, &main_key_vkey_qwertz},
@@ -1121,7 +1120,6 @@ static WORD EVENT_event_to_vkey( XIC xic, XKeyEvent *e)
  */
 static void X11DRV_send_keyboard_input( HWND hwnd, WORD vkey, WORD scan, UINT flags, UINT time )
 {
-    RAWINPUT rawinput;
     INPUT input;
 
     TRACE_(key)( "hwnd %p vkey=%04x scan=%04x flags=%04x\n", hwnd, vkey, scan, flags );
@@ -1133,27 +1131,9 @@ static void X11DRV_send_keyboard_input( HWND hwnd, WORD vkey, WORD scan, UINT fl
     input.ki.time        = time;
     input.ki.dwExtraInfo = 0;
 
-    __wine_send_input( hwnd, &input, &rawinput );
+    NtUserSendHardwareInput( hwnd, 0, &input, 0 );
 }
 
-
-/***********************************************************************
- *           get_async_key_state
- */
-static BOOL get_async_key_state( BYTE state[256] )
-{
-    BOOL ret;
-
-    SERVER_START_REQ( get_key_state )
-    {
-        req->async = 1;
-        req->key = -1;
-        wine_server_set_reply( req, state, 256 );
-        ret = !wine_server_call( req );
-    }
-    SERVER_END_REQ;
-    return ret;
-}
 
 /***********************************************************************
  *           set_async_key_state
@@ -1207,7 +1187,7 @@ BOOL X11DRV_KeymapNotify( HWND hwnd, XEvent *event )
     keymapnotify_hwnd = thread_data->keymapnotify_hwnd;
     thread_data->keymapnotify_hwnd = NULL;
 
-    if (!get_async_key_state( keystate )) return FALSE;
+    if (!NtUserGetAsyncKeyboardState( keystate )) return FALSE;
 
     memset(keys, 0, sizeof(keys));
 
@@ -1294,7 +1274,7 @@ static void adjust_lock_state( BYTE *keystate, HWND hwnd, WORD vkey, WORD scan, 
      * to block changing state, we can't prevent it on X server side. Having
      * different states would cause us to try to adjust it again on the next
      * key event. We prevent that by overriding hooks and setting key states here. */
-    if (get_async_key_state( keystate ) && (keystate[vkey] & 0x01) == prev_state)
+    if (NtUserGetAsyncKeyboardState( keystate ) && (keystate[vkey] & 0x01) == prev_state)
     {
         WARN("keystate %x not changed (%#.2x), probably blocked by hooks\n", vkey, keystate[vkey]);
         keystate[vkey] ^= 0x01;
@@ -1309,7 +1289,7 @@ static void update_lock_state( HWND hwnd, WORD vkey, UINT state, UINT time )
     /* Note: X sets the below states on key down and clears them on key up.
        Windows triggers them on key down. */
 
-    if (!get_async_key_state( keystate )) return;
+    if (!NtUserGetAsyncKeyboardState( keystate )) return;
 
     /* Adjust the CAPSLOCK state if it has been changed outside wine */
     if (!(keystate[VK_CAPITAL] & 0x01) != !(state & LockMask) && vkey != VK_CAPITAL)
@@ -1354,13 +1334,18 @@ BOOL X11DRV_KeyEvent( HWND hwnd, XEvent *xev )
     DWORD dwFlags;
     int ascii_chars;
     XIC xic = X11DRV_get_ic( hwnd );
-    DWORD event_time = x11drv_time_to_ticks( event->time );
+    DWORD event_time = EVENT_x11_time_to_win32_time(event->time);
+    struct x11drv_win_data *data;
     Status status = 0;
 
     TRACE_(key)("type %d, window %lx, state 0x%04x, keycode %u\n",
 		event->type, event->window, event->state, event->keycode);
 
-    if (event->type == KeyPress) update_user_time( event->time );
+    if (event->type == KeyPress && (data = get_win_data( hwnd )))
+    {
+        update_user_time( data, event->time, FALSE );
+        release_win_data( data );
+    }
 
     /* Clients should pass only KeyPress events to XmbLookupString */
     if (xic && event->type == KeyPress)
@@ -1562,8 +1547,7 @@ X11DRV_KEYBOARD_DetectLayout( Display *display )
     }
     TRACE("matches=%d, mismatches=%d, seq=%d, score=%d\n",
 	   match, mismatch, seq, score);
-    if ((score > max_score) ||
-	((score == max_score) && (seq > max_seq))) {
+    if (score + (int)seq > max_score + (int)max_seq) {
       /* best match so far */
       kbd_layout = current;
       max_score = score;
@@ -1856,27 +1840,30 @@ BOOL X11DRV_ActivateKeyboardLayout(HKL hkl, UINT flags)
     return TRUE;
 }
 
+static BOOL X11DRV_KeyboardMappingNotify( HWND dummy, XEvent *event )
+{
+    HWND hwnd;
+
+    XRefreshKeyboardMapping(&event->xmapping);
+    X11DRV_InitKeyboard( event->xmapping.display );
+
+    hwnd = get_focus();
+    if (!hwnd) hwnd = get_active_window();
+    NtUserPostMessage( hwnd, WM_INPUTLANGCHANGEREQUEST,
+                       0 /*FIXME*/, (LPARAM)NtUserGetKeyboardLayout(0) );
+    return TRUE;
+}
 
 /***********************************************************************
  *           X11DRV_MappingNotify
  */
 BOOL X11DRV_MappingNotify( HWND dummy, XEvent *event )
 {
-    HWND hwnd;
-
     switch (event->xmapping.request)
     {
     case MappingModifier:
     case MappingKeyboard:
-        XRefreshKeyboardMapping( &event->xmapping );
-        X11DRV_InitKeyboard( event->xmapping.display );
-
-        hwnd = get_focus();
-        if (!hwnd) hwnd = get_active_window();
-        NtUserPostMessage( hwnd, WM_INPUTLANGCHANGEREQUEST,
-                           0 /*FIXME*/, (LPARAM)NtUserGetKeyboardLayout(0) );
-        break;
-
+        return X11DRV_KeyboardMappingNotify( dummy, event );
     case MappingPointer:
         X11DRV_InitMouse( event->xmapping.display );
         break;

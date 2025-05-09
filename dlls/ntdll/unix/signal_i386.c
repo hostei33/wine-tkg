@@ -1781,7 +1781,7 @@ static BOOL handle_interrupt( unsigned int interrupt, ucontext_t *sigcontext, vo
     case 0x29:
         /* __fastfail: process state is corrupted */
         rec->ExceptionCode = STATUS_STACK_BUFFER_OVERRUN;
-        rec->ExceptionFlags = EH_NONCONTINUABLE;
+        rec->ExceptionFlags = EXCEPTION_NONCONTINUABLE;
         rec->NumberParameters = 1;
         rec->ExceptionInformation[0] = context->Ecx;
         NtRaiseException( rec, context, FALSE );
@@ -1847,13 +1847,13 @@ static BOOL handle_syscall_fault( ucontext_t *sigcontext, void *stack_ptr,
     if (ntdll_get_thread_data()->jmp_buf)
     {
         TRACE( "returning to handler\n" );
-        /* push stack frame for calling __wine_longjmp */
+        /* push stack frame for calling longjmp */
         stack = stack_ptr;
         *(--stack) = 1;
         *(--stack) = (DWORD)ntdll_get_thread_data()->jmp_buf;
         *(--stack) = 0xdeadbabe;  /* return address */
         ESP_sig(sigcontext) = (DWORD)stack;
-        EIP_sig(sigcontext) = (DWORD)__wine_longjmp;
+        EIP_sig(sigcontext) = (DWORD)longjmp;
         ntdll_get_thread_data()->jmp_buf = NULL;
     }
     else
@@ -1971,8 +1971,7 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
         rec.NumberParameters = 2;
         rec.ExceptionInformation[0] = (ERROR_sig(ucontext) >> 1) & 0x09;
         rec.ExceptionInformation[1] = (ULONG_PTR)siginfo->si_addr;
-        rec.ExceptionCode = virtual_handle_fault( siginfo->si_addr, rec.ExceptionInformation[0], stack );
-        if (!rec.ExceptionCode) return;
+        if (!virtual_handle_fault( &rec, stack )) return;
         if (rec.ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
             rec.ExceptionInformation[0] == EXCEPTION_EXECUTE_FAULT)
         {
@@ -2128,7 +2127,7 @@ static void int_handler( int signal, siginfo_t *siginfo, void *sigcontext )
  */
 static void abrt_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
-    EXCEPTION_RECORD rec = { EXCEPTION_WINE_ASSERTION, EH_NONCONTINUABLE };
+    EXCEPTION_RECORD rec = { EXCEPTION_WINE_ASSERTION, EXCEPTION_NONCONTINUABLE };
 
     setup_exception( sigcontext, &rec );
 }
@@ -2823,10 +2822,9 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    __ASM_CFI("\t.cfi_restore_state\n")
 
                    "6:\tmovl $0xc000000d,%eax\n\t" /* STATUS_INVALID_PARAMETER */
-                   "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_return") "\n\t"
+                   "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_return") )
 
-                   ".globl " __ASM_NAME("__wine_syscall_dispatcher_return") "\n"
-                   __ASM_NAME("__wine_syscall_dispatcher_return") ":\n\t"
+__ASM_GLOBAL_FUNC( __wine_syscall_dispatcher_return,
                    "movl 8(%esp),%eax\n\t"
                    "movl 4(%esp),%esp\n\t"
                    "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_return") )
@@ -2889,36 +2887,5 @@ __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    "pushl %ecx\n\t"
                    __ASM_CFI(".cfi_adjust_cfa_offset 4\n\t")
                    "ret" )
-
-
-/***********************************************************************
- *           __wine_setjmpex
- */
-__ASM_GLOBAL_FUNC( __wine_setjmpex,
-                   "movl 4(%esp),%ecx\n\t"   /* jmp_buf */
-                   "movl %ebp,0(%ecx)\n\t"   /* jmp_buf.Ebp */
-                   "movl %ebx,4(%ecx)\n\t"   /* jmp_buf.Ebx */
-                   "movl %edi,8(%ecx)\n\t"   /* jmp_buf.Edi */
-                   "movl %esi,12(%ecx)\n\t"  /* jmp_buf.Esi */
-                   "movl %esp,16(%ecx)\n\t"  /* jmp_buf.Esp */
-                   "movl 0(%esp),%eax\n\t"
-                   "movl %eax,20(%ecx)\n\t"  /* jmp_buf.Eip */
-                   "xorl %eax,%eax\n\t"
-                   "ret" )
-
-
-/***********************************************************************
- *           __wine_longjmp
- */
-__ASM_GLOBAL_FUNC( __wine_longjmp,
-                   "movl 4(%esp),%ecx\n\t"   /* jmp_buf */
-                   "movl 8(%esp),%eax\n\t"   /* retval */
-                   "movl 0(%ecx),%ebp\n\t"   /* jmp_buf.Ebp */
-                   "movl 4(%ecx),%ebx\n\t"   /* jmp_buf.Ebx */
-                   "movl 8(%ecx),%edi\n\t"   /* jmp_buf.Edi */
-                   "movl 12(%ecx),%esi\n\t"  /* jmp_buf.Esi */
-                   "movl 16(%ecx),%esp\n\t"  /* jmp_buf.Esp */
-                   "addl $4,%esp\n\t"        /* get rid of return address */
-                   "jmp *20(%ecx)\n\t"       /* jmp_buf.Eip */ )
 
 #endif  /* __i386__ */

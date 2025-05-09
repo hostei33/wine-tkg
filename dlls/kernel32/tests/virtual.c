@@ -134,6 +134,14 @@ static void test_VirtualAllocEx(void)
     bytes_read = 0xdeadbeef;
     b = ReadProcessMemory(hProcess, addr1, src, 0, &bytes_read);
     ok(b && !bytes_read, "read failed: %lu\n", GetLastError());
+    bytes_written = 0xdeadbeef;
+    status = pNtWriteVirtualMemory( hProcess, addr1, src, 0, &bytes_written );
+    ok( status == STATUS_SUCCESS, "wrong status %lx\n", status );
+    ok( bytes_written == 0, "%Iu bytes written\n", bytes_written );
+    bytes_read = 0xdeadbeef;
+    status = pNtReadVirtualMemory( hProcess, addr1, src, 0, &bytes_read );
+    ok( status == STATUS_SUCCESS, "wrong status %lx\n", status );
+    ok( !bytes_read, "%Iu bytes read\n", bytes_read );
 
     /* test invalid source buffers */
 
@@ -4510,6 +4518,48 @@ static void test_PrefetchVirtualMemory(void)
         "PrefetchVirtualMemory unexpected status on 2 page-aligned entries: %ld\n", GetLastError() );
 }
 
+static void test_ReadProcessMemory(void)
+{
+    BYTE *buf;
+    DWORD old_prot;
+    SIZE_T copied;
+    HANDLE hproc;
+    void *ptr;
+    BOOL ret;
+
+    buf = malloc(2 * si.dwPageSize);
+    ok(buf != NULL, "OOM\n");
+    ret = DuplicateHandle(GetCurrentProcess(), GetCurrentProcess(), GetCurrentProcess(),
+            &hproc, 0, FALSE, DUPLICATE_SAME_ACCESS);
+    ok(ret, "DuplicateHandle failed %lu\n", GetLastError());
+    ptr = VirtualAlloc(NULL, 2 * si.dwPageSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    ok(ptr != NULL, "Virtual failed %lu\n", GetLastError());
+    ret = VirtualProtect(((BYTE *)ptr) + si.dwPageSize, si.dwPageSize, PAGE_NOACCESS, &old_prot);
+    ok(ret, "VirtualProtect failed %lu\n", GetLastError());
+
+    copied = 1;
+    ret = ReadProcessMemory(GetCurrentProcess(), ptr, buf, 2 * si.dwPageSize, &copied);
+    ok(!ret, "ReadProcessMemory succeeded\n");
+    ok(!copied, "copied = %Id\n", copied);
+    ok(GetLastError() == ERROR_PARTIAL_COPY, "GetLastError() = %lu\n", GetLastError());
+
+    ret = ReadProcessMemory(GetCurrentProcess(), ptr, buf, si.dwPageSize, &copied);
+    ok(ret, "ReadProcessMemory failed %lu\n", GetLastError());
+    ok(copied == si.dwPageSize, "copied = %Id\n", copied);
+
+    ret = ReadProcessMemory(hproc, ptr, buf, 2 * si.dwPageSize, &copied);
+    todo_wine ok(!ret, "ReadProcessMemory succeeded\n");
+
+    ret = ReadProcessMemory(hproc, ptr, buf, si.dwPageSize, &copied);
+    ok(ret, "ReadProcessMemory failed %lu\n", GetLastError());
+    ok(copied == si.dwPageSize, "copied = %Id\n", copied);
+
+    ret = VirtualFree(ptr, 0, MEM_RELEASE);
+    ok(ret, "VirtualFree failed %lu\n", GetLastError());
+    CloseHandle(hproc);
+    free(buf);
+}
+
 START_TEST(virtual)
 {
     int argc;
@@ -4591,6 +4641,7 @@ START_TEST(virtual)
     test_IsBadCodePtr();
     test_write_watch();
     test_PrefetchVirtualMemory();
+    test_ReadProcessMemory();
 #if defined(__i386__) || defined(__x86_64__)
     test_stack_commit();
 #endif

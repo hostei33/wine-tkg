@@ -645,11 +645,8 @@ void dbg_start_interactive(const char* filename, HANDLE hFile)
     struct dbg_process* p;
     struct dbg_process* p2;
 
-    if (dbg_curr_process)
-    {
-        dbg_printf("WineDbg starting on pid %04lx\n", dbg_curr_pid);
-        if (dbg_curr_process->active_debuggee) dbg_active_wait_for_first_exception();
-    }
+    if (dbg_curr_process && dbg_curr_process->active_debuggee)
+        dbg_active_wait_for_first_exception();
 
     dbg_interactiveP = TRUE;
     parser_handle(filename, hFile);
@@ -767,11 +764,18 @@ int main(int argc, char** argv)
             argc--; argv++;
             continue;
         }
+        if (!strcmp(argv[0], "--exec") && argc > 1)
+        {
+            argc--; argv++;
+            dbg_set_exec_file(argv[0]);
+            argc--; argv++;
+            continue;
+        }
         if (!strcmp(argv[0], "--file") && argc > 1)
         {
             argc--; argv++;
             filename = argv[0];
-            hFile = CreateFileA(argv[0], GENERIC_READ|DELETE, 0, 
+            hFile = CreateFileA(argv[0], GENERIC_READ|DELETE, FILE_SHARE_READ|FILE_SHARE_DELETE,
                                 NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
             if (hFile == INVALID_HANDLE_VALUE)
             {
@@ -790,7 +794,7 @@ int main(int argc, char** argv)
     }
     if (!argc) ds = start_ok;
     else if ((ds = dbg_active_attach(argc, argv)) == start_error_parse &&
-             (ds = minidump_reload(argc, argv)) == start_error_parse)
+             (ds = minidump_start(argc, argv)) == start_error_parse)
         ds = dbg_active_launch(argc, argv);
     switch (ds)
     {

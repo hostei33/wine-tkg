@@ -114,9 +114,6 @@ static pa_mainloop *pulse_ml;
 static struct list g_phys_speakers = LIST_INIT(g_phys_speakers);
 static struct list g_phys_sources = LIST_INIT(g_phys_sources);
 
-static const REFERENCE_TIME MinimumPeriod = 30000;
-static const REFERENCE_TIME DefaultPeriod = 100000;
-
 static pthread_mutex_t pulse_mutex;
 static pthread_cond_t pulse_cond = PTHREAD_COND_INITIALIZER;
 
@@ -207,14 +204,15 @@ static char *wstr_to_str(const WCHAR *wstr)
     return str;
 }
 
-static void wait_pa_operation_complete(pa_operation *o)
+static BOOL wait_pa_operation_complete(pa_operation *o)
 {
     if (!o)
-        return;
+        return FALSE;
 
     while (pa_operation_get_state(o) == PA_OPERATION_RUNNING)
         pulse_cond_wait();
     pa_operation_unref(o);
+    return TRUE;
 }
 
 /* Following pulseaudio design here, mainloop has the lock taken whenever
@@ -762,12 +760,6 @@ static void pulse_probe_settings(int render, const char *pulse_name, WAVEFORMATE
     if (length)
         *def_period = *min_period = pa_bytes_to_usec(10 * length, &ss);
 
-    if (*min_period < MinimumPeriod)
-        *min_period = MinimumPeriod;
-
-    if (*def_period < DefaultPeriod)
-        *def_period = DefaultPeriod;
-
     wfx->wFormatTag = WAVE_FORMAT_EXTENSIBLE;
     wfx->cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
 
@@ -1128,7 +1120,6 @@ static HRESULT get_device_period_helper(EDataFlow flow, const char *pulse_name, 
 static NTSTATUS pulse_create_stream(void *args)
 {
     struct create_stream_params *params = args;
-    REFERENCE_TIME period, duration = params->duration;
     struct pulse_stream *stream;
     unsigned int i, bufsize_bytes;
     HRESULT hr;
@@ -1168,22 +1159,16 @@ static NTSTATUS pulse_create_stream(void *args)
     if (FAILED(hr))
         goto exit;
 
-    period = 0;
-    hr = get_device_period_helper(params->flow, params->device, &period, NULL);
-    if (FAILED(hr))
-        goto exit;
-
-    if (duration < 3 * period)
-        duration = 3 * period;
-
-    stream->def_period = period;
+    stream->def_period = params->period;
     stream->duration = params->duration;
 
-    stream->period_bytes = pa_frame_size(&stream->ss) * muldiv(period, stream->ss.rate, 10000000);
+    stream->period_bytes = pa_frame_size(&stream->ss) * muldiv(params->period,
+                                                               stream->ss.rate,
+                                                               10000000);
 
-    stream->bufsize_frames = ceil((duration / 10000000.) * params->fmt->nSamplesPerSec);
+    stream->bufsize_frames = ceil((params->duration / 10000000.) * params->fmt->nSamplesPerSec);
     bufsize_bytes = stream->bufsize_frames * pa_frame_size(&stream->ss);
-    stream->mmdev_period_usec = period / 10;
+    stream->mmdev_period_usec = params->period / 10;
 
     stream->share = params->share;
     stream->flags = params->flags;
@@ -1675,7 +1660,6 @@ static NTSTATUS pulse_start(void *args)
     struct start_params *params = args;
     struct pulse_stream *stream = handle_get_stream(params->stream);
     int success;
-    pa_operation *o;
 
     params->result = S_OK;
     pulse_lock();
@@ -1704,10 +1688,7 @@ static NTSTATUS pulse_start(void *args)
 
     if (pa_stream_is_corked(stream->stream))
     {
-        o = pa_stream_cork(stream->stream, 0, pulse_op_cb, &success);
-        if (o)
-            wait_pa_operation_complete(o);
-        else
+        if (!wait_pa_operation_complete(pa_stream_cork(stream->stream, 0, pulse_op_cb, &success)))
             success = 0;
         if (!success)
             params->result = E_FAIL;
@@ -1726,7 +1707,6 @@ static NTSTATUS pulse_stop(void *args)
 {
     struct stop_params *params = args;
     struct pulse_stream *stream = handle_get_stream(params->stream);
-    pa_operation *o;
     int success;
 
     pulse_lock();
@@ -1747,12 +1727,7 @@ static NTSTATUS pulse_stop(void *args)
     params->result = S_OK;
     if (stream->dataflow == eRender)
     {
-        o = pa_stream_cork(stream->stream, 1, pulse_op_cb, &success);
-        if (o)
-        {
-            wait_pa_operation_complete(o);
-        }
-        else
+        if (!wait_pa_operation_complete(pa_stream_cork(stream->stream, 1, pulse_op_cb, &success)))
             success = 0;
         if (!success)
             params->result = E_FAIL;
@@ -2520,10 +2495,7 @@ static NTSTATUS pulse_set_sample_rate(void *args)
     struct pulse_stream *stream = handle_get_stream(params->stream);
     HRESULT hr = S_OK;
     int success;
-    SIZE_T size, new_bufsize_frames;
-    BYTE *new_buffer = NULL;
     pa_sample_spec new_ss;
-    pa_operation *o;
 
     pulse_lock();
     if (!pulse_stream_valid(stream)) {
@@ -2537,25 +2509,12 @@ static NTSTATUS pulse_set_sample_rate(void *args)
 
     new_ss = stream->ss;
     new_ss.rate = params->rate;
-    new_bufsize_frames = ceil((stream->duration / 10000000.) * new_ss.rate);
-    size = new_bufsize_frames * 2 * pa_frame_size(&stream->ss);
 
-    if (NtAllocateVirtualMemory(GetCurrentProcess(), (void **)&new_buffer,
-                                zero_bits, &size, MEM_COMMIT, PAGE_READWRITE)) {
-        hr = E_OUTOFMEMORY;
-        goto exit;
-    }
-
-    o = pa_stream_update_sample_rate(stream->stream, params->rate, pulse_op_cb, &success);
-    if (o)
-        wait_pa_operation_complete(o);
-    else
+    if (!wait_pa_operation_complete(pa_stream_update_sample_rate(stream->stream, params->rate, pulse_op_cb, &success)))
         success = 0;
 
     if (!success) {
         hr = E_OUTOFMEMORY;
-        size = 0;
-        NtFreeVirtualMemory(GetCurrentProcess(), (void **)&new_buffer, &size, MEM_RELEASE);
         goto exit;
     }
 
@@ -2566,15 +2525,9 @@ static NTSTATUS pulse_set_sample_rate(void *args)
     stream->pa_offs_bytes = stream->lcl_offs_bytes = 0;
     stream->held_bytes = stream->pa_held_bytes = 0;
     stream->period_bytes = pa_frame_size(&new_ss) * muldiv(stream->mmdev_period_usec, new_ss.rate, 1000000);
-    stream->real_bufsize_bytes = size;
-    stream->bufsize_frames = new_bufsize_frames;
     stream->ss = new_ss;
 
-    size = 0;
-    NtFreeVirtualMemory(GetCurrentProcess(), (void **)&stream->local_buffer, &size, MEM_RELEASE);
-
-    silence_buffer(new_ss.format, new_buffer, stream->real_bufsize_bytes);
-    stream->local_buffer = new_buffer;
+    silence_buffer(new_ss.format, stream->local_buffer, stream->real_bufsize_bytes);
 
 exit:
     pulse_unlock();
@@ -2905,7 +2858,7 @@ static NTSTATUS pulse_wow64_get_loopback_capture_device(void *args)
     {
         .name = ULongToPtr(params32->name),
         .device = ULongToPtr(params32->device),
-        .ret_device = ULongToPtr(params32->device),
+        .ret_device = ULongToPtr(params32->ret_device),
         .ret_device_len = params32->ret_device_len,
     };
 

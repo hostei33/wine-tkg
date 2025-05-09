@@ -202,11 +202,24 @@ static void dmo_wrapper_sink_disconnect(struct strmbase_sink *iface)
     IMediaObject_Release(dmo);
 }
 
-static HRESULT process_output(struct dmo_wrapper *filter, IMediaObject *dmo)
+static void release_output_samples(struct dmo_wrapper *filter)
 {
-    DMO_OUTPUT_DATA_BUFFER *buffers = filter->buffers;
-    DWORD status, i;
+    DWORD i;
+
+    for (i = 0; i < filter->source_count; ++i)
+    {
+        if (filter->sources[i].buffer.sample)
+        {
+            IMediaSample_Release(filter->sources[i].buffer.sample);
+            filter->sources[i].buffer.sample = NULL;
+        }
+    }
+}
+
+static HRESULT get_output_samples(struct dmo_wrapper *filter)
+{
     HRESULT hr;
+    DWORD i;
 
     for (i = 0; i < filter->source_count; ++i)
     {
@@ -215,22 +228,38 @@ static HRESULT process_output(struct dmo_wrapper *filter, IMediaObject *dmo)
             if (FAILED(hr = IMemAllocator_GetBuffer(filter->sources[i].pin.pAllocator,
                     &filter->sources[i].buffer.sample, NULL, NULL, 0)))
             {
-                ERR("Failed to get sample, hr %#lx.\n", hr);
-                goto out;
+                ERR("Failed to get sample for source %lu, hr %#lx.\n", i, hr);
+                release_output_samples(filter);
+                return hr;
             }
-            buffers[i].pBuffer = &filter->sources[i].buffer.IMediaBuffer_iface;
+            filter->buffers[i].pBuffer = &filter->sources[i].buffer.IMediaBuffer_iface;
             IMediaSample_SetActualDataLength(filter->sources[i].buffer.sample, 0);
         }
         else
-            buffers[i].pBuffer = NULL;
+            filter->buffers[i].pBuffer = NULL;
     }
+
+    return S_OK;
+}
+
+static HRESULT process_output(struct dmo_wrapper *filter, IMediaObject *dmo)
+{
+    DMO_OUTPUT_DATA_BUFFER *buffers = filter->buffers;
+    HRESULT hr = S_OK;
+    DWORD status, i;
 
     do
     {
+        if (FAILED(hr = get_output_samples(filter)))
+            return hr;
+
         hr = IMediaObject_ProcessOutput(dmo, DMO_PROCESS_OUTPUT_DISCARD_WHEN_NO_BUFFER,
                 filter->source_count, buffers, &status);
         if (hr != S_OK)
+        {
+            release_output_samples(filter);
             break;
+        }
 
         for (i = 0; i < filter->source_count; ++i)
         {
@@ -255,27 +284,20 @@ static HRESULT process_output(struct dmo_wrapper *filter, IMediaObject *dmo)
 
             if (IMediaSample_GetActualDataLength(sample))
             {
-                if (FAILED(hr = IMemInputPin_Receive(filter->sources[i].pin.pMemInputPin, sample)))
+                if ((hr = IMemInputPin_Receive(filter->sources[i].pin.pMemInputPin, sample)) != S_OK)
                 {
                     WARN("Downstream sink returned %#lx.\n", hr);
-                    goto out;
+                    release_output_samples(filter);
+                    return hr;
                 }
-                IMediaSample_SetActualDataLength(sample, 0);
             }
-
         }
+
+        release_output_samples(filter);
     } while (1);
 
-out:
-    for (i = 0; i < filter->source_count; ++i)
-    {
-        if (filter->sources[i].buffer.sample)
-        {
-            IMediaSample_Release(filter->sources[i].buffer.sample);
-            filter->sources[i].buffer.sample = NULL;
-        }
-    }
-
+    if (hr == S_FALSE)
+        return S_OK;
     return hr;
 }
 
@@ -287,6 +309,11 @@ static HRESULT WINAPI dmo_wrapper_sink_Receive(struct strmbase_sink *iface, IMed
     IMediaObject *dmo;
     DWORD flags = 0;
     HRESULT hr;
+
+    if (filter->filter.state == State_Stopped)
+        return VFW_E_WRONG_STATE;
+    if (iface->flushing)
+        return S_FALSE;
 
     IUnknown_QueryInterface(filter->dmo, &IID_IMediaObject, (void **)&dmo);
 
@@ -301,7 +328,8 @@ static HRESULT WINAPI dmo_wrapper_sink_Receive(struct strmbase_sink *iface, IMed
         /* Calling Discontinuity() might change the DMO's mind about whether it
          * has more data to process. The DirectX documentation explicitly
          * states that we should call ProcessOutput() again in this case. */
-        process_output(filter, dmo);
+        if ((hr = process_output(filter, dmo)) != S_OK)
+            goto out;
     }
 
     if (IMediaSample_IsSyncPoint(sample) == S_OK)
@@ -322,7 +350,7 @@ static HRESULT WINAPI dmo_wrapper_sink_Receive(struct strmbase_sink *iface, IMed
         goto out;
     }
 
-    process_output(filter, dmo);
+    hr = process_output(filter, dmo);
 
 out:
     filter->input_buffer.sample = NULL;
@@ -343,6 +371,7 @@ static HRESULT dmo_wrapper_sink_eos(struct strmbase_sink *iface)
         ERR("Discontinuity() failed, hr %#lx.\n", hr);
 
     process_output(filter, dmo);
+
     if (FAILED(hr = IMediaObject_Flush(dmo)))
         ERR("Flush() failed, hr %#lx.\n", hr);
 
@@ -672,6 +701,7 @@ static HRESULT dmo_wrapper_cleanup_stream(struct strmbase_filter *iface)
 
     IUnknown_QueryInterface(filter->dmo, &IID_IMediaObject, (void **)&dmo);
 
+    EnterCriticalSection(&filter->filter.stream_cs);
     for (i = 0; i < filter->source_count; ++i)
     {
         if (filter->sources[i].pin.pin.peer)
@@ -681,6 +711,7 @@ static HRESULT dmo_wrapper_cleanup_stream(struct strmbase_filter *iface)
     IMediaObject_Flush(dmo);
 
     IMediaObject_Release(dmo);
+    LeaveCriticalSection(&filter->filter.stream_cs);
     return S_OK;
 }
 

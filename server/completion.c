@@ -96,8 +96,8 @@ static const struct object_ops completion_wait_ops =
     add_queue,                      /* add_queue */
     remove_queue,                   /* remove_queue */
     completion_wait_signaled,       /* signaled */
-    NULL,                      /* get_esync_fd */
-    NULL,                      /* get_fsync_idx */
+    NULL,                           /* get_esync_fd */
+    NULL,                           /* get_fsync_idx */
     completion_wait_satisfied,      /* satisfied */
     no_signal,                      /* signal */
     no_get_fd,                      /* get_fd */
@@ -280,12 +280,12 @@ void cleanup_thread_completion( struct thread *thread )
     thread->completion_wait = NULL;
 }
 
-static struct completion_wait *create_completion_wait( struct completion *completion, struct thread *thread )
+static struct completion_wait *create_completion_wait( struct thread *thread )
 {
     struct completion_wait *wait;
 
     if (!(wait = alloc_object( &completion_wait_ops ))) return NULL;
-    wait->completion = completion;
+    wait->completion = NULL;
     wait->thread = thread;
     wait->msg = NULL;
     if (!(wait->handle = alloc_handle( current->process, wait, SYNCHRONIZE, 0 )))
@@ -293,7 +293,6 @@ static struct completion_wait *create_completion_wait( struct completion *comple
         release_object( &wait->obj );
         return NULL;
     }
-    list_add_head( &completion->wait_queue, &wait->wait_queue_entry );
     return wait;
 }
 
@@ -361,7 +360,11 @@ DECL_HANDLER(create_completion)
 
     if ((completion = create_completion( root, &name, objattr->attributes, req->concurrent, sd )))
     {
-        reply->handle = alloc_handle( current->process, completion, req->access, objattr->attributes );
+        if (get_error() == STATUS_OBJECT_NAME_EXISTS)
+            reply->handle = alloc_handle( current->process, completion, req->access, objattr->attributes );
+        else
+            reply->handle = alloc_handle_no_access_check( current->process, completion,
+                                                          req->access, objattr->attributes );
         release_object( completion );
     }
 
@@ -382,11 +385,19 @@ DECL_HANDLER(open_completion)
 DECL_HANDLER(add_completion)
 {
     struct completion* completion = get_completion_obj( current->process, req->handle, IO_COMPLETION_MODIFY_STATE );
+    struct reserve *reserve = NULL;
 
     if (!completion) return;
 
+    if (req->reserve_handle && !(reserve = get_completion_reserve_obj( current->process, req->reserve_handle, 0 )))
+    {
+        release_object( completion );
+        return;
+    }
+
     add_completion( completion, req->ckey, req->cvalue, req->status, req->information );
 
+    if (reserve) release_object( reserve );
     release_object( completion );
 }
 
@@ -396,25 +407,32 @@ DECL_HANDLER(remove_completion)
     struct completion* completion = get_completion_obj( current->process, req->handle, IO_COMPLETION_MODIFY_STATE );
     struct list *entry;
     struct comp_msg *msg;
-    BOOL alerted;
 
     if (!completion) return;
 
     entry = list_head( &completion->queue );
-    if (current->completion_wait && current->completion_wait->completion != completion)
-        cleanup_thread_completion( current );
-    alerted = req->alertable && !list_empty( &current->user_apc ) && !(entry && current->completion_wait);
-    if (!current->completion_wait && !(current->completion_wait = create_completion_wait( completion, current )))
+    if (req->alertable && !list_empty( &current->user_apc )
+        && !(entry && current->completion_wait && current->completion_wait->completion == completion))
+    {
+        set_error( STATUS_USER_APC );
+        release_object( completion );
+        return;
+    }
+    if (current->completion_wait)
+    {
+        list_remove( &current->completion_wait->wait_queue_entry );
+    }
+    else if (!(current->completion_wait = create_completion_wait( current )))
     {
         release_object( completion );
         return;
     }
-    if (alerted || !entry)
+    current->completion_wait->completion = completion;
+    list_add_head( &completion->wait_queue, &current->completion_wait->wait_queue_entry );
+    if (!entry)
     {
-        list_remove( &current->completion_wait->wait_queue_entry );
-        list_add_head( &completion->wait_queue, &current->completion_wait->wait_queue_entry );
         reply->wait_handle = current->completion_wait->handle;
-        set_error( alerted ? STATUS_USER_APC : STATUS_PENDING );
+        set_error( STATUS_PENDING );
     }
     else
     {

@@ -211,18 +211,16 @@ static RTL_USER_PROCESS_PARAMETERS *create_process_params( const WCHAR *filename
         params->hStdOutput = startup->hStdOutput;
         params->hStdError  = startup->hStdError;
     }
-    else if (flags & (DETACHED_PROCESS | CREATE_NEW_CONSOLE))
-    {
-        params->hStdInput  = INVALID_HANDLE_VALUE;
-        params->hStdOutput = INVALID_HANDLE_VALUE;
-        params->hStdError  = INVALID_HANDLE_VALUE;
-    }
-    else
+    else if (!(flags & (DETACHED_PROCESS | CREATE_NEW_CONSOLE)))
     {
         params->hStdInput  = NtCurrentTeb()->Peb->ProcessParameters->hStdInput;
         params->hStdOutput = NtCurrentTeb()->Peb->ProcessParameters->hStdOutput;
         params->hStdError  = NtCurrentTeb()->Peb->ProcessParameters->hStdError;
     }
+
+    if (params->hStdInput  == INVALID_HANDLE_VALUE) params->hStdInput  = NULL;
+    if (params->hStdOutput == INVALID_HANDLE_VALUE) params->hStdOutput = NULL;
+    if (params->hStdError  == INVALID_HANDLE_VALUE) params->hStdError  = NULL;
 
     params->dwX             = startup->dwX;
     params->dwY             = startup->dwY;
@@ -594,6 +592,7 @@ static const WCHAR *hack_append_command_line( const WCHAR *cmd )
     }
     options[] =
     {
+        {L"Willful.exe", L" --disable_direct_composition=1"},
         {L"Banyu Lintar Angin - Little Storm -.exe", L" --disable_direct_composition=1"},
         {L"Super\\Super.exe", L" --disable_direct_composition=1"},
         {L"A Raven Monologue.exe", L" --use-angle=d3d9"},
@@ -799,6 +798,9 @@ BOOL WINAPI DECLSPEC_HOTPATCH CreateProcessInternalW( HANDLE token, const WCHAR 
                             status = STATUS_INVALID_HANDLE;
                             goto done;
                         }
+                        break;
+                    case PROC_THREAD_ATTRIBUTE_EXTENDED_FLAGS:
+                        FIXME("PROC_THREAD_ATTRIBUTE_EXTENDED_FLAGS %lx.\n", *(ULONG *)attrs->attrs[i].value);
                         break;
                     case PROC_THREAD_ATTRIBUTE_HANDLE_LIST:
                         handle_list = &attrs->attrs[i];
@@ -1667,20 +1669,32 @@ DWORD WINAPI DECLSPEC_HOTPATCH ExpandEnvironmentStringsA( LPCSTR src, LPSTR dst,
 {
     UNICODE_STRING us_src;
     PWSTR dstW = NULL;
-    DWORD ret;
+    DWORD count_neededW;
+    DWORD count_neededA = 0;
 
     RtlCreateUnicodeStringFromAsciiz( &us_src, src );
-    if (count)
-    {
-        if (!(dstW = HeapAlloc(GetProcessHeap(), 0, count * sizeof(WCHAR)))) return 0;
-        ret = ExpandEnvironmentStringsW( us_src.Buffer, dstW, count);
-        if (ret) WideCharToMultiByte( CP_ACP, 0, dstW, ret, dst, count, NULL, NULL );
-    }
-    else ret = ExpandEnvironmentStringsW( us_src.Buffer, NULL, 0 );
 
+    /* We always need to call ExpandEnvironmentStringsW, since we need the result to calculate the needed buffer size */
+    count_neededW = ExpandEnvironmentStringsW( us_src.Buffer, NULL, 0 );
+    if (!(dstW = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, count_neededW * sizeof(WCHAR) ))) goto cleanup;
+    count_neededW = ExpandEnvironmentStringsW( us_src.Buffer, dstW, count_neededW );
+
+    /* Calculate needed buffer */
+    count_neededA = WideCharToMultiByte( CP_ACP, 0, dstW, count_neededW, NULL, 0, NULL, NULL );
+
+    /* If provided buffer is enough, do actual conversion */
+    if (count > count_neededA)
+        count_neededA = WideCharToMultiByte( CP_ACP, 0, dstW, count_neededW, dst, count, NULL, NULL );
+    else if(dst)
+        *dst = 0;
+
+cleanup:
     RtlFreeUnicodeString( &us_src );
     HeapFree( GetProcessHeap(), 0, dstW );
-    return ret;
+
+    if (count_neededA >= count) /* When the buffer is too small, native over-reports by one byte */
+        return count_neededA + 1;
+    return count_neededA;
 }
 
 
@@ -1707,10 +1721,10 @@ DWORD WINAPI DECLSPEC_HOTPATCH ExpandEnvironmentStringsW( LPCWSTR src, LPWSTR ds
     res = 0;
     status = RtlExpandEnvironmentStrings_U( NULL, &us_src, &us_dst, &res );
     res /= sizeof(WCHAR);
-    if (!set_ntstatus( status ))
+    if (status != STATUS_BUFFER_TOO_SMALL)
     {
-        if (status != STATUS_BUFFER_TOO_SMALL) return 0;
-        if (len && dst) dst[len - 1] = 0;
+        if(!set_ntstatus( status ))
+            return 0;
     }
     return res;
 }
@@ -2082,6 +2096,9 @@ static inline DWORD validate_proc_thread_attribute( DWORD_PTR attr, SIZE_T size 
     {
     case PROC_THREAD_ATTRIBUTE_PARENT_PROCESS:
         if (size != sizeof(HANDLE)) return ERROR_BAD_LENGTH;
+        break;
+    case PROC_THREAD_ATTRIBUTE_EXTENDED_FLAGS:
+        if (size != sizeof(ULONG)) return ERROR_BAD_LENGTH;
         break;
     case PROC_THREAD_ATTRIBUTE_HANDLE_LIST:
         if ((size / sizeof(HANDLE)) * sizeof(HANDLE) != size) return ERROR_BAD_LENGTH;

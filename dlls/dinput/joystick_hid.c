@@ -1125,7 +1125,12 @@ static HRESULT hid_joystick_send_force_feedback_command( IDirectInputDevice8W *i
     if (status != HIDP_STATUS_SUCCESS) return status;
 
     if (!WriteFile( impl->device, report_buf, report_len, NULL, NULL )) return DIERR_INPUTLOST;
-    if (!unacquire && command == DISFFC_RESET) hid_joystick_send_device_gain( iface, impl->base.device_gain );
+    if (!unacquire && command == DISFFC_RESET)
+    {
+        if (impl->base.autocenter == DIPROPAUTOCENTER_OFF)
+            hid_joystick_send_force_feedback_command( iface, DISFFC_STOPALL, FALSE );
+        hid_joystick_send_device_gain( iface, impl->base.device_gain );
+    }
 
     return DI_OK;
 }
@@ -1291,8 +1296,7 @@ static HRESULT hid_joystick_read( IDirectInputDevice8W *iface )
 
     ret = GetOverlappedResult( impl->device, &impl->read_ovl, &count, FALSE );
 
-    if (WaitForSingleObject(steam_overlay_event, 0) == WAIT_OBJECT_0 || /* steam overlay is enabled */
-        WaitForSingleObject(steam_keyboard_event, 0) == WAIT_OBJECT_0) /* steam keyboard is enabled */
+    if (WaitForSingleObject(steam_overlay_event, 0) == WAIT_OBJECT_0) /* steam overlay is enabled */
         params.reset_state = TRUE;
     else
         params.reset_state = FALSE;
