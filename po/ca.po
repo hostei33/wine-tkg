@@ -36,11 +36,11 @@ msgstr "Denega"
 msgid "Permissions for %1"
 msgstr "Permisos per a %1"
 
-#: dlls/appwiz.cpl/appwiz.rc:60
+#: dlls/appwiz.cpl/appwiz.rc:59
 msgid "Install/Uninstall"
 msgstr "Instal·la/desinstal·la"
 
-#: dlls/appwiz.cpl/appwiz.rc:63
+#: dlls/appwiz.cpl/appwiz.rc:62
 msgid ""
 "To install a new program from a floppy disk, CD-ROM drive, or your hard "
 "drive, click Install."
@@ -48,11 +48,11 @@ msgstr ""
 "Per a instal·lar un programa nou des d'un disquet, disc compacte o el vostre "
 "disc dur, feu clic en Instal·la."
 
-#: dlls/appwiz.cpl/appwiz.rc:64
+#: dlls/appwiz.cpl/appwiz.rc:63
 msgid "&Install..."
 msgstr "&Instal·la..."
 
-#: dlls/appwiz.cpl/appwiz.rc:67
+#: dlls/appwiz.cpl/appwiz.rc:66
 msgid ""
 "The following software can be automatically removed. To remove a program or "
 "to modify its installed components, select it from the list and click Modify/"
@@ -62,27 +62,27 @@ msgstr ""
 "programa o modificar els seus components instal·lats, seleccioneu-lo de la "
 "llista i feu clic en Modifica/elimina."
 
-#: dlls/appwiz.cpl/appwiz.rc:69
+#: dlls/appwiz.cpl/appwiz.rc:68
 msgid "&Support Information"
 msgstr "Informació de &suport"
 
-#: dlls/appwiz.cpl/appwiz.rc:70 programs/regedit/regedit.rc:136
+#: dlls/appwiz.cpl/appwiz.rc:69 programs/regedit/regedit.rc:136
 #: programs/regedit/regedit.rc:237
 msgid "&Modify..."
 msgstr "&Modifica..."
 
-#: dlls/appwiz.cpl/appwiz.rc:71 dlls/appwiz.cpl/appwiz.rc:45
+#: dlls/appwiz.cpl/appwiz.rc:70 dlls/appwiz.cpl/appwiz.rc:45
 #: dlls/cryptui/cryptui.rc:351 dlls/msacm32/msacm32.rc:40
 #: programs/winecfg/winecfg.rc:205 programs/winecfg/winecfg.rc:242
 #: programs/wordpad/wordpad.rc:256
 msgid "&Remove"
 msgstr "&Elimina"
 
-#: dlls/appwiz.cpl/appwiz.rc:77
+#: dlls/appwiz.cpl/appwiz.rc:76
 msgid "Support Information"
 msgstr "Informació de suport"
 
-#: dlls/appwiz.cpl/appwiz.rc:80 dlls/avifil32/avifil32.rc:54
+#: dlls/appwiz.cpl/appwiz.rc:79 dlls/avifil32/avifil32.rc:54
 #: dlls/comctl32/comctl32.rc:71 dlls/comctl32/comctl32.rc:55
 #: dlls/comdlg32/comdlg32.rc:233 dlls/comdlg32/comdlg32.rc:263
 #: dlls/comdlg32/comdlg32.rc:307 dlls/comdlg32/comdlg32.rc:390
@@ -95,8 +95,8 @@ msgstr "Informació de suport"
 #: dlls/mshtml/mshtml.rc:47 dlls/mshtml/mshtml.rc:57 dlls/msvfw32/msvfw32.rc:36
 #: dlls/oledlg/oledlg.rc:62 dlls/oledlg/oledlg.rc:94
 #: dlls/serialui/serialui.rc:41 dlls/setupapi/setupapi.rc:59
-#: dlls/shell32/shell32.rc:278 dlls/shell32/shell32.rc:302
-#: dlls/shell32/shell32.rc:324 dlls/shell32/shell32.rc:343
+#: dlls/shell32/shell32.rc:274 dlls/shell32/shell32.rc:298
+#: dlls/shell32/shell32.rc:320 dlls/shell32/shell32.rc:339
 #: dlls/shlwapi/shlwapi.rc:44 dlls/twain_32/twain.rc:32
 #: dlls/user32/user32.rc:94 dlls/user32/user32.rc:109 dlls/user32/user32.rc:73
 #: dlls/wininet/wininet.rc:62 dlls/wininet/wininet.rc:82
@@ -119,70 +119,70 @@ msgstr "Informació de suport"
 msgid "OK"
 msgstr "D'acord"
 
-#: dlls/appwiz.cpl/appwiz.rc:81
+#: dlls/appwiz.cpl/appwiz.rc:80
 msgid "The following information can be used to get technical support for %s:"
 msgstr ""
 "La informació següent es pot utilitzar per a obtenir suport tècnic per a %s:"
 
-#: dlls/appwiz.cpl/appwiz.rc:82
+#: dlls/appwiz.cpl/appwiz.rc:81
 msgid "Publisher:"
 msgstr "Publicador:"
 
-#: dlls/appwiz.cpl/appwiz.rc:83 programs/winefile/winefile.rc:165
+#: dlls/appwiz.cpl/appwiz.rc:82 programs/winefile/winefile.rc:165
 msgid "Version:"
 msgstr "Versió:"
 
-#: dlls/appwiz.cpl/appwiz.rc:84
+#: dlls/appwiz.cpl/appwiz.rc:83
 msgid "Contact:"
 msgstr "Contacte:"
 
-#: dlls/appwiz.cpl/appwiz.rc:85
+#: dlls/appwiz.cpl/appwiz.rc:84
 msgid "Support Information:"
 msgstr "Informació de suport:"
 
-#: dlls/appwiz.cpl/appwiz.rc:86
+#: dlls/appwiz.cpl/appwiz.rc:85
 msgid "Support Telephone:"
 msgstr "Telèfon de suport:"
 
-#: dlls/appwiz.cpl/appwiz.rc:87
+#: dlls/appwiz.cpl/appwiz.rc:86
 msgid "Readme:"
 msgstr "Llegiu-me:"
 
-#: dlls/appwiz.cpl/appwiz.rc:88
+#: dlls/appwiz.cpl/appwiz.rc:87
 msgid "Product Updates:"
 msgstr "Actualitzacions de producte:"
 
-#: dlls/appwiz.cpl/appwiz.rc:89
+#: dlls/appwiz.cpl/appwiz.rc:88
 msgid "Comments:"
 msgstr "Comentaris:"
 
-#: dlls/appwiz.cpl/appwiz.rc:102
+#: dlls/appwiz.cpl/appwiz.rc:101
 msgid "Wine Gecko Installer"
 msgstr "Instal·lador del Wine Gecko"
 
-#: dlls/appwiz.cpl/appwiz.rc:105
+#: dlls/appwiz.cpl/appwiz.rc:104
 msgid ""
 "Wine could not find a Gecko package which is needed for applications "
 "embedding HTML to work correctly. Wine can automatically download and "
 "install it for you.\n"
 "\n"
 "Note: it is recommended to use your distribution's packages instead. See <a "
-"href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Gecko\">https://"
-"gitlab.winehq.org/wine/wine/-/wikis/Gecko</a> for details."
+"href=\"https://wiki.winehq.org/Gecko\">https://wiki.winehq.org/Gecko</a> for "
+"details."
 msgstr ""
 "El Wine no ha pogut trobar un paquet del Gecko que es necessita perquè les "
 "aplicacions que incloguin HTML funcionin correctament. El Wine el pot baixar "
 "i instal·lar automàticament per vós.\n"
 "\n"
 "Nota: es recomana utilitzar els paquets de la vostra distribució en compte. "
-"Vegeu <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Gecko\">https://"
-"gitlab.winehq.org/wine/wine/-/wikis/Gecko</a> per detalls."
+"Vegeu <a href=\"https://wiki.winehq.org/Gecko\">https://wiki.winehq.org/"
+"Gecko</a> per detalls."
 
-#: dlls/appwiz.cpl/appwiz.rc:111 dlls/appwiz.cpl/appwiz.rc:126
+#: dlls/appwiz.cpl/appwiz.rc:110 dlls/appwiz.cpl/appwiz.rc:125
 msgid "&Install"
 msgstr "&Instal·la"
 
-#: dlls/appwiz.cpl/appwiz.rc:112 dlls/appwiz.cpl/appwiz.rc:127
+#: dlls/appwiz.cpl/appwiz.rc:111 dlls/appwiz.cpl/appwiz.rc:126
 #: dlls/avifil32/avifil32.rc:55 dlls/browseui/browseui.rc:45
 #: dlls/comctl32/comctl32.rc:72 dlls/comctl32/comctl32.rc:87
 #: dlls/comctl32/comctl32.rc:56 dlls/comdlg32/comdlg32.rc:172
@@ -201,9 +201,9 @@ msgstr "&Instal·la"
 #: dlls/mshtml/mshtml.rc:48 dlls/mshtml/mshtml.rc:58 dlls/msvfw32/msvfw32.rc:37
 #: dlls/oledlg/oledlg.rc:63 dlls/oledlg/oledlg.rc:95
 #: dlls/serialui/serialui.rc:42 dlls/setupapi/setupapi.rc:42
-#: dlls/setupapi/setupapi.rc:60 dlls/shell32/shell32.rc:279
-#: dlls/shell32/shell32.rc:303 dlls/shell32/shell32.rc:314
-#: dlls/shell32/shell32.rc:344 dlls/shlwapi/shlwapi.rc:45
+#: dlls/setupapi/setupapi.rc:60 dlls/shell32/shell32.rc:275
+#: dlls/shell32/shell32.rc:299 dlls/shell32/shell32.rc:310
+#: dlls/shell32/shell32.rc:340 dlls/shlwapi/shlwapi.rc:45
 #: dlls/twain_32/twain.rc:33 dlls/user32/user32.rc:95 dlls/user32/user32.rc:110
 #: dlls/user32/user32.rc:74 dlls/wininet/wininet.rc:63
 #: dlls/wininet/wininet.rc:83 dlls/winspool.drv/winspool.rc:43
@@ -225,27 +225,27 @@ msgstr "&Instal·la"
 msgid "Cancel"
 msgstr "Cancel·la"
 
-#: dlls/appwiz.cpl/appwiz.rc:117
+#: dlls/appwiz.cpl/appwiz.rc:116
 msgid "Wine Mono Installer"
 msgstr "Instal·lador del Wine Mono"
 
-#: dlls/appwiz.cpl/appwiz.rc:120
+#: dlls/appwiz.cpl/appwiz.rc:119
 msgid ""
 "Wine could not find a wine-mono package which is needed for .NET "
 "applications to work correctly. Wine can automatically download and install "
 "it for you.\n"
 "\n"
 "Note: it is recommended to use your distribution's packages instead. See <a "
-"href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono\">https://"
-"gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono</a> for details."
+"href=\"https://wiki.winehq.org/Mono\">https://wiki.winehq.org/Mono</a> for "
+"details."
 msgstr ""
 "El Wine no ha pogut trobar un paquet del wine-mono que es necessita perquè "
 "les aplicacions .NET funcionin correctament. El Wine el pot baixar i "
 "instal·lar automàticament per vós.\n"
 "\n"
 "Nota: es recomana utilitzar els paquets de la vostra distribució en compte. "
-"Vegeu <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Wine-"
-"Mono\">https://gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono</a> per detalls."
+"Vegeu <a href=\"https://wiki.winehq.org/Mono\">https://wiki.winehq.org/Mono</"
+"a> per detalls."
 
 #: dlls/appwiz.cpl/appwiz.rc:31
 msgid "Add/Remove Programs"
@@ -277,7 +277,7 @@ msgid "Not specified"
 msgstr "No especificat"
 
 #: dlls/appwiz.cpl/appwiz.rc:38 dlls/oledb32/version.rc:38
-#: dlls/shell32/shell32.rc:141 dlls/shell32/shell32.rc:243
+#: dlls/shell32/shell32.rc:144 dlls/shell32/shell32.rc:239
 #: programs/regedit/regedit.rc:150 programs/winefile/winefile.rc:106
 msgid "Name"
 msgstr "Nom"
@@ -299,7 +299,7 @@ msgid "Programs (*.exe)"
 msgstr "Programes (*.exe)"
 
 #: dlls/appwiz.cpl/appwiz.rc:43 dlls/avifil32/avifil32.rc:33
-#: dlls/cryptui/cryptui.rc:83 dlls/shell32/shell32.rc:199
+#: dlls/cryptui/cryptui.rc:83 dlls/shell32/shell32.rc:197
 #: programs/notepad/notepad.rc:81 programs/oleview/oleview.rc:103
 #: programs/progman/progman.rc:82 programs/regedit/regedit.rc:230
 #: programs/winedbg/winedbg.rc:43 programs/winhlp32/winhlp32.rc:90
@@ -331,12 +331,6 @@ msgid "Please wait until the current uninstall/modify process is complete."
 msgstr ""
 "Si us plau, espereu fins que es termini el procès actual d'instal·lació o de "
 "modificació."
-
-#: dlls/appwiz.cpl/appwiz.rc:55
-#, fuzzy
-#| msgid "Downloading..."
-msgid "Download failed."
-msgstr "S'està baixant..."
 
 #: dlls/avifil32/avifil32.rc:42
 msgid "Compress options"
@@ -419,7 +413,6 @@ msgid "Properties for %s"
 msgstr "Propietats de %s"
 
 #: dlls/comctl32/comctl32.rc:73 dlls/comdlg32/comdlg32.rc:265
-#: dlls/desk.cpl/desk.rc:41
 msgid "&Apply"
 msgstr "&Aplica"
 
@@ -468,7 +461,7 @@ msgstr "&Reinicia"
 #: dlls/comdlg32/comdlg32.rc:482 dlls/comdlg32/comdlg32.rc:508
 #: dlls/comdlg32/comdlg32.rc:531 dlls/ieframe/ieframe.rc:58
 #: dlls/msacm32/msacm32.rc:52 dlls/oledlg/oledlg.rc:96
-#: dlls/shell32/shell32.rc:125 programs/clock/clock.rc:44
+#: dlls/shell32/shell32.rc:128 programs/clock/clock.rc:44
 #: programs/notepad/notepad.rc:65 programs/notepad/notepad.rc:126
 #: programs/oleview/oleview.rc:72 programs/progman/progman.rc:55
 #: programs/progman/progman.rc:108 programs/progman/progman.rc:126
@@ -514,12 +507,12 @@ msgctxt "hotkey"
 msgid "None"
 msgstr "Cap"
 
-#: dlls/comctl32/comctl32.rc:52 dlls/shell32/shell32.rc:311
+#: dlls/comctl32/comctl32.rc:52 dlls/shell32/shell32.rc:307
 #: dlls/shlwapi/shlwapi.rc:46 dlls/user32/user32.rc:90 dlls/user32/user32.rc:78
 msgid "&Yes"
 msgstr "&Sí"
 
-#: dlls/comctl32/comctl32.rc:53 dlls/shell32/shell32.rc:313
+#: dlls/comctl32/comctl32.rc:53 dlls/shell32/shell32.rc:309
 #: dlls/shlwapi/shlwapi.rc:47 dlls/user32/user32.rc:91 dlls/user32/user32.rc:79
 msgid "&No"
 msgstr "&No"
@@ -539,7 +532,7 @@ msgstr "Mostra els detalls"
 
 #: dlls/comctl32/comctl32.rc:31 dlls/cryptui/cryptui.rc:235
 #: programs/regedit/regedit.rc:291 programs/taskmgr/taskmgr.rc:434
-#: programs/winedbg/winedbg.rc:62 programs/winedbg/winedbg.rc:77
+#: programs/winedbg/winedbg.rc:61 programs/winedbg/winedbg.rc:76
 #: programs/wordpad/wordpad.rc:180
 msgid "Close"
 msgstr "Tanca"
@@ -554,7 +547,8 @@ msgstr "Anar a avui"
 
 #: dlls/comdlg32/comdlg32.rc:158 dlls/comdlg32/comdlg32.rc:171
 #: dlls/comdlg32/comdlg32.rc:462 dlls/comdlg32/comdlg32.rc:487
-#: dlls/comdlg32/comdlg32.rc:514 programs/oleview/oleview.rc:101
+#: dlls/comdlg32/comdlg32.rc:514 dlls/shell32/shell32.rc:165
+#: programs/oleview/oleview.rc:101
 msgid "Open"
 msgstr "Obre"
 
@@ -575,7 +569,7 @@ msgid "Dri&ves:"
 msgstr "&Unitats:"
 
 #: dlls/comdlg32/comdlg32.rc:174 dlls/comdlg32/comdlg32.rc:196
-#: dlls/shell32/shell32.rc:372 dlls/shell32/shell32.rc:409
+#: dlls/shell32/shell32.rc:368 dlls/shell32/shell32.rc:405
 #: programs/winefile/winefile.rc:172
 msgid "&Read Only"
 msgstr "&Només lectura"
@@ -590,7 +584,7 @@ msgstr "Anomena i desa"
 
 #: dlls/comdlg32/comdlg32.rc:202 dlls/comdlg32/comdlg32.rc:211
 #: dlls/comdlg32/comdlg32.rc:358 dlls/comdlg32/comdlg32.rc:55
-#: dlls/hhctrl.ocx/hhctrl.rc:51 programs/wordpad/wordpad.rc:173
+#: dlls/hhctrl.ocx/hhctrl.rc:49 programs/wordpad/wordpad.rc:173
 msgid "Print"
 msgstr "Imprimeix"
 
@@ -729,7 +723,6 @@ msgid "Scr&ipt:"
 msgstr "&Alfabet:"
 
 #: dlls/comdlg32/comdlg32.rc:283 dlls/comdlg32/comdlg32.rc:288
-#: dlls/compstui/compstui.rc:33
 msgid "Color"
 msgstr "Color"
 
@@ -835,7 +828,7 @@ msgstr "Substitueix-&ho tot"
 
 #: dlls/comdlg32/comdlg32.rc:363 dlls/comdlg32/comdlg32.rc:403
 #: dlls/ieframe/ieframe.rc:42 dlls/shdoclc/shdoclc.rc:61
-#: dlls/shell32/shell32.rc:105 programs/clock/clock.rc:31
+#: dlls/shell32/shell32.rc:108 programs/clock/clock.rc:31
 #: programs/conhost/conhost.rc:34
 msgid "&Properties"
 msgstr "&Propietats"
@@ -959,7 +952,7 @@ msgstr "Obre per només &lectura"
 
 #: dlls/comdlg32/comdlg32.rc:480 dlls/comdlg32/comdlg32.rc:506
 #: dlls/comdlg32/comdlg32.rc:524 dlls/shdoclc/shdoclc.rc:127
-#: dlls/shell32/shell32.rc:165
+#: dlls/shell32/shell32.rc:99
 msgid "&Open"
 msgstr "&Obre"
 
@@ -1346,7 +1339,7 @@ msgstr "mm"
 msgid "Properties"
 msgstr "Propietats"
 
-#: dlls/compstui/compstui.rc:30 dlls/hhctrl.ocx/hhctrl.rc:52
+#: dlls/compstui/compstui.rc:30 dlls/hhctrl.ocx/hhctrl.rc:50
 #: programs/conhost/conhost.rc:51 programs/wordpad/wordpad.rc:166
 msgid "Options"
 msgstr "Opcions"
@@ -1354,43 +1347,6 @@ msgstr "Opcions"
 #: dlls/compstui/compstui.rc:31
 msgid "Default"
 msgstr "Per defecte"
-
-#: dlls/compstui/compstui.rc:35
-#, fuzzy
-#| msgid "&Copy Background"
-msgid "&Copy count"
-msgstr "C&opia el fons"
-
-#: dlls/compstui/compstui.rc:36
-#, fuzzy
-#| msgid "Print to File"
-msgid "Print on Both Sides"
-msgstr "Impressió en un fitxer"
-
-#: dlls/compstui/compstui.rc:32
-#, fuzzy
-#| msgid "C&olor:"
-msgid "C&olor"
-msgstr "Co&lor:"
-
-#: dlls/compstui/compstui.rc:34
-msgid "Bla&ck && White"
-msgstr ""
-
-#: dlls/compstui/compstui.rc:37
-#, fuzzy
-#| msgctxt "hotkey"
-#| msgid "None"
-msgid "&None"
-msgstr "Cap"
-
-#: dlls/compstui/compstui.rc:38 dlls/compstui/compstui.rc:41
-msgid "Flip on Shor&t Edge"
-msgstr ""
-
-#: dlls/compstui/compstui.rc:39 dlls/compstui/compstui.rc:40
-msgid "Flip on Long E&dge"
-msgstr ""
 
 #: dlls/credui/credui.rc:45
 msgid "&User name:"
@@ -2299,8 +2255,8 @@ msgid "Notice Text="
 msgstr "Text d'anunci="
 
 #: dlls/cryptui/cryptui.rc:185 dlls/cryptui/cryptui.rc:240
-#: dlls/inetcpl.cpl/inetcpl.rc:46 dlls/shell32/shell32.rc:350
-#: dlls/shell32/shell32.rc:379
+#: dlls/inetcpl.cpl/inetcpl.rc:46 dlls/shell32/shell32.rc:346
+#: dlls/shell32/shell32.rc:375
 msgid "General"
 msgstr "General"
 
@@ -2520,7 +2476,7 @@ msgid "Certificate intended purposes"
 msgstr "Finalitats previstes del certificat"
 
 #: dlls/cryptui/cryptui.rc:355 dlls/ieframe/ieframe.rc:45
-#: dlls/shell32/shell32.rc:43 dlls/shell32/shell32.rc:117
+#: dlls/shell32/shell32.rc:43 dlls/shell32/shell32.rc:120
 #: programs/notepad/notepad.rc:61 programs/oleview/oleview.rc:59
 #: programs/oleview/oleview.rc:61 programs/oleview/oleview.rc:85
 #: programs/regedit/regedit.rc:65 programs/taskmgr/taskmgr.rc:52
@@ -2805,7 +2761,7 @@ msgstr "Ús millorat de clau (propietat)"
 msgid "Friendly name"
 msgstr "Nom amistós"
 
-#: dlls/cryptui/cryptui.rc:65 dlls/shell32/shell32.rc:244
+#: dlls/cryptui/cryptui.rc:65 dlls/shell32/shell32.rc:240
 #: programs/ipconfig/ipconfig.rc:45
 msgid "Description"
 msgstr "Descripció"
@@ -2903,7 +2859,7 @@ msgstr "Magatzem de certificats seleccionat"
 msgid "Automatically determined by the program"
 msgstr "Determinat automàticament pel programa"
 
-#: dlls/cryptui/cryptui.rc:91 dlls/shell32/shell32.rc:134
+#: dlls/cryptui/cryptui.rc:91 dlls/shell32/shell32.rc:137
 msgid "File"
 msgstr "Fitxer"
 
@@ -3197,7 +3153,7 @@ msgstr "Nota: La clau privada d'aquest certificat no és exportable."
 msgid "Intended Use"
 msgstr "Finalitat prevista"
 
-#: dlls/cryptui/cryptui.rc:178 dlls/shell32/shell32.rc:147
+#: dlls/cryptui/cryptui.rc:178 dlls/shell32/shell32.rc:150
 msgid "Location"
 msgstr "Ubicació"
 
@@ -3209,38 +3165,6 @@ msgstr "Seleccioneu un certificat"
 #: programs/winhlp32/winhlp32.rc:110 programs/winhlp32/winhlp32.rc:85
 msgid "Not yet implemented"
 msgstr "Encara no implementat"
-
-#: dlls/desk.cpl/desk.rc:35
-#, fuzzy
-#| msgctxt "display name"
-#| msgid "Desktop"
-msgid "Desktop"
-msgstr "Escriptori"
-
-#: dlls/desk.cpl/desk.rc:38
-#, fuzzy
-#| msgctxt "display name"
-#| msgid "Desktop"
-msgid "Virtual Desktop"
-msgstr "Escriptori"
-
-#: dlls/desk.cpl/desk.rc:40 dlls/joy.cpl/joy.rc:41
-msgid "&Reset"
-msgstr "&Reinicia"
-
-#: dlls/desk.cpl/desk.rc:42
-msgid "Emulate display mode changes (requires restart)"
-msgstr ""
-
-#: dlls/desk.cpl/desk.rc:29
-#, fuzzy
-#| msgid "Default Settings"
-msgid "Display Settings"
-msgstr "Opcions per defecte"
-
-#: dlls/desk.cpl/desk.rc:30
-msgid "Configure monitors and display devices."
-msgstr ""
 
 #: dlls/dinput/dinput.rc:34
 msgid "Configure Devices"
@@ -3399,75 +3323,74 @@ msgstr "S'està connectant al càmera"
 msgid "Connecting to camera... Please Wait"
 msgstr "S'està connectant al càmera... Si us plau, espereu"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:61
+#: dlls/hhctrl.ocx/hhctrl.rc:59
 msgid "S&ync"
 msgstr "S&incronitza"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:62 dlls/hhctrl.ocx/hhctrl.rc:75
+#: dlls/hhctrl.ocx/hhctrl.rc:60 dlls/hhctrl.ocx/hhctrl.rc:73
 #: dlls/shdoclc/shdoclc.rc:41 programs/winhlp32/winhlp32.rc:89
 msgid "&Back"
 msgstr "Enda&rrere"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:63 dlls/hhctrl.ocx/hhctrl.rc:76
+#: dlls/hhctrl.ocx/hhctrl.rc:61 dlls/hhctrl.ocx/hhctrl.rc:74
 msgid "&Forward"
 msgstr "E&ndavant"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:64
+#: dlls/hhctrl.ocx/hhctrl.rc:62
 msgctxt "table of contents"
 msgid "&Home"
 msgstr "&Inici"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:65
+#: dlls/hhctrl.ocx/hhctrl.rc:63
 msgid "&Stop"
 msgstr "&Atura"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:66 dlls/hhctrl.ocx/hhctrl.rc:83
+#: dlls/hhctrl.ocx/hhctrl.rc:64 dlls/hhctrl.ocx/hhctrl.rc:81
 #: dlls/oledb32/version.rc:73 dlls/shdoclc/shdoclc.rc:59
 msgid "&Refresh"
 msgstr "&Actualitza"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:67 dlls/hhctrl.ocx/hhctrl.rc:82
+#: dlls/hhctrl.ocx/hhctrl.rc:65 dlls/hhctrl.ocx/hhctrl.rc:80
 #: programs/winhlp32/winhlp32.rc:34
 msgid "&Print..."
 msgstr "&Imprimeix..."
 
-#: dlls/hhctrl.ocx/hhctrl.rc:78 dlls/hhctrl.ocx/hhctrl.rc:92
+#: dlls/hhctrl.ocx/hhctrl.rc:76 dlls/hhctrl.ocx/hhctrl.rc:90
 #: dlls/shdoclc/shdoclc.rc:49 dlls/shdoclc/shdoclc.rc:98
 #: dlls/shdoclc/shdoclc.rc:120 dlls/user32/user32.rc:65
 msgid "Select &All"
 msgstr "&Selecciona-ho tot"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:80 dlls/shdoclc/shdoclc.rc:54
+#: dlls/hhctrl.ocx/hhctrl.rc:78 dlls/shdoclc/shdoclc.rc:54
 msgid "&View Source"
 msgstr "Visuali&tza el codi font"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:85
+#: dlls/hhctrl.ocx/hhctrl.rc:83
 msgid "Proper&ties"
 msgstr "&Propietats"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:89 dlls/shdoclc/shdoclc.rc:79
+#: dlls/hhctrl.ocx/hhctrl.rc:87 dlls/shdoclc/shdoclc.rc:79
 #: dlls/shdoclc/shdoclc.rc:93 dlls/shdoclc/shdoclc.rc:117
 #: dlls/shdoclc/shdoclc.rc:159 dlls/shdoclc/shdoclc.rc:183
 #: dlls/user32/user32.rc:60 programs/wordpad/wordpad.rc:112
 msgid "Cu&t"
 msgstr "&Retalla"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:90 dlls/shdoclc/shdoclc.rc:80
+#: dlls/hhctrl.ocx/hhctrl.rc:88 dlls/shdoclc/shdoclc.rc:80
 #: dlls/shdoclc/shdoclc.rc:94 dlls/shdoclc/shdoclc.rc:118
 #: dlls/shdoclc/shdoclc.rc:133 dlls/shdoclc/shdoclc.rc:160
-#: dlls/shdoclc/shdoclc.rc:184 dlls/shell32/shell32.rc:98
+#: dlls/shdoclc/shdoclc.rc:184 dlls/shell32/shell32.rc:102
 #: dlls/user32/user32.rc:61 programs/conhost/conhost.rc:36
 #: programs/winhlp32/winhlp32.rc:40 programs/wordpad/wordpad.rc:113
 msgid "&Copy"
 msgstr "&Copia"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:91 dlls/shdoclc/shdoclc.rc:119
+#: dlls/hhctrl.ocx/hhctrl.rc:89 dlls/shdoclc/shdoclc.rc:119
 #: dlls/shell32/shell32.rc:64
 msgid "Paste"
 msgstr "&Enganxa"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:93 dlls/shdoclc/shdoclc.rc:121
-#: dlls/shell32/shell32.rc:166
+#: dlls/hhctrl.ocx/hhctrl.rc:91 dlls/shdoclc/shdoclc.rc:121
 msgid "&Print"
 msgstr "Im&primeix"
 
@@ -3495,44 +3418,38 @@ msgstr "Amaga &pestanyes"
 msgid "Show &Tabs"
 msgstr "Mostra &pestanyes"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:39
-#, fuzzy
-#| msgid "Select Source"
-msgid "Select Topic"
-msgstr "Seleccionar font"
-
-#: dlls/hhctrl.ocx/hhctrl.rc:44
+#: dlls/hhctrl.ocx/hhctrl.rc:42
 msgid "Show"
 msgstr "Mostra"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:45 dlls/winemac.drv/winemac.rc:34
+#: dlls/hhctrl.ocx/hhctrl.rc:43 dlls/winemac.drv/winemac.rc:34
 msgid "Hide"
 msgstr "Amaga"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:46 dlls/ieframe/ieframe.rc:68
+#: dlls/hhctrl.ocx/hhctrl.rc:44 dlls/ieframe/ieframe.rc:68
 #: dlls/shdoclc/shdoclc.rc:167 dlls/shdoclc/shdoclc.rc:191
 msgid "Stop"
 msgstr "Atura"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:47 dlls/ieframe/ieframe.rc:69
+#: dlls/hhctrl.ocx/hhctrl.rc:45 dlls/ieframe/ieframe.rc:69
 #: dlls/shell32/shell32.rc:62
 msgid "Refresh"
 msgstr "Actualitza"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:48 dlls/ieframe/ieframe.rc:66
+#: dlls/hhctrl.ocx/hhctrl.rc:46 dlls/ieframe/ieframe.rc:66
 msgid "Back"
 msgstr "Endarrere"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:49
+#: dlls/hhctrl.ocx/hhctrl.rc:47
 msgctxt "table of contents"
 msgid "Home"
 msgstr "Inici"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:50
+#: dlls/hhctrl.ocx/hhctrl.rc:48
 msgid "Sync"
 msgstr "Sincronitza"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:53 dlls/ieframe/ieframe.rc:67
+#: dlls/hhctrl.ocx/hhctrl.rc:51 dlls/ieframe/ieframe.rc:67
 msgid "Forward"
 msgstr "Endavant"
 
@@ -3540,7 +3457,7 @@ msgstr "Endavant"
 msgid "Cinepak Video codec"
 msgstr "Còdec de vídeo Cinepak"
 
-#: dlls/ieframe/ieframe.rc:28 dlls/shell32/shell32.rc:111
+#: dlls/ieframe/ieframe.rc:28 dlls/shell32/shell32.rc:114
 #: programs/notepad/notepad.rc:29 programs/oleview/oleview.rc:30
 #: programs/oleview/oleview.rc:80 programs/progman/progman.rc:32
 #: programs/taskmgr/taskmgr.rc:35 programs/view/view.rc:31
@@ -3831,67 +3748,59 @@ msgstr "Palanques de control"
 msgid "&Disable"
 msgstr "&Inhabilita"
 
-#: dlls/joy.cpl/joy.rc:42
-msgid "&Override"
-msgstr "Fes-ho &directe"
+#: dlls/joy.cpl/joy.rc:41
+msgid "&Reset"
+msgstr "&Reinicia"
 
-#: dlls/joy.cpl/joy.rc:43
+#: dlls/joy.cpl/joy.rc:42
 msgid "&Enable"
 msgstr "&Habilita"
 
+#: dlls/joy.cpl/joy.rc:43
+msgid "&Override"
+msgstr "Fes-ho &directe"
+
 #: dlls/joy.cpl/joy.rc:44
-#, fuzzy
-#| msgid "Connected (xinput device)"
-msgid "Connected (DirectInput devices)"
-msgstr "Connectat (dispositiu de xinput)"
+msgid "Connected"
+msgstr "Connectat"
 
 #: dlls/joy.cpl/joy.rc:46
-#, fuzzy
-#| msgid "Connected (xinput device)"
-msgid "Connected (XInput devices)"
+msgid "Connected (xinput device)"
 msgstr "Connectat (dispositiu de xinput)"
 
 #: dlls/joy.cpl/joy.rc:48
 msgid "Disabled"
 msgstr "Inhabilitat"
 
-#: dlls/joy.cpl/joy.rc:51
-msgid "Advanced settings (restart prefix required to take effect)"
+#: dlls/joy.cpl/joy.rc:50
+msgid ""
+"After disabling or enabling a device, the connected joysticks won't be "
+"updated here until you restart this applet."
 msgstr ""
+"Després d'inhabilitar o habilitar un dispositiu, no s'actualitzaran aquí les "
+"palanques de control connectades fins que reinicieu aquesta miniaplicació."
 
-#: dlls/joy.cpl/joy.rc:52
-#, fuzzy
-#| msgid "&Enable"
-msgid "Enable SDL"
-msgstr "&Habilita"
-
-#: dlls/joy.cpl/joy.rc:53
-#, fuzzy
-#| msgid "Disabled"
-msgid "Disable hidraw"
-msgstr "Inhabilitat"
-
-#: dlls/joy.cpl/joy.rc:58
+#: dlls/joy.cpl/joy.rc:55
 msgid "DInput"
 msgstr "DInput"
 
-#: dlls/joy.cpl/joy.rc:62
+#: dlls/joy.cpl/joy.rc:59
 msgid "Axes"
 msgstr "Eixos"
 
-#: dlls/joy.cpl/joy.rc:63
+#: dlls/joy.cpl/joy.rc:60
 msgid "POVs"
 msgstr "POVs"
 
-#: dlls/joy.cpl/joy.rc:64
+#: dlls/joy.cpl/joy.rc:61
 msgid "Buttons"
 msgstr "Botons"
 
-#: dlls/joy.cpl/joy.rc:65
+#: dlls/joy.cpl/joy.rc:62
 msgid "Force Feedback Effect"
 msgstr "Efecte de retroacció de força"
 
-#: dlls/joy.cpl/joy.rc:67
+#: dlls/joy.cpl/joy.rc:64
 msgid ""
 "Press any button in the controller to activate the chosen effect. The effect "
 "direction can be changed with the controller axis."
@@ -3899,27 +3808,27 @@ msgstr ""
 "Premeu qualsevol botó en el controlador per a activar l'efecte escollit. Es "
 "pot canviar la direcció de l'efecte amb l'eix de controlador."
 
-#: dlls/joy.cpl/joy.rc:73
+#: dlls/joy.cpl/joy.rc:70
 msgid "XInput"
 msgstr "XInput"
 
-#: dlls/joy.cpl/joy.rc:76
+#: dlls/joy.cpl/joy.rc:73
 msgid "User #0"
 msgstr "Usuari #0"
 
-#: dlls/joy.cpl/joy.rc:77
+#: dlls/joy.cpl/joy.rc:74
 msgid "User #1"
 msgstr "Usuari #1"
 
-#: dlls/joy.cpl/joy.rc:78
+#: dlls/joy.cpl/joy.rc:75
 msgid "User #2"
 msgstr "Usuari #2"
 
-#: dlls/joy.cpl/joy.rc:79
+#: dlls/joy.cpl/joy.rc:76
 msgid "User #3"
 msgstr "Usuari #3"
 
-#: dlls/joy.cpl/joy.rc:81
+#: dlls/joy.cpl/joy.rc:78
 msgid ""
 "No user detected on slot #0, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
@@ -3928,7 +3837,7 @@ msgstr ""
 "controlador estigui endollat, i no configurat per a DInput directe en la "
 "pestanya de palanques de control."
 
-#: dlls/joy.cpl/joy.rc:85
+#: dlls/joy.cpl/joy.rc:82
 msgid ""
 "No user detected on slot #1, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
@@ -3937,7 +3846,7 @@ msgstr ""
 "controlador estigui endollat, i no configurat per a DInput directe en la "
 "pestanya de palanques de control."
 
-#: dlls/joy.cpl/joy.rc:89
+#: dlls/joy.cpl/joy.rc:86
 msgid ""
 "No user detected on slot #2, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
@@ -3946,7 +3855,7 @@ msgstr ""
 "controlador estigui endollat, i no configurat per a DInput directe en la "
 "pestanya de palanques de control."
 
-#: dlls/joy.cpl/joy.rc:93
+#: dlls/joy.cpl/joy.rc:90
 msgid ""
 "No user detected on slot #3, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
@@ -3955,8 +3864,8 @@ msgstr ""
 "controlador estigui endollat, i no configurat per a DInput directe en la "
 "pestanya de palanques de control."
 
-#: dlls/joy.cpl/joy.rc:98 dlls/joy.cpl/joy.rc:99 dlls/joy.cpl/joy.rc:100
-#: dlls/joy.cpl/joy.rc:101
+#: dlls/joy.cpl/joy.rc:95 dlls/joy.cpl/joy.rc:96 dlls/joy.cpl/joy.rc:97
+#: dlls/joy.cpl/joy.rc:98
 msgid "Rumble"
 msgstr "Vibra"
 
@@ -4000,175 +3909,171 @@ msgstr "L'objecte no accepta aquesta propietat o mètode"
 msgid "Object doesn't support this action"
 msgstr "L'objecte no accepta aquesta acció"
 
-#: dlls/jscript/jscript.rc:36 dlls/vbscript/vbscript.rc:54
+#: dlls/jscript/jscript.rc:36
 msgid "Argument not optional"
 msgstr "Argument no opcional"
 
-#: dlls/jscript/jscript.rc:37 dlls/vbscript/vbscript.rc:56
-msgid "Object not a collection"
-msgstr "L'objecte no és una colecció"
-
-#: dlls/jscript/jscript.rc:38
+#: dlls/jscript/jscript.rc:37
 msgid "Syntax error"
 msgstr "Error de sintaxi"
 
-#: dlls/jscript/jscript.rc:39
+#: dlls/jscript/jscript.rc:38
 msgid "Expected ';'"
 msgstr "S'esperava ';'"
 
-#: dlls/jscript/jscript.rc:40
+#: dlls/jscript/jscript.rc:39
 msgid "Expected '('"
 msgstr "S'esperava '('"
 
-#: dlls/jscript/jscript.rc:41
+#: dlls/jscript/jscript.rc:40
 msgid "Expected ')'"
 msgstr "S'esperava ')'"
 
-#: dlls/jscript/jscript.rc:42
+#: dlls/jscript/jscript.rc:41
 msgid "Expected identifier"
 msgstr "S'esperava un identificador"
 
-#: dlls/jscript/jscript.rc:43
+#: dlls/jscript/jscript.rc:42
 msgid "Expected '='"
 msgstr "S'esperava '='"
 
-#: dlls/jscript/jscript.rc:44
+#: dlls/jscript/jscript.rc:43
 msgid "Invalid character"
 msgstr "Caràcter no vàlid"
 
-#: dlls/jscript/jscript.rc:45
+#: dlls/jscript/jscript.rc:44
 msgid "Unterminated string constant"
 msgstr "Cadena constant no terminat"
 
-#: dlls/jscript/jscript.rc:46
+#: dlls/jscript/jscript.rc:45
 msgid "'return' statement outside of function"
 msgstr "declaració 'return' fora d'una funció"
 
-#: dlls/jscript/jscript.rc:47
+#: dlls/jscript/jscript.rc:46
 msgid "Can't have 'break' outside of loop"
 msgstr "No es pot tenir 'break' fora d'un bucle"
 
-#: dlls/jscript/jscript.rc:48
+#: dlls/jscript/jscript.rc:47
 msgid "Can't have 'continue' outside of loop"
 msgstr "No es pot tenir 'continue' fora d'un bucle"
 
-#: dlls/jscript/jscript.rc:49
+#: dlls/jscript/jscript.rc:48
 msgid "Label redefined"
 msgstr "S'ha redefinit l'etiqueta"
 
-#: dlls/jscript/jscript.rc:50
+#: dlls/jscript/jscript.rc:49
 msgid "Label not found"
 msgstr "No s'ha trobat l'etiqueta"
 
-#: dlls/jscript/jscript.rc:51
+#: dlls/jscript/jscript.rc:50
 msgid "Expected '@end'"
 msgstr "S'esperava '@end'"
 
-#: dlls/jscript/jscript.rc:52
+#: dlls/jscript/jscript.rc:51
 msgid "Conditional compilation is turned off"
 msgstr "La compilació condicional està desactivada"
 
-#: dlls/jscript/jscript.rc:53
+#: dlls/jscript/jscript.rc:52
 msgid "Expected '@'"
 msgstr "S'esperava '@'"
 
-#: dlls/jscript/jscript.rc:90
+#: dlls/jscript/jscript.rc:84
 msgid "Microsoft JScript compilation error"
 msgstr "Error de compilació de Microsoft JScript"
 
-#: dlls/jscript/jscript.rc:91
+#: dlls/jscript/jscript.rc:85
 msgid "Microsoft JScript runtime error"
 msgstr "Error d'entorn d'execució de Microsoft JScript"
 
-#: dlls/jscript/jscript.rc:92 dlls/vbscript/vbscript.rc:64
+#: dlls/jscript/jscript.rc:86 dlls/vbscript/vbscript.rc:64
 msgid "Unknown runtime error"
 msgstr "Error d'entorn d'execució desconegut"
 
-#: dlls/jscript/jscript.rc:56
+#: dlls/jscript/jscript.rc:55
 msgid "Number expected"
 msgstr "S'esperava un nombre"
 
-#: dlls/jscript/jscript.rc:54
+#: dlls/jscript/jscript.rc:53
 msgid "Function expected"
 msgstr "S'esperava una funció"
 
-#: dlls/jscript/jscript.rc:55
+#: dlls/jscript/jscript.rc:54
 msgid "'[object]' is not a date object"
 msgstr "'[objecte]' no és un objecte de data"
 
-#: dlls/jscript/jscript.rc:57
+#: dlls/jscript/jscript.rc:56
 msgid "Object expected"
 msgstr "S'esperava un objecte"
 
-#: dlls/jscript/jscript.rc:58
+#: dlls/jscript/jscript.rc:57
 msgid "Illegal assignment"
 msgstr "Assignació il·legal"
 
-#: dlls/jscript/jscript.rc:59
+#: dlls/jscript/jscript.rc:58
 msgid "'|' is undefined"
 msgstr "'|' no està definit"
 
-#: dlls/jscript/jscript.rc:60
+#: dlls/jscript/jscript.rc:59
 msgid "Boolean object expected"
 msgstr "S'esperava un objecte booleà"
 
-#: dlls/jscript/jscript.rc:61
+#: dlls/jscript/jscript.rc:60
 msgid "Cannot delete '|'"
 msgstr "No es pot suprimir '|'"
 
-#: dlls/jscript/jscript.rc:62
+#: dlls/jscript/jscript.rc:61
 msgid "VBArray object expected"
 msgstr "S'esperava un objecte VBArray"
 
-#: dlls/jscript/jscript.rc:63
+#: dlls/jscript/jscript.rc:62
 msgid "JScript object expected"
 msgstr "S'esperava un objecte JScript"
 
-#: dlls/jscript/jscript.rc:64
+#: dlls/jscript/jscript.rc:63
 msgid "Enumerator object expected"
 msgstr "S'esperava un objecte d'Enumerator"
 
-#: dlls/jscript/jscript.rc:65
+#: dlls/jscript/jscript.rc:64
 msgid "Regular Expression object expected"
 msgstr "S'esperava un objecte d'expressió regular"
 
-#: dlls/jscript/jscript.rc:66
+#: dlls/jscript/jscript.rc:65
 msgid "Syntax error in regular expression"
 msgstr "Error de sintaxi en l'expressió regular"
 
-#: dlls/jscript/jscript.rc:67
+#: dlls/jscript/jscript.rc:66
 msgid "Unexpected quantifier"
 msgstr "Quantificador inesperat"
 
-#: dlls/jscript/jscript.rc:68
+#: dlls/jscript/jscript.rc:67
 msgid "Exception thrown and not caught"
 msgstr "S'ha llançat una excepció que no s'ha atrapat"
 
-#: dlls/jscript/jscript.rc:70
+#: dlls/jscript/jscript.rc:69
 msgid "URI to be encoded contains invalid characters"
 msgstr "L'URI a codificar conté caràcters no vàlids"
 
-#: dlls/jscript/jscript.rc:69
+#: dlls/jscript/jscript.rc:68
 msgid "URI to be decoded is incorrect"
 msgstr "L'URI a descodificar és incorrecte"
 
-#: dlls/jscript/jscript.rc:71
+#: dlls/jscript/jscript.rc:70
 msgid "Number of fraction digits is out of range"
 msgstr "El nombre de xifres de fracció és fora d'interval"
 
-#: dlls/jscript/jscript.rc:72
+#: dlls/jscript/jscript.rc:71
 msgid "Precision is out of range"
 msgstr "La precisió és fora d'interval"
 
-#: dlls/jscript/jscript.rc:73
+#: dlls/jscript/jscript.rc:72
 msgid "Array length must be a finite positive integer"
 msgstr "La longitud del vector ha de ser un nombre enter positiu finit"
 
-#: dlls/jscript/jscript.rc:74
+#: dlls/jscript/jscript.rc:73
 msgid "Array object expected"
 msgstr "S'esperava un objecte Array"
 
-#: dlls/jscript/jscript.rc:75
+#: dlls/jscript/jscript.rc:74
 msgid ""
 "'writable' attribute on the property descriptor cannot be set to 'true' on "
 "this object"
@@ -4176,59 +4081,35 @@ msgstr ""
 "no es pot establir l'atribut 'writable' en el descriptor de propietat com a "
 "'true' en aquest objecte"
 
-#: dlls/jscript/jscript.rc:76
+#: dlls/jscript/jscript.rc:75
 msgid "Cyclic __proto__ value"
 msgstr "Valor __proto__ cíclic"
 
-#: dlls/jscript/jscript.rc:77
+#: dlls/jscript/jscript.rc:76
 msgid "Cannot create property for a non-extensible object"
 msgstr "No es pot definir una propietat en un objecte no extensible"
 
-#: dlls/jscript/jscript.rc:78
+#: dlls/jscript/jscript.rc:77
 msgid "Cannot define property '|': object is not extensible"
 msgstr "No es pot definir la propietat '|': l'objecte no és extensible"
 
-#: dlls/jscript/jscript.rc:79
+#: dlls/jscript/jscript.rc:78
 msgid "Cannot redefine non-configurable property '|'"
 msgstr "No es pot redefinir la propietat no configurable '|'"
 
-#: dlls/jscript/jscript.rc:80
+#: dlls/jscript/jscript.rc:79
 msgid "Cannot modify non-writable property '|'"
 msgstr "No es pot modificar la propietat no escrivible '|'"
 
-#: dlls/jscript/jscript.rc:81
-#, fuzzy
-#| msgid "'this' is not a | object"
-msgid "'this' is not a DataView object"
-msgstr "'this' no és un objecte de |"
-
-#: dlls/jscript/jscript.rc:82
-msgid "Required argument offset or value in DataView method is not specified"
-msgstr ""
-
-#: dlls/jscript/jscript.rc:83
-msgid "DataView operation access beyond specified buffer length"
-msgstr ""
-
-#: dlls/jscript/jscript.rc:84
-msgid "DataView constructor argument offset is invalid"
-msgstr ""
-
-#: dlls/jscript/jscript.rc:85
+#: dlls/jscript/jscript.rc:80
 msgid "'this' is not a | object"
 msgstr "'this' no és un objecte de |"
 
-#: dlls/jscript/jscript.rc:86
+#: dlls/jscript/jscript.rc:81
 msgid "'key' is not an object"
 msgstr "'clau' no és un objecte"
 
-#: dlls/jscript/jscript.rc:87
-#, fuzzy
-#| msgid "Array object expected"
-msgid "ArrayBuffer object expected"
-msgstr "S'esperava un objecte Array"
-
-#: dlls/jscript/jscript.rc:88
+#: dlls/jscript/jscript.rc:82
 msgid "Property cannot have both accessors and a value"
 msgstr "La propietat no pot tenir ambdós mètodes d'accés i un valor"
 
@@ -4901,7 +4782,7 @@ msgstr "No es troba la variable d'entorn.\n"
 msgid "No signal sent.\n"
 msgstr "No s'ha enviat cap senyal.\n"
 
-#: dlls/kernelbase/winerror.mc:818 programs/cmd/cmd.rc:406
+#: dlls/kernelbase/winerror.mc:818 programs/cmd/cmd.rc:410
 msgid "File name is too long.\n"
 msgstr "El nom de fitxer és massa llarg.\n"
 
@@ -5649,7 +5530,7 @@ msgstr "L'usuari ha cancel·lat l'operació.\n"
 msgid "File has a user-mapped section.\n"
 msgstr "El fitxer té una secció assignada per usuari.\n"
 
-#: dlls/kernelbase/winerror.mc:1758 dlls/kernelbase/winerror.mc:3788
+#: dlls/kernelbase/winerror.mc:1758 dlls/kernelbase/winerror.mc:3783
 msgid "Connection refused.\n"
 msgstr "S'ha refusat la connexió.\n"
 
@@ -7252,46 +7133,42 @@ msgid "Invalid argument.\n"
 msgstr "L'argument no és vàlid.\n"
 
 #: dlls/kernelbase/winerror.mc:3778
-msgid "Cannot assign requested address.\n"
-msgstr ""
-
-#: dlls/kernelbase/winerror.mc:3783
 msgid "Connection reset by peer.\n"
 msgstr "Un igual ha restablert la connexió.\n"
 
-#: dlls/kernelbase/winerror.mc:3793
+#: dlls/kernelbase/winerror.mc:3788
 msgid "Host not found.\n"
 msgstr "No s'ha trobat l'amfitrió.\n"
 
-#: dlls/kernelbase/winerror.mc:3798
+#: dlls/kernelbase/winerror.mc:3793
 msgid "Nonauthoritative host not found.\n"
 msgstr "No s'ha trobat l'amfitrió no autoritzat.\n"
 
-#: dlls/kernelbase/winerror.mc:3803
+#: dlls/kernelbase/winerror.mc:3798
 msgid "Nonrecoverable error.\n"
 msgstr "No es pot recuperar de l'error.\n"
 
-#: dlls/kernelbase/winerror.mc:3808
+#: dlls/kernelbase/winerror.mc:3803
 msgid "Name valid, no data record.\n"
 msgstr "El nom és vàlid però no hi ha dades.\n"
 
-#: dlls/kernelbase/winerror.mc:3822
+#: dlls/kernelbase/winerror.mc:3817
 msgid "Not implemented.\n"
 msgstr "No implementat.\n"
 
-#: dlls/kernelbase/winerror.mc:3843
+#: dlls/kernelbase/winerror.mc:3838
 msgid "Call failed.\n"
 msgstr "La trucada ha fallat.\n"
 
-#: dlls/kernelbase/winerror.mc:3815
+#: dlls/kernelbase/winerror.mc:3810
 msgid "No Signature found in file.\n"
 msgstr "No s'ha trobat cap signatura en el fitxer.\n"
 
-#: dlls/kernelbase/winerror.mc:3829
+#: dlls/kernelbase/winerror.mc:3824
 msgid "Invalid call.\n"
 msgstr "La trucada no és vàlida.\n"
 
-#: dlls/kernelbase/winerror.mc:3836
+#: dlls/kernelbase/winerror.mc:3831
 msgid "Resource is not currently available.\n"
 msgstr "El recurs actualment no està disponible.\n"
 
@@ -8239,7 +8116,7 @@ msgstr "Tota la xarxa"
 msgid "Sound Selection"
 msgstr "Selecció de so"
 
-#: dlls/msacm32/msacm32.rc:39 programs/winedbg/winedbg.rc:78
+#: dlls/msacm32/msacm32.rc:39 programs/winedbg/winedbg.rc:77
 msgid "&Save As..."
 msgstr "Anomena i &desa..."
 
@@ -8377,7 +8254,7 @@ msgstr "característica de:"
 msgid "choose which folder contains %s"
 msgstr "trieu quina carpeta conté %s"
 
-#: dlls/msi/msi.rc:66 dlls/shell32/shell32.rc:238
+#: dlls/msi/msi.rc:66 dlls/shell32/shell32.rc:236
 msgid "New Folder"
 msgstr "Carpeta nova"
 
@@ -9509,9 +9386,8 @@ msgstr "Font:"
 #: dlls/oledlg/oledlg.rc:86 dlls/shdoclc/shdoclc.rc:50
 #: dlls/shdoclc/shdoclc.rc:82 dlls/shdoclc/shdoclc.rc:95
 #: dlls/shdoclc/shdoclc.rc:135 dlls/shdoclc/shdoclc.rc:162
-#: dlls/shdoclc/shdoclc.rc:186 dlls/shell32/shell32.rc:99
-#: dlls/user32/user32.rc:62 programs/conhost/conhost.rc:37
-#: programs/wordpad/wordpad.rc:114
+#: dlls/shdoclc/shdoclc.rc:186 dlls/user32/user32.rc:62
+#: programs/conhost/conhost.rc:37 programs/wordpad/wordpad.rc:114
 msgid "&Paste"
 msgstr "Engan&xa"
 
@@ -9543,7 +9419,7 @@ msgstr ""
 "Insereix el contingut del fitxer com a objecte al document de manera que el "
 "pugueu activar mitjançant el programa que l'ha creat."
 
-#: dlls/oledlg/oledlg.rc:30 dlls/shell32/shell32.rc:197
+#: dlls/oledlg/oledlg.rc:30 dlls/shell32/shell32.rc:195
 msgid "Browse"
 msgstr "Navega"
 
@@ -9845,12 +9721,12 @@ msgstr "&Propietats"
 msgid "&Undo"
 msgstr "&Desfés"
 
-#: dlls/shdoclc/shdoclc.rc:96 dlls/shell32/shell32.rc:102
+#: dlls/shdoclc/shdoclc.rc:96 dlls/shell32/shell32.rc:105
 #: dlls/user32/user32.rc:63
 msgid "&Delete"
 msgstr "&Suprimeix"
 
-#: dlls/shdoclc/shdoclc.rc:103
+#: dlls/shdoclc/shdoclc.rc:103 dlls/shell32/shell32.rc:97
 msgid "&Select"
 msgstr "&Selecciona"
 
@@ -10019,26 +9895,26 @@ msgid "&w&bPage &p"
 msgstr "&w&bPàgina &p"
 
 #: dlls/shell32/shell32.rc:30 dlls/shell32/shell32.rc:45
-#: dlls/shell32/shell32.rc:119 dlls/shell32/shell32.rc:157
+#: dlls/shell32/shell32.rc:122 dlls/shell32/shell32.rc:160
 #: programs/taskmgr/taskmgr.rc:65 programs/taskmgr/taskmgr.rc:110
 #: programs/taskmgr/taskmgr.rc:252
 msgid "Lar&ge Icons"
 msgstr "Icones &grans"
 
 #: dlls/shell32/shell32.rc:31 dlls/shell32/shell32.rc:46
-#: dlls/shell32/shell32.rc:120 dlls/shell32/shell32.rc:158
+#: dlls/shell32/shell32.rc:123 dlls/shell32/shell32.rc:161
 #: programs/taskmgr/taskmgr.rc:66 programs/taskmgr/taskmgr.rc:111
 #: programs/taskmgr/taskmgr.rc:253
 msgid "S&mall Icons"
 msgstr "Icones &petites"
 
 #: dlls/shell32/shell32.rc:32 dlls/shell32/shell32.rc:47
-#: dlls/shell32/shell32.rc:121 dlls/shell32/shell32.rc:159
+#: dlls/shell32/shell32.rc:124 dlls/shell32/shell32.rc:162
 msgid "&List"
 msgstr "&Llista"
 
 #: dlls/shell32/shell32.rc:33 dlls/shell32/shell32.rc:48
-#: dlls/shell32/shell32.rc:122 dlls/shell32/shell32.rc:160
+#: dlls/shell32/shell32.rc:125 dlls/shell32/shell32.rc:163
 #: programs/taskmgr/taskmgr.rc:67 programs/taskmgr/taskmgr.rc:112
 #: programs/taskmgr/taskmgr.rc:254
 msgid "&Details"
@@ -10081,7 +9957,7 @@ msgstr "Enganxa com a enllaç"
 msgid "New"
 msgstr "Nou"
 
-#: dlls/shell32/shell32.rc:69 dlls/shell32/shell32.rc:240
+#: dlls/shell32/shell32.rc:69
 msgid "New &Folder"
 msgstr "&Carpeta nova"
 
@@ -10098,19 +9974,23 @@ msgstr "&Restaura"
 msgid "&Erase"
 msgstr "&Esborra"
 
-#: dlls/shell32/shell32.rc:97
+#: dlls/shell32/shell32.rc:98
+msgid "E&xplore"
+msgstr "E&xplora"
+
+#: dlls/shell32/shell32.rc:101
 msgid "C&ut"
 msgstr "Re&talla"
 
-#: dlls/shell32/shell32.rc:101
+#: dlls/shell32/shell32.rc:104
 msgid "Create &Link"
 msgstr "Crea en&llaç"
 
-#: dlls/shell32/shell32.rc:103
+#: dlls/shell32/shell32.rc:106
 msgid "&Rename"
 msgstr "Canvia el &nom"
 
-#: dlls/shell32/shell32.rc:114 programs/notepad/notepad.rc:39
+#: dlls/shell32/shell32.rc:117 programs/notepad/notepad.rc:39
 #: programs/oleview/oleview.rc:38 programs/regedit/regedit.rc:41
 #: programs/view/view.rc:34 programs/winefile/winefile.rc:40
 #: programs/winemine/winemine.rc:51 programs/winhlp32/winhlp32.rc:37
@@ -10118,51 +9998,51 @@ msgstr "Canvia el &nom"
 msgid "E&xit"
 msgstr "&Surt"
 
-#: dlls/shell32/shell32.rc:127
+#: dlls/shell32/shell32.rc:130
 msgid "&About Control Panel"
 msgstr "&Quant al Tauler de Control"
 
-#: dlls/shell32/shell32.rc:275 dlls/shell32/shell32.rc:290
+#: dlls/shell32/shell32.rc:271 dlls/shell32/shell32.rc:286
 msgid "Browse for Folder"
 msgstr "Cerca de carpetes"
 
-#: dlls/shell32/shell32.rc:295
+#: dlls/shell32/shell32.rc:291
 msgid "Folder:"
 msgstr "Carpeta:"
 
-#: dlls/shell32/shell32.rc:301
+#: dlls/shell32/shell32.rc:297
 msgid "&Make New Folder"
 msgstr "&Fes una carpeta nova"
 
-#: dlls/shell32/shell32.rc:308
+#: dlls/shell32/shell32.rc:304
 msgid "Message"
 msgstr "Missatge"
 
-#: dlls/shell32/shell32.rc:312
+#: dlls/shell32/shell32.rc:308
 msgid "Yes to &all"
 msgstr "Sí a &tots"
 
-#: dlls/shell32/shell32.rc:321
+#: dlls/shell32/shell32.rc:317
 msgid "About %s"
 msgstr "Quant al %s"
 
-#: dlls/shell32/shell32.rc:325
+#: dlls/shell32/shell32.rc:321
 msgid "Wine &license"
 msgstr "&Llicència del Wine"
 
-#: dlls/shell32/shell32.rc:330
+#: dlls/shell32/shell32.rc:326
 msgid "Running on %s"
 msgstr "S'està executant en %s"
 
-#: dlls/shell32/shell32.rc:331
+#: dlls/shell32/shell32.rc:327
 msgid "Wine was brought to you by:"
 msgstr "Teniu el Wine gràcies a:"
 
-#: dlls/shell32/shell32.rc:336
+#: dlls/shell32/shell32.rc:332
 msgid "Run"
 msgstr "Executa"
 
-#: dlls/shell32/shell32.rc:340
+#: dlls/shell32/shell32.rc:336
 msgid ""
 "Type the name of a program, folder, document, or Internet resource, and Wine "
 "will open it for you."
@@ -10170,301 +10050,292 @@ msgstr ""
 "Introdueix el nom d'un programa, carpeta, document o recurs d'Internet, i el "
 "Wine l'obrirà per a vós."
 
-#: dlls/shell32/shell32.rc:341
+#: dlls/shell32/shell32.rc:337
 msgid "&Open:"
 msgstr "&Obrir:"
 
-#: dlls/shell32/shell32.rc:345 programs/progman/progman.rc:182
+#: dlls/shell32/shell32.rc:341 programs/progman/progman.rc:182
 #: programs/progman/progman.rc:201 programs/progman/progman.rc:218
 #: programs/winecfg/winecfg.rc:247 programs/winefile/winefile.rc:129
 msgid "&Browse..."
 msgstr "&Navega..."
 
-#: dlls/shell32/shell32.rc:357 dlls/shell32/shell32.rc:386
+#: dlls/shell32/shell32.rc:353 dlls/shell32/shell32.rc:382
 msgid "File type:"
 msgstr "Tipus de fitxer:"
 
-#: dlls/shell32/shell32.rc:361 dlls/shell32/shell32.rc:394
+#: dlls/shell32/shell32.rc:357 dlls/shell32/shell32.rc:390
 #: dlls/urlmon/urlmon.rc:37 programs/explorer/explorer.rc:33
 msgid "Location:"
 msgstr "Ubicació:"
 
-#: dlls/shell32/shell32.rc:363 dlls/shell32/shell32.rc:396
+#: dlls/shell32/shell32.rc:359 dlls/shell32/shell32.rc:392
 #: programs/winefile/winefile.rc:169
 msgid "Size:"
 msgstr "Mida:"
 
-#: dlls/shell32/shell32.rc:367 dlls/shell32/shell32.rc:400
+#: dlls/shell32/shell32.rc:363 dlls/shell32/shell32.rc:396
 msgid "Creation date:"
 msgstr "Data de creació:"
 
-#: dlls/shell32/shell32.rc:371 dlls/shell32/shell32.rc:408
+#: dlls/shell32/shell32.rc:367 dlls/shell32/shell32.rc:404
 msgid "Attributes:"
 msgstr "Atributs:"
 
-#: dlls/shell32/shell32.rc:373 dlls/shell32/shell32.rc:410
+#: dlls/shell32/shell32.rc:369 dlls/shell32/shell32.rc:406
 #: programs/winefile/winefile.rc:173
 msgid "H&idden"
 msgstr "A&magat"
 
-#: dlls/shell32/shell32.rc:374 dlls/shell32/shell32.rc:411
+#: dlls/shell32/shell32.rc:370 dlls/shell32/shell32.rc:407
 #: programs/winefile/winefile.rc:174
 msgid "&Archive"
 msgstr "&Arxiu"
 
-#: dlls/shell32/shell32.rc:388
+#: dlls/shell32/shell32.rc:384
 msgid "Open with:"
 msgstr "Obre amb:"
 
-#: dlls/shell32/shell32.rc:391
+#: dlls/shell32/shell32.rc:387
 msgid "&Change..."
 msgstr "&Canvia..."
 
-#: dlls/shell32/shell32.rc:402
+#: dlls/shell32/shell32.rc:398
 msgid "Last modified:"
 msgstr "Última modificació:"
 
-#: dlls/shell32/shell32.rc:404
+#: dlls/shell32/shell32.rc:400
 msgid "Last accessed:"
 msgstr "Últim accés:"
 
-#: dlls/shell32/shell32.rc:135 dlls/shell32/shell32.rc:139
+#: dlls/shell32/shell32.rc:138 dlls/shell32/shell32.rc:142
 #: programs/winefile/winefile.rc:107
 msgid "Size"
 msgstr "Mida"
 
-#: dlls/shell32/shell32.rc:136 programs/regedit/regedit.rc:151
+#: dlls/shell32/shell32.rc:139 programs/regedit/regedit.rc:151
 msgid "Type"
 msgstr "Tipus"
 
-#: dlls/shell32/shell32.rc:137
+#: dlls/shell32/shell32.rc:140
 msgid "Modified"
 msgstr "Modificat"
 
-#: dlls/shell32/shell32.rc:138 programs/winefile/winefile.rc:171
+#: dlls/shell32/shell32.rc:141 programs/winefile/winefile.rc:171
 #: programs/winefile/winefile.rc:113
 msgid "Attributes"
 msgstr "Atributs"
 
-#: dlls/shell32/shell32.rc:140
+#: dlls/shell32/shell32.rc:143
 msgid "Size available"
 msgstr "Mida disponible"
 
-#: dlls/shell32/shell32.rc:142
+#: dlls/shell32/shell32.rc:145
 msgid "Comments"
 msgstr "Comentaris"
 
-#: dlls/shell32/shell32.rc:143
+#: dlls/shell32/shell32.rc:146
 msgid "Original location"
 msgstr "Ubicació original"
 
-#: dlls/shell32/shell32.rc:144
+#: dlls/shell32/shell32.rc:147
 msgid "Date deleted"
 msgstr "Data de supressió"
 
-#: dlls/shell32/shell32.rc:151 programs/winecfg/winecfg.rc:106
+#: dlls/shell32/shell32.rc:154 programs/winecfg/winecfg.rc:106
 #: programs/winefile/winefile.rc:99
 msgctxt "display name"
 msgid "Desktop"
 msgstr "Escriptori"
 
-#: dlls/shell32/shell32.rc:152 dlls/urlmon/urlmon.rc:56
-#: programs/regedit/regedit.rc:243
+#: dlls/shell32/shell32.rc:155 programs/regedit/regedit.rc:243
 msgid "My Computer"
 msgstr "El meu ordinador"
 
-#: dlls/shell32/shell32.rc:154
+#: dlls/shell32/shell32.rc:157
 msgid "Control Panel"
 msgstr "Tauler de Control"
 
-#: dlls/shell32/shell32.rc:162
-msgid "Ne&w"
-msgstr ""
-
 #: dlls/shell32/shell32.rc:164
-msgid "E&xplore"
-msgstr "E&xplora"
+msgid "Select"
+msgstr "Selecciona"
 
-#: dlls/shell32/shell32.rc:167
-msgid "Run as &Administrator"
-msgstr ""
-
-#: dlls/shell32/shell32.rc:189
+#: dlls/shell32/shell32.rc:187
 msgid "Restart"
 msgstr "Reinicia"
 
-#: dlls/shell32/shell32.rc:190
+#: dlls/shell32/shell32.rc:188
 msgid "Do you want to simulate a Windows reboot?"
 msgstr "Voleu simular un reinici de Windows?"
 
-#: dlls/shell32/shell32.rc:191
+#: dlls/shell32/shell32.rc:189
 msgid "Shutdown"
 msgstr "Atura"
 
-#: dlls/shell32/shell32.rc:192
+#: dlls/shell32/shell32.rc:190
 msgid "Do you want to shutdown your Wine session?"
 msgstr "Voleu aturar la vostra sessió del Wine?"
 
-#: dlls/shell32/shell32.rc:203 programs/progman/progman.rc:83
+#: dlls/shell32/shell32.rc:201 programs/progman/progman.rc:83
 msgid "Programs"
 msgstr "Programes"
 
-#: dlls/shell32/shell32.rc:204 dlls/shell32/shell32.rc:219
-#: dlls/shell32/shell32.rc:145 dlls/shell32/shell32.rc:235
+#: dlls/shell32/shell32.rc:202 dlls/shell32/shell32.rc:217
+#: dlls/shell32/shell32.rc:148 dlls/shell32/shell32.rc:233
 msgid "Documents"
 msgstr "Documents"
 
-#: dlls/shell32/shell32.rc:205
+#: dlls/shell32/shell32.rc:203
 msgid "Favorites"
 msgstr "Preferits"
 
-#: dlls/shell32/shell32.rc:206
+#: dlls/shell32/shell32.rc:204
 msgid "StartUp"
 msgstr "Inicialització"
 
-#: dlls/shell32/shell32.rc:207
+#: dlls/shell32/shell32.rc:205
 msgid "Start Menu"
 msgstr "Menú Inicia"
 
-#: dlls/shell32/shell32.rc:208 dlls/shell32/shell32.rc:221
+#: dlls/shell32/shell32.rc:206 dlls/shell32/shell32.rc:219
 msgid "Music"
 msgstr "Música"
 
-#: dlls/shell32/shell32.rc:209 dlls/shell32/shell32.rc:223
+#: dlls/shell32/shell32.rc:207 dlls/shell32/shell32.rc:221
 msgid "Videos"
 msgstr "Vídeos"
 
-#: dlls/shell32/shell32.rc:210
+#: dlls/shell32/shell32.rc:208
 msgctxt "directory"
 msgid "Desktop"
 msgstr "Escriptori"
 
 # Not translated in Catalan Windows
-#: dlls/shell32/shell32.rc:211
+#: dlls/shell32/shell32.rc:209
 msgid "NetHood"
 msgstr "NetHood"
 
-#: dlls/shell32/shell32.rc:212
+#: dlls/shell32/shell32.rc:210
 msgid "Templates"
 msgstr "Plantilles"
 
 # Not translated in Catalan Windows
-#: dlls/shell32/shell32.rc:213
+#: dlls/shell32/shell32.rc:211
 msgid "PrintHood"
 msgstr "PrintHood"
 
-#: dlls/shell32/shell32.rc:214 programs/winhlp32/winhlp32.rc:49
+#: dlls/shell32/shell32.rc:212 programs/winhlp32/winhlp32.rc:49
 msgid "History"
 msgstr "Història"
 
 # Not translated in Catalan Windows
-#: dlls/shell32/shell32.rc:215
+#: dlls/shell32/shell32.rc:213
 msgid "Program Files"
 msgstr "Program Files"
 
-#: dlls/shell32/shell32.rc:217 dlls/shell32/shell32.rc:222
+#: dlls/shell32/shell32.rc:215 dlls/shell32/shell32.rc:220
 msgid "Pictures"
 msgstr "Imatges"
 
 # Not translated in Catalan Windows
-#: dlls/shell32/shell32.rc:218
+#: dlls/shell32/shell32.rc:216
 msgid "Common Files"
 msgstr "Common Files"
 
-#: dlls/shell32/shell32.rc:220
+#: dlls/shell32/shell32.rc:218
 msgid "Administrative Tools"
 msgstr "Eines d'administració"
 
 # Not translated in Catalan Windows
-#: dlls/shell32/shell32.rc:216
+#: dlls/shell32/shell32.rc:214
 msgid "Program Files (x86)"
 msgstr "Program Files (x86)"
 
-#: dlls/shell32/shell32.rc:224
+#: dlls/shell32/shell32.rc:222
 msgid "Contacts"
 msgstr "Contactes"
 
-#: dlls/shell32/shell32.rc:225 programs/winefile/winefile.rc:112
+#: dlls/shell32/shell32.rc:223 programs/winefile/winefile.rc:112
 msgid "Links"
 msgstr "Enllaços"
 
-#: dlls/shell32/shell32.rc:226
+#: dlls/shell32/shell32.rc:224
 msgid "Slide Shows"
 msgstr "Presentacions"
 
-#: dlls/shell32/shell32.rc:227
+#: dlls/shell32/shell32.rc:225
 msgid "Playlists"
 msgstr "Llistes de reproducció"
 
-#: dlls/shell32/shell32.rc:146 programs/taskmgr/taskmgr.rc:326
+#: dlls/shell32/shell32.rc:149 programs/taskmgr/taskmgr.rc:326
 msgid "Status"
 msgstr "Estat"
 
-#: dlls/shell32/shell32.rc:148
+#: dlls/shell32/shell32.rc:151
 msgid "Model"
 msgstr "Model"
 
-#: dlls/shell32/shell32.rc:228
+#: dlls/shell32/shell32.rc:226
 msgid "Sample Music"
 msgstr "Música de mostra"
 
-#: dlls/shell32/shell32.rc:229
+#: dlls/shell32/shell32.rc:227
 msgid "Sample Pictures"
 msgstr "Imatges de mostra"
 
-#: dlls/shell32/shell32.rc:230
+#: dlls/shell32/shell32.rc:228
 msgid "Sample Playlists"
 msgstr "Llistes de reproducció de mostra"
 
-#: dlls/shell32/shell32.rc:231
+#: dlls/shell32/shell32.rc:229
 msgid "Sample Videos"
 msgstr "Vídeos de mostra"
 
-#: dlls/shell32/shell32.rc:232
+#: dlls/shell32/shell32.rc:230
 msgid "Saved Games"
 msgstr "Partides desades"
 
-#: dlls/shell32/shell32.rc:233
+#: dlls/shell32/shell32.rc:231
 msgid "Searches"
 msgstr "Cerques"
 
-#: dlls/shell32/shell32.rc:234
+#: dlls/shell32/shell32.rc:232
 msgid "Users"
 msgstr "Usuaris"
 
-#: dlls/shell32/shell32.rc:236
+#: dlls/shell32/shell32.rc:234
 msgid "Downloads"
 msgstr "Baixades"
 
-#: dlls/shell32/shell32.rc:169
+#: dlls/shell32/shell32.rc:167
 msgid "Unable to create new Folder: Permission denied."
 msgstr "No s'ha pogut crear la carpeta nova: S'ha denegat el permís."
 
-#: dlls/shell32/shell32.rc:170
+#: dlls/shell32/shell32.rc:168
 msgid "Error during creation of a new folder"
 msgstr "Error en crear una carpeta nova"
 
-#: dlls/shell32/shell32.rc:171
+#: dlls/shell32/shell32.rc:169
 msgid "Confirm file deletion"
 msgstr "Confirmar eliminació de fitxer"
 
-#: dlls/shell32/shell32.rc:172
+#: dlls/shell32/shell32.rc:170
 msgid "Confirm folder deletion"
 msgstr "Confirmar eliminació de carpeta"
 
-#: dlls/shell32/shell32.rc:173
+#: dlls/shell32/shell32.rc:171
 msgid "Are you sure you want to delete '%1'?"
 msgstr "Esteu segur que voleu suprimir '%1'?"
 
-#: dlls/shell32/shell32.rc:174
+#: dlls/shell32/shell32.rc:172
 msgid "Are you sure you want to delete these %1 items?"
 msgstr "Esteu segur que voleu suprimir aquests %1 elements?"
 
-#: dlls/shell32/shell32.rc:181
+#: dlls/shell32/shell32.rc:179
 msgid "Confirm file overwrite"
 msgstr "Confirmar sobreescriptura de fitxer"
 
-#: dlls/shell32/shell32.rc:180
+#: dlls/shell32/shell32.rc:178
 msgid ""
 "This folder already contains a file called '%1'.\n"
 "\n"
@@ -10474,30 +10345,30 @@ msgstr ""
 "\n"
 "El voleu substituir?"
 
-#: dlls/shell32/shell32.rc:175
+#: dlls/shell32/shell32.rc:173
 msgid "Are you sure you want to delete the selected item(s)?"
 msgstr "Esteu segur que voleu suprimir el(s) element(s) seleccionat(s)?"
 
-#: dlls/shell32/shell32.rc:177
+#: dlls/shell32/shell32.rc:175
 msgid ""
 "Are you sure that you want to send '%1' and all its content to the Trash?"
 msgstr ""
 "Esteu segur que voleu enviar '%1' i tot el seu contingut a la Paperera?"
 
-#: dlls/shell32/shell32.rc:176
+#: dlls/shell32/shell32.rc:174
 msgid "Are you sure that you want to send '%1' to the Trash?"
 msgstr "Esteu segur que voleu enviar '%1' a la Paperera?"
 
-#: dlls/shell32/shell32.rc:178
+#: dlls/shell32/shell32.rc:176
 msgid "Are you sure that you want to send these %1 items to the Trash?"
 msgstr "Esteu segur que voleu enviar aquests %1 elements a la Paperera?"
 
-#: dlls/shell32/shell32.rc:179
+#: dlls/shell32/shell32.rc:177
 msgid "The item '%1' can't be sent to Trash. Do you want to delete it instead?"
 msgstr ""
 "L'element '%1' no es pot enviar a la Paperera. El voleu suprimir en compte?"
 
-#: dlls/shell32/shell32.rc:186
+#: dlls/shell32/shell32.rc:184
 msgid ""
 "This folder already contains a folder named '%1'.\n"
 "\n"
@@ -10511,41 +10382,41 @@ msgstr ""
 "fitxers en la carpeta seleccionada, seran substituïts. Encara voleu\n"
 "desplaçar o copiar la carpeta?"
 
-#: dlls/shell32/shell32.rc:242
+#: dlls/shell32/shell32.rc:238
 msgid "Wine Control Panel"
 msgstr "Tauler de Control del Wine"
 
-#: dlls/shell32/shell32.rc:195
+#: dlls/shell32/shell32.rc:193
 msgid "Unable to display Run dialog box (internal error)"
 msgstr "No s'ha pogut mostrar el quadre de diàleg Executar (error intern)"
 
-#: dlls/shell32/shell32.rc:196
+#: dlls/shell32/shell32.rc:194
 msgid "Unable to display Browse dialog box (internal error)"
 msgstr "No s'ha pogut mostrar el quadre de diàleg Navega (error intern)"
 
-#: dlls/shell32/shell32.rc:198
+#: dlls/shell32/shell32.rc:196
 msgid "Executable files (*.exe)"
 msgstr "Fitxers executables (*.exe)"
 
-#: dlls/shell32/shell32.rc:246
+#: dlls/shell32/shell32.rc:242
 msgid "There is no Windows program configured to open this type of file."
 msgstr ""
 "No hi ha cap programa de Windows configurat per a obrir aquest tipus de "
 "fitxer."
 
-#: dlls/shell32/shell32.rc:248
+#: dlls/shell32/shell32.rc:244
 msgid "Are you sure you wish to permanently delete '%1'?"
 msgstr "Esteu segur que voleu suprimir permanentment '%1'?"
 
-#: dlls/shell32/shell32.rc:249
+#: dlls/shell32/shell32.rc:245
 msgid "Are you sure you wish to permanently delete these %1 items?"
 msgstr "Esteu segur que voleu suprimir permanentment aquests %1 elements?"
 
-#: dlls/shell32/shell32.rc:250
+#: dlls/shell32/shell32.rc:246
 msgid "Confirm deletion"
 msgstr "Confirma supressió"
 
-#: dlls/shell32/shell32.rc:251
+#: dlls/shell32/shell32.rc:247
 msgid ""
 "A file already exists at the path %1.\n"
 "\n"
@@ -10555,7 +10426,7 @@ msgstr ""
 "\n"
 "El voleu substituir?"
 
-#: dlls/shell32/shell32.rc:252
+#: dlls/shell32/shell32.rc:248
 msgid ""
 "A folder already exists at the path %1.\n"
 "\n"
@@ -10565,11 +10436,11 @@ msgstr ""
 "\n"
 "La voleu substituir?"
 
-#: dlls/shell32/shell32.rc:253
+#: dlls/shell32/shell32.rc:249
 msgid "Confirm overwrite"
 msgstr "Confirma sobreescriptura"
 
-#: dlls/shell32/shell32.rc:270
+#: dlls/shell32/shell32.rc:266
 msgid ""
 "Wine is free software; you can redistribute it and/or modify it under the "
 "terms of the GNU Lesser General Public License as published by the Free "
@@ -10599,11 +10470,11 @@ msgstr ""
 "juntament amb el Wine; si no, escriviu a la Free Software Foundation, Inc., "
 "51 Franklin St, Fifth Floor, Boston, MA 02110-1301, EUA."
 
-#: dlls/shell32/shell32.rc:258
+#: dlls/shell32/shell32.rc:254
 msgid "Wine License"
 msgstr "Llicència del Wine"
 
-#: dlls/shell32/shell32.rc:153
+#: dlls/shell32/shell32.rc:156
 msgid "Trash"
 msgstr "Paperera"
 
@@ -12569,55 +12440,6 @@ msgstr "Instal·la (%d)"
 msgid "Install"
 msgstr "Instal·la"
 
-#: dlls/urlmon/urlmon.rc:58
-#, fuzzy
-#| msgid "Local Port"
-msgid "Local intranet"
-msgstr "Port local"
-
-#: dlls/urlmon/urlmon.rc:60
-#, fuzzy
-#| msgid "Trusted Publishers"
-msgid "Trusted sites"
-msgstr "Publicadors de confiança"
-
-#: dlls/urlmon/urlmon.rc:62
-#, fuzzy
-#| msgid "Ethernet"
-msgid "Internet"
-msgstr "Ethernet"
-
-#: dlls/urlmon/urlmon.rc:64
-msgid "Restricted sites"
-msgstr ""
-
-#: dlls/urlmon/urlmon.rc:57
-#, fuzzy
-#| msgid "My Computer"
-msgid "Your computer"
-msgstr "El meu ordinador"
-
-#: dlls/urlmon/urlmon.rc:59
-msgid ""
-"This zone contains all Web sites that are on your organization's intranet."
-msgstr ""
-
-#: dlls/urlmon/urlmon.rc:61
-msgid ""
-"This zone contains Web sites that you trust not to damage your computer or "
-"data."
-msgstr ""
-
-#: dlls/urlmon/urlmon.rc:63
-msgid "This zone contains all Web sites you haven't placed in other zones"
-msgstr ""
-
-#: dlls/urlmon/urlmon.rc:65
-msgid ""
-"This zone contains Web sites that could potentially damage your computer or "
-"data."
-msgstr ""
-
 #: dlls/user32/user32.rc:30 dlls/user32/user32.rc:43
 #: programs/taskmgr/taskmgr.rc:138
 msgctxt "window"
@@ -12761,7 +12583,7 @@ msgstr "L'objecte no accepta arguments nombrats"
 msgid "Object doesn't support current locale setting"
 msgstr "L'objecte no accepta la configuració de localització actual"
 
-#: dlls/vbscript/vbscript.rc:53
+#: dlls/vbscript/vbscript.rc:53 dlls/vbscript/vbscript.rc:54
 msgid "Named argument not found"
 msgstr "No s'ha trobat el argument anomenat"
 
@@ -12769,6 +12591,10 @@ msgstr "No s'ha trobat el argument anomenat"
 msgid "Wrong number of arguments or invalid property assignment"
 msgstr ""
 "El nombre d'arguments és incorrecte o l'assignació de propietat no és vàlida"
+
+#: dlls/vbscript/vbscript.rc:56
+msgid "Object not a collection"
+msgstr "L'objecte no és una colecció"
 
 #: dlls/vbscript/vbscript.rc:57
 msgid "Specified DLL function not found"
@@ -13862,7 +13688,7 @@ msgstr "Bucle en processar referències"
 msgid "Referral hop limit exceeded"
 msgstr "Límit de salt de referències superat"
 
-#: programs/attrib/attrib.rc:30 programs/cmd/cmd.rc:370
+#: programs/attrib/attrib.rc:30 programs/cmd/cmd.rc:373
 msgid ""
 "Not Yet Implemented\n"
 "\n"
@@ -13870,7 +13696,7 @@ msgstr ""
 "Encara no implementat\n"
 "\n"
 
-#: programs/attrib/attrib.rc:31 programs/cmd/cmd.rc:373
+#: programs/attrib/attrib.rc:31 programs/cmd/cmd.rc:376
 msgid "%1: File Not Found\n"
 msgstr "%1: Fitxer no trobat\n"
 
@@ -14022,18 +13848,22 @@ msgid "COPY <filename> copies a file.\n"
 msgstr "COPY <nom de fitxer> copia un fitxer.\n"
 
 #: programs/cmd/cmd.rc:56
+msgid "CTTY changes the input/output device.\n"
+msgstr "CTTY canvia el dispositiu d'entrada/sortida.\n"
+
+#: programs/cmd/cmd.rc:59
 msgid "DATE shows or changes the system date.\n"
 msgstr "DATE mostra o canvia la data de sistema.\n"
 
-#: programs/cmd/cmd.rc:59
+#: programs/cmd/cmd.rc:62
 msgid "DEL <filename> deletes a file or set of files.\n"
 msgstr "DEL <nom de fitxer> suprimeix un fitxer o conjunt de fitxers.\n"
 
-#: programs/cmd/cmd.rc:62
+#: programs/cmd/cmd.rc:65
 msgid "DIR lists the contents of a directory.\n"
 msgstr "DIR mostra els continguts d'un directori.\n"
 
-#: programs/cmd/cmd.rc:72
+#: programs/cmd/cmd.rc:75
 msgid ""
 "ECHO <string> displays <string> on the current terminal device.\n"
 "\n"
@@ -14054,11 +13884,11 @@ msgstr ""
 "ECHO OFF desfà l'efecte d'un ECHO ON anterior (ECHO està OFF per defecte).\n"
 "Precedir l'ordre ECHO OFF amb el signe @ prevé que es mostri.\n"
 
-#: programs/cmd/cmd.rc:75
+#: programs/cmd/cmd.rc:78
 msgid "ERASE <filename> deletes a file or set of files.\n"
 msgstr "ERASE <nom de fitxer> suprimeix un fitxer o conjunt de fitxers.\n"
 
-#: programs/cmd/cmd.rc:82
+#: programs/cmd/cmd.rc:85
 msgid ""
 "The FOR command is used to execute a command for each of a set of files.\n"
 "\n"
@@ -14073,7 +13903,7 @@ msgstr ""
 "\n"
 "S'ha de doblar el signe % quan s'utilitza FOR en un fitxer BAT.\n"
 
-#: programs/cmd/cmd.rc:94
+#: programs/cmd/cmd.rc:97
 msgid ""
 "The GOTO command transfers execution to another statement within a batch\n"
 "file.\n"
@@ -14097,7 +13927,7 @@ msgstr ""
 "\n"
 "GOTO no té cap efecte quan s'utilitza de forma interactiva.\n"
 
-#: programs/cmd/cmd.rc:98
+#: programs/cmd/cmd.rc:101
 msgid ""
 "HELP <command> shows brief help details on a topic.\n"
 "HELP without an argument shows all CMD built-in commands.\n"
@@ -14105,7 +13935,7 @@ msgstr ""
 "HELP <ordre> mostra detalls d'ajuda breus sobre un tema.\n"
 "HELP sense argument mostra tots els ordres integrats de CMD.\n"
 
-#: programs/cmd/cmd.rc:108
+#: programs/cmd/cmd.rc:111
 msgid ""
 "IF is used to conditionally execute a command.\n"
 "\n"
@@ -14125,7 +13955,7 @@ msgstr ""
 "En la segona forma de la comanda, cadena1 i cadena2 han de ser entre\n"
 "cometes dobles. La comparació no distingeix entre majúscules i minúscules.\n"
 
-#: programs/cmd/cmd.rc:115
+#: programs/cmd/cmd.rc:118
 msgid ""
 "LABEL is used to set a disk volume label.\n"
 "\n"
@@ -14139,15 +13969,15 @@ msgstr ""
 "L'ordre us demanarà l'etiqueta nova de volum per a la unitat donada.\n"
 "Podeu mostrar l'etiqueta de volum del disc amb l'ordre VOL.\n"
 
-#: programs/cmd/cmd.rc:118
+#: programs/cmd/cmd.rc:121
 msgid "MD <name> is the short version of MKDIR. It creates a subdirectory.\n"
 msgstr "MD <nom> és la versió curta de MKDIR. Crea un subdirectori.\n"
 
-#: programs/cmd/cmd.rc:120
+#: programs/cmd/cmd.rc:123
 msgid "MKDIR <name> creates a subdirectory.\n"
 msgstr "MKDIR <nom> crea un subdirectori.\n"
 
-#: programs/cmd/cmd.rc:128
+#: programs/cmd/cmd.rc:131
 msgid ""
 "MOVE relocates a file or directory to a new point within the file system.\n"
 "\n"
@@ -14165,7 +13995,7 @@ msgstr ""
 "MOVE falla si els llocs antics i els nous es troben en lletres d'unitat DOS\n"
 "diferents.\n"
 
-#: programs/cmd/cmd.rc:139
+#: programs/cmd/cmd.rc:142
 msgid ""
 "PATH displays or changes the cmd search path.\n"
 "\n"
@@ -14187,7 +14017,7 @@ msgstr ""
 "per exemple:\n"
 "PATH %PATH%;c:\\temp\n"
 
-#: programs/cmd/cmd.rc:145
+#: programs/cmd/cmd.rc:148
 msgid ""
 "PAUSE displays a message on the screen asking the user to press a key.\n"
 "\n"
@@ -14201,7 +14031,7 @@ msgstr ""
 "llegeixi la sortida d'una ordre anterior abans que es desplaci fora de la\n"
 "pantalla.\n"
 
-#: programs/cmd/cmd.rc:166
+#: programs/cmd/cmd.rc:169
 msgid ""
 "PROMPT sets the command-line prompt.\n"
 "\n"
@@ -14245,7 +14075,7 @@ msgstr ""
 "L'indicador també es pot canviar per modificar la variable d'entorn PROMPT,\n"
 "així que l'ordre 'SET PROMPT=text' té el mateix efecte que 'PROMPT text'.\n"
 
-#: programs/cmd/cmd.rc:170
+#: programs/cmd/cmd.rc:173
 msgid ""
 "A command line beginning with REM (followed by a space) performs no action,\n"
 "and can therefore be used as a comment in a batch file.\n"
@@ -14253,25 +14083,25 @@ msgstr ""
 "Una línia d'ordres que comença amb REM (seguit per un espai) no realitza\n"
 "cap acció, i per tant es pot utilitzar com a comentari en un fitxer BAT.\n"
 
-#: programs/cmd/cmd.rc:173
+#: programs/cmd/cmd.rc:176
 msgid "REN <filename> is the short version of RENAME. It renames a file.\n"
 msgstr ""
 "REN <nom de fitxer> és la versió curta de RENAME. Canvia el nom d'un "
 "fitxer.\n"
 
-#: programs/cmd/cmd.rc:175
+#: programs/cmd/cmd.rc:178
 msgid "RENAME <filename> renames a file.\n"
 msgstr "REN <nom de fitxer> canvia el nom d'un fitxer.\n"
 
-#: programs/cmd/cmd.rc:178
+#: programs/cmd/cmd.rc:181
 msgid "RD <directory> is the short version of RMDIR. It deletes a directory.\n"
 msgstr "RD <directori> és la versió curta de RMDIR. Suprimeix un directori.\n"
 
-#: programs/cmd/cmd.rc:180
+#: programs/cmd/cmd.rc:183
 msgid "RMDIR <directory> deletes a directory.\n"
 msgstr "RMDIR <directori> suprimeix un directori.\n"
 
-#: programs/cmd/cmd.rc:226
+#: programs/cmd/cmd.rc:229
 msgid ""
 "SET displays or changes the cmd environment variables.\n"
 "\n"
@@ -14306,7 +14136,7 @@ msgstr ""
 "implementació nativa de Win32. Tingueu en compte que no és possible afectar\n"
 "l'entorn del sistema operatiu des de dins del cmd.\n"
 
-#: programs/cmd/cmd.rc:231
+#: programs/cmd/cmd.rc:234
 msgid ""
 "SHIFT is used in a batch file to remove one parameter from the head of the\n"
 "list, so parameter 2 becomes parameter 1 and so on. It has no effect if\n"
@@ -14316,7 +14146,7 @@ msgstr ""
 "llista, de manera que el paràmetre 2 es converteix en el paràmetre 1, etc.\n"
 "No té cap efecte si es truca des de la línia d'ordres.\n"
 
-#: programs/cmd/cmd.rc:209
+#: programs/cmd/cmd.rc:212
 msgid ""
 "Start a program, or open a document in the program normally used for files\n"
 "with that suffix.\n"
@@ -14376,15 +14206,15 @@ msgstr ""
 "/ProgIDOpen       Obre un document utilitzant el progID especificat.\n"
 "/?                Mostra aquesta ajuda i surt.\n"
 
-#: programs/cmd/cmd.rc:234
+#: programs/cmd/cmd.rc:237
 msgid "TIME sets or shows the current system time.\n"
 msgstr "TIME defineix o mostra l'hora actual del sistema.\n"
 
-#: programs/cmd/cmd.rc:237
+#: programs/cmd/cmd.rc:240
 msgid "TITLE <string> sets the window title for the cmd window.\n"
 msgstr "TITLE <cadena> defineix el títol de la finestra del cmd.\n"
 
-#: programs/cmd/cmd.rc:241
+#: programs/cmd/cmd.rc:244
 msgid ""
 "TYPE <filename> copies <filename> to the console device (or elsewhere if\n"
 "redirected). No check is made that the file is readable text.\n"
@@ -14393,7 +14223,7 @@ msgstr ""
 "altre lloc si es redirigeix). No es comprova que el fitxer sigui text\n"
 "llegible.\n"
 
-#: programs/cmd/cmd.rc:250
+#: programs/cmd/cmd.rc:253
 msgid ""
 "VERIFY is used to set, clear or test the verify flag. Valid forms are:\n"
 "\n"
@@ -14412,15 +14242,15 @@ msgstr ""
 "\n"
 "L'opció de verificació no té cap funció en el Wine.\n"
 
-#: programs/cmd/cmd.rc:253
+#: programs/cmd/cmd.rc:256
 msgid "VER displays the version of cmd you are running.\n"
 msgstr "VER mostra la versió del cmd que s'està executant.\n"
 
-#: programs/cmd/cmd.rc:256
+#: programs/cmd/cmd.rc:259
 msgid "VOL shows the volume label of a disk device.\n"
 msgstr "VOL mostra l'etiqueta de volum d'un dispositiu de disc.\n"
 
-#: programs/cmd/cmd.rc:260
+#: programs/cmd/cmd.rc:263
 msgid ""
 "ENDLOCAL ends localization of environment changes in a batch file which\n"
 "were introduced by a preceding SETLOCAL.\n"
@@ -14428,7 +14258,7 @@ msgstr ""
 "ENDLOCAL acaba la localització de canvis d'entorn en un fitxer BAT, els\n"
 "quals un SETLOCAL anterior ha introduït.\n"
 
-#: programs/cmd/cmd.rc:268
+#: programs/cmd/cmd.rc:271
 msgid ""
 "SETLOCAL starts localization of environment changes in a batch file.\n"
 "\n"
@@ -14444,7 +14274,7 @@ msgstr ""
 "el que passi primer), al qual punt la configuració d'entorn anterior es\n"
 "restaura.\n"
 
-#: programs/cmd/cmd.rc:272
+#: programs/cmd/cmd.rc:275
 msgid ""
 "PUSHD <directory> saves the current directory onto a stack, and then\n"
 "changes the current directory to the supplied one.\n"
@@ -14452,11 +14282,11 @@ msgstr ""
 "PUSHD <directori> desa el directori actual en una pila, i després canvia el\n"
 "directori actual al proveït.\n"
 
-#: programs/cmd/cmd.rc:275
+#: programs/cmd/cmd.rc:278
 msgid "POPD changes current directory to the last one saved with PUSHD.\n"
 msgstr "POPD canvia el directori actual a l'últim desat amb PUSHD.\n"
 
-#: programs/cmd/cmd.rc:285
+#: programs/cmd/cmd.rc:288
 msgid ""
 "ASSOC shows or modifies file extension associations.\n"
 "\n"
@@ -14476,7 +14306,7 @@ msgstr ""
 "Especificar cap tipus de fitxer després del signe igual elimina\n"
 "l'associació actual, si hi ha.\n"
 
-#: programs/cmd/cmd.rc:297
+#: programs/cmd/cmd.rc:300
 msgid ""
 "FTYPE shows or modifies open commands associated with file types.\n"
 "\n"
@@ -14501,12 +14331,12 @@ msgstr ""
 "Especificar cap ordre d'obertura després del signe igual elimina la cadena\n"
 "d'ordre associada al tipus de fitxer especificat.\n"
 
-#: programs/cmd/cmd.rc:300
+#: programs/cmd/cmd.rc:303
 msgid "MORE displays output of files or piped input in pages.\n"
 msgstr ""
 "MORE mostra la sortida dels fitxers o l'entrada de canonada en pàgines.\n"
 
-#: programs/cmd/cmd.rc:305
+#: programs/cmd/cmd.rc:308
 msgid ""
 "CHOICE displays a text and waits, until the User presses an allowed Key\n"
 "from a selectable list.\n"
@@ -14517,7 +14347,7 @@ msgstr ""
 "CHOICE s'utilitza principalment per a construir un menú de selecció en un\n"
 "fitxer BAT.\n"
 
-#: programs/cmd/cmd.rc:321
+#: programs/cmd/cmd.rc:324
 msgid ""
 "Create a symbolic link.\n"
 "\n"
@@ -14539,7 +14369,7 @@ msgstr ""
 "nom_d'enllaç és el nom de l'enllaç simbòlic nou.\n"
 "destinació és el camí al qual nom_d'enllaç assenyala.\n"
 
-#: programs/cmd/cmd.rc:309
+#: programs/cmd/cmd.rc:312
 msgid ""
 "EXIT terminates the current command session and returns to the operating\n"
 "system or shell from which you invoked cmd.\n"
@@ -14547,7 +14377,7 @@ msgstr ""
 "EXIT acaba la sessió d'ordres actual i torna al sistema operatiu o shell\n"
 "des del qual heu invocat cmd.\n"
 
-#: programs/cmd/cmd.rc:361
+#: programs/cmd/cmd.rc:364
 msgid ""
 "CMD built-in commands are:\n"
 "ASSOC\t\tShow or modify file extension associations\n"
@@ -14631,112 +14461,112 @@ msgstr ""
 "Introduïu HELP <ordre> per més informació sobre qualsevulla de les ordres\n"
 "anteriors.\n"
 
-#: programs/cmd/cmd.rc:362
+#: programs/cmd/cmd.rc:365
 msgid "Are you sure?"
 msgstr "N'esteu segur?"
 
-#: programs/cmd/cmd.rc:363 programs/reg/reg.rc:126 programs/xcopy/xcopy.rc:43
+#: programs/cmd/cmd.rc:366 programs/reg/reg.rc:126 programs/xcopy/xcopy.rc:43
 msgctxt "Yes key"
 msgid "Y"
 msgstr "S"
 
-#: programs/cmd/cmd.rc:364 programs/reg/reg.rc:127 programs/xcopy/xcopy.rc:44
+#: programs/cmd/cmd.rc:367 programs/reg/reg.rc:127 programs/xcopy/xcopy.rc:44
 msgctxt "No key"
 msgid "N"
 msgstr "N"
 
-#: programs/cmd/cmd.rc:365
+#: programs/cmd/cmd.rc:368
 msgid "File association missing for extension %1\n"
 msgstr "Manca una associació de fitxer per a l'extensió %1\n"
 
-#: programs/cmd/cmd.rc:366
+#: programs/cmd/cmd.rc:369
 msgid "No open command associated with file type '%1'\n"
 msgstr "No hi ha cap ordre d'obertura associada amb el tipus de fitxer '%1'\n"
 
-#: programs/cmd/cmd.rc:367
+#: programs/cmd/cmd.rc:370
 msgid "Overwrite %1?"
 msgstr "Voleu sobreescriure %1?"
 
-#: programs/cmd/cmd.rc:368
+#: programs/cmd/cmd.rc:371
 msgid "More..."
 msgstr "Més..."
 
-#: programs/cmd/cmd.rc:369
+#: programs/cmd/cmd.rc:372
 msgid "Line in Batch processing possibly truncated. Using:\n"
 msgstr ""
 "Hi ha hagut una línia possiblement truncada en el processament BAT.\n"
 "S'està utilitzant:\n"
 
-#: programs/cmd/cmd.rc:371
+#: programs/cmd/cmd.rc:374
 msgid "Argument missing\n"
 msgstr "Manca un argument\n"
 
-#: programs/cmd/cmd.rc:372
+#: programs/cmd/cmd.rc:375
 msgid "Syntax error\n"
 msgstr "Error de sintaxi\n"
 
-#: programs/cmd/cmd.rc:374
+#: programs/cmd/cmd.rc:377
 msgid "No help available for %1\n"
 msgstr "Cap ajuda disponible per a %1\n"
 
-#: programs/cmd/cmd.rc:375
+#: programs/cmd/cmd.rc:378
 msgid "Target to GOTO not found\n"
 msgstr "Destinació del GOTO no trobat\n"
 
-#: programs/cmd/cmd.rc:376
+#: programs/cmd/cmd.rc:379
 msgid "Current Date is %1\n"
 msgstr "La data actual és %1\n"
 
-#: programs/cmd/cmd.rc:377
+#: programs/cmd/cmd.rc:380
 msgid "Current Time is %1\n"
 msgstr "L'hora actual és %1\n"
 
-#: programs/cmd/cmd.rc:378
+#: programs/cmd/cmd.rc:381
 msgid "Enter new date: "
 msgstr "Introduïu data nova: "
 
-#: programs/cmd/cmd.rc:379
+#: programs/cmd/cmd.rc:382
 msgid "Enter new time: "
 msgstr "Introduïu hora nova: "
 
-#: programs/cmd/cmd.rc:380
+#: programs/cmd/cmd.rc:383
 msgid "Environment variable %1 not defined\n"
 msgstr "Variable d'entorn %1 no definida\n"
 
-#: programs/cmd/cmd.rc:381 programs/xcopy/xcopy.rc:41
+#: programs/cmd/cmd.rc:384 programs/xcopy/xcopy.rc:41
 msgid "Failed to open '%1'\n"
 msgstr "S'ha fallat en obrir '%1'\n"
 
-#: programs/cmd/cmd.rc:382
+#: programs/cmd/cmd.rc:385
 msgid "Cannot call batch label outside of a batch script\n"
 msgstr "No es pot trucar a una etiqueta BAT fora d'un script BAT\n"
 
-#: programs/cmd/cmd.rc:383 programs/reg/reg.rc:128 programs/xcopy/xcopy.rc:45
+#: programs/cmd/cmd.rc:386 programs/reg/reg.rc:128 programs/xcopy/xcopy.rc:45
 msgctxt "All key"
 msgid "A"
 msgstr "T"
 
-#: programs/cmd/cmd.rc:384
+#: programs/cmd/cmd.rc:387
 msgid "Delete %1?"
 msgstr "Voleu suprimir %1?"
 
-#: programs/cmd/cmd.rc:385
+#: programs/cmd/cmd.rc:388
 msgid "Echo is %1\n"
 msgstr "L'eco està %1\n"
 
-#: programs/cmd/cmd.rc:386
+#: programs/cmd/cmd.rc:389
 msgid "Verify is %1\n"
 msgstr "La verificació està %1\n"
 
-#: programs/cmd/cmd.rc:387
+#: programs/cmd/cmd.rc:390
 msgid "Verify must be ON or OFF\n"
 msgstr "La verificació ha d'estar ON o OFF\n"
 
-#: programs/cmd/cmd.rc:388
+#: programs/cmd/cmd.rc:391
 msgid "Parameter error\n"
 msgstr "Error de paràmetre\n"
 
-#: programs/cmd/cmd.rc:389
+#: programs/cmd/cmd.rc:392
 msgid ""
 "Volume Serial Number is %1!04x!-%2!04x!\n"
 "\n"
@@ -14744,93 +14574,79 @@ msgstr ""
 "El número serial del volum és %1!04x!-%2!04x!\n"
 "\n"
 
-#: programs/cmd/cmd.rc:390
+#: programs/cmd/cmd.rc:393
 msgid "Volume label (11 characters, <Enter> for none)?"
 msgstr "Etiqueta de volum (11 caràcters, <Retorn> per a cap)?"
 
-#: programs/cmd/cmd.rc:391
+#: programs/cmd/cmd.rc:394
+msgid "PATH not found\n"
+msgstr "No s'ha trobat PATH\n"
+
+#: programs/cmd/cmd.rc:395
 msgid "Press any key to continue... "
 msgstr "Premeu qualsevol tecla per a continuar... "
 
-#: programs/cmd/cmd.rc:392
+#: programs/cmd/cmd.rc:396
 msgid "Wine Command Prompt"
 msgstr "Indicador d'Ordres del Wine"
 
-#: programs/cmd/cmd.rc:393
+#: programs/cmd/cmd.rc:397
 msgid "Microsoft Windows %1!S!\n"
 msgstr "Microsoft Windows %1!S!\n"
 
-#: programs/cmd/cmd.rc:394
+#: programs/cmd/cmd.rc:398
 msgid "More? "
 msgstr "Voleu més? "
 
-#: programs/cmd/cmd.rc:395
+#: programs/cmd/cmd.rc:399
 msgid "The input line is too long.\n"
 msgstr "La línia d'entrada és massa llarga.\n"
 
-#: programs/cmd/cmd.rc:396
+#: programs/cmd/cmd.rc:400
 msgid "Volume in drive %1!c! is %2\n"
 msgstr "El volum en la unitat %1!c! és %2\n"
 
-#: programs/cmd/cmd.rc:397
+#: programs/cmd/cmd.rc:401
 msgid "Volume in drive %1!c! has no label.\n"
 msgstr "El volum en la unitat %1!c! no té etiqueta.\n"
 
-#: programs/cmd/cmd.rc:398 programs/reg/reg.rc:129
+#: programs/cmd/cmd.rc:402 programs/reg/reg.rc:129
 msgid " (Yes|No)"
 msgstr " (Sí|No)"
 
-#: programs/cmd/cmd.rc:399 programs/reg/reg.rc:130
+#: programs/cmd/cmd.rc:403 programs/reg/reg.rc:130
 msgid " (Yes|No|All)"
 msgstr " (Sí|No|Tots)"
 
-#: programs/cmd/cmd.rc:400
+#: programs/cmd/cmd.rc:404
 msgid ""
 "Can't recognize '%1' as an internal or external command, or batch script.\n"
 msgstr ""
 "No es pot reconèixer '%1' com a ordre interna ni externa, ni script BAT.\n"
 
-#: programs/cmd/cmd.rc:401
+#: programs/cmd/cmd.rc:405
 msgid "Division by zero error.\n"
 msgstr "Hi ha hagut un error de divisió per zero.\n"
 
-#: programs/cmd/cmd.rc:402
+#: programs/cmd/cmd.rc:406
 msgid "Expected an operand.\n"
 msgstr "S'esperava un operant.\n"
 
-#: programs/cmd/cmd.rc:403
+#: programs/cmd/cmd.rc:407
 msgid "Expected an operator.\n"
 msgstr "S'esperava un operador.\n"
 
-#: programs/cmd/cmd.rc:404
+#: programs/cmd/cmd.rc:408
 msgid "Mismatch in parentheses.\n"
 msgstr "Hi ha una discòrdia de parèntesis.\n"
 
-#: programs/cmd/cmd.rc:405
+#: programs/cmd/cmd.rc:409
 msgid ""
 "Badly formed number - must be one of decimal (12),\n"
 " hexadecimal (0x34) or octal (056).\n"
 msgstr ""
 "El nombre és mal format - ha de ser un de decimal (12)\n"
 " hexadecimal (0x34) o octal (056).\n"
-
-#: programs/cmd/cmd.rc:407
-#, fuzzy
-#| msgid "Syntax error\n"
-msgid "Syntax error: unexpected %1\n"
-msgstr "Error de sintaxi\n"
-
-#: programs/cmd/cmd.rc:408
-#, fuzzy
-#| msgid "End of file.\n"
-msgid "End of line"
-msgstr "S'ha acabat el fitxer.\n"
-
-#: programs/cmd/cmd.rc:409
-#, fuzzy
-#| msgid "End of file.\n"
-msgid "End of file"
-msgstr "S'ha acabat el fitxer.\n"
 
 #: programs/conhost/conhost.rc:54
 msgid "Cursor size"
@@ -15018,13 +14834,6 @@ msgstr ""
 "Esteu segur que voleu tancar tots els programes i sortir de l'escriptori "
 "virtual?"
 
-#: programs/explorer/explorer.rc:38
-#, fuzzy
-#| msgctxt "display name"
-#| msgid "Desktop"
-msgid "Wine Desktop"
-msgstr "Escriptori"
-
 #: programs/findstr/findstr.rc:28
 msgid "Usage: findstr /options string\n"
 msgstr "Ús: findstr /opcions cadena\n"
@@ -15194,12 +15003,6 @@ msgstr "Tipus de xifratge de KerbTicket"
 #: programs/klist/klist.rc:37
 msgid "Current LogonId is"
 msgstr "El LogonId actual és"
-
-#: programs/klist/klist.rc:38
-#, fuzzy
-#| msgid "client"
-msgid "Client"
-msgstr "client"
 
 #: programs/msinfo32/msinfo32.rc:28
 msgid "System Information"
@@ -18524,40 +18327,6 @@ msgstr "S'està executant"
 msgid "Task"
 msgstr "Tasca"
 
-#: programs/timeout/timeout.rc:28
-msgid "Usage: timeout /T <timeout> [</NOBREAK>]\n"
-msgstr ""
-
-#: programs/timeout/timeout.rc:29
-#, fuzzy
-#| msgid "FINDSTR: Bad command line\n"
-msgid "TIMEOUT: Bad command line\n"
-msgstr "FINDSTR: Línia d'ordres dolenta\n"
-
-#: programs/timeout/timeout.rc:30
-msgid "waiting since %d sec. "
-msgstr ""
-
-#: programs/timeout/timeout.rc:31
-msgid "press CTRL+C..."
-msgstr ""
-
-#: programs/timeout/timeout.rc:32
-#, fuzzy
-#| msgid "Press any key to continue... "
-msgid "press a key to continue..."
-msgstr "Premeu qualsevol tecla per a continuar... "
-
-#: programs/timeout/timeout.rc:33
-msgid "ERROR: not possible to redirect input\n"
-msgstr ""
-
-#: programs/timeout/timeout.rc:34
-msgid ""
-"ERROR: Timeout value out of range or invalid number. Valid range is -1 to "
-"99999.\n"
-msgstr ""
-
 #: programs/uninstaller/uninstaller.rc:29
 msgid "Wine Application Uninstaller"
 msgstr "Desinstal·lador d'Aplicacions del Wine"
@@ -19278,11 +19047,11 @@ msgstr ""
 "wineconsole: L'inici del programa %s ha fallat.\n"
 "L'ordre no és vàlida.\n"
 
-#: programs/winedbg/winedbg.rc:51 programs/winedbg/winedbg.rc:38
+#: programs/winedbg/winedbg.rc:50 programs/winedbg/winedbg.rc:38
 msgid "Program Error"
 msgstr "Error de programa"
 
-#: programs/winedbg/winedbg.rc:56
+#: programs/winedbg/winedbg.rc:55
 msgid ""
 "The program %s has encountered a serious problem and needs to close. We are "
 "sorry for the inconvenience."
@@ -19290,7 +19059,7 @@ msgstr ""
 "El programa %s ha trobat un problema greu i necessita tancar-se. Sentim les "
 "molèsties."
 
-#: programs/winedbg/winedbg.rc:60
+#: programs/winedbg/winedbg.rc:59
 msgid ""
 "This can be caused by a problem in the program or a deficiency in Wine. You "
 "may want to check the <a href=\"https://appdb.winehq.org\">Application "
@@ -19301,26 +19070,25 @@ msgstr ""
 "dades d'aplicacions</a> per suggeriments quant a l'execució d'aquesta "
 "aplicació."
 
-#: programs/winedbg/winedbg.rc:63
+#: programs/winedbg/winedbg.rc:62
 msgid "Show &Details"
 msgstr "&Mostra detalls"
 
-#: programs/winedbg/winedbg.rc:68
+#: programs/winedbg/winedbg.rc:67
 msgid "Program Error Details"
 msgstr "Detalls d'error de programa"
 
-#: programs/winedbg/winedbg.rc:75
+#: programs/winedbg/winedbg.rc:74
 msgid ""
 "If this problem is not present under Windows and has not been reported yet, "
 "you can save the detailed information to a file using the \"Save As\" "
-"button, then <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/"
-"Bugs\">file a bug report</a> and attach that file to the report."
+"button, then <a href=\"https://wiki.winehq.org/Bugs\">file a bug report</a> "
+"and attach that file to the report."
 msgstr ""
 "Si aquest problema no està present en el Windows i encara no s'ha reportat, "
 "podeu desar la informació detallada a un fitxer utilitzant el botó "
-"\"Anomenar i Desar\", i llavors <a href=\"https://gitlab.winehq.org/wine/"
-"wine/-/wikis/Bugs\">presentar un informe d'error</a> i ajuntar aquest fitxer "
-"a l'informe."
+"\"Anomenar i Desar\", i llavors <a href=\"https://wiki.winehq.org/"
+"Bugs\">presentar un informe d'error</a> i ajuntar aquest fitxer a l'informe."
 
 #: programs/winedbg/winedbg.rc:40
 msgid ""
@@ -19716,9 +19484,7 @@ msgid "Help topics: "
 msgstr "Temes d'ajuda: "
 
 #: programs/wmic/wmic.rc:28
-#, fuzzy
-#| msgid "Error: Command line not supported\n"
-msgid "Error: Command not supported\n"
+msgid "Error: Command line not supported\n"
 msgstr "Error: Línia d'ordres no compatible\n"
 
 #: programs/wmic/wmic.rc:29
@@ -19732,12 +19498,6 @@ msgstr "Error: Consulta no vàlida\n"
 #: programs/wmic/wmic.rc:31
 msgid "Error: Invalid syntax for PATH\n"
 msgstr "Error: Sintaxi no vàlida per a PATH\n"
-
-#: programs/wmic/wmic.rc:32
-#, fuzzy
-#| msgid "Bad command.\n"
-msgid "Supply a command\n"
-msgstr "L'ordre és dolenta.\n"
 
 #: programs/wordpad/wordpad.rc:31
 msgid "&New...\tCtrl+N"

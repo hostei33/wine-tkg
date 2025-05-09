@@ -56,10 +56,10 @@ WINE_DEFAULT_DEBUG_CHANNEL(appwizcpl);
 #define GECKO_SHA "???"
 #endif
 
-#define MONO_VERSION "10.0.0"
+#define MONO_VERSION "9.3.1"
 #if defined(__i386__) || defined(__x86_64__)
 #define MONO_ARCH "x86"
-#define MONO_SHA "dbaca73e5d09f7a3a7c157ad04289af9ca47c3ced7012d46544a607046902b87"
+#define MONO_SHA "a15314a417792ff46907ec95b77a348e05dfcc45804e4e1f58309824a3f154cc"
 #else
 #define MONO_ARCH ""
 #define MONO_SHA "???"
@@ -95,7 +95,7 @@ static const addon_info_t addons_info[] = {
         L"wine-mono-" MONO_VERSION "-" MONO_ARCH ".msi",
         L"mono",
         MONO_SHA,
-        "http://source.winehq.org/winemono.php",
+        "https://github.com/madewokherd/wine-mono/releases/download/wine-mono-" MONO_VERSION "/wine-mono-" MONO_VERSION "-" MONO_ARCH ".msi",
         "Dotnet", "MonoUrl", "MonoCabDir",
         MAKEINTRESOURCEW(ID_DWL_MONO_DIALOG)
     }
@@ -108,7 +108,8 @@ static LPWSTR url = NULL;
 static IBinding *dwl_binding;
 static WCHAR *msi_file;
 
-static const char * (CDECL *p_wine_get_version)(void);
+extern const char * CDECL wine_get_version(void);
+
 static WCHAR * (CDECL *p_wine_get_dos_file_name)(const char*);
 
 static BOOL sha_check(const WCHAR *file_name)
@@ -317,18 +318,15 @@ static enum install_res install_from_default_dir(void)
 
 static WCHAR *get_cache_file_name(BOOL ensure_exists)
 {
-    const WCHAR *xdg_dir;
+    const char *xdg_dir;
     const WCHAR *home_dir;
-    WCHAR *cache_dir=NULL, *ret;
+    WCHAR *cache_dir, *ret;
     size_t len, size;
 
-    xdg_dir = _wgetenv( L"XDG_CACHE_HOME" );
-    if (xdg_dir && *xdg_dir)
+    xdg_dir = getenv( "XDG_CACHE_HOME" );
+    if (xdg_dir && *xdg_dir && p_wine_get_dos_file_name)
     {
-        if (!(cache_dir = HeapAlloc( GetProcessHeap(), 0, wcslen(xdg_dir) * sizeof(WCHAR) + sizeof(L"\\\\?\\unix") ))) return NULL;
-        lstrcpyW( cache_dir, L"\\\\?\\unix" );
-        lstrcatW( cache_dir, xdg_dir );
-        TRACE("cache dir %s\n", debugstr_w(cache_dir));
+        if (!(cache_dir = p_wine_get_dos_file_name( xdg_dir ))) return NULL;
     }
     else if ((home_dir = _wgetenv( L"WINEHOMEDIR" )))
     {
@@ -459,8 +457,6 @@ static HRESULT WINAPI InstallCallback_OnProgress(IBindStatusCallback *iface, ULO
 static HRESULT WINAPI InstallCallback_OnStopBinding(IBindStatusCallback *iface,
         HRESULT hresult, LPCWSTR szError)
 {
-    WCHAR message[256];
-
     if(dwl_binding) {
         IBinding_Release(dwl_binding);
         dwl_binding = NULL;
@@ -469,12 +465,6 @@ static HRESULT WINAPI InstallCallback_OnStopBinding(IBindStatusCallback *iface,
     if(FAILED(hresult)) {
         if(hresult == E_ABORT)
             TRACE("Binding aborted\n");
-        else if (hresult == INET_E_DOWNLOAD_FAILURE)
-        {
-            if(LoadStringW(hInst, IDS_DOWNLOAD_FAILED, message, ARRAY_SIZE(message)))
-                MessageBoxW(install_dialog, message, NULL, MB_ICONERROR);
-            EndDialog(install_dialog, IDCANCEL);
-        }
         else
             ERR("Binding failed %08lx\n", hresult);
         return S_OK;
@@ -499,6 +489,8 @@ static HRESULT WINAPI InstallCallback_OnStopBinding(IBindStatusCallback *iface,
             free(cache_file_name);
         }
     }else {
+        WCHAR message[256];
+
         if(LoadStringW(hInst, IDS_INVALID_SHA, message, ARRAY_SIZE(message)))
             MessageBoxW(NULL, message, NULL, MB_ICONERROR);
     }
@@ -618,7 +610,7 @@ static void append_url_params( WCHAR *url )
     len += MultiByteToWideChar(CP_ACP, 0, addon->version, -1, url+len, size/sizeof(WCHAR)-len)-1;
     lstrcpyW(url+len, L"&winev=");
     len += lstrlenW(L"&winev=");
-    MultiByteToWideChar(CP_ACP, 0, p_wine_get_version ? p_wine_get_version() : 0, -1, url+len, size/sizeof(WCHAR)-len);
+    MultiByteToWideChar(CP_ACP, 0, wine_get_version(), -1, url+len, size/sizeof(WCHAR)-len);
 }
 
 static LPWSTR get_url(void)
@@ -759,7 +751,6 @@ BOOL install_addon(addon_t addon_type)
     addon = addons_info+addon_type;
 
     p_wine_get_dos_file_name = (void *)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "wine_get_dos_file_name");
-    p_wine_get_version = (void *)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version");
 
     /*
      * Try to find addon .msi file in following order:

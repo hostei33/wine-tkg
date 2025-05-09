@@ -11,7 +11,7 @@
 #include <corecrt.h>
 #include <sys/types.h>
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 #ifndef _DEV_T_DEFINED
 # ifdef _CRTDLL
@@ -30,6 +30,16 @@ typedef unsigned short _ino_t;
 #ifndef _OFF_T_DEFINED
 typedef int _off_t;
 #define _OFF_T_DEFINED
+#endif
+
+#ifndef DECLSPEC_ALIGN
+# if defined(_MSC_VER) && (_MSC_VER >= 1300) && !defined(MIDL_PASS)
+#  define DECLSPEC_ALIGN(x) __declspec(align(x))
+# elif defined(__GNUC__)
+#  define DECLSPEC_ALIGN(x) __attribute__((aligned(x)))
+# else
+#  define DECLSPEC_ALIGN(x)
+# endif
 #endif
 
 #define _S_IEXEC  0x0040
@@ -222,6 +232,6 @@ static inline int umask(int fd) { return _umask(fd); }
 #define _UMASK_DEFINED
 #endif
 
-#pragma pack(pop)
+#include <poppack.h>
 
 #endif /* __WINE_SYS_STAT_H */

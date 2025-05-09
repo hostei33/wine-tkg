@@ -768,12 +768,10 @@ static BOOL emr_produces_output(int type)
     }
 }
 
-static HGDIOBJ get_object_handle(HANDLETABLE *handletable, UINT handles, DWORD i)
+static HGDIOBJ get_object_handle(HANDLETABLE *handletable, DWORD i)
 {
     if (i & 0x80000000)
         return GetStockObject( i & 0x7fffffff );
-    if (i >= handles)
-        return NULL;
     return handletable->objectHandle[i];
 }
 
@@ -907,13 +905,12 @@ BOOL WINAPI PlayEnhMetaFileRecord(
     case EMR_SELECTOBJECT:
       {
 	const EMRSELECTOBJECT *pSelectObject = (const EMRSELECTOBJECT *)mr;
-	SelectObject( hdc, get_object_handle(handletable, handles, pSelectObject->ihObject) );
+	SelectObject( hdc, get_object_handle(handletable, pSelectObject->ihObject) );
 	break;
       }
     case EMR_DELETEOBJECT:
       {
 	const EMRDELETEOBJECT *pDeleteObject = (const EMRDELETEOBJECT *)mr;
-	if (pDeleteObject->ihObject >= handles) break;
 	DeleteObject( (handletable->objectHandle)[pDeleteObject->ihObject]);
 	(handletable->objectHandle)[pDeleteObject->ihObject] = 0;
 	break;
@@ -983,7 +980,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
     case EMR_CREATEPEN:
       {
 	const EMRCREATEPEN *pCreatePen = (const EMRCREATEPEN *)mr;
-	if (pCreatePen->ihPen >= handles) break;
 	(handletable->objectHandle)[pCreatePen->ihPen] =
 	  CreatePenIndirect(&pCreatePen->lopn);
 	break;
@@ -992,9 +988,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
       {
 	const EMREXTCREATEPEN *pPen = (const EMREXTCREATEPEN *)mr;
 	LOGBRUSH lb;
-
-	if (pPen->ihPen >= handles) break;
-
 	lb.lbStyle = pPen->elp.elpBrushStyle;
 	lb.lbColor = pPen->elp.elpColor;
 	lb.lbHatch = pPen->elp.elpHatch;
@@ -1011,9 +1004,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
       {
 	const EMRCREATEBRUSHINDIRECT *pBrush = (const EMRCREATEBRUSHINDIRECT *)mr;
         LOGBRUSH brush;
-
-        if (pBrush->ihBrush >= handles) break;
-
         brush.lbStyle = pBrush->lb.lbStyle;
         brush.lbColor = pBrush->lb.lbColor;
         brush.lbHatch = pBrush->lb.lbHatch;
@@ -1023,7 +1013,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
     case EMR_EXTCREATEFONTINDIRECTW:
       {
 	const EMREXTCREATEFONTINDIRECTW *pFont = (const EMREXTCREATEFONTINDIRECTW *)mr;
-	if (pFont->ihFont >= handles) break;
 	(handletable->objectHandle)[pFont->ihFont] =
 	  CreateFontIndirectW(&pFont->elfw.elfLogFont);
 	break;
@@ -1292,7 +1281,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
       {
 	const EMRCREATEPALETTE *lpCreatePal = (const EMRCREATEPALETTE *)mr;
 
-	if (lpCreatePal->ihPal >= handles) break;
 	(handletable->objectHandle)[ lpCreatePal->ihPal ] =
 		CreatePalette( &lpCreatePal->lgpl );
 
@@ -1303,7 +1291,7 @@ BOOL WINAPI PlayEnhMetaFileRecord(
       {
 	const EMRSELECTPALETTE *lpSelectPal = (const EMRSELECTPALETTE *)mr;
 
-	SelectPalette( hdc, get_object_handle(handletable, handles, lpSelectPal->ihPal), TRUE );
+	SelectPalette( hdc, get_object_handle(handletable, lpSelectPal->ihPal), TRUE );
 	break;
       }
 
@@ -1764,7 +1752,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
     case EMR_CREATECOLORSPACE:
       {
         PEMRCREATECOLORSPACE lpCreateColorSpace = (PEMRCREATECOLORSPACE)mr;
-        if (lpCreateColorSpace->ihCS >= handles) break;
         (handletable->objectHandle)[lpCreateColorSpace->ihCS] =
            CreateColorSpaceA( &lpCreateColorSpace->lcs );
         break;
@@ -1773,7 +1760,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
     case EMR_SETCOLORSPACE:
       {
         const EMRSETCOLORSPACE *lpSetColorSpace = (const EMRSETCOLORSPACE *)mr;
-        if (lpSetColorSpace->ihCS >= handles) break;
         SetColorSpace( hdc,
                        (handletable->objectHandle)[lpSetColorSpace->ihCS] );
         break;
@@ -1782,7 +1768,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
     case EMR_DELETECOLORSPACE:
       {
         const EMRDELETECOLORSPACE *lpDeleteColorSpace = (const EMRDELETECOLORSPACE *)mr;
-        if (lpDeleteColorSpace->ihCS >= handles) break;
         DeleteColorSpace( (handletable->objectHandle)[lpDeleteColorSpace->ihCS] );
         break;
       }
@@ -1809,7 +1794,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
       {
         const EMRSETPALETTEENTRIES *lpSetPaletteEntries = (const EMRSETPALETTEENTRIES *)mr;
 
-        if (lpSetPaletteEntries->ihPal >= handles) break;
         SetPaletteEntries( (handletable->objectHandle)[lpSetPaletteEntries->ihPal],
                            (UINT)lpSetPaletteEntries->iStart,
                            (UINT)lpSetPaletteEntries->cEntries,
@@ -1822,7 +1806,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
       {
         const EMRRESIZEPALETTE *lpResizePalette = (const EMRRESIZEPALETTE *)mr;
 
-        if (lpResizePalette->ihPal >= handles) break;
         NtGdiResizePalette( handletable->objectHandle[lpResizePalette->ihPal],
                             lpResizePalette->cEntries );
 
@@ -1851,7 +1834,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
             break;
         }
 
-        if (lpCreate->ihBrush >= handles) break;
         (handletable->objectHandle)[lpCreate->ihBrush] =
            CreateDIBPatternBrushPt( (const BYTE *)lpCreate + lpCreate->offBmi,
                                     (UINT)lpCreate->iUsage );
@@ -1863,8 +1845,6 @@ BOOL WINAPI PlayEnhMetaFileRecord(
         const EMRCREATEMONOBRUSH *pCreateMonoBrush = (const EMRCREATEMONOBRUSH *)mr;
         const BITMAPINFO *pbi = (const BITMAPINFO *)((const BYTE *)mr + pCreateMonoBrush->offBmi);
         HBITMAP hBmp;
-
-        if (pCreateMonoBrush->ihBrush >= handles) break;
 
         /* Need to check if the bitmap is monochrome, and if the
            two colors are really black and white */
@@ -1988,18 +1968,12 @@ BOOL WINAPI PlayEnhMetaFileRecord(
             HBITMAP hBmp = 0, hBmpOld = 0;
             const BITMAPINFO *pbi = (const BITMAPINFO *)((const BYTE *)mr + pAlphaBlend->offBmiSrc);
             void *bits;
-            DIBSECTION dib;
-            DWORD copy_size;
 
             SetGraphicsMode(hdcSrc, GM_ADVANCED);
             SetWorldTransform(hdcSrc, &pAlphaBlend->xformSrc);
 
             hBmp = CreateDIBSection(hdc, pbi, pAlphaBlend->iUsageSrc, &bits, NULL, 0);
-
-            GetObjectW(hBmp, sizeof(dib), &dib);
-            copy_size = min(dib.dsBmih.biSizeImage, pAlphaBlend->cbBitsSrc);
-
-            memcpy(bits, (const BYTE *)mr + pAlphaBlend->offBitsSrc, copy_size);
+            memcpy(bits, (const BYTE *)mr + pAlphaBlend->offBitsSrc, pAlphaBlend->cbBitsSrc);
             hBmpOld = SelectObject(hdcSrc, hBmp);
 
             GdiAlphaBlend(hdc, pAlphaBlend->xDest, pAlphaBlend->yDest, pAlphaBlend->cxDest, pAlphaBlend->cyDest,
@@ -2217,7 +2191,7 @@ BOOL WINAPI PlayEnhMetaFileRecord(
     {
 	const EMRFILLRGN *pFillRgn = (const EMRFILLRGN *)mr;
 	HRGN hRgn = ExtCreateRegion(NULL, pFillRgn->cbRgnData, (const RGNDATA *)pFillRgn->RgnData);
-	FillRgn(hdc, hRgn, get_object_handle(handletable, handles, pFillRgn->ihBrush));
+	FillRgn(hdc, hRgn, get_object_handle(handletable, pFillRgn->ihBrush));
 	DeleteObject(hRgn);
 	break;
     }
@@ -2226,7 +2200,7 @@ BOOL WINAPI PlayEnhMetaFileRecord(
     {
 	const EMRFRAMERGN *pFrameRgn = (const EMRFRAMERGN *)mr;
 	HRGN hRgn = ExtCreateRegion(NULL, pFrameRgn->cbRgnData, (const RGNDATA *)pFrameRgn->RgnData);
-	FrameRgn(hdc, hRgn, get_object_handle(handletable, handles, pFrameRgn->ihBrush),
+	FrameRgn(hdc, hRgn, get_object_handle(handletable, pFrameRgn->ihBrush),
 		 pFrameRgn->szlStroke.cx, pFrameRgn->szlStroke.cy);
 	DeleteObject(hRgn);
 	break;

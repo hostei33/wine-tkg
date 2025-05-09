@@ -408,6 +408,7 @@ static void backtrace_all(void)
                                entry.th32OwnerProcessID);
                     continue;
                 }
+                dbg_curr_pid = dbg_curr_process->pid;
                 dbg_active_wait_for_first_exception();
             }
 

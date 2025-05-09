@@ -70,13 +70,14 @@ static const IMMEndpointVtbl MMEndpointVtbl;
 
 static MMDevEnumImpl enumerator;
 static struct list device_list = LIST_INIT(device_list);
+static IMMDevice info_device;
 
 typedef struct MMDevColImpl
 {
     IMMDeviceCollection IMMDeviceCollection_iface;
     LONG ref;
-    IMMDevice **devices;
-    UINT devices_count;
+    EDataFlow flow;
+    DWORD state;
 } MMDevColImpl;
 
 typedef struct IPropertyBagImpl {
@@ -85,16 +86,6 @@ typedef struct IPropertyBagImpl {
 } IPropertyBagImpl;
 
 static const IPropertyBagVtbl PB_Vtbl;
-
-typedef struct IConnectorImpl {
-    IConnector IConnector_iface;
-    LONG ref;
-} IConnectorImpl;
-
-typedef struct IDeviceTopologyImpl {
-    IDeviceTopology IDeviceTopology_iface;
-    LONG ref;
-} IDeviceTopologyImpl;
 
 static HRESULT MMDevPropStore_Create(MMDevice *This, DWORD access, IPropertyStore **ppv);
 
@@ -118,126 +109,7 @@ static inline IPropertyBagImpl *impl_from_IPropertyBag(IPropertyBag *iface)
     return CONTAINING_RECORD(iface, IPropertyBagImpl, IPropertyBag_iface);
 }
 
-static HRESULT DeviceTopology_Create(IMMDevice *device, IDeviceTopology **ppv);
-
-static inline IConnectorImpl *impl_from_IConnector(IConnector *iface)
-{
-    return CONTAINING_RECORD(iface, IConnectorImpl, IConnector_iface);
-}
-
-static inline IDeviceTopologyImpl *impl_from_IDeviceTopology(IDeviceTopology *iface)
-{
-    return CONTAINING_RECORD(iface, IDeviceTopologyImpl, IDeviceTopology_iface);
-}
-
 static const WCHAR propkey_formatW[] = L"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X},%d";
-
-struct device
-{
-    struct list entry;
-    GUID        guid;
-    EDataFlow   flow;
-    char        name[];
-};
-
-static struct list devices_cache = LIST_INIT( devices_cache );
-
-static void add_device_to_cache( const GUID *guid, const char *name, EDataFlow flow )
-{
-    struct device *dev;
-
-    if (!(dev = malloc( offsetof( struct device, name[strlen(name) + 1] )))) return;
-    dev->guid = *guid;
-    dev->flow = flow;
-    strcpy( dev->name, name );
-    list_add_tail( &devices_cache, &dev->entry );
-}
-
-static struct device *find_device_in_cache( const GUID *guid )
-{
-    struct device *dev;
-
-    LIST_FOR_EACH_ENTRY( dev, &devices_cache, struct device, entry )
-        if (IsEqualGUID( guid, &dev->guid )) return dev;
-    return NULL;
-}
-
-BOOL get_device_name_from_guid( const GUID *guid, char **name, EDataFlow *flow )
-{
-    struct device *dev;
-    WCHAR key_name[MAX_PATH];
-    DWORD index = 0;
-    HKEY key;
-
-    if ((dev = find_device_in_cache( guid )))
-    {
-        *name = strdup(dev->name);
-        *flow = dev->flow;
-        return TRUE;
-    }
-
-    swprintf( key_name, ARRAY_SIZE(key_name), L"Software\\Wine\\Drivers\\%s\\devices", drvs.module_name );
-    if (RegOpenKeyExW( HKEY_CURRENT_USER, key_name, 0, KEY_READ | KEY_WOW64_64KEY, &key )) return FALSE;
-
-    for (;;)
-    {
-        DWORD size, type;
-        LSTATUS status;
-        GUID reg_guid;
-        HKEY dev_key;
-
-        size = ARRAY_SIZE(key_name);
-        if (RegEnumKeyExW( key, index++, key_name, &size, NULL, NULL, NULL, NULL )) break;
-        if (RegOpenKeyExW( key, key_name, 0, KEY_READ | KEY_WOW64_64KEY, &dev_key )) continue;
-        size = sizeof(reg_guid);
-        status = RegQueryValueExW( dev_key, L"guid", 0, &type, (BYTE *)&reg_guid, &size );
-        RegCloseKey(dev_key);
-        if (status || type != REG_BINARY || size != sizeof(reg_guid)) continue;
-        if (!IsEqualGUID( &reg_guid, guid )) continue;
-        if (key_name[0] == '0') *flow = eRender;
-        else if (key_name[0] == '1') *flow = eCapture;
-        else continue;
-
-        RegCloseKey( key );
-        TRACE( "Found matching device key %s for %s\n", wine_dbgstr_w(key_name), debugstr_guid(guid) );
-        size = WideCharToMultiByte( CP_UNIXCP, 0, key_name + 2, -1, NULL, 0, NULL, NULL );
-        if (!(*name = malloc( size ))) return FALSE;
-        WideCharToMultiByte( CP_UNIXCP, 0, key_name + 2, -1, *name, size, NULL, NULL );
-        add_device_to_cache( guid, *name, *flow );
-        return TRUE;
-    }
-    RegCloseKey( key );
-    WARN( "No matching device in registry for %s\n", debugstr_guid(guid) );
-    return FALSE;
-}
-
-static void get_device_guid( EDataFlow flow, const char *dev_name, GUID *guid )
-{
-    WCHAR name[512];
-    DWORD type, size = sizeof(*guid);
-    HKEY key;
-    LSTATUS status;
-    int len;
-
-    len = swprintf( name, ARRAY_SIZE(name), L"Software\\Wine\\Drivers\\%s\\devices\\%u,",
-                    drvs.module_name, flow == eCapture );
-    MultiByteToWideChar( CP_UNIXCP, 0, dev_name, -1, name + len, ARRAY_SIZE(name) - len );
-    status = RegCreateKeyExW( HKEY_CURRENT_USER, name, 0, NULL, 0,
-                              KEY_READ | KEY_WRITE | KEY_WOW64_64KEY, NULL, &key, NULL);
-    if (status)
-    {
-        ERR( "Failed to create key %s: %lu\n", debugstr_w(name), status );
-        return;
-    }
-    status = RegQueryValueExW( key, L"guid", 0, &type, (BYTE *)guid, &size );
-    if (status != ERROR_SUCCESS || type != REG_BINARY || size != sizeof(*guid))
-    {
-        CoCreateGuid( guid );
-        RegSetValueExW( key, L"guid", 0, REG_BINARY, (BYTE *)guid, sizeof(*guid) );
-    }
-    RegCloseKey( key );
-    if (!find_device_in_cache( guid )) add_device_to_cache( guid, dev_name, flow );
-}
 
 static HRESULT MMDevPropStore_OpenPropKey(const GUID *guid, DWORD flow, HKEY *propkey)
 {
@@ -375,7 +247,7 @@ static HRESULT set_driver_prop_value(GUID *id, const EDataFlow flow, const PROPE
 
     TRACE("%s, (%s,%lu)\n", wine_dbgstr_guid(id), wine_dbgstr_guid(&prop->fmtid), prop->pid);
 
-    if (!get_device_name_from_guid(id, &dev_name, &params.flow))
+    if (!drvs.pget_device_name_from_guid(id, &dev_name, &params.flow))
         return E_FAIL;
 
     params.device      = dev_name;
@@ -471,6 +343,9 @@ static MMDevice *MMDevice_Create(const WCHAR *name, GUID *id, EDataFlow flow, DW
 
         cur->IMMDevice_iface.lpVtbl = &MMDeviceVtbl;
         cur->IMMEndpoint_iface.lpVtbl = &MMEndpointVtbl;
+
+        InitializeCriticalSection(&cur->crst);
+        cur->crst.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": MMDevice.crst");
 
         list_add_tail(&device_list, &cur->entry);
     }else if(cur->ref > 0)
@@ -622,6 +497,7 @@ static HRESULT set_format(MMDevice *dev)
     HRESULT hr;
     IAudioClient *client;
     WAVEFORMATEX *fmt;
+    WAVEFORMATEXTENSIBLE *fmtex;
     PROPVARIANT pv = { VT_EMPTY };
 
     hr = AudioClient_Create(&dev->devguid, &dev->IMMDevice_iface, &client);
@@ -635,6 +511,24 @@ static HRESULT set_format(MMDevice *dev)
     }
 
     IAudioClient_Release(client);
+
+    /* for most devices, native Windows only allows PCM formats for
+     * DeviceFormat. GetMixFormat often returns float. */
+    if(fmt->wFormatTag == WAVE_FORMAT_EXTENSIBLE){
+        fmtex = (WAVEFORMATEXTENSIBLE *)fmt;
+        if(IsEqualGUID(&fmtex->SubFormat, &KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)){
+            fmt->wBitsPerSample = 16;
+            fmt->nBlockAlign = fmt->wBitsPerSample * fmt->nChannels / 8;
+            fmt->nAvgBytesPerSec = fmt->nSamplesPerSec * fmt->nBlockAlign;
+            fmtex->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+            fmtex->Samples.wValidBitsPerSample = fmt->wBitsPerSample;
+        }
+    }else if(fmt->wFormatTag == WAVE_FORMAT_IEEE_FLOAT){
+        fmt->wFormatTag = WAVE_FORMAT_PCM;
+        fmt->wBitsPerSample = 16;
+        fmt->nBlockAlign = fmt->wBitsPerSample * fmt->nChannels / 8;
+        fmt->nAvgBytesPerSec = fmt->nSamplesPerSec * fmt->nBlockAlign;
+    }
 
     pv.vt = VT_BLOB;
     pv.blob.cbSize = sizeof(WAVEFORMATEX) + fmt->cbSize;
@@ -671,7 +565,7 @@ HRESULT load_driver_devices(EDataFlow flow)
         const WCHAR *name = (WCHAR *)((char *)params.endpoints + params.endpoints[i].name);
         const char *dev_name = (char *)params.endpoints + params.endpoints[i].device;
 
-        get_device_guid( flow, dev_name, &guid );
+        drvs.pget_device_guid(flow, dev_name, &guid);
 
         dev = MMDevice_Create(name, &guid, flow, DEVICE_STATE_ACTIVE, params.default_idx == i);
         set_format(dev);
@@ -687,6 +581,8 @@ static void MMDevice_Destroy(MMDevice *This)
 {
     TRACE("Freeing %s\n", debugstr_w(This->drv_id));
     list_remove(&This->entry);
+    This->crst.DebugInfo->Spare[0] = 0;
+    DeleteCriticalSection(&This->crst);
     free(This->drv_id);
     free(This);
 }
@@ -790,7 +686,7 @@ static HRESULT WINAPI MMDevice_Activate(IMMDevice *iface, REFIID riid, DWORD cls
     }
     else if (IsEqualIID(riid, &IID_IDeviceTopology))
     {
-        hr = DeviceTopology_Create(iface, (IDeviceTopology**)ppv);
+        FIXME("IID_IDeviceTopology unsupported\n");
     }
     else if (IsEqualIID(riid, &IID_IDirectSound)
              || IsEqualIID(riid, &IID_IDirectSound8))
@@ -928,8 +824,6 @@ static const IMMEndpointVtbl MMEndpointVtbl =
 static HRESULT MMDevCol_Create(IMMDeviceCollection **ppv, EDataFlow flow, DWORD state)
 {
     MMDevColImpl *This;
-    MMDevice *cur;
-    UINT i = 0;
 
     This = malloc(sizeof(*This));
     *ppv = NULL;
@@ -937,43 +831,14 @@ static HRESULT MMDevCol_Create(IMMDeviceCollection **ppv, EDataFlow flow, DWORD 
         return E_OUTOFMEMORY;
     This->IMMDeviceCollection_iface.lpVtbl = &MMDevColVtbl;
     This->ref = 1;
-    This->devices = NULL;
-    This->devices_count = 0;
+    This->flow = flow;
+    This->state = state;
     *ppv = &This->IMMDeviceCollection_iface;
-
-    LIST_FOR_EACH_ENTRY(cur, &device_list, MMDevice, entry)
-    {
-        if ((cur->flow == flow || flow == eAll) && (cur->state & state))
-            This->devices_count++;
-    }
-
-    if (This->devices_count)
-    {
-        This->devices = malloc(This->devices_count * sizeof(IMMDevice *));
-        if (!This->devices_count)
-            return E_OUTOFMEMORY;
-
-        LIST_FOR_EACH_ENTRY(cur, &device_list, MMDevice, entry)
-        {
-            if ((cur->flow == flow || flow == eAll) && (cur->state & state))
-            {
-                This->devices[i] = &cur->IMMDevice_iface;
-                IMMDevice_AddRef(This->devices[i]);
-                i++;
-            }
-        }
-    }
-
     return S_OK;
 }
 
 static void MMDevCol_Destroy(MMDevColImpl *This)
 {
-    UINT i;
-    for (i = 0; i < This->devices_count; i++)
-        IMMDevice_Release(This->devices[i]);
-
-    free(This->devices);
     free(This);
 }
 
@@ -1016,33 +881,46 @@ static ULONG WINAPI MMDevCol_Release(IMMDeviceCollection *iface)
 static HRESULT WINAPI MMDevCol_GetCount(IMMDeviceCollection *iface, UINT *numdevs)
 {
     MMDevColImpl *This = impl_from_IMMDeviceCollection(iface);
+    MMDevice *cur;
 
     TRACE("(%p)->(%p)\n", This, numdevs);
     if (!numdevs)
         return E_POINTER;
 
-    *numdevs = This->devices_count;
+    *numdevs = 0;
+    LIST_FOR_EACH_ENTRY(cur, &device_list, MMDevice, entry)
+    {
+        if ((cur->flow == This->flow || This->flow == eAll)
+            && (cur->state & This->state))
+            ++(*numdevs);
+    }
     return S_OK;
 }
 
 static HRESULT WINAPI MMDevCol_Item(IMMDeviceCollection *iface, UINT n, IMMDevice **dev)
 {
     MMDevColImpl *This = impl_from_IMMDeviceCollection(iface);
+    MMDevice *cur;
+    DWORD i = 0;
 
     TRACE("(%p)->(%u, %p)\n", This, n, dev);
     if (!dev)
         return E_POINTER;
 
-    if (n >= This->devices_count)
+    LIST_FOR_EACH_ENTRY(cur, &device_list, MMDevice, entry)
     {
-        WARN("Could not obtain item %u\n", n);
-        *dev = NULL;
-        return E_INVALIDARG;
+        if ((cur->flow == This->flow || This->flow == eAll)
+            && (cur->state & This->state)
+            && i++ == n)
+        {
+            *dev = &cur->IMMDevice_iface;
+            IMMDevice_AddRef(*dev);
+            return S_OK;
+        }
     }
-
-    *dev = This->devices[n];
-    IMMDevice_AddRef(*dev);
-    return S_OK;
+    WARN("Could not obtain item %u\n", n);
+    *dev = NULL;
+    return E_INVALIDARG;
 }
 
 static const IMMDeviceCollectionVtbl MMDevColVtbl =
@@ -1062,14 +940,11 @@ HRESULT MMDevEnum_Create(REFIID riid, void **ppv)
 void MMDevEnum_Free(void)
 {
     MMDevice *device, *next;
-    struct device *dev, *dev_next;
-
     LIST_FOR_EACH_ENTRY_SAFE(device, next, &device_list, MMDevice, entry)
         MMDevice_Destroy(device);
     RegCloseKey(key_render);
     RegCloseKey(key_capture);
-    LIST_FOR_EACH_ENTRY_SAFE(dev, dev_next, &devices_cache, struct device, entry)
-        free( dev );
+    key_render = key_capture = NULL;
 }
 
 static HRESULT WINAPI MMDevEnum_QueryInterface(IMMDeviceEnumerator *iface, REFIID riid, void **ppv)
@@ -1213,6 +1088,11 @@ static HRESULT WINAPI MMDevEnum_GetDevice(IMMDeviceEnumerator *iface, const WCHA
 
     if(!name || !device)
         return E_POINTER;
+
+    if(!lstrcmpW(name, L"Wine info device")){
+        *device = &info_device;
+        return S_OK;
+    }
 
     LIST_FOR_EACH_ENTRY(impl, &device_list, MMDevice, entry)
     {
@@ -1719,276 +1599,83 @@ static const IPropertyBagVtbl PB_Vtbl =
     PB_Write
 };
 
-static HRESULT WINAPI Connector_QueryInterface(IConnector *iface, REFIID riid, void **ppv)
+static ULONG WINAPI info_device_ps_AddRef(IPropertyStore *iface)
 {
-    IConnectorImpl *This = impl_from_IConnector(iface);
-    TRACE("(%p)->(%s, %p)\n", This, debugstr_guid(riid), ppv);
+    return 2;
+}
 
-    if (!ppv)
+static ULONG WINAPI info_device_ps_Release(IPropertyStore *iface)
+{
+    return 1;
+}
+
+static HRESULT WINAPI info_device_ps_GetValue(IPropertyStore *iface,
+        REFPROPERTYKEY key, PROPVARIANT *pv)
+{
+    TRACE("(static)->(\"%s,%lu\", %p)\n", debugstr_guid(&key->fmtid), key ? key->pid : 0, pv);
+
+    if (!key || !pv)
         return E_POINTER;
 
-    if (IsEqualIID(riid, &IID_IUnknown) ||
-        IsEqualIID(riid, &IID_IConnector))
-        *ppv = &This->IConnector_iface;
-    else {
-        *ppv = NULL;
-        return E_NOINTERFACE;
-    }
-
-    IUnknown_AddRef((IUnknown *)*ppv);
-
-    return S_OK;
-}
-
-static ULONG WINAPI Connector_AddRef(IConnector *iface)
-{
-    IConnectorImpl *This = impl_from_IConnector(iface);
-    ULONG ref = InterlockedIncrement(&This->ref);
-    TRACE("(%p) new ref %lu\n", This, ref);
-    return ref;
-}
-
-static ULONG WINAPI Connector_Release(IConnector *iface)
-{
-    IConnectorImpl *This = impl_from_IConnector(iface);
-    ULONG ref = InterlockedDecrement(&This->ref);
-    TRACE("(%p) new ref %lu\n", This, ref);
-
-    if (!ref)
-        HeapFree(GetProcessHeap(), 0, This);
-
-    return ref;
-}
-
-static HRESULT WINAPI Connector_GetType(
-    IConnector *This,
-    ConnectorType *pType)
-{
-    FIXME("(%p) - partial stub\n", This);
-    *pType = Physical_Internal;
-    return S_OK;
-}
-
-static HRESULT WINAPI Connector_GetDataFlow(
-    IConnector *This,
-    DataFlow *pFlow)
-{
-    FIXME("(%p) - stub\n", This);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI Connector_ConnectTo(
-    IConnector *This,
-    IConnector *pConnectTo)
-{
-    FIXME("(%p) - stub\n", This);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI Connector_Disconnect(
-    IConnector *This)
-{
-    FIXME("(%p) - stub\n", This);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI Connector_IsConnected(
-    IConnector *This,
-    BOOL *pbConnected)
-{
-    FIXME("(%p) - stub\n", This);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI Connector_GetConnectedTo(
-    IConnector *This,
-    IConnector **ppConTo)
-{
-    FIXME("(%p) - stub\n", This);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI Connector_GetConnectorIdConnectedTo(
-    IConnector *This,
-    LPWSTR *ppwstrConnectorId)
-{
-    FIXME("(%p) - stub\n", This);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI Connector_GetDeviceIdConnectedTo(
-    IConnector *This,
-    LPWSTR *ppwstrDeviceId)
-{
-    FIXME("(%p) - stub\n", This);
-    return E_NOTIMPL;
-}
-
-static const IConnectorVtbl Connector_Vtbl =
-{
-    Connector_QueryInterface,
-    Connector_AddRef,
-    Connector_Release,
-    Connector_GetType,
-    Connector_GetDataFlow,
-    Connector_ConnectTo,
-    Connector_Disconnect,
-    Connector_IsConnected,
-    Connector_GetConnectedTo,
-    Connector_GetConnectorIdConnectedTo,
-    Connector_GetDeviceIdConnectedTo,
-};
-
-HRESULT Connector_Create(IConnector **ppv)
-{
-    IConnectorImpl *This;
-
-    This = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*This));
-    if (!This)
-        return E_OUTOFMEMORY;
-
-    This->IConnector_iface.lpVtbl = &Connector_Vtbl;
-    This->ref = 1;
-
-    *ppv = &This->IConnector_iface;
-
-    return S_OK;
-}
-
-static HRESULT WINAPI DT_QueryInterface(IDeviceTopology *iface, REFIID riid, void **ppv)
-{
-    IDeviceTopologyImpl *This = impl_from_IDeviceTopology(iface);
-    TRACE("(%p)->(%s, %p)\n", This, debugstr_guid(riid), ppv);
-
-    if (!ppv)
-        return E_POINTER;
-
-    if (IsEqualIID(riid, &IID_IUnknown) ||
-        IsEqualIID(riid, &IID_IDeviceTopology))
-        *ppv = &This->IDeviceTopology_iface;
-    else {
-        *ppv = NULL;
-        return E_NOINTERFACE;
-    }
-
-    IUnknown_AddRef((IUnknown *)*ppv);
-
-    return S_OK;
-}
-
-static ULONG WINAPI DT_AddRef(IDeviceTopology *iface)
-{
-    IDeviceTopologyImpl *This = impl_from_IDeviceTopology(iface);
-    ULONG ref = InterlockedIncrement(&This->ref);
-    TRACE("(%p) new ref %lu\n", This, ref);
-    return ref;
-}
-
-static ULONG WINAPI DT_Release(IDeviceTopology *iface)
-{
-    IDeviceTopologyImpl *This = impl_from_IDeviceTopology(iface);
-    ULONG ref = InterlockedDecrement(&This->ref);
-    TRACE("(%p) new ref %lu\n", This, ref);
-
-    if (!ref)
-        HeapFree(GetProcessHeap(), 0, This);
-
-    return ref;
-}
-
-static HRESULT WINAPI DT_GetConnectorCount(IDeviceTopology *This,
-                                           UINT *pCount)
-{
-    FIXME("(%p)->(%p) - partial stub\n", This, pCount);
-
-    if (!pCount)
-        return E_POINTER;
-
-    *pCount = 1;
-    return S_OK;
-}
-
-static HRESULT WINAPI DT_GetConnector(IDeviceTopology *This,
-                                      UINT nIndex,
-                                      IConnector **ppConnector)
-{
-    FIXME("(%p)->(%u, %p) - partial stub\n", This, nIndex, ppConnector);
-
-    if (nIndex == 0)
+    if (IsEqualPropertyKey(*key, DEVPKEY_Device_Driver))
     {
-        return Connector_Create(ppConnector);
+        INT size = (lstrlenW(drvs.module_name) + 1) * sizeof(WCHAR);
+        pv->vt = VT_LPWSTR;
+        pv->pwszVal = CoTaskMemAlloc(size);
+        if (!pv->pwszVal)
+            return E_OUTOFMEMORY;
+        memcpy(pv->pwszVal, drvs.module_name, size);
+        return S_OK;
     }
 
     return E_INVALIDARG;
 }
 
-static HRESULT WINAPI DT_GetSubunitCount(IDeviceTopology *This,
-                                         UINT *pCount)
+static const IPropertyStoreVtbl info_device_ps_Vtbl =
 {
-    FIXME("(%p)->(%p) - stub\n", This, pCount);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI DT_GetSubunit(IDeviceTopology *This,
-                                    UINT nIndex,
-                                    ISubUnit **ppConnector)
-{
-    FIXME("(%p)->(%u, %p) - stub\n", This, nIndex, ppConnector);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI DT_GetPartById(IDeviceTopology *This,
-                                     UINT nId,
-                                     IPart **ppPart)
-{
-    FIXME("(%p)->(%u, %p) - stub\n", This, nId, ppPart);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI DT_GetDeviceId(IDeviceTopology *This,
-                                     LPWSTR *ppwstrDeviceId)
-{
-    FIXME("(%p)->(%p) - stub\n", This, ppwstrDeviceId);
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI DT_GetSignalPath(IDeviceTopology *This,
-                                       IPart *pIPartFrom,
-                                       IPart *pIPartTo,
-                                       BOOL bRejectMixedPaths,
-                                       IPartsList **ppParts)
-{
-    FIXME("(%p)->(%p, %p, %s, %p) - stub\n",
-          This, pIPartFrom, pIPartTo, bRejectMixedPaths ? "TRUE" : "FALSE", ppParts);
-    return E_NOTIMPL;
-}
-
-static const IDeviceTopologyVtbl DeviceTopology_Vtbl =
-{
-    DT_QueryInterface,
-    DT_AddRef,
-    DT_Release,
-    DT_GetConnectorCount,
-    DT_GetConnector,
-    DT_GetSubunitCount,
-    DT_GetSubunit,
-    DT_GetPartById,
-    DT_GetDeviceId,
-    DT_GetSignalPath,
+    NULL,
+    info_device_ps_AddRef,
+    info_device_ps_Release,
+    NULL,
+    NULL,
+    info_device_ps_GetValue,
+    NULL,
+    NULL
 };
 
-static HRESULT DeviceTopology_Create(IMMDevice *device, IDeviceTopology **ppv)
+static IPropertyStore info_device_ps = {
+    &info_device_ps_Vtbl
+};
+
+static ULONG WINAPI info_device_AddRef(IMMDevice *iface)
 {
-    IDeviceTopologyImpl *This;
+    return 2;
+}
 
-    This = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*This));
-    if (!This)
-        return E_OUTOFMEMORY;
+static ULONG WINAPI info_device_Release(IMMDevice *iface)
+{
+    return 1;
+}
 
-    This->IDeviceTopology_iface.lpVtbl = &DeviceTopology_Vtbl;
-    This->ref = 1;
-
-    *ppv = &This->IDeviceTopology_iface;
-
+static HRESULT WINAPI info_device_OpenPropertyStore(IMMDevice *iface,
+        DWORD access, IPropertyStore **ppv)
+{
+    TRACE("(static)->(%lx, %p)\n", access, ppv);
+    *ppv = &info_device_ps;
     return S_OK;
 }
+
+static const IMMDeviceVtbl info_device_Vtbl =
+{
+    NULL,
+    info_device_AddRef,
+    info_device_Release,
+    NULL,
+    info_device_OpenPropertyStore,
+    NULL,
+    NULL
+};
+
+static IMMDevice info_device = {
+    &info_device_Vtbl
+};

@@ -31,7 +31,7 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(msopc);
 
-#pragma pack(push,2)
+#include <pshpack2.h>
 struct local_file_header
 {
     DWORD signature;
@@ -85,7 +85,7 @@ struct central_directory_end
     DWORD directory_offset;
     WORD comment_length;
 };
-#pragma pack(pop)
+#include <poppack.h>
 
 #define CENTRAL_DIR_SIGNATURE 0x02014b50
 #define LOCAL_HEADER_SIGNATURE 0x04034b50
@@ -184,16 +184,6 @@ void compress_finalize_archive(struct zip_archive *archive)
     free(archive);
 }
 
-static void *zalloc(void *opaque, unsigned int items, unsigned int size)
-{
-    return malloc(items * size);
-}
-
-static void zfree(void *opaque, void *ptr)
-{
-    free(ptr);
-}
-
 static void compress_write_content(struct zip_archive *archive, IStream *content,
         OPC_COMPRESSION_OPTIONS options, struct data_descriptor *data_desc)
 {
@@ -202,7 +192,6 @@ static void compress_write_content(struct zip_archive *archive, IStream *content
     LARGE_INTEGER move;
     ULONG num_read;
     HRESULT hr;
-    int init_ret;
 
     data_desc->crc32 = RtlComputeCrc32(0, NULL, 0);
     move.QuadPart = 0;
@@ -231,10 +220,7 @@ static void compress_write_content(struct zip_archive *archive, IStream *content
     }
 
     memset(&z_str, 0, sizeof(z_str));
-    z_str.zalloc = zalloc;
-    z_str.zfree = zfree;
-    if ((init_ret = deflateInit2(&z_str, level, Z_DEFLATED, -MAX_WBITS, MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY)) != Z_OK)
-        WARN("Failed to allocate memory in deflateInit2, ret %d.\n", init_ret);
+    deflateInit2(&z_str, level, Z_DEFLATED, -MAX_WBITS, MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY);
 
     do
     {
@@ -259,7 +245,7 @@ static void compress_write_content(struct zip_archive *archive, IStream *content
             z_str.avail_out = sizeof(archive->output_buffer);
             z_str.next_out = archive->output_buffer;
 
-            if ((ret = deflate(&z_str, flush)) < 0)
+            if ((ret = deflate(&z_str, flush)))
                 WARN("Failed to deflate, ret %d.\n", ret);
             have = sizeof(archive->output_buffer) - z_str.avail_out;
             compress_write(archive, archive->output_buffer, have);

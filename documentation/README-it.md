@@ -33,11 +33,11 @@ si trova all'indirizzo https://www.winehq.org.
 
 Per compilare ed eseguire Wine, è necessario avere uno dei seguenti sistemi:
 
-- Linux versione 2.6.22 o successiva
+- Linux versione 2.0.36 o successiva
 - FreeBSD 12.4 o successiva
 - Solaris x86 9 o successiva
 - NetBSD-current
-- macOS 10.12 o successiva
+- Mac OS X 10.8 o successiva
 
 Poiché Wine richiede il supporto dei thread a livello kernel per funzionare,
 solo i sistemi operativi sopra mentionati sono supportati. Altri sistemi
@@ -74,10 +74,13 @@ che forniscono kernel threads potrebbero essere supportati in futuro.
 
 **Librerie opzionali di supporto**:
   Configure notificherà a video quando le librerie opzionali non sono
-  trovate sul sistema. Leggere https://gitlab.winehq.org/wine/wine/-/wikis/Building-Wine
+  trovate sul sistema. Leggere https://wiki.winehq.org/Recommended_Packages
   per suggerimenti sui pacchetti da installare.
   Su piattaforme a 64-bit, per compilare Wine a 32-bit (predefinito),
-  assicurarsi di installare la versione a 32-bit di queste librerie.
+  assicurarsi di installare la versione a 32-bit di queste librerie;
+  leggere https://wiki.winehq.org/WineOn64bit per i dettagli. Per avere
+  Wine solo 64-bit (o un setup di Wine misto tra 32-bit e 64-bit),
+  leggere https://wiki.winehq.org/Wine64 per maggiori informazioni.
 
 
 ## COMPILAZIONE
@@ -144,16 +147,15 @@ di segnalazione del problema.
 	delle applicazioni, rintracciamento di bug. Questo è probabilmente
 	il miglior punto di partenza.
 
-- **FAQ**: Le FAQ di Wine si trovano all'indirizzo https://gitlab.winehq.org/wine/wine/-/wikis/FAQ
+- **FAQ**: Le FAQ di Wine si trovano all'indirizzo https://www.winehq.org/FAQ
 
-- **Wiki**: Il Wiki di Wine si trova all'indirizzo https://gitlab.winehq.org/wine/wine/-/wikis/
+- **Wiki**: Il Wiki di Wine si trova all'indirizzo https://wiki.winehq.org
 
 - **Gitlab**: https://gitlab.winehq.org
 
 - **Mailing list**:
 	Esistono diverse mailing list per utenti e sviluppatori di Wine;
-	visitare https://gitlab.winehq.org/wine/wine/-/wikis/Forums per
-	ulteriori informazioni.
+	visitare https://www.winehq.org/forums per ulteriori informazioni.
 
 - **Bugs**: Segnalare i bug su Wine Bugzilla all'indirizzo https://bugs.winehq.org
 	Si prega di controllare il database di Bugzilla per verificare che

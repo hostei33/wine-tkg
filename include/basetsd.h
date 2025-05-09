@@ -65,20 +65,12 @@ extern "C" {
 #  endif
 #endif /* !defined(_MSC_VER) */
 
-#ifndef __has_declspec_attribute
-# if defined(_MSC_VER)
-#  define __has_declspec_attribute(x) 1
-# else
-#  define __has_declspec_attribute(x) 0
-# endif
-#endif
-
 /* FIXME: DECLSPEC_ALIGN should be declared only in winnt.h, but we need it here too */
 #ifndef DECLSPEC_ALIGN
-# ifdef __GNUC__
-#  define DECLSPEC_ALIGN(x) __attribute__((aligned(x)))
-# elif __has_declspec_attribute(align) && !defined(MIDL_PASS)
+# if defined(_MSC_VER) && (_MSC_VER >= 1300) && !defined(MIDL_PASS)
 #  define DECLSPEC_ALIGN(x) __declspec(align(x))
+# elif defined(__GNUC__)
+#  define DECLSPEC_ALIGN(x) __attribute__((aligned(x)))
 # else
 #  define DECLSPEC_ALIGN(x)
 # endif
@@ -132,8 +124,7 @@ typedef unsigned __int64 ULONG_PTR, *PULONG_PTR;
 
 typedef int           INT_PTR, *PINT_PTR;
 typedef unsigned int  UINT_PTR, *PUINT_PTR;
-/* clang warns about long type in %I formats */
-#if defined(__WINESRC__) && defined(__clang__) && (defined(__MINGW32__) || defined(_MSC_VER))
+#if defined(__clang__) && defined(__MINGW32__)  /* llvm-mingw warns about long type in %I formats */
 typedef int           LONG_PTR, *PLONG_PTR;
 typedef unsigned int  ULONG_PTR, *PULONG_PTR;
 #else
@@ -160,7 +151,7 @@ typedef unsigned int UHALF_PTR, *PUHALF_PTR;
 
 #if !defined(__midl) && !defined(__WIDL__)
 
-#if !defined(__LP64__) && !defined(WINE_NO_LONG_TYPES) && !defined(WINE_UNIX_LIB)
+#if !defined(__LP64__) && !defined(WINE_NO_LONG_TYPES)
 
 static inline unsigned long HandleToULong(const void *h)
 {
@@ -206,7 +197,7 @@ static inline int PtrToLong(const void *p)
 }
 
 
-#endif /* !defined(__LP64__) && !defined(WINE_NO_LONG_TYPES) && !defined(WINE_UNIX_LIB) */
+#endif /* !defined(__LP64__) && !defined(WINE_NO_LONG_TYPES) */
 
 static inline void *ULongToHandle(ULONG32 ul)
 {

@@ -117,14 +117,14 @@ static HINSTANCE16 load_dll16( LPCWSTR dll )
     HINSTANCE16 (WINAPI *pLoadLibrary16)(LPCSTR libname);
     HINSTANCE16 ret = 0;
     DWORD len = WideCharToMultiByte( CP_ACP, 0, dll, -1, NULL, 0, NULL, NULL );
-    char *dllA = malloc( len );
+    char *dllA = HeapAlloc( GetProcessHeap(), 0, len );
 
     if (dllA)
     {
         WideCharToMultiByte( CP_ACP, 0, dll, -1, dllA, len, NULL, NULL );
         pLoadLibrary16 = (void *)GetProcAddress( GetModuleHandleW(L"kernel32.dll"), (LPCSTR)35 );
         if (pLoadLibrary16) ret = pLoadLibrary16( dllA );
-        free( dllA );
+        HeapFree( GetProcessHeap(), 0, dllA );
     }
     return ret;
 }
@@ -134,14 +134,14 @@ static FARPROC16 get_entry_point16( HINSTANCE16 inst, LPCWSTR entry )
     FARPROC16 (WINAPI *pGetProcAddress16)(HMODULE16 hModule, LPCSTR name);
     FARPROC16 ret = 0;
     DWORD len = WideCharToMultiByte( CP_ACP, 0, entry, -1, NULL, 0, NULL, NULL );
-    char *entryA = malloc( len );
+    char *entryA = HeapAlloc( GetProcessHeap(), 0, len );
 
     if (entryA)
     {
         WideCharToMultiByte( CP_ACP, 0, entry, -1, entryA, len, NULL, NULL );
         pGetProcAddress16 = (void *)GetProcAddress( GetModuleHandleW(L"kernel32.dll"), (LPCSTR)37 );
         if (pGetProcAddress16) ret = pGetProcAddress16( inst, entryA );
-        free( entryA );
+        HeapFree( GetProcessHeap(), 0, entryA );
     }
     return ret;
 }
@@ -164,7 +164,7 @@ static void *get_entry_point32( HMODULE module, LPCWSTR entry, BOOL *unicode )
     else
     {
         DWORD len = WideCharToMultiByte( CP_ACP, 0, entry, -1, NULL, 0, NULL, NULL );
-        char *entryA = malloc( len + 1 );
+        char *entryA = HeapAlloc( GetProcessHeap(), 0, len + 1 );
 
         if (!entryA)
             return NULL;
@@ -186,88 +186,106 @@ static void *get_entry_point32( HMODULE module, LPCWSTR entry, BOOL *unicode )
                 ret = GetProcAddress( module, entryA );
             }
         }
-        free( entryA );
+        HeapFree( GetProcessHeap(), 0, entryA );
     }
     return ret;
 }
 
-static WCHAR *parse_arguments( WCHAR *cmdline, WCHAR **dll, WCHAR **entrypoint )
+static LPWSTR get_next_arg(LPWSTR *cmdline)
 {
-    WCHAR *p;
+    LPWSTR s;
+    LPWSTR arg,d;
+    BOOL in_quotes;
+    int bcount,len=0;
 
-    if (cmdline[0] == '"')
-        p = wcschr( ++cmdline, '"' );
-    else
-        p = wcspbrk( cmdline, L" ,\t" );
-
-    if (!p) return NULL;
-    *p++ = 0;
-    *dll = cmdline;
-    /* skip spaces and commas */
-    p += wcsspn( p, L" ,\t" );
-    if (!*p) return NULL;
-    *entrypoint = p;
-    /* find end of entry point string */
-    p += wcscspn( p, L" \t" );
-    if (*p) *p++ = 0;
-    p += wcsspn( p, L" \t" );
-    return p;
-}
-
-static void reexec_self( WCHAR *args, WORD machine )
-{
-    SYSTEM_SUPPORTED_PROCESSOR_ARCHITECTURES_INFORMATION machines[8];
-    WCHAR app[MAX_PATH];
-    WCHAR *cmdline;
-    HANDLE process = 0;
-    STARTUPINFOEXW si = {{ sizeof(si.StartupInfo) }};
-    PROCESS_INFORMATION pi;
-    SIZE_T len, size = 1024;
-    struct _PROC_THREAD_ATTRIBUTE_LIST *list = malloc( size );
-    void *cookie;
-    ULONG i;
-
-    NtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process, sizeof(process),
-                                machines, sizeof(machines), NULL );
-    for (i = 0; machines[i].Machine; i++) if (machines[i].Machine == machine) break;
-    if (!GetSystemWow64Directory2W( app, MAX_PATH, machines[i].WoW64Container ?
-                                    machine : IMAGE_FILE_MACHINE_TARGET_HOST )) return;
-    wcscat( app, L"\\rundll32.exe" );
-
-    TRACE( "restarting as %s cmdline %s\n", debugstr_w(app), debugstr_w(args) );
-
-    len = wcslen(app) + wcslen(args) + 2;
-    cmdline = malloc( len * sizeof(WCHAR) );
-    swprintf( cmdline, len, L"%s %s", app, args );
-
-    InitializeProcThreadAttributeList( list, 1, 0, &size );
-    UpdateProcThreadAttribute( list, 0, PROC_THREAD_ATTRIBUTE_MACHINE_TYPE, &machine, sizeof(machine), NULL, NULL );
-    si.StartupInfo.cb = sizeof(si);
-    si.lpAttributeList = list;
-
-    Wow64DisableWow64FsRedirection(&cookie);
-    if (CreateProcessW( app, cmdline, NULL, NULL, FALSE, EXTENDED_STARTUPINFO_PRESENT,
-                        NULL, NULL, &si.StartupInfo, &pi ))
-    {
-        DWORD exit_code;
-        WaitForSingleObject( pi.hProcess, INFINITE );
-        GetExitCodeProcess( pi.hProcess, &exit_code );
-        ExitProcess( exit_code );
+    /* count the chars */
+    bcount=0;
+    in_quotes=FALSE;
+    s=*cmdline;
+    while (1) {
+        if (*s==0 || ((*s=='\t' || *s==' ') && !in_quotes)) {
+            /* end of this command line argument */
+            break;
+        } else if (*s=='\\') {
+            /* '\', count them */
+            bcount++;
+        } else if ((*s=='"') && ((bcount & 1)==0)) {
+            /* unescaped '"' */
+            in_quotes=!in_quotes;
+            bcount=0;
+        } else {
+            /* a regular character */
+            bcount=0;
+        }
+        s++;
+        len++;
     }
-    Wow64RevertWow64FsRedirection(cookie);
+    arg=HeapAlloc(GetProcessHeap(), 0, (len+1)*sizeof(WCHAR));
+    if (!arg)
+        return NULL;
+
+    bcount=0;
+    in_quotes=FALSE;
+    d=arg;
+    s=*cmdline;
+    while (*s) {
+        if ((*s=='\t' || *s==' ') && !in_quotes) {
+            /* end of this command line argument */
+            break;
+        } else if (*s=='\\') {
+            /* '\\' */
+            *d++=*s++;
+            bcount++;
+        } else if (*s=='"') {
+            /* '"' */
+            if ((bcount & 1)==0) {
+                /* Preceded by an even number of '\', this is half that
+                 * number of '\', plus a quote which we erase.
+                 */
+                d-=bcount/2;
+                in_quotes=!in_quotes;
+                s++;
+            } else {
+                /* Preceded by an odd number of '\', this is half that
+                 * number of '\' followed by a '"'
+                 */
+                d=d-bcount/2-1;
+                *d++='"';
+                s++;
+            }
+            bcount=0;
+        } else {
+            /* a regular character */
+            *d++=*s++;
+            bcount=0;
+        }
+    }
+    *d=0;
+    *cmdline=s;
+
+    /* skip the remaining spaces */
+    while (**cmdline=='\t' || **cmdline==' ') {
+        (*cmdline)++;
+    }
+
+    return arg;
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE hOldInstance, LPWSTR szCmdLine, int nCmdShow)
 {
     HWND hWnd;
-    LPWSTR szDllName, szEntryPoint, args;
+    LPWSTR szDllName,szEntryPoint;
     void *entry_point = NULL;
-    BOOL unicode = FALSE, win16 = FALSE;
-    HMODULE hDll, hCtx;
+    BOOL unicode = FALSE, win16 = FALSE, activated = FALSE;
+    HMODULE hDll, hCtx = INVALID_HANDLE_VALUE;
     WCHAR path[MAX_PATH];
     STARTUPINFOW info;
     ULONG_PTR cookie;
     ACTCTXW ctx;
+
+    hWnd=NULL;
+    hDll=NULL;
+    szDllName=NULL;
 
     /* Initialize the rundll32 class */
     register_class();
@@ -275,11 +293,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE hOldInstance, LPWSTR szCmdLine
           CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, NULL, NULL);
 
     /* Get the dll name and API EntryPoint */
-    args = parse_arguments( wcsdup(szCmdLine), &szDllName, &szEntryPoint );
-    if (!args) return 0;
-
-    TRACE( "dll %s entry %s cmdline %s\n", wine_dbgstr_w(szDllName),
-           wine_dbgstr_w(szEntryPoint), wine_dbgstr_w(args) );
+    WINE_TRACE("CmdLine=%s\n",wine_dbgstr_w(szCmdLine));
+    szDllName = get_next_arg(&szCmdLine);
+    if (!szDllName || *szDllName==0)
+        goto CLEANUP;
+    WINE_TRACE("DllName=%s\n",wine_dbgstr_w(szDllName));
+    if ((szEntryPoint = wcschr(szDllName, ',' )))
+        *szEntryPoint++=0;
+    else
+        szEntryPoint = get_next_arg(&szCmdLine);
+    WINE_TRACE("EntryPoint=%s\n",wine_dbgstr_w(szEntryPoint));
 
     /* Activate context before DllMain() is called */
     if (SearchPathW(NULL, szDllName, NULL, ARRAY_SIZE(path), path, NULL))
@@ -291,7 +314,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE hOldInstance, LPWSTR szCmdLine
         ctx.dwFlags = ACTCTX_FLAG_RESOURCE_NAME_VALID;
         hCtx = CreateActCtxW(&ctx);
         if (hCtx != INVALID_HANDLE_VALUE)
-            ActivateActCtx(hCtx, &cookie);
+            activated = ActivateActCtx(hCtx, &cookie);
         else
             WINE_TRACE("No manifest at ID 123 in %s\n", wine_dbgstr_w(path));
     }
@@ -299,37 +322,27 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE hOldInstance, LPWSTR szCmdLine
     /* Load the library */
     hDll=LoadLibraryW(szDllName);
     if (hDll) entry_point = get_entry_point32( hDll, szEntryPoint, &unicode );
+#ifdef __i386__
     else
     {
-        HMODULE module;
-        if (GetLastError() == ERROR_BAD_EXE_FORMAT &&
-            (module = LoadLibraryExW( szDllName, 0, LOAD_LIBRARY_AS_IMAGE_RESOURCE )))
+        HINSTANCE16 dll = load_dll16( szDllName );
+        if (dll <= 32)
         {
-            IMAGE_NT_HEADERS *nt = RtlImageNtHeader( (HMODULE)((ULONG_PTR)module & ~3) );
-            reexec_self( szCmdLine, nt->FileHeader.Machine );
+            /* Windows has a MessageBox here... */
+            WINE_ERR("Unable to load %s\n",wine_dbgstr_w(szDllName));
+            goto CLEANUP;
         }
-#ifdef __i386__
-        else
-        {
-            HINSTANCE16 dll = load_dll16( szDllName );
-            if (dll <= 32)
-            {
-                /* Windows has a MessageBox here... */
-                WINE_ERR("Unable to load %s\n",wine_dbgstr_w(szDllName));
-                return 0;
-            }
-            win16 = TRUE;
-            entry_point = get_entry_point16( dll, szEntryPoint );
-        }
-#endif
+        win16 = TRUE;
+        entry_point = get_entry_point16( dll, szEntryPoint );
     }
+#endif
 
     if (!entry_point)
     {
         /* Windows has a MessageBox here... */
         WINE_ERR( "Unable to find the entry point %s in %s\n",
                   wine_dbgstr_w(szEntryPoint), wine_dbgstr_w(szDllName) );
-        return 0;
+        goto CLEANUP;
     }
 
     GetStartupInfoW( &info );
@@ -338,19 +351,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE hOldInstance, LPWSTR szCmdLine
     if (unicode)
     {
         WINE_TRACE( "Calling %s (%p,%p,%s,%d)\n", wine_dbgstr_w(szEntryPoint),
-                    hWnd, instance, wine_dbgstr_w(args), info.wShowWindow );
+                    hWnd, instance, wine_dbgstr_w(szCmdLine), info.wShowWindow );
 
-        call_entry_point( entry_point, hWnd, instance, args, info.wShowWindow );
+        call_entry_point( entry_point, hWnd, instance, szCmdLine, info.wShowWindow );
     }
     else
     {
-        DWORD len = WideCharToMultiByte( CP_ACP, 0, args, -1, NULL, 0, NULL, NULL );
-        char *cmdline = malloc( len );
+        DWORD len = WideCharToMultiByte( CP_ACP, 0, szCmdLine, -1, NULL, 0, NULL, NULL );
+        char *cmdline = HeapAlloc( GetProcessHeap(), 0, len );
 
         if (!cmdline)
-            return 0;
+            goto CLEANUP;
 
-        WideCharToMultiByte( CP_ACP, 0, args, -1, cmdline, len, NULL, NULL );
+        WideCharToMultiByte( CP_ACP, 0, szCmdLine, -1, cmdline, len, NULL, NULL );
 
         WINE_TRACE( "Calling %s (%p,%p,%s,%d)\n", wine_dbgstr_w(szEntryPoint),
                     hWnd, instance, wine_dbgstr_a(cmdline), info.wShowWindow );
@@ -363,7 +376,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE hOldInstance, LPWSTR szCmdLine
                 pRunDLL_CallEntry16( entry_point, hWnd, instance, cmdline, info.wShowWindow );
         }
         else call_entry_point( entry_point, hWnd, instance, cmdline, info.wShowWindow );
+
+        HeapFree( GetProcessHeap(), 0, cmdline );
     }
 
+CLEANUP:
+    if (hWnd)
+        DestroyWindow(hWnd);
+    if (hDll)
+        FreeLibrary(hDll);
+    if (activated)
+        DeactivateActCtx(0, cookie);
+    ReleaseActCtx(hCtx);
+    HeapFree(GetProcessHeap(),0,szDllName);
     return 0; /* rundll32 always returns 0! */
 }

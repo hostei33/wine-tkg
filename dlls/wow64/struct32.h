@@ -328,6 +328,30 @@ typedef struct
 
 typedef struct
 {
+    ULONG Flags;
+    union
+    {
+        ULONG TlsVector;
+        ULONG TlsModulePointer;
+    };
+    ULONG ThreadId;
+} THREAD_TLS_INFORMATION32;
+
+typedef struct
+{
+    ULONG Flags;
+    ULONG OperationType;
+    ULONG ThreadDataCount;
+    union
+    {
+        ULONG TlsIndex;
+        ULONG TlsVectorLength;
+    };
+    THREAD_TLS_INFORMATION32 ThreadData[1];
+} PROCESS_TLS_INFORMATION32;
+
+typedef struct
+{
     ULONG         BaseAddress;
     ULONG         Attributes;
     LARGE_INTEGER Size;
@@ -359,11 +383,6 @@ typedef struct
     ULONG Sid;
     DWORD Attributes;
 } SID_AND_ATTRIBUTES32;
-
-typedef struct
-{
-    SID_AND_ATTRIBUTES32 Label;
-} TOKEN_MANDATORY_LABEL32;
 
 typedef struct
 {
@@ -725,21 +744,5 @@ typedef struct DECLSPEC_ALIGN(8)
         ULONG   ULong;
     };
 } MEM_EXTENDED_PARAMETER32;
-
-typedef struct
-{
-    ULONG Token;
-    ULONG Thread;
-} PROCESS_ACCESS_TOKEN32;
-
-typedef struct
-{
-    ULONG PagedPoolLimit;
-    ULONG NonPagedPoolLimit;
-    ULONG MinimumWorkingSetSize;
-    ULONG MaximumWorkingSetSize;
-    ULONG PagefileLimit;
-    LARGE_INTEGER TimeLimit;
-} QUOTA_LIMITS32;
 
 #endif /* __WOW64_STRUCT32_H */

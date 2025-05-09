@@ -306,7 +306,7 @@ static NTSTATUS tcp_conns_enumerate_all( UINT filter, struct nsi_tcp_conn_key *k
     struct ipv6_addr_scope *addr_scopes = NULL;
     unsigned int addr_scopes_size = 0;
     NTSTATUS ret = STATUS_SUCCESS;
-    union tcp_connection *connections = NULL;
+    tcp_connection *connections = NULL;
 
     if (want_data)
     {
@@ -341,7 +341,7 @@ static NTSTATUS tcp_conns_enumerate_all( UINT filter, struct nsi_tcp_conn_key *k
 
     for (unsigned int i = 0; i < *count; i++)
     {
-        union tcp_connection *conn = &connections[i];
+        tcp_connection *conn = &connections[i];
 
         if (key_data)
         {

@@ -60,18 +60,31 @@ static const char *debugstr_hook_id( unsigned int id )
     return hook_names[id - WH_MINHOOK];
 }
 
+/***********************************************************************
+ *      get_active_hooks
+ *
+ */
+static UINT get_active_hooks(void)
+{
+    struct user_thread_info *thread_info = get_user_thread_info();
+
+    if (!thread_info->active_hooks)
+    {
+        SERVER_START_REQ( get_active_hooks )
+        {
+            if (!wine_server_call( req )) thread_info->active_hooks = reply->active_hooks;
+        }
+        SERVER_END_REQ;
+    }
+
+    return thread_info->active_hooks;
+}
+
 BOOL is_hooked( INT id )
 {
-    struct object_lock lock = OBJECT_LOCK_INIT;
-    const queue_shm_t *queue_shm;
-    BOOL ret = TRUE;
-    UINT status;
-
-    while ((status = get_shared_queue( &lock, &queue_shm )) == STATUS_PENDING)
-        ret = queue_shm->hooks_count[id - WH_MINHOOK] > 0;
-
-    if (status) return TRUE;
-    return ret;
+    UINT active_hooks = get_active_hooks();
+    if (!active_hooks) return TRUE;
+    return (active_hooks & (1 << (id - WH_MINHOOK))) != 0;
 }
 
 /***********************************************************************
@@ -135,11 +148,12 @@ HHOOK WINAPI NtUserSetWindowsHookEx( HINSTANCE inst, UNICODE_STRING *module, DWO
         if (!wine_server_call_err( req ))
         {
             handle = wine_server_ptr_handle( reply->handle );
+            get_user_thread_info()->active_hooks = reply->active_hooks;
         }
     }
     SERVER_END_REQ;
 
-    TRACE( "%s %p %x -> %p\n", debugstr_hook_id(id), proc, tid, handle );
+    TRACE( "%s %p %x -> %p\n", debugstr_hook_id(id), proc, (int)tid, handle );
     return handle;
 }
 
@@ -155,16 +169,15 @@ BOOL WINAPI NtUserUnhookWindowsHookEx( HHOOK handle )
         req->handle = wine_server_user_handle( handle );
         req->id     = 0;
         status = wine_server_call_err( req );
+        if (!status) get_user_thread_info()->active_hooks = reply->active_hooks;
     }
     SERVER_END_REQ;
     if (status == STATUS_INVALID_HANDLE) RtlSetLastWin32Error( ERROR_INVALID_HOOK_HANDLE );
     return !status;
 }
 
-/***********************************************************************
- *	     NtUserUnhookWindowsHook   (win32u.@)
- */
-BOOL WINAPI NtUserUnhookWindowsHook( INT id, HOOKPROC proc )
+/* see UnhookWindowsHook */
+BOOL unhook_windows_hook( INT id, HOOKPROC proc )
 {
     NTSTATUS status;
 
@@ -176,6 +189,7 @@ BOOL WINAPI NtUserUnhookWindowsHook( INT id, HOOKPROC proc )
         req->id   = id;
         req->proc = wine_server_client_ptr( proc );
         status = wine_server_call_err( req );
+        if (!status) get_user_thread_info()->active_hooks = reply->active_hooks;
     }
     SERVER_END_REQ;
     if (status == STATUS_INVALID_HANDLE) RtlSetLastWin32Error( ERROR_INVALID_HOOK_HANDLE );
@@ -209,6 +223,7 @@ static LRESULT call_hook( struct win_hook_params *info, const WCHAR *module, siz
                           size_t message_size, BOOL ansi )
 {
     DWORD_PTR ret = 0;
+    LRESULT lres = 0;
 
     if (info->tid)
     {
@@ -217,25 +232,31 @@ static LRESULT call_hook( struct win_hook_params *info, const WCHAR *module, siz
         h_extra.lparam = info->lparam;
 
         TRACE( "calling hook in thread %04x %s code %x wp %lx lp %lx\n",
-               info->tid, hook_names[info->id-WH_MINHOOK],
+               (int)info->tid, hook_names[info->id-WH_MINHOOK],
                info->code, (long)info->wparam, info->lparam );
 
         switch(info->id)
         {
         case WH_KEYBOARD_LL:
-            send_internal_message_timeout( info->pid, info->tid, WM_WINE_KEYBOARD_LL_HOOK,
-                                           info->wparam, (LPARAM)&h_extra, SMTO_ABORTIFHUNG,
-                                           get_ll_hook_timeout(), &ret );
+            lres = send_internal_message_timeout( info->pid, info->tid, WM_WINE_KEYBOARD_LL_HOOK,
+                                                  info->wparam, (LPARAM)&h_extra, SMTO_ABORTIFHUNG,
+                                                  get_ll_hook_timeout(), &ret );
             break;
         case WH_MOUSE_LL:
-            send_internal_message_timeout( info->pid, info->tid, WM_WINE_MOUSE_LL_HOOK,
-                                           info->wparam, (LPARAM)&h_extra, SMTO_ABORTIFHUNG,
-                                           get_ll_hook_timeout(), &ret );
+            lres = send_internal_message_timeout( info->pid, info->tid, WM_WINE_MOUSE_LL_HOOK,
+                                                  info->wparam, (LPARAM)&h_extra, SMTO_ABORTIFHUNG,
+                                                  get_ll_hook_timeout(), &ret );
             break;
         default:
             ERR("Unknown hook id %d\n", info->id);
             assert(0);
             break;
+        }
+
+        if (!lres && RtlGetLastWin32Error() == ERROR_TIMEOUT)
+        {
+            TRACE( "Hook %p timed out; removing it.\n", info->handle );
+            NtUserUnhookWindowsHookEx( info->handle );
         }
     }
     else if (info->proc)
@@ -246,9 +267,8 @@ static LRESULT call_hook( struct win_hook_params *info, const WCHAR *module, siz
         HHOOK prev = thread_info->hook;
         BOOL prev_unicode = thread_info->hook_unicode;
         struct win_hook_params *params = info;
-        void *ret_ptr, *extra_buffer = NULL;
-        SIZE_T extra_buffer_size = 0;
         size_t reply_size;
+        void *ret_ptr;
         ULONG ret_len;
 
         size = FIELD_OFFSET( struct win_hook_params, module[module ? lstrlenW( module ) + 1 : 1] );
@@ -298,21 +318,21 @@ static LRESULT call_hook( struct win_hook_params *info, const WCHAR *module, siz
                     CBT_CREATEWNDW *cbtc = (CBT_CREATEWNDW *)params->lparam;
                     LPARAM lp = (LPARAM)cbtc->lpcs;
                     pack_user_message( (char *)params + message_offset, message_size,
-                                       WM_CREATE, 0, lp, FALSE, &extra_buffer );
+                                       WM_CREATE, 0, lp, FALSE );
                 }
                 break;
             case WH_CALLWNDPROC:
                 {
                     CWPSTRUCT *cwp = (CWPSTRUCT *)((char *)params + lparam_offset);
                     pack_user_message( (char *)params + message_offset, message_size,
-                                       cwp->message, cwp->wParam, cwp->lParam, ansi, &extra_buffer );
+                                       cwp->message, cwp->wParam, cwp->lParam, ansi );
                 }
                 break;
             case WH_CALLWNDPROCRET:
                 {
                     CWPRETSTRUCT *cwpret = (CWPRETSTRUCT *)((char *)params + lparam_offset);
                     pack_user_message( (char *)params + message_offset, message_size,
-                                       cwpret->message, cwpret->wParam, cwpret->lParam, ansi, &extra_buffer );
+                                       cwpret->message, cwpret->wParam, cwpret->lParam, ansi );
                 }
                 break;
             }
@@ -326,8 +346,6 @@ static LRESULT call_hook( struct win_hook_params *info, const WCHAR *module, siz
         {
             WARN("Too many hooks called recursively, skipping call.\n");
             if (params != info) free( params );
-            if (extra_buffer)
-                NtFreeVirtualMemory( GetCurrentProcess(), &extra_buffer, &extra_buffer_size, MEM_RELEASE );
             return 0;
         }
 
@@ -338,21 +356,14 @@ static LRESULT call_hook( struct win_hook_params *info, const WCHAR *module, siz
         thread_info->hook = params->handle;
         thread_info->hook_unicode = params->next_unicode;
         thread_info->hook_call_depth++;
-        if (!KeUserModeCallback( NtUserCallWindowsHook, params, size, &ret_ptr, &ret_len ) &&
-            ret_len >= sizeof(ret))
-        {
-            LRESULT *result_ptr = ret_ptr;
-            ret = *result_ptr;
-            if (ret_len == sizeof(ret) + lparam_ret_size)
-                memcpy( (void *)params->lparam, result_ptr + 1, ret_len - sizeof(ret) );
-        }
+        ret = KeUserModeCallback( NtUserCallWindowsHook, params, size, &ret_ptr, &ret_len );
+        if (ret_len && ret_len == lparam_ret_size)
+            memcpy( (void *)params->lparam, ret_ptr, ret_len );
         thread_info->hook = prev;
         thread_info->hook_unicode = prev_unicode;
         thread_info->hook_call_depth--;
 
         if (params != info) free( params );
-        if (extra_buffer)
-            NtFreeVirtualMemory( GetCurrentProcess(), &extra_buffer, &extra_buffer_size, MEM_RELEASE );
     }
 
     return ret;
@@ -431,6 +442,7 @@ LRESULT call_current_hook( HHOOK hhook, INT code, WPARAM wparam, LPARAM lparam )
 LRESULT call_message_hooks( INT id, INT code, WPARAM wparam, LPARAM lparam, size_t lparam_size,
                             size_t message_size, BOOL ansi )
 {
+    struct user_thread_info *thread_info = get_user_thread_info();
     struct win_hook_params info;
     WCHAR module[MAX_PATH];
     DWORD_PTR ret;
@@ -439,7 +451,7 @@ LRESULT call_message_hooks( INT id, INT code, WPARAM wparam, LPARAM lparam, size
 
     if (!is_hooked( id ))
     {
-        TRACE( "skipping hook %s\n", hook_names[id - WH_MINHOOK] );
+        TRACE( "skipping hook %s mask %x\n", hook_names[id-WH_MINHOOK], get_active_hooks() );
         return 0;
     }
 
@@ -460,6 +472,7 @@ LRESULT call_message_hooks( INT id, INT code, WPARAM wparam, LPARAM lparam, size
             info.tid          = reply->tid;
             info.proc         = wine_server_get_ptr( reply->proc );
             info.next_unicode = reply->unicode;
+            thread_info->active_hooks = reply->active_hooks;
         }
     }
     SERVER_END_REQ;
@@ -527,6 +540,7 @@ HWINEVENTHOOK WINAPI NtUserSetWinEventHook( DWORD event_min, DWORD event_max, HM
         if (!wine_server_call_err( req ))
         {
             handle = wine_server_ptr_handle( reply->handle );
+            get_user_thread_info()->active_hooks = reply->active_hooks;
         }
     }
     SERVER_END_REQ;
@@ -547,6 +561,7 @@ BOOL WINAPI NtUserUnhookWinEvent( HWINEVENTHOOK handle )
         req->handle = wine_server_user_handle( handle );
         req->id     = WH_WINEVENT;
         ret = !wine_server_call_err( req );
+        if (ret) get_user_thread_info()->active_hooks = reply->active_hooks;
     }
     SERVER_END_REQ;
     return ret;
@@ -557,12 +572,13 @@ BOOL WINAPI NtUserUnhookWinEvent( HWINEVENTHOOK handle )
  */
 void WINAPI NtUserNotifyWinEvent( DWORD event, HWND hwnd, LONG object_id, LONG child_id )
 {
+    struct user_thread_info *thread_info = get_user_thread_info();
     struct win_event_hook_params info;
     void *ret_ptr;
     ULONG ret_len;
     BOOL ret;
 
-    TRACE( "%04x, %p, %d, %d\n", event, hwnd, object_id, child_id );
+    TRACE( "%04x, %p, %d, %d\n", (int)event, hwnd, (int)object_id, (int)child_id );
 
     user_check_not_lock();
 
@@ -574,7 +590,7 @@ void WINAPI NtUserNotifyWinEvent( DWORD event, HWND hwnd, LONG object_id, LONG c
 
     if (!is_hooked( WH_WINEVENT ))
     {
-        TRACE( "skipping hook\n" );
+        TRACE( "skipping hook mask %x\n", get_active_hooks() );
         return;
     }
 
@@ -598,6 +614,7 @@ void WINAPI NtUserNotifyWinEvent( DWORD event, HWND hwnd, LONG object_id, LONG c
             info.module[wine_server_reply_size(req) / sizeof(WCHAR)] = 0;
             info.handle = wine_server_ptr_handle( reply->handle );
             info.proc   = wine_server_get_ptr( reply->proc );
+            thread_info->active_hooks = reply->active_hooks;
         }
     }
     SERVER_END_REQ;
@@ -606,7 +623,7 @@ void WINAPI NtUserNotifyWinEvent( DWORD event, HWND hwnd, LONG object_id, LONG c
     do
     {
         TRACE( "calling WH_WINEVENT hook %p event %x hwnd %p %x %x module %s\n",
-               info.proc, event, hwnd, object_id, child_id, debugstr_w(info.module) );
+               info.proc, (int)event, hwnd, (int)object_id, (int)child_id, debugstr_w(info.module) );
 
         info.time = NtGetTickCount();
         KeUserModeCallback( NtUserCallWinEventHook, &info,

@@ -65,6 +65,7 @@ struct schan_context
     enum control_token control_token;
     unsigned int alert_type;
     unsigned int alert_number;
+    BOOL rehandshake_requested;
 };
 
 static struct schan_handle *schan_handle_table;
@@ -565,7 +566,7 @@ static SECURITY_STATUS acquire_credentials_handle(ULONG fCredentialUse,
  const SCHANNEL_CRED *schanCred, PCredHandle phCredential, PTimeStamp ptsExpiry)
 {
     struct schan_credentials *creds;
-    DWORD enabled_protocols, cred_enabled_protocols = 0;
+    DWORD enabled_protocols, cred_enabled_protocols;
     ULONG_PTR handle;
     SECURITY_STATUS status = SEC_E_OK;
     const CERT_CONTEXT *cert = NULL;
@@ -596,7 +597,7 @@ static SECURITY_STATUS acquire_credentials_handle(ULONG fCredentialUse,
     }
 
     read_config();
-    if (cred_enabled_protocols)
+    if(schanCred && cred_enabled_protocols)
         enabled_protocols = cred_enabled_protocols & config_enabled_protocols;
     else
         enabled_protocols = config_enabled_protocols & ~config_default_disabled_protocols;
@@ -604,8 +605,7 @@ static SECURITY_STATUS acquire_credentials_handle(ULONG fCredentialUse,
         enabled_protocols &= ~SP_PROT_X_CLIENTS;
     if (!(fCredentialUse & SECPKG_CRED_INBOUND))
         enabled_protocols &= ~SP_PROT_X_SERVERS;
-    if (!enabled_protocols)
-    {
+    if(!enabled_protocols) {
         ERR("Could not find matching protocol\n");
         return SEC_E_ALGORITHM_MISMATCH;
     }
@@ -898,7 +898,7 @@ static SECURITY_STATUS establish_context(
             buffer = &pInput->pBuffers[idx];
             ptr = buffer->pvBuffer;
 
-            if (buffer->cbBuffer < ctx->header_size)
+            if (buffer->cbBuffer < ctx->header_size && !ctx->rehandshake_requested)
             {
                 TRACE("Expected at least %Iu bytes, but buffer only contains %lu bytes.\n",
                       ctx->header_size, buffer->cbBuffer);
@@ -915,7 +915,7 @@ static SECURITY_STATUS establish_context(
                 ptr += record_size;
             }
 
-            if (!expected_size)
+            if (!expected_size && !ctx->rehandshake_requested)
             {
                 TRACE("Expected at least %Iu bytes, but buffer only contains %lu bytes.\n",
                       max(ctx->header_size, record_size), buffer->cbBuffer);
@@ -967,6 +967,7 @@ static SECURITY_STATUS establish_context(
     params.alert_type = ctx->alert_type;
     params.alert_number = ctx->alert_number;
     ctx->control_token = CONTROL_TOKEN_NONE;
+    ctx->rehandshake_requested = FALSE;
     ret = GNUTLS_CALL( handshake, &params );
 
     if (output_buffer_idx != -1)
@@ -1569,6 +1570,7 @@ static SECURITY_STATUS SEC_ENTRY schan_DecryptMessage(PCtxtHandle context_handle
     buffer->BufferType = SECBUFFER_STREAM_HEADER;
     buffer->cbBuffer = ctx->header_size;
 
+    if (status == SEC_I_RENEGOTIATE) ctx->rehandshake_requested = TRUE;
     return status;
 }
 

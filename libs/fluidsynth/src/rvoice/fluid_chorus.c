@@ -169,11 +169,10 @@
 /* modulator */
 typedef struct
 {
-    // for sufficient precision members MUST be double! See https://github.com/FluidSynth/fluidsynth/issues/1331
-    double   a1;           /* Coefficient: a1 = 2 * cos(w) */
-    double   buffer1;      /* buffer1 */
-    double   buffer2;      /* buffer2 */
-    double   reset_buffer2;/* reset value of buffer2 */
+    fluid_real_t   a1;          /* Coefficient: a1 = 2 * cos(w) */
+    fluid_real_t   buffer1;     /* buffer1 */
+    fluid_real_t   buffer2;     /* buffer2 */
+    fluid_real_t   reset_buffer2;/* reset value of buffer2 */
 } sinus_modulator;
 
 /*-----------------------------------------------------------------------------
@@ -237,10 +236,6 @@ struct _fluid_chorus_t
 /*-----------------------------------------------------------------------------
  Sets the frequency of sinus oscillator.
 
- For sufficient precision use double precision in set_sinus_frequency() computation !.
- Never use: fluid_real_t , cosf(), sinf(), FLUID_COS(), FLUID_SIN(), FLUID_M_PI.
- See https://github.com/FluidSynth/fluidsynth/issues/1331
-
  @param mod pointer on modulator structure.
  @param freq frequency of the oscillator in Hz.
  @param sample_rate sample rate on audio output in Hz.
@@ -249,17 +244,16 @@ struct _fluid_chorus_t
 static void set_sinus_frequency(sinus_modulator *mod,
                                 float freq, float sample_rate, float phase)
 {
-    double w = (2.0 * M_PI) * freq / sample_rate;  /* step phase between each sinus wave sample (in radian) */
-    double a; /* initial phase at which the sinus wave must begin (in radian) */
+    fluid_real_t w = 2 * FLUID_M_PI * freq / sample_rate; /* initial angle */
+    fluid_real_t a;
 
-    // DO NOT use potentially single precision cosf or FLUID_COS here! See https://github.com/FluidSynth/fluidsynth/issues/1331
-    mod->a1 = 2 * cos(w);
+    mod->a1 = 2 * FLUID_COS(w);
 
-    a = (2.0 * M_PI / 360.0) * phase;
+    a = (2 * FLUID_M_PI / 360) * phase;
 
-    mod->buffer2 = sin(a - w); /* y(n-1) = sin(-initial angle) */
-    mod->buffer1 = sin(a); /* y(n) = sin(initial phase) */
-    mod->reset_buffer2 = sin((M_PI / 2.0) - w); /* reset value for PI/2 */
+    mod->buffer2 = FLUID_SIN(a - w); /* y(n-1) = sin(-initial angle) */
+    mod->buffer1 = FLUID_SIN(a); /* y(n) = sin(initial phase) */
+    mod->reset_buffer2 = FLUID_SIN(FLUID_M_PI / 2 - w); /* reset value for PI/2 */
 }
 
 /*-----------------------------------------------------------------------------
@@ -270,21 +264,21 @@ static void set_sinus_frequency(sinus_modulator *mod,
  @param mod pointer on modulator structure.
  @return current value of the modulator sine wave.
 -----------------------------------------------------------------------------*/
-static FLUID_INLINE double get_mod_sinus(sinus_modulator *mod)
+static FLUID_INLINE fluid_real_t get_mod_sinus(sinus_modulator *mod)
 {
-    double out;
+    fluid_real_t out;
     out = mod->a1 * mod->buffer1 - mod->buffer2;
     mod->buffer2 = mod->buffer1;
 
-    if(out >= 1.0) /* reset in case of instability near PI/2 */
+    if(out >= 1.0f) /* reset in case of instability near PI/2 */
     {
-        out = 1.0; /* forces output to the right value */
+        out = 1.0f; /* forces output to the right value */
         mod->buffer2 = mod->reset_buffer2;
     }
 
-    if(out <= -1.0) /* reset in case of instability near -PI/2 */
+    if(out <= -1.0f) /* reset in case of instability near -PI/2 */
     {
-        out = -1.0; /* forces output to the right value */
+        out = -1.0f; /* forces output to the right value */
         mod->buffer2 = - mod->reset_buffer2;
     }
 

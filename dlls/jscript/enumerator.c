@@ -87,11 +87,30 @@ static void Enumerator_destructor(jsdisp_t *dispex)
     if(This->enumvar)
         IEnumVARIANT_Release(This->enumvar);
     jsval_release(This->item);
+    free(dispex);
 }
 
 static HRESULT Enumerator_gc_traverse(struct gc_ctx *gc_ctx, enum gc_traverse_op op, jsdisp_t *dispex)
 {
-    return gc_process_linked_val(gc_ctx, op, dispex, &enumerator_from_jsdisp(dispex)->item);
+    EnumeratorInstance *This = enumerator_from_jsdisp(dispex);
+
+    if(op == GC_TRAVERSE_UNLINK) {
+        IEnumVARIANT *enumvar = This->enumvar;
+        if(enumvar) {
+            This->enumvar = NULL;
+            IEnumVARIANT_Release(enumvar);
+        }
+    }
+    return gc_process_linked_val(gc_ctx, op, dispex, &This->item);
+}
+
+static void Enumerator_cc_traverse(jsdisp_t *dispex, nsCycleCollectionTraversalCallback *cb)
+{
+    EnumeratorInstance *This = enumerator_from_jsdisp(dispex);
+    if(This->enumvar)
+        cc_api.note_edge((nsISupports*)This->enumvar, "enumvar", cb);
+    if(is_object_instance(This->item))
+        cc_api.note_edge((nsISupports*)get_object(This->item), "item", cb);
 }
 
 static HRESULT Enumerator_atEnd(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned argc, jsval_t *argv,
@@ -181,15 +200,26 @@ static const builtin_prop_t Enumerator_props[] = {
 };
 
 static const builtin_info_t Enumerator_info = {
-    .class     = JSCLASS_ENUMERATOR,
-    .props_cnt = ARRAY_SIZE(Enumerator_props),
-    .props     = Enumerator_props,
+    JSCLASS_ENUMERATOR,
+    NULL,
+    ARRAY_SIZE(Enumerator_props),
+    Enumerator_props,
+    NULL,
+    NULL
 };
 
 static const builtin_info_t EnumeratorInst_info = {
-    .class       = JSCLASS_ENUMERATOR,
-    .destructor  = Enumerator_destructor,
-    .gc_traverse = Enumerator_gc_traverse
+    JSCLASS_ENUMERATOR,
+    NULL,
+    0,
+    NULL,
+    Enumerator_destructor,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    Enumerator_gc_traverse,
+    Enumerator_cc_traverse
 };
 
 static HRESULT alloc_enumerator(script_ctx_t *ctx, jsdisp_t *object_prototype, EnumeratorInstance **ret)
@@ -240,7 +270,7 @@ static HRESULT create_enumerator(script_ctx_t *ctx, jsval_t *argv, jsdisp_t **re
         /* Try to get a IEnumVARIANT by _NewEnum */
         VariantInit(&varresult);
         hres = IDispatch_Invoke(obj, DISPID_NEWENUM, &IID_NULL, LOCALE_NEUTRAL,
-                DISPATCH_METHOD | DISPATCH_PROPERTYGET, &dispparams, &varresult, NULL, NULL);
+                DISPATCH_PROPERTYGET, &dispparams, &varresult, NULL, NULL);
         if (FAILED(hres))
         {
             WARN("Enumerator: no DISPID_NEWENUM.\n");
@@ -313,8 +343,12 @@ static HRESULT EnumeratorConstr_value(script_ctx_t *ctx, jsval_t vthis, WORD fla
 }
 
 static const builtin_info_t EnumeratorConstr_info = {
-    .class = JSCLASS_FUNCTION,
-    .call  = Function_value,
+    JSCLASS_FUNCTION,
+    Function_value,
+    0,
+    NULL,
+    NULL,
+    NULL
 };
 
 HRESULT create_enumerator_constr(script_ctx_t *ctx, jsdisp_t *object_prototype, jsdisp_t **ret)

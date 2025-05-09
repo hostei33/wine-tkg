@@ -586,13 +586,20 @@ static const builtin_prop_t Number_props[] = {
 };
 
 static const builtin_info_t Number_info = {
-    .class     = JSCLASS_NUMBER,
-    .props_cnt = ARRAY_SIZE(Number_props),
-    .props     = Number_props,
+    JSCLASS_NUMBER,
+    NULL,
+    ARRAY_SIZE(Number_props),
+    Number_props,
+    NULL,
+    NULL
 };
 
 static const builtin_info_t NumberInst_info = {
-    .class = JSCLASS_NUMBER,
+    JSCLASS_NUMBER,
+    NULL,
+    0, NULL,
+    NULL,
+    NULL
 };
 
 static HRESULT NumberConstr_value(script_ctx_t *ctx, jsval_t vthis, WORD flags, unsigned argc, jsval_t *argv,

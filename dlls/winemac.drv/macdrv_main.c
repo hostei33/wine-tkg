@@ -52,6 +52,7 @@ int right_option_is_alt = 0;
 int left_command_is_ctrl = 0;
 int right_command_is_ctrl = 0;
 BOOL allow_software_rendering = FALSE;
+BOOL disable_window_decorations = FALSE;
 int allow_immovable_windows = TRUE;
 int use_confinement_cursor_clipping = TRUE;
 int cursor_clipping_locks_windows = TRUE;
@@ -59,10 +60,6 @@ int use_precise_scrolling = TRUE;
 int gl_surface_mode = GL_SURFACE_IN_FRONT_OPAQUE;
 int retina_enabled = FALSE;
 int enable_app_nap = FALSE;
-BOOL force_backing_store = FALSE;
-
-UINT64 app_icon_callback = 0;
-UINT64 app_quit_request_callback = 0;
 
 CFDictionaryRef localized_strings;
 
@@ -135,12 +132,12 @@ HKEY open_hkcu_key(const char *name)
 
         sid = ((TOKEN_USER *)sid_data)->User.Sid;
         len = snprintf(buffer, sizeof(buffer), "\\Registry\\User\\S-%u-%u", sid->Revision,
-                        MAKELONG(MAKEWORD(sid->IdentifierAuthority.Value[5],
-                                           sid->IdentifierAuthority.Value[4]),
-                                  MAKEWORD(sid->IdentifierAuthority.Value[3],
-                                            sid->IdentifierAuthority.Value[2])));
+                      (unsigned int)MAKELONG(MAKEWORD(sid->IdentifierAuthority.Value[5],
+                                                      sid->IdentifierAuthority.Value[4]),
+                                             MAKEWORD(sid->IdentifierAuthority.Value[3],
+                                                      sid->IdentifierAuthority.Value[2])));
         for (i = 0; i < sid->SubAuthorityCount; i++)
-            len += snprintf(buffer + len, sizeof(buffer) - len, "-%u", sid->SubAuthority[i]);
+            len += snprintf(buffer + len, sizeof(buffer) - len, "-%u", (unsigned int)sid->SubAuthority[i]);
 
         ascii_to_unicode(bufferW, buffer, len);
         hkcu = reg_open_key(NULL, bufferW, len * sizeof(WCHAR));
@@ -350,6 +347,10 @@ static void setup_options(void)
     if (!get_config_key(hkey, appkey, "AllowSoftwareRendering", buffer, sizeof(buffer)))
         allow_software_rendering = IS_OPTION_TRUE(buffer[0]);
 
+    /* Value name chosen to match what's used in the X11 driver. */
+    if (!get_config_key(hkey, appkey, "Decorated", buffer, sizeof(buffer)))
+        disable_window_decorations = !IS_OPTION_TRUE(buffer[0]);
+
     if (!get_config_key(hkey, appkey, "AllowImmovableWindows", buffer, sizeof(buffer)))
         allow_immovable_windows = IS_OPTION_TRUE(buffer[0]);
 
@@ -376,9 +377,6 @@ static void setup_options(void)
 
     if (!get_config_key(hkey, appkey, "EnableAppNap", buffer, sizeof(buffer)))
         enable_app_nap = IS_OPTION_TRUE(buffer[0]);
-
-    if (!get_config_key(hkey, appkey, "ForceOpenGLBackingStore", buffer, sizeof(buffer)))
-        force_backing_store = IS_OPTION_TRUE(buffer[0]);
 
     /* Don't use appkey.  The DPI and monitor sizes should be consistent for all
        processes in the prefix. */
@@ -437,9 +435,6 @@ static NTSTATUS macdrv_init(void *arg)
     SessionAttributeBits attributes;
     OSStatus status;
 
-    app_icon_callback = params->app_icon_callback;
-    app_quit_request_callback = params->app_quit_request_callback;
-
     status = SessionGetInfo(callerSecuritySession, NULL, &attributes);
     if (status != noErr || !(attributes & sessionHasGraphicAccess))
         return STATUS_UNSUCCESSFUL;
@@ -456,6 +451,7 @@ static NTSTATUS macdrv_init(void *arg)
     }
 
     init_user_driver();
+    macdrv_init_display_devices(FALSE);
     return STATUS_SUCCESS;
 }
 
@@ -603,6 +599,14 @@ BOOL macdrv_SystemParametersInfo( UINT action, UINT int_param, void *ptr_param, 
 }
 
 
+NTSTATUS macdrv_client_func(enum macdrv_client_funcs id, const void *params, ULONG size)
+{
+    void *ret_ptr;
+    ULONG ret_len;
+    return KeUserModeCallback(id, params, size, &ret_ptr, &ret_len);
+}
+
+
 static NTSTATUS macdrv_quit_result(void *arg)
 {
     struct quit_result_params *params = arg;
@@ -613,6 +617,11 @@ static NTSTATUS macdrv_quit_result(void *arg)
 
 const unixlib_entry_t __wine_unix_call_funcs[] =
 {
+    macdrv_dnd_get_data,
+    macdrv_dnd_get_formats,
+    macdrv_dnd_have_format,
+    macdrv_dnd_release,
+    macdrv_dnd_retain,
     macdrv_init,
     macdrv_quit_result,
 };
@@ -621,24 +630,43 @@ C_ASSERT( ARRAYSIZE(__wine_unix_call_funcs) == unix_funcs_count );
 
 #ifdef _WIN64
 
+static NTSTATUS wow64_dnd_get_data(void *arg)
+{
+    struct
+    {
+        UINT64 handle;
+        UINT format;
+        ULONG size;
+        ULONG data;
+    } *params32 = arg;
+    struct dnd_get_data_params params;
+
+    params.handle = params32->handle;
+    params.format = params32->format;
+    params.size = params32->size;
+    params.data = UlongToPtr(params32->data);
+    return macdrv_dnd_get_data(&params);
+}
+
 static NTSTATUS wow64_init(void *arg)
 {
     struct
     {
         ULONG strings;
-        UINT64 app_icon_callback;
-        UINT64 app_quit_request_callback;
     } *params32 = arg;
     struct init_params params;
 
     params.strings = UlongToPtr(params32->strings);
-    params.app_icon_callback = params32->app_icon_callback;
-    params.app_quit_request_callback = params32->app_quit_request_callback;
     return macdrv_init(&params);
 }
 
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 {
+    wow64_dnd_get_data,
+    macdrv_dnd_get_formats,
+    macdrv_dnd_have_format,
+    macdrv_dnd_release,
+    macdrv_dnd_retain,
     wow64_init,
     macdrv_quit_result,
 };

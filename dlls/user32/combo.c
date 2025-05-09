@@ -982,7 +982,7 @@ static void CBDropDown( LPHEADCOMBO lphc )
    if( !(lphc->wState & CBF_NOREDRAW) )
      NtUserRedrawWindow( lphc->self, NULL, 0, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW );
 
-   NtUserEnableWindow( lphc->hWndLBox, TRUE );
+   EnableWindow( lphc->hWndLBox, TRUE );
    if (GetCapture() != lphc->self)
       NtUserSetCapture(lphc->hWndLBox);
 }
@@ -1013,7 +1013,7 @@ static void CBRollUp( LPHEADCOMBO lphc, BOOL ok, BOOL bButton )
 
            if(GetCapture() == lphc->hWndLBox)
            {
-               NtUserReleaseCapture();
+               ReleaseCapture();
            }
 
 	   if( CB_GETTYPE(lphc) == CBS_DROPDOWN )
@@ -1574,7 +1574,7 @@ static void COMBO_LButtonDown( LPHEADCOMBO lphc, LPARAM lParam )
            if( lphc->wState & CBF_CAPTURE )
            {
                lphc->wState &= ~CBF_CAPTURE;
-               NtUserReleaseCapture();
+               ReleaseCapture();
            }
        }
        else
@@ -1610,7 +1610,7 @@ static void COMBO_LButtonUp( LPHEADCOMBO lphc )
 	       lphc->wState &= ~CBF_NOLBSELECT;
 	   }
        }
-       NtUserReleaseCapture();
+       ReleaseCapture();
        NtUserSetCapture(lphc->hWndLBox);
    }
 
@@ -1653,7 +1653,7 @@ static void COMBO_MouseMove( LPHEADCOMBO lphc, WPARAM wParam, LPARAM lParam )
    if( PtInRect(&lbRect, pt) )
    {
        lphc->wState &= ~CBF_CAPTURE;
-       NtUserReleaseCapture();
+       ReleaseCapture();
        if( CB_GETTYPE(lphc) == CBS_DROPDOWN ) CBUpdateLBox( lphc, TRUE );
 
        /* hand over pointer tracking */
@@ -1816,8 +1816,8 @@ LRESULT ComboWndProc_common( HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
 		return COMBO_ItemOp(lphc, message, lParam);
 	case WM_ENABLE:
 		if( lphc->wState & CBF_EDIT )
-		    NtUserEnableWindow( lphc->hWndEdit, (BOOL)wParam );
-		NtUserEnableWindow( lphc->hWndLBox, (BOOL)wParam );
+		    EnableWindow( lphc->hWndEdit, (BOOL)wParam );
+		EnableWindow( lphc->hWndLBox, (BOOL)wParam );
 
 		/* Force the control to repaint when the enabled state changes. */
 		NtUserInvalidateRect(lphc->self, NULL, TRUE);
@@ -1895,6 +1895,11 @@ LRESULT ComboWndProc_common( HWND hwnd, UINT message, WPARAM wParam, LPARAM lPar
         case WM_CTLCOLORSTATIC:
             if (lphc->owner)
                 return SendMessageW(lphc->owner, message, wParam, lParam);
+            break;
+
+        case WM_GETOBJECT:
+            if ((LONG)lParam == OBJID_QUERYCLASSNAMEIDX)
+                return 0x10005;
             break;
 
 	/* Combo messages */

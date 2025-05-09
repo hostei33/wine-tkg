@@ -925,10 +925,7 @@ UINT MSI_SetFeatureStateW( MSIPACKAGE *package, LPCWSTR szFeature, INSTALLSTATE 
 
     if (iState == INSTALLSTATE_ADVERTISED &&
         feature->Attributes & msidbFeatureAttributesDisallowAdvertise)
-    {
-        TRACE("Advertising is disallowed; making feature absent\n");
-        iState = INSTALLSTATE_ABSENT;
-    }
+        return ERROR_FUNCTION_FAILED;
 
     feature->ActionRequest = iState;
 
@@ -1150,7 +1147,7 @@ static INT feature_cost( MSIFEATURE *feature )
 
     LIST_FOR_EACH_ENTRY( cl, &feature->Components, ComponentList, entry )
     {
-        cost += cl->component->cost;
+        cost += cl->component->Cost;
     }
     return cost;
 }
@@ -1200,6 +1197,7 @@ UINT MSI_GetFeatureCost( MSIPACKAGE *package, MSIFEATURE *feature, MSICOSTTREE t
         break;
     }
 
+    *cost /= 512;
     return ERROR_SUCCESS;
 }
 

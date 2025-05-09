@@ -91,7 +91,7 @@ static HRESULT synth_sink_write_data(struct synth_sink *sink, IDirectSoundBuffer
 
         if (FAILED(hr = IDirectSoundBuffer_GetCurrentPosition(buffer, &play_pos, &write_pos))) return hr;
 
-        if (current_pos - play_pos < write_pos - play_pos)
+        if (current_pos - play_pos <= write_pos - play_pos)
         {
             ERR("Underrun detected, sink %p, play pos %#lx, write pos %#lx, current pos %#lx!\n",
                     buffer, play_pos, write_pos, current_pos);
@@ -754,7 +754,7 @@ HRESULT synth_sink_create(IUnknown **ret_iface)
     obj->ref = 1;
 
     obj->stop_event = CreateEventW(NULL, FALSE, FALSE, NULL);
-    InitializeCriticalSectionEx(&obj->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&obj->cs);
     obj->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": cs");
 
     TRACE("Created DirectMusicSynthSink %p\n", obj);

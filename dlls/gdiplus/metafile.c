@@ -2006,6 +2006,7 @@ static GpStatus metafile_deserialize_image(const BYTE *record_data, UINT data_si
 static GpStatus metafile_deserialize_path(const BYTE *record_data, UINT data_size, GpPath **path)
 {
     EmfPlusPath *data = (EmfPlusPath *)record_data;
+    GpStatus status;
     BYTE *types;
     UINT size;
     DWORD i;
@@ -2034,34 +2035,39 @@ static GpStatus metafile_deserialize_path(const BYTE *record_data, UINT data_siz
     if (data_size < size)
         return InvalidParameter;
 
-    if (data->PathPointCount)
+    status = GdipCreatePath(FillModeAlternate, path);
+    if (status != Ok)
+        return status;
+
+    (*path)->pathdata.Count = data->PathPointCount;
+    (*path)->pathdata.Points = malloc(data->PathPointCount * sizeof(*(*path)->pathdata.Points));
+    (*path)->pathdata.Types = malloc(data->PathPointCount * sizeof(*(*path)->pathdata.Types));
+    (*path)->datalen = (*path)->pathdata.Count;
+
+    if (!(*path)->pathdata.Points || !(*path)->pathdata.Types)
     {
-        if (data->PathPointFlags & 0x4000) /* C */
-        {
-            EmfPlusPoint *points = (EmfPlusPoint *)data->data;
-            GpPointF *temp = malloc(sizeof(GpPointF) * data->PathPointCount);
+        GdipDeletePath(*path);
+        return OutOfMemory;
+    }
 
-            for (i = 0; i < data->PathPointCount; i++)
-            {
-                temp[i].X = points[i].X;
-                temp[i].Y = points[i].Y;
-            }
-
-            types = (BYTE *)(points + i);
-            GdipCreatePath2(temp, types, data->PathPointCount, FillModeAlternate, path);
-            free(temp);
-        }
-        else
+    if (data->PathPointFlags & 0x4000) /* C */
+    {
+        EmfPlusPoint *points = (EmfPlusPoint *)data->data;
+        for (i = 0; i < data->PathPointCount; i++)
         {
-            EmfPlusPointF *points = (EmfPlusPointF *)data->data;
-            types = (BYTE *)(points + data->PathPointCount);
-            return GdipCreatePath2((GpPointF*)points, types, data->PathPointCount, FillModeAlternate, path);
+            (*path)->pathdata.Points[i].X = points[i].X;
+            (*path)->pathdata.Points[i].Y = points[i].Y;
         }
+        types = (BYTE *)(points + i);
     }
     else
     {
-        return GdipCreatePath(FillModeAlternate, path);
+        EmfPlusPointF *points = (EmfPlusPointF *)data->data;
+        memcpy((*path)->pathdata.Points, points, sizeof(*points) * data->PathPointCount);
+        types = (BYTE *)(points + data->PathPointCount);
     }
+
+    memcpy((*path)->pathdata.Types, types, sizeof(*types) * data->PathPointCount);
 
     return Ok;
 }
@@ -3748,20 +3754,8 @@ GpStatus WINGDIPAPI GdipPlayMetafileRecord(GDIPCONST GpMetafile *metafile,
 
             return stat;
         }
-        case EmfPlusRecordTypeSetRenderingOrigin:
-        {
-            const EmfPlusSetRenderingOrigin *origin = (const EmfPlusSetRenderingOrigin *)header;
-
-            if (dataSize + sizeof(EmfPlusRecordHeader) < sizeof(EmfPlusSetRenderingOrigin))
-                return InvalidParameter;
-
-            return GdipSetRenderingOrigin(real_metafile->playback_graphics, origin->x, origin->y);
-        }
         default:
-            if (recordType >= GDIP_EMFPLUS_RECORD_BASE)
-                FIXME("Not implemented for EMF+ record type %u\n", recordType - GDIP_EMFPLUS_RECORD_BASE);
-            else
-                FIXME("Not implemented for record type %x\n", recordType);
+            FIXME("Not implemented for record type %x\n", recordType);
             return NotImplemented;
         }
     }
@@ -5095,7 +5089,6 @@ GpStatus METAFILE_DrawPath(GpMetafile *metafile, GpPen *pen, GpPath *path)
 GpStatus METAFILE_DrawEllipse(GpMetafile *metafile, GpPen *pen, GpRectF *rect)
 {
     EmfPlusDrawEllipse *record;
-    BOOL is_int_rect;
     GpStatus stat;
     DWORD pen_id;
 
@@ -5108,15 +5101,12 @@ GpStatus METAFILE_DrawEllipse(GpMetafile *metafile, GpPen *pen, GpRectF *rect)
     stat = METAFILE_AddPenObject(metafile, pen, &pen_id);
     if (stat != Ok) return stat;
 
-    is_int_rect = is_integer_rect(rect);
-
     stat = METAFILE_AllocateRecord(metafile, EmfPlusRecordTypeDrawEllipse,
-            FIELD_OFFSET(EmfPlusDrawEllipse, RectData) + (is_int_rect ? sizeof(EmfPlusRect) : sizeof(EmfPlusRectF)),
-            (void **)&record);
+        sizeof(EmfPlusDrawEllipse), (void **)&record);
     if (stat != Ok) return stat;
     record->Header.Type = EmfPlusRecordTypeDrawEllipse;
     record->Header.Flags = pen_id;
-    if (is_int_rect)
+    if (is_integer_rect(rect))
     {
         record->Header.Flags |= 0x4000;
         record->RectData.rect.X = (SHORT)rect->X;
@@ -5174,9 +5164,9 @@ GpStatus METAFILE_FillPath(GpMetafile *metafile, GpBrush *brush, GpPath *path)
 
 GpStatus METAFILE_FillEllipse(GpMetafile *metafile, GpBrush *brush, GpRectF *rect)
 {
-    BOOL is_int_rect, inline_color;
     EmfPlusFillEllipse *record;
     DWORD brush_id = -1;
+    BOOL inline_color;
     GpStatus stat;
 
     if (metafile->metafile_type == MetafileTypeEmf)
@@ -5192,11 +5182,7 @@ GpStatus METAFILE_FillEllipse(GpMetafile *metafile, GpBrush *brush, GpRectF *rec
         if (stat != Ok) return stat;
     }
 
-    is_int_rect = is_integer_rect(rect);
-
-    stat = METAFILE_AllocateRecord(metafile, EmfPlusRecordTypeFillEllipse,
-            FIELD_OFFSET(EmfPlusFillEllipse, RectData) + (is_int_rect ? sizeof(EmfPlusRect) : sizeof(EmfPlusRectF)),
-            (void **)&record);
+    stat = METAFILE_AllocateRecord(metafile, EmfPlusRecordTypeFillEllipse, sizeof(EmfPlusFillEllipse), (void **)&record);
     if (stat != Ok) return stat;
     if (inline_color)
     {
@@ -5206,7 +5192,7 @@ GpStatus METAFILE_FillEllipse(GpMetafile *metafile, GpBrush *brush, GpRectF *rec
     else
         record->BrushId = brush_id;
 
-    if (is_int_rect)
+    if (is_integer_rect(rect))
     {
         record->Header.Flags |= 0x4000;
         record->RectData.rect.X = (SHORT)rect->X;
@@ -5245,7 +5231,7 @@ GpStatus METAFILE_FillPie(GpMetafile *metafile, GpBrush *brush, const GpRectF *r
     is_int_rect = is_integer_rect(rect);
 
     stat = METAFILE_AllocateRecord(metafile, EmfPlusRecordTypeFillPie,
-            FIELD_OFFSET(EmfPlusFillPie, RectData) + (is_int_rect ? sizeof(EmfPlusRect) : sizeof(EmfPlusRectF)),
+            FIELD_OFFSET(EmfPlusFillPie, RectData) + is_int_rect ? sizeof(EmfPlusRect) : sizeof(EmfPlusRectF),
             (void **)&record);
     if (stat != Ok) return stat;
     if (inline_color)
@@ -5552,7 +5538,7 @@ GpStatus METAFILE_DrawArc(GpMetafile *metafile, GpPen *pen, const GpRectF *rect,
     integer_rect = is_integer_rect(rect);
 
     stat = METAFILE_AllocateRecord(metafile, EmfPlusRecordTypeDrawArc, FIELD_OFFSET(EmfPlusDrawArc, RectData) +
-        (integer_rect ? sizeof(record->RectData.rect) : sizeof(record->RectData.rectF)),
+        integer_rect ? sizeof(record->RectData.rect) : sizeof(record->RectData.rectF),
         (void **)&record);
     if (stat != Ok)
         return stat;

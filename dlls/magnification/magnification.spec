@@ -18,4 +18,4 @@
 @ stub MagSetWindowSource
 @ stub MagSetWindowTransform
 @ stub MagShowSystemCursor
-@ stdcall MagUninitialize()
+@ stub MagUninitialize

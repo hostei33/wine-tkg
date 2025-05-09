@@ -26,7 +26,7 @@
 #include "wincodec.h"
 #include "wine/test.h"
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 
 struct ICONHEADER
 {
@@ -129,7 +129,7 @@ static const struct test_ico ico_1 =
     }
 };
 
-#pragma pack(pop)
+#include "poppack.h"
 
 #define test_ico_data(a, b, c) test_ico_data_(a, b, c,  0, __LINE__)
 #define test_ico_data_todo(a, b, c) test_ico_data_(a, b, c, 1, __LINE__)

@@ -161,6 +161,7 @@ struct event *create_event( struct object *root, const struct unicode_str *name,
             list_init( &event->kernel_object );
             event->manual_reset = manual_reset;
             event->signaled     = initial_state;
+            event->fsync_idx = 0;
 
             if (do_fsync())
                 event->fsync_idx = fsync_alloc_shm( initial_state, 0 );
@@ -300,6 +301,7 @@ static void event_destroy( struct object *obj )
 
     if (do_esync())
         close( event->esync_fd );
+    if (event->fsync_idx) fsync_free_shm_idx( event->fsync_idx );
 }
 
 struct keyed_event *create_keyed_event( struct object *root, const struct unicode_str *name,
@@ -327,7 +329,7 @@ static void keyed_event_dump( struct object *obj, int verbose )
     fputs( "Keyed event\n", stderr );
 }
 
-static enum select_opcode matching_op( enum select_opcode op )
+static enum select_op matching_op( enum select_op op )
 {
     return op ^ (SELECT_KEYED_EVENT_WAIT ^ SELECT_KEYED_EVENT_RELEASE);
 }
@@ -336,7 +338,7 @@ static int keyed_event_signaled( struct object *obj, struct wait_queue_entry *en
 {
     struct wait_queue_entry *ptr;
     struct process *process;
-    enum select_opcode select_op;
+    enum select_op select_op;
 
     assert( obj->ops == &keyed_event_ops );
 

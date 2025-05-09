@@ -36,12 +36,6 @@ DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
 WINE_DEFAULT_DEBUG_CHANNEL(plugplay);
 
-DECLARE_CRITICAL_SECTION(invalidated_devices_cs);
-static CONDITION_VARIABLE invalidated_devices_cv = CONDITION_VARIABLE_INIT;
-
-static DEVICE_OBJECT **invalidated_devices;
-static size_t invalidated_devices_count;
-
 static inline const char *debugstr_propkey( const DEVPROPKEY *id )
 {
     if (!id) return "(null)";
@@ -489,67 +483,12 @@ void WINAPI IoInvalidateDeviceRelations( DEVICE_OBJECT *device_object, DEVICE_RE
     switch (type)
     {
         case BusRelations:
-            EnterCriticalSection( &invalidated_devices_cs );
-            invalidated_devices = realloc( invalidated_devices,
-                    (invalidated_devices_count + 1) * sizeof(*invalidated_devices) );
-            invalidated_devices[invalidated_devices_count++] = device_object;
-            LeaveCriticalSection( &invalidated_devices_cs );
-            WakeConditionVariable( &invalidated_devices_cv );
+            handle_bus_relations( device_object );
             break;
-
         default:
             FIXME("Unhandled relation %#x.\n", type);
             break;
     }
-}
-
-/***********************************************************************
- *           IoGetDevicePropertyData   (NTOSKRNL.EXE.@)
- */
-NTSTATUS WINAPI IoGetDevicePropertyData( DEVICE_OBJECT *device, const DEVPROPKEY *property_key,
-                                         LCID lcid, ULONG flags, ULONG size, void *data,
-                                         ULONG *required_size, DEVPROPTYPE *property_type )
-{
-    SP_DEVINFO_DATA sp_device = {sizeof(sp_device)};
-    WCHAR device_instance_id[MAX_DEVICE_ID_LEN];
-    HDEVINFO set;
-    NTSTATUS status;
-
-    TRACE( "device %p, property_key %s, lcid %#lx, flags %#lx, size %lu, data %p, required_size %p, property_type %p\n",
-           device, debugstr_propkey( property_key ), lcid, flags, size, data, required_size,
-           property_type );
-
-    if (lcid == LOCALE_SYSTEM_DEFAULT || lcid == LOCALE_USER_DEFAULT) return STATUS_INVALID_PARAMETER;
-    if (lcid != LOCALE_NEUTRAL) FIXME( "Only LOCALE_NEUTRAL is supported\n" );
-
-    status = get_device_instance_id( device, device_instance_id );
-    if (status != STATUS_SUCCESS) return status;
-
-    set = SetupDiCreateDeviceInfoList( &GUID_NULL, NULL );
-    if (set == INVALID_HANDLE_VALUE)
-    {
-        ERR( "Failed to create device list, error %#lx.\n", GetLastError() );
-        return GetLastError();
-    }
-
-    if (!SetupDiOpenDeviceInfoW( set, device_instance_id, NULL, 0, &sp_device ))
-    {
-        ERR( "Failed to open device, error %#lx.\n", GetLastError() );
-        SetupDiDestroyDeviceInfoList( set );
-        return GetLastError();
-    }
-
-    if (!SetupDiGetDevicePropertyW( set, &sp_device, property_key, property_type, data, size, required_size, flags ))
-    {
-        DWORD err = GetLastError();
-        if (err != ERROR_INSUFFICIENT_BUFFER)
-            ERR( "Failed to get device property, error %#lx.\n", err);
-        SetupDiDestroyDeviceInfoList( set );
-        return err == ERROR_INSUFFICIENT_BUFFER ? STATUS_BUFFER_TOO_SMALL : err;
-    }
-
-    SetupDiDestroyDeviceInfoList( set );
-    return STATUS_SUCCESS;
 }
 
 /***********************************************************************
@@ -573,13 +512,14 @@ NTSTATUS WINAPI IoGetDeviceProperty( DEVICE_OBJECT *device, DEVICE_REGISTRY_PROP
         {
             WCHAR *id, *ptr;
 
-            status = get_device_id( device, BusQueryDeviceID, &id );
+            status = get_device_id( device, BusQueryInstanceID, &id );
             if (status != STATUS_SUCCESS)
             {
                 ERR("Failed to get instance ID, status %#lx.\n", status);
                 break;
             }
 
+            wcsupr( id );
             ptr = wcschr( id, '\\' );
             if (ptr) *ptr = 0;
 
@@ -743,11 +683,11 @@ static LONG WINAPI rpc_filter( EXCEPTION_POINTERS *eptr )
     return I_RpcExceptionFilter( eptr->ExceptionRecord->ExceptionCode );
 }
 
-static void send_devicechange( const WCHAR *path, DWORD code, void *data, unsigned int size )
+static void send_devicechange( DWORD code, void *data, unsigned int size )
 {
     __TRY
     {
-        plugplay_send_event( path, code, data, size );
+        plugplay_send_event( code, data, size );
     }
     __EXCEPT(rpc_filter)
     {
@@ -863,7 +803,7 @@ NTSTATUS WINAPI IoSetDeviceInterfaceState( UNICODE_STRING *name, BOOLEAN enable 
         broadcast->dbcc_classguid  = iface->interface_class;
         lstrcpynW( broadcast->dbcc_name, name->Buffer, namelen + 1 );
         if (namelen > 1) broadcast->dbcc_name[1] = '\\';
-        send_devicechange( L"", enable ? DBT_DEVICEARRIVAL : DBT_DEVICEREMOVECOMPLETE, broadcast, len );
+        send_devicechange( enable ? DBT_DEVICEARRIVAL : DBT_DEVICEREMOVECOMPLETE, broadcast, len );
         heap_free( broadcast );
     }
     return ret;
@@ -1001,61 +941,6 @@ NTSTATUS WINAPI IoRegisterDeviceInterface(DEVICE_OBJECT *device, const GUID *cla
 }
 
 /***********************************************************************
- *           IoReportTargetDeviceChange   (NTOSKRNL.EXE.@)
- */
-NTSTATUS WINAPI IoReportTargetDeviceChange( DEVICE_OBJECT *device, void *data )
-{
-    TARGET_DEVICE_CUSTOM_NOTIFICATION *notification = data;
-    OBJECT_NAME_INFORMATION *name_info;
-    DEV_BROADCAST_HANDLE *event_handle;
-    DWORD size, data_size;
-    NTSTATUS ret;
-
-    TRACE( "(%p, %p)\n", device, data );
-
-    if (notification->Version != 1) return STATUS_INVALID_PARAMETER;
-
-    ret = ObQueryNameString( device, NULL, 0, &size );
-    if (ret != STATUS_INFO_LENGTH_MISMATCH) return ret;
-    if (!(name_info = heap_alloc( size ))) return STATUS_NO_MEMORY;
-    ret = ObQueryNameString( device, name_info, size, &size );
-    if (ret != STATUS_SUCCESS) return ret;
-
-    data_size = notification->Size - offsetof( TARGET_DEVICE_CUSTOM_NOTIFICATION, CustomDataBuffer );
-    size = offsetof( DEV_BROADCAST_HANDLE, dbch_data[data_size + 2 * sizeof(WCHAR)] );
-    if (!(event_handle = heap_alloc_zero( size )))
-    {
-        heap_free( name_info );
-        return STATUS_NO_MEMORY;
-    }
-
-    event_handle->dbch_size = size;
-    event_handle->dbch_devicetype = DBT_DEVTYP_HANDLE;
-    event_handle->dbch_eventguid = notification->Event;
-    event_handle->dbch_nameoffset = notification->NameBufferOffset;
-    memcpy( event_handle->dbch_data, notification->CustomDataBuffer, data_size );
-    send_devicechange( name_info->Name.Buffer, DBT_CUSTOMEVENT, (BYTE *)event_handle, event_handle->dbch_size );
-    heap_free( event_handle );
-    heap_free( name_info );
-
-    return STATUS_SUCCESS;
-}
-
-/***********************************************************************
- *           IoReportTargetDeviceChangeAsynchronous   (NTOSKRNL.EXE.@)
- */
-NTSTATUS WINAPI IoReportTargetDeviceChangeAsynchronous( DEVICE_OBJECT *device, void *data, PDEVICE_CHANGE_COMPLETE_CALLBACK callback,
-                                                        void *context )
-{
-    NTSTATUS status;
-
-    TRACE( "(%p, %p, %p, %p) semi-stub!\n", device, data, callback, context );
-
-    if (!(status = IoReportTargetDeviceChange( device, data ))) callback( context );
-    return status;
-}
-
-/***********************************************************************
  *           IoOpenDeviceRegistryKey   (NTOSKRNL.EXE.@)
  */
 NTSTATUS WINAPI IoOpenDeviceRegistryKey( DEVICE_OBJECT *device, ULONG type, ACCESS_MASK access, HANDLE *key )
@@ -1082,17 +967,6 @@ NTSTATUS WINAPI IoOpenDeviceRegistryKey( DEVICE_OBJECT *device, ULONG type, ACCE
     if (*key == INVALID_HANDLE_VALUE)
         return GetLastError();
     return STATUS_SUCCESS;
-}
-
-/***********************************************************************
- *           PoRequestPowerIrp   (NTOSKRNL.EXE.@)
- */
-NTSTATUS WINAPI PoRequestPowerIrp( DEVICE_OBJECT *device, UCHAR minor,
-        POWER_STATE state, PREQUEST_POWER_COMPLETE complete_cb, void *ctx, IRP **irp )
-{
-    FIXME("device %p, minor %#x, state %u, complete_cb %p, ctx %p, irp %p, stub!\n",
-            device, minor, state.DeviceState, complete_cb, ctx, irp);
-    return STATUS_NOT_IMPLEMENTED;
 }
 
 /***********************************************************************
@@ -1227,30 +1101,6 @@ static NTSTATUS WINAPI pnp_manager_driver_entry( DRIVER_OBJECT *driver, UNICODE_
     return STATUS_SUCCESS;
 }
 
-static DWORD CALLBACK device_enum_thread_proc(void *arg)
-{
-    for (;;)
-    {
-        DEVICE_OBJECT *device;
-
-        EnterCriticalSection( &invalidated_devices_cs );
-
-        while (!invalidated_devices_count)
-            SleepConditionVariableCS( &invalidated_devices_cv, &invalidated_devices_cs, INFINITE );
-
-        device = invalidated_devices[--invalidated_devices_count];
-
-        /* Don't hold the CS while enumerating the device. Tests show that
-         * calling IoInvalidateDeviceRelations() from another thread shouldn't
-         * block, even if this thread is blocked in an IRP handler. */
-        LeaveCriticalSection( &invalidated_devices_cs );
-
-        handle_bus_relations( device );
-    }
-
-    return 0;
-}
-
 void pnp_manager_start(void)
 {
     WCHAR endpoint[] = L"\\pipe\\wine_plugplay";
@@ -1272,8 +1122,6 @@ void pnp_manager_start(void)
     RpcStringFreeW( &binding_str );
     if (err)
         ERR("RpcBindingFromStringBinding() failed, error %#lx\n", err);
-
-    CreateThread( NULL, 0, device_enum_thread_proc, NULL, 0, NULL );
 }
 
 void pnp_manager_stop_driver( struct wine_driver *driver )

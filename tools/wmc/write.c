@@ -308,7 +308,6 @@ static void write_rcbin(FILE *fp)
 static char *make_string(WCHAR *uc, int len)
 {
     char *str = xmalloc(7*len + 12);
-    char *str_end = str + (7*len + 12);
     char *cptr = str;
     int i;
     int b;
@@ -337,7 +336,7 @@ static char *make_string(WCHAR *uc, int len)
             }
             else
             {
-                int n = snprintf(cptr, str_end - cptr, "\\x%04x", *uc);
+                int n = sprintf(cptr, "\\x%04x", *uc);
                 cptr += n;
                 b += n;
             }

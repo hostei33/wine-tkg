@@ -19,6 +19,10 @@
 #ifndef __WINE_DLLS_DDRAW_DDRAW_PRIVATE_H
 #define __WINE_DLLS_DDRAW_DDRAW_PRIVATE_H
 
+#ifdef __i386__
+#pragma GCC target ("fpmath=387")
+#endif
+
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -114,7 +118,6 @@ struct ddraw
     /* D3D things */
     HWND                    d3d_window;
     struct list             d3ddevice_list;
-    struct d3d_device      *device_last_applied_state;
     int                     d3dversion;
 
     /* Various HWNDs */
@@ -309,7 +312,6 @@ void ddraw_handle_table_destroy(struct ddraw_handle_table *t);
 DWORD ddraw_allocate_handle(struct ddraw_handle_table *t, void *object, enum ddraw_handle_type type);
 void *ddraw_free_handle(struct ddraw_handle_table *t, DWORD handle, enum ddraw_handle_type type);
 void *ddraw_get_object(struct ddraw_handle_table *t, DWORD handle, enum ddraw_handle_type type);
-extern struct ddraw_handle_table global_handle_table;
 
 struct d3d_device
 {
@@ -338,11 +340,6 @@ struct d3d_device
     struct list viewport_list;
     struct d3d_viewport *current_viewport;
     D3DVIEWPORT7 active_viewport;
-
-    /* Pick data */
-    D3DPICKRECORD *pick_records;
-    DWORD pick_record_count;
-    DWORD pick_record_size;
 
     /* Required to keep track which of two available texture blending modes in d3ddevice3 is used */
     BOOL legacyTextureBlending;
@@ -580,7 +577,7 @@ struct d3d_execute_buffer *unsafe_impl_from_IDirect3DExecuteBuffer(IDirect3DExec
 
 /* The execute function */
 HRESULT d3d_execute_buffer_execute(struct d3d_execute_buffer *execute_buffer,
-        struct d3d_device *device, D3DRECT *pick_rect);
+        struct d3d_device *device);
 
 /*****************************************************************************
  * IDirect3DVertexBuffer
@@ -602,7 +599,6 @@ struct d3d_vertex_buffer
     DWORD                size;
     BOOL                 dynamic;
     bool discarded;
-    bool sysmem;
 };
 
 HRESULT d3d_vertex_buffer_create(struct d3d_vertex_buffer **buffer, struct ddraw *ddraw,
@@ -708,8 +704,7 @@ static inline struct wined3d_texture *ddraw_surface_get_draw_texture(struct ddra
 
 static inline struct wined3d_texture *ddraw_surface_get_any_texture(struct ddraw_surface *surface, unsigned int flags)
 {
-    if ((surface->texture_location & DDRAW_SURFACE_LOCATION_DEFAULT)
-            || (surface->surface_desc.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY))
+    if (surface->texture_location & DDRAW_SURFACE_LOCATION_DEFAULT)
         return ddraw_surface_get_default_texture(surface, flags);
 
     assert(surface->texture_location & DDRAW_SURFACE_LOCATION_DRAW);
@@ -717,7 +712,6 @@ static inline struct wined3d_texture *ddraw_surface_get_any_texture(struct ddraw
 }
 
 void d3d_device_sync_surfaces(struct d3d_device *device);
-void d3d_device_apply_state(struct d3d_device *device, BOOL clear_state);
 
 /* Used for generic dumping */
 struct flag_info

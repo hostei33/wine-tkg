@@ -34,11 +34,11 @@ msgstr "Відмовити"
 msgid "Permissions for %1"
 msgstr "Дозволи для %1"
 
-#: dlls/appwiz.cpl/appwiz.rc:60
+#: dlls/appwiz.cpl/appwiz.rc:59
 msgid "Install/Uninstall"
 msgstr "Встановлення/Видалення"
 
-#: dlls/appwiz.cpl/appwiz.rc:63
+#: dlls/appwiz.cpl/appwiz.rc:62
 msgid ""
 "To install a new program from a floppy disk, CD-ROM drive, or your hard "
 "drive, click Install."
@@ -46,11 +46,11 @@ msgstr ""
 "Щоб встановити нову програму з дискети, CD-ROM, чи жорсткого диску, "
 "натисніть Встановити."
 
-#: dlls/appwiz.cpl/appwiz.rc:64
+#: dlls/appwiz.cpl/appwiz.rc:63
 msgid "&Install..."
 msgstr "&Встановити..."
 
-#: dlls/appwiz.cpl/appwiz.rc:67
+#: dlls/appwiz.cpl/appwiz.rc:66
 msgid ""
 "The following software can be automatically removed. To remove a program or "
 "to modify its installed components, select it from the list and click Modify/"
@@ -59,27 +59,27 @@ msgstr ""
 "Дане ПЗ може бути видалене автоматично. Щоб видалити програму чи змінити її "
 "склад, виберіть її зі списку та натисніть Змінити/Видалити."
 
-#: dlls/appwiz.cpl/appwiz.rc:69
+#: dlls/appwiz.cpl/appwiz.rc:68
 msgid "&Support Information"
 msgstr "&Дані підтримки"
 
-#: dlls/appwiz.cpl/appwiz.rc:70 programs/regedit/regedit.rc:136
+#: dlls/appwiz.cpl/appwiz.rc:69 programs/regedit/regedit.rc:136
 #: programs/regedit/regedit.rc:237
 msgid "&Modify..."
 msgstr "&Змінити..."
 
-#: dlls/appwiz.cpl/appwiz.rc:71 dlls/appwiz.cpl/appwiz.rc:45
+#: dlls/appwiz.cpl/appwiz.rc:70 dlls/appwiz.cpl/appwiz.rc:45
 #: dlls/cryptui/cryptui.rc:351 dlls/msacm32/msacm32.rc:40
 #: programs/winecfg/winecfg.rc:205 programs/winecfg/winecfg.rc:242
 #: programs/wordpad/wordpad.rc:256
 msgid "&Remove"
 msgstr "&Видалити"
 
-#: dlls/appwiz.cpl/appwiz.rc:77
+#: dlls/appwiz.cpl/appwiz.rc:76
 msgid "Support Information"
 msgstr "Дані підтримки"
 
-#: dlls/appwiz.cpl/appwiz.rc:80 dlls/avifil32/avifil32.rc:54
+#: dlls/appwiz.cpl/appwiz.rc:79 dlls/avifil32/avifil32.rc:54
 #: dlls/comctl32/comctl32.rc:71 dlls/comctl32/comctl32.rc:55
 #: dlls/comdlg32/comdlg32.rc:233 dlls/comdlg32/comdlg32.rc:263
 #: dlls/comdlg32/comdlg32.rc:307 dlls/comdlg32/comdlg32.rc:390
@@ -92,8 +92,8 @@ msgstr "Дані підтримки"
 #: dlls/mshtml/mshtml.rc:47 dlls/mshtml/mshtml.rc:57 dlls/msvfw32/msvfw32.rc:36
 #: dlls/oledlg/oledlg.rc:62 dlls/oledlg/oledlg.rc:94
 #: dlls/serialui/serialui.rc:41 dlls/setupapi/setupapi.rc:59
-#: dlls/shell32/shell32.rc:278 dlls/shell32/shell32.rc:302
-#: dlls/shell32/shell32.rc:324 dlls/shell32/shell32.rc:343
+#: dlls/shell32/shell32.rc:274 dlls/shell32/shell32.rc:298
+#: dlls/shell32/shell32.rc:320 dlls/shell32/shell32.rc:339
 #: dlls/shlwapi/shlwapi.rc:44 dlls/twain_32/twain.rc:32
 #: dlls/user32/user32.rc:94 dlls/user32/user32.rc:109 dlls/user32/user32.rc:73
 #: dlls/wininet/wininet.rc:62 dlls/wininet/wininet.rc:82
@@ -116,69 +116,69 @@ msgstr "Дані підтримки"
 msgid "OK"
 msgstr "OK"
 
-#: dlls/appwiz.cpl/appwiz.rc:81
+#: dlls/appwiz.cpl/appwiz.rc:80
 msgid "The following information can be used to get technical support for %s:"
 msgstr "Ці дані можуть бути використані для отримання тех. підтримки для %s:"
 
-#: dlls/appwiz.cpl/appwiz.rc:82
+#: dlls/appwiz.cpl/appwiz.rc:81
 msgid "Publisher:"
 msgstr "Видавець:"
 
-#: dlls/appwiz.cpl/appwiz.rc:83 programs/winefile/winefile.rc:165
+#: dlls/appwiz.cpl/appwiz.rc:82 programs/winefile/winefile.rc:165
 msgid "Version:"
 msgstr "Версія:"
 
-#: dlls/appwiz.cpl/appwiz.rc:84
+#: dlls/appwiz.cpl/appwiz.rc:83
 msgid "Contact:"
 msgstr "Контактна особа:"
 
-#: dlls/appwiz.cpl/appwiz.rc:85
+#: dlls/appwiz.cpl/appwiz.rc:84
 msgid "Support Information:"
 msgstr "Дані підтримки:"
 
-#: dlls/appwiz.cpl/appwiz.rc:86
+#: dlls/appwiz.cpl/appwiz.rc:85
 msgid "Support Telephone:"
 msgstr "Телефон підтримки:"
 
-#: dlls/appwiz.cpl/appwiz.rc:87
+#: dlls/appwiz.cpl/appwiz.rc:86
 msgid "Readme:"
 msgstr "Файл Readme:"
 
-#: dlls/appwiz.cpl/appwiz.rc:88
+#: dlls/appwiz.cpl/appwiz.rc:87
 msgid "Product Updates:"
 msgstr "Оновлення:"
 
-#: dlls/appwiz.cpl/appwiz.rc:89
+#: dlls/appwiz.cpl/appwiz.rc:88
 msgid "Comments:"
 msgstr "Коментарі:"
 
-#: dlls/appwiz.cpl/appwiz.rc:102
+#: dlls/appwiz.cpl/appwiz.rc:101
 msgid "Wine Gecko Installer"
 msgstr "Встановлювач Wine Gecko"
 
-#: dlls/appwiz.cpl/appwiz.rc:105
+#: dlls/appwiz.cpl/appwiz.rc:104
 msgid ""
 "Wine could not find a Gecko package which is needed for applications "
 "embedding HTML to work correctly. Wine can automatically download and "
 "install it for you.\n"
 "\n"
 "Note: it is recommended to use your distribution's packages instead. See <a "
-"href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Gecko\">https://"
-"gitlab.winehq.org/wine/wine/-/wikis/Gecko</a> for details."
+"href=\"https://wiki.winehq.org/Gecko\">https://wiki.winehq.org/Gecko</a> for "
+"details."
 msgstr ""
 "Wine не може знайти пакунок Gecko, який потрібний для коректної роботи "
 "додатків з підтримкою HTML. Wine може автоматично завантажити та встановити "
 "його для Вас.\n"
 "\n"
 "Зауважте: Рекомендується використати пакет з вашого дистрибутиву. Детальніше "
-"читайте <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/"
-"Gecko\">https://gitlab.winehq.org/wine/wine/-/wikis/Gecko</a>."
+"читайте <a href=\"https://wiki.winehq.org/Gecko\">https://wiki.winehq.org/"
+"Gecko</a>."
 
-#: dlls/appwiz.cpl/appwiz.rc:111 dlls/appwiz.cpl/appwiz.rc:126
+#: dlls/appwiz.cpl/appwiz.rc:110 dlls/appwiz.cpl/appwiz.rc:125
 msgid "&Install"
 msgstr "&Встановити"
 
-#: dlls/appwiz.cpl/appwiz.rc:112 dlls/appwiz.cpl/appwiz.rc:127
+#: dlls/appwiz.cpl/appwiz.rc:111 dlls/appwiz.cpl/appwiz.rc:126
 #: dlls/avifil32/avifil32.rc:55 dlls/browseui/browseui.rc:45
 #: dlls/comctl32/comctl32.rc:72 dlls/comctl32/comctl32.rc:87
 #: dlls/comctl32/comctl32.rc:56 dlls/comdlg32/comdlg32.rc:172
@@ -197,9 +197,9 @@ msgstr "&Встановити"
 #: dlls/mshtml/mshtml.rc:48 dlls/mshtml/mshtml.rc:58 dlls/msvfw32/msvfw32.rc:37
 #: dlls/oledlg/oledlg.rc:63 dlls/oledlg/oledlg.rc:95
 #: dlls/serialui/serialui.rc:42 dlls/setupapi/setupapi.rc:42
-#: dlls/setupapi/setupapi.rc:60 dlls/shell32/shell32.rc:279
-#: dlls/shell32/shell32.rc:303 dlls/shell32/shell32.rc:314
-#: dlls/shell32/shell32.rc:344 dlls/shlwapi/shlwapi.rc:45
+#: dlls/setupapi/setupapi.rc:60 dlls/shell32/shell32.rc:275
+#: dlls/shell32/shell32.rc:299 dlls/shell32/shell32.rc:310
+#: dlls/shell32/shell32.rc:340 dlls/shlwapi/shlwapi.rc:45
 #: dlls/twain_32/twain.rc:33 dlls/user32/user32.rc:95 dlls/user32/user32.rc:110
 #: dlls/user32/user32.rc:74 dlls/wininet/wininet.rc:63
 #: dlls/wininet/wininet.rc:83 dlls/winspool.drv/winspool.rc:43
@@ -221,27 +221,26 @@ msgstr "&Встановити"
 msgid "Cancel"
 msgstr "Скасувати"
 
-#: dlls/appwiz.cpl/appwiz.rc:117
+#: dlls/appwiz.cpl/appwiz.rc:116
 msgid "Wine Mono Installer"
 msgstr "Встановлювач Wine Mono"
 
-#: dlls/appwiz.cpl/appwiz.rc:120
+#: dlls/appwiz.cpl/appwiz.rc:119
 msgid ""
 "Wine could not find a wine-mono package which is needed for .NET "
 "applications to work correctly. Wine can automatically download and install "
 "it for you.\n"
 "\n"
 "Note: it is recommended to use your distribution's packages instead. See <a "
-"href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono\">https://"
-"gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono</a> for details."
+"href=\"https://wiki.winehq.org/Mono\">https://wiki.winehq.org/Mono</a> for "
+"details."
 msgstr ""
-"Wine не може знайти пакунок wine-mono, який потрібний для коректної "
-"роботи .NET додатків. Wine може автоматично завантажити та встановити його "
-"для Вас.\n"
+"Wine не може знайти пакунок wine-mono, який потрібний для коректної роботи ."
+"NET додатків. Wine може автоматично завантажити та встановити його для Вас.\n"
 "\n"
 "Зауважте: Рекомендується використати пакет з вашого дистрибутиву. Детальніше "
-"читайте <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Wine-"
-"Mono\">https://gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono</a>."
+"читайте <a href=\"https://wiki.winehq.org/Mono\">https://wiki.winehq.org/"
+"Mono</a>."
 
 #: dlls/appwiz.cpl/appwiz.rc:31
 msgid "Add/Remove Programs"
@@ -271,7 +270,7 @@ msgid "Not specified"
 msgstr "Не зазначено"
 
 #: dlls/appwiz.cpl/appwiz.rc:38 dlls/oledb32/version.rc:38
-#: dlls/shell32/shell32.rc:141 dlls/shell32/shell32.rc:243
+#: dlls/shell32/shell32.rc:144 dlls/shell32/shell32.rc:239
 #: programs/regedit/regedit.rc:150 programs/winefile/winefile.rc:106
 msgid "Name"
 msgstr "Назва"
@@ -293,7 +292,7 @@ msgid "Programs (*.exe)"
 msgstr "Програми (*.exe)"
 
 #: dlls/appwiz.cpl/appwiz.rc:43 dlls/avifil32/avifil32.rc:33
-#: dlls/cryptui/cryptui.rc:83 dlls/shell32/shell32.rc:199
+#: dlls/cryptui/cryptui.rc:83 dlls/shell32/shell32.rc:197
 #: programs/notepad/notepad.rc:81 programs/oleview/oleview.rc:103
 #: programs/progman/progman.rc:82 programs/regedit/regedit.rc:230
 #: programs/winedbg/winedbg.rc:43 programs/winhlp32/winhlp32.rc:90
@@ -323,12 +322,6 @@ msgstr ""
 #: dlls/appwiz.cpl/appwiz.rc:47
 msgid "Please wait until the current uninstall/modify process is complete."
 msgstr ""
-
-#: dlls/appwiz.cpl/appwiz.rc:55
-#, fuzzy
-#| msgid "Downloading..."
-msgid "Download failed."
-msgstr "Завантаження..."
 
 #: dlls/avifil32/avifil32.rc:42
 msgid "Compress options"
@@ -411,7 +404,6 @@ msgid "Properties for %s"
 msgstr "Властивості для %s"
 
 #: dlls/comctl32/comctl32.rc:73 dlls/comdlg32/comdlg32.rc:265
-#: dlls/desk.cpl/desk.rc:41
 msgid "&Apply"
 msgstr "&Застосувати"
 
@@ -460,7 +452,7 @@ msgstr "&Скинути"
 #: dlls/comdlg32/comdlg32.rc:482 dlls/comdlg32/comdlg32.rc:508
 #: dlls/comdlg32/comdlg32.rc:531 dlls/ieframe/ieframe.rc:58
 #: dlls/msacm32/msacm32.rc:52 dlls/oledlg/oledlg.rc:96
-#: dlls/shell32/shell32.rc:125 programs/clock/clock.rc:44
+#: dlls/shell32/shell32.rc:128 programs/clock/clock.rc:44
 #: programs/notepad/notepad.rc:65 programs/notepad/notepad.rc:126
 #: programs/oleview/oleview.rc:72 programs/progman/progman.rc:55
 #: programs/progman/progman.rc:108 programs/progman/progman.rc:126
@@ -506,12 +498,12 @@ msgctxt "hotkey"
 msgid "None"
 msgstr "Немає"
 
-#: dlls/comctl32/comctl32.rc:52 dlls/shell32/shell32.rc:311
+#: dlls/comctl32/comctl32.rc:52 dlls/shell32/shell32.rc:307
 #: dlls/shlwapi/shlwapi.rc:46 dlls/user32/user32.rc:90 dlls/user32/user32.rc:78
 msgid "&Yes"
 msgstr "&Так"
 
-#: dlls/comctl32/comctl32.rc:53 dlls/shell32/shell32.rc:313
+#: dlls/comctl32/comctl32.rc:53 dlls/shell32/shell32.rc:309
 #: dlls/shlwapi/shlwapi.rc:47 dlls/user32/user32.rc:91 dlls/user32/user32.rc:79
 msgid "&No"
 msgstr "&Ні"
@@ -531,7 +523,7 @@ msgstr "Показати подробиці"
 
 #: dlls/comctl32/comctl32.rc:31 dlls/cryptui/cryptui.rc:235
 #: programs/regedit/regedit.rc:291 programs/taskmgr/taskmgr.rc:434
-#: programs/winedbg/winedbg.rc:62 programs/winedbg/winedbg.rc:77
+#: programs/winedbg/winedbg.rc:61 programs/winedbg/winedbg.rc:76
 #: programs/wordpad/wordpad.rc:180
 msgid "Close"
 msgstr "Закрити"
@@ -546,7 +538,8 @@ msgstr "Поточна дата"
 
 #: dlls/comdlg32/comdlg32.rc:158 dlls/comdlg32/comdlg32.rc:171
 #: dlls/comdlg32/comdlg32.rc:462 dlls/comdlg32/comdlg32.rc:487
-#: dlls/comdlg32/comdlg32.rc:514 programs/oleview/oleview.rc:101
+#: dlls/comdlg32/comdlg32.rc:514 dlls/shell32/shell32.rc:165
+#: programs/oleview/oleview.rc:101
 msgid "Open"
 msgstr "Відкрити"
 
@@ -567,7 +560,7 @@ msgid "Dri&ves:"
 msgstr "&Диски:"
 
 #: dlls/comdlg32/comdlg32.rc:174 dlls/comdlg32/comdlg32.rc:196
-#: dlls/shell32/shell32.rc:372 dlls/shell32/shell32.rc:409
+#: dlls/shell32/shell32.rc:368 dlls/shell32/shell32.rc:405
 #: programs/winefile/winefile.rc:172
 msgid "&Read Only"
 msgstr "&Лише для читання"
@@ -582,7 +575,7 @@ msgstr "Зберегти як"
 
 #: dlls/comdlg32/comdlg32.rc:202 dlls/comdlg32/comdlg32.rc:211
 #: dlls/comdlg32/comdlg32.rc:358 dlls/comdlg32/comdlg32.rc:55
-#: dlls/hhctrl.ocx/hhctrl.rc:51 programs/wordpad/wordpad.rc:173
+#: dlls/hhctrl.ocx/hhctrl.rc:49 programs/wordpad/wordpad.rc:173
 msgid "Print"
 msgstr "Друк"
 
@@ -721,7 +714,6 @@ msgid "Scr&ipt:"
 msgstr "Група символ&ів:"
 
 #: dlls/comdlg32/comdlg32.rc:283 dlls/comdlg32/comdlg32.rc:288
-#: dlls/compstui/compstui.rc:33
 msgid "Color"
 msgstr "Зміна кольору"
 
@@ -829,7 +821,7 @@ msgstr "Замінити &все"
 
 #: dlls/comdlg32/comdlg32.rc:363 dlls/comdlg32/comdlg32.rc:403
 #: dlls/ieframe/ieframe.rc:42 dlls/shdoclc/shdoclc.rc:61
-#: dlls/shell32/shell32.rc:105 programs/clock/clock.rc:31
+#: dlls/shell32/shell32.rc:108 programs/clock/clock.rc:31
 #: programs/conhost/conhost.rc:34
 msgid "&Properties"
 msgstr "В&ластивості"
@@ -953,7 +945,7 @@ msgstr "Лише для &читання"
 
 #: dlls/comdlg32/comdlg32.rc:480 dlls/comdlg32/comdlg32.rc:506
 #: dlls/comdlg32/comdlg32.rc:524 dlls/shdoclc/shdoclc.rc:127
-#: dlls/shell32/shell32.rc:165
+#: dlls/shell32/shell32.rc:99
 msgid "&Open"
 msgstr "&Відкрити"
 
@@ -1341,7 +1333,7 @@ msgstr "мм"
 msgid "Properties"
 msgstr "Властивості"
 
-#: dlls/compstui/compstui.rc:30 dlls/hhctrl.ocx/hhctrl.rc:52
+#: dlls/compstui/compstui.rc:30 dlls/hhctrl.ocx/hhctrl.rc:50
 #: programs/conhost/conhost.rc:51 programs/wordpad/wordpad.rc:166
 msgid "Options"
 msgstr "Параметри"
@@ -1351,43 +1343,6 @@ msgstr "Параметри"
 #| msgid "Defaults"
 msgid "Default"
 msgstr "Типове"
-
-#: dlls/compstui/compstui.rc:35
-#, fuzzy
-#| msgid "&Copy Background"
-msgid "&Copy count"
-msgstr "&Копіювати тло"
-
-#: dlls/compstui/compstui.rc:36
-#, fuzzy
-#| msgid "Print to File"
-msgid "Print on Both Sides"
-msgstr "Друк в файл"
-
-#: dlls/compstui/compstui.rc:32
-#, fuzzy
-#| msgid "C&olor:"
-msgid "C&olor"
-msgstr "Ко&лір:"
-
-#: dlls/compstui/compstui.rc:34
-msgid "Bla&ck && White"
-msgstr ""
-
-#: dlls/compstui/compstui.rc:37
-#, fuzzy
-#| msgctxt "hotkey"
-#| msgid "None"
-msgid "&None"
-msgstr "Немає"
-
-#: dlls/compstui/compstui.rc:38 dlls/compstui/compstui.rc:41
-msgid "Flip on Shor&t Edge"
-msgstr ""
-
-#: dlls/compstui/compstui.rc:39 dlls/compstui/compstui.rc:40
-msgid "Flip on Long E&dge"
-msgstr ""
 
 #: dlls/credui/credui.rc:45
 msgid "&User name:"
@@ -2295,8 +2250,8 @@ msgid "Notice Text="
 msgstr "Текст Оповіщення="
 
 #: dlls/cryptui/cryptui.rc:185 dlls/cryptui/cryptui.rc:240
-#: dlls/inetcpl.cpl/inetcpl.rc:46 dlls/shell32/shell32.rc:350
-#: dlls/shell32/shell32.rc:379
+#: dlls/inetcpl.cpl/inetcpl.rc:46 dlls/shell32/shell32.rc:346
+#: dlls/shell32/shell32.rc:375
 msgid "General"
 msgstr "Загальні"
 
@@ -2514,7 +2469,7 @@ msgid "Certificate intended purposes"
 msgstr "Призначені цілі сертифікату"
 
 #: dlls/cryptui/cryptui.rc:355 dlls/ieframe/ieframe.rc:45
-#: dlls/shell32/shell32.rc:43 dlls/shell32/shell32.rc:117
+#: dlls/shell32/shell32.rc:43 dlls/shell32/shell32.rc:120
 #: programs/notepad/notepad.rc:61 programs/oleview/oleview.rc:59
 #: programs/oleview/oleview.rc:61 programs/oleview/oleview.rc:85
 #: programs/regedit/regedit.rc:65 programs/taskmgr/taskmgr.rc:52
@@ -2797,7 +2752,7 @@ msgstr "Розширене використання ключа (властиві
 msgid "Friendly name"
 msgstr "Дружня назва"
 
-#: dlls/cryptui/cryptui.rc:65 dlls/shell32/shell32.rc:244
+#: dlls/cryptui/cryptui.rc:65 dlls/shell32/shell32.rc:240
 #: programs/ipconfig/ipconfig.rc:45
 msgid "Description"
 msgstr "Опис"
@@ -2894,7 +2849,7 @@ msgstr "Сховище сертифікатів вибране"
 msgid "Automatically determined by the program"
 msgstr "Автоматично визначено програмою"
 
-#: dlls/cryptui/cryptui.rc:91 dlls/shell32/shell32.rc:134
+#: dlls/cryptui/cryptui.rc:91 dlls/shell32/shell32.rc:137
 msgid "File"
 msgstr "Файл"
 
@@ -3185,7 +3140,7 @@ msgstr ""
 msgid "Intended Use"
 msgstr "Призначення"
 
-#: dlls/cryptui/cryptui.rc:178 dlls/shell32/shell32.rc:147
+#: dlls/cryptui/cryptui.rc:178 dlls/shell32/shell32.rc:150
 msgid "Location"
 msgstr "Розміщення"
 
@@ -3197,38 +3152,6 @@ msgstr "Виберіть сертифікат"
 #: programs/winhlp32/winhlp32.rc:110 programs/winhlp32/winhlp32.rc:85
 msgid "Not yet implemented"
 msgstr "Ще не реалізовано"
-
-#: dlls/desk.cpl/desk.rc:35
-#, fuzzy
-#| msgctxt "display name"
-#| msgid "Desktop"
-msgid "Desktop"
-msgstr "Стільниця"
-
-#: dlls/desk.cpl/desk.rc:38
-#, fuzzy
-#| msgctxt "display name"
-#| msgid "Desktop"
-msgid "Virtual Desktop"
-msgstr "Стільниця"
-
-#: dlls/desk.cpl/desk.rc:40 dlls/joy.cpl/joy.rc:41
-msgid "&Reset"
-msgstr "&Скинути"
-
-#: dlls/desk.cpl/desk.rc:42
-msgid "Emulate display mode changes (requires restart)"
-msgstr ""
-
-#: dlls/desk.cpl/desk.rc:29
-#, fuzzy
-#| msgid "Default Settings"
-msgid "Display Settings"
-msgstr "Стандартні налаштування"
-
-#: dlls/desk.cpl/desk.rc:30
-msgid "Configure monitors and display devices."
-msgstr ""
 
 #: dlls/dinput/dinput.rc:34
 msgid "Configure Devices"
@@ -3387,75 +3310,74 @@ msgstr "Під'єднання до камери"
 msgid "Connecting to camera... Please Wait"
 msgstr "Під'єднання до камери... Зачекайте"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:61
+#: dlls/hhctrl.ocx/hhctrl.rc:59
 msgid "S&ync"
 msgstr "Син&х"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:62 dlls/hhctrl.ocx/hhctrl.rc:75
+#: dlls/hhctrl.ocx/hhctrl.rc:60 dlls/hhctrl.ocx/hhctrl.rc:73
 #: dlls/shdoclc/shdoclc.rc:41 programs/winhlp32/winhlp32.rc:89
 msgid "&Back"
 msgstr "&Назад"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:63 dlls/hhctrl.ocx/hhctrl.rc:76
+#: dlls/hhctrl.ocx/hhctrl.rc:61 dlls/hhctrl.ocx/hhctrl.rc:74
 msgid "&Forward"
 msgstr "В&перед"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:64
+#: dlls/hhctrl.ocx/hhctrl.rc:62
 msgctxt "table of contents"
 msgid "&Home"
 msgstr "&Додому"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:65
+#: dlls/hhctrl.ocx/hhctrl.rc:63
 msgid "&Stop"
 msgstr "&Зупинити"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:66 dlls/hhctrl.ocx/hhctrl.rc:83
+#: dlls/hhctrl.ocx/hhctrl.rc:64 dlls/hhctrl.ocx/hhctrl.rc:81
 #: dlls/oledb32/version.rc:73 dlls/shdoclc/shdoclc.rc:59
 msgid "&Refresh"
 msgstr "О&новити"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:67 dlls/hhctrl.ocx/hhctrl.rc:82
+#: dlls/hhctrl.ocx/hhctrl.rc:65 dlls/hhctrl.ocx/hhctrl.rc:80
 #: programs/winhlp32/winhlp32.rc:34
 msgid "&Print..."
 msgstr "&Друк..."
 
-#: dlls/hhctrl.ocx/hhctrl.rc:78 dlls/hhctrl.ocx/hhctrl.rc:92
+#: dlls/hhctrl.ocx/hhctrl.rc:76 dlls/hhctrl.ocx/hhctrl.rc:90
 #: dlls/shdoclc/shdoclc.rc:49 dlls/shdoclc/shdoclc.rc:98
 #: dlls/shdoclc/shdoclc.rc:120 dlls/user32/user32.rc:65
 msgid "Select &All"
 msgstr "Виділити вс&е"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:80 dlls/shdoclc/shdoclc.rc:54
+#: dlls/hhctrl.ocx/hhctrl.rc:78 dlls/shdoclc/shdoclc.rc:54
 msgid "&View Source"
 msgstr "&Переглянути вихідний код"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:85
+#: dlls/hhctrl.ocx/hhctrl.rc:83
 msgid "Proper&ties"
 msgstr "Властивості"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:89 dlls/shdoclc/shdoclc.rc:79
+#: dlls/hhctrl.ocx/hhctrl.rc:87 dlls/shdoclc/shdoclc.rc:79
 #: dlls/shdoclc/shdoclc.rc:93 dlls/shdoclc/shdoclc.rc:117
 #: dlls/shdoclc/shdoclc.rc:159 dlls/shdoclc/shdoclc.rc:183
 #: dlls/user32/user32.rc:60 programs/wordpad/wordpad.rc:112
 msgid "Cu&t"
 msgstr "Ви&різати"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:90 dlls/shdoclc/shdoclc.rc:80
+#: dlls/hhctrl.ocx/hhctrl.rc:88 dlls/shdoclc/shdoclc.rc:80
 #: dlls/shdoclc/shdoclc.rc:94 dlls/shdoclc/shdoclc.rc:118
 #: dlls/shdoclc/shdoclc.rc:133 dlls/shdoclc/shdoclc.rc:160
-#: dlls/shdoclc/shdoclc.rc:184 dlls/shell32/shell32.rc:98
+#: dlls/shdoclc/shdoclc.rc:184 dlls/shell32/shell32.rc:102
 #: dlls/user32/user32.rc:61 programs/conhost/conhost.rc:36
 #: programs/winhlp32/winhlp32.rc:40 programs/wordpad/wordpad.rc:113
 msgid "&Copy"
 msgstr "&Копіювати"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:91 dlls/shdoclc/shdoclc.rc:119
+#: dlls/hhctrl.ocx/hhctrl.rc:89 dlls/shdoclc/shdoclc.rc:119
 #: dlls/shell32/shell32.rc:64
 msgid "Paste"
 msgstr "Вставити"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:93 dlls/shdoclc/shdoclc.rc:121
-#: dlls/shell32/shell32.rc:166
+#: dlls/hhctrl.ocx/hhctrl.rc:91 dlls/shdoclc/shdoclc.rc:121
 msgid "&Print"
 msgstr "&Друк"
 
@@ -3483,44 +3405,38 @@ msgstr "С&ховати вкладки"
 msgid "Show &Tabs"
 msgstr "По&казати вкладки"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:39
-#, fuzzy
-#| msgid "Select Source"
-msgid "Select Topic"
-msgstr "Виберіть джерело"
-
-#: dlls/hhctrl.ocx/hhctrl.rc:44
+#: dlls/hhctrl.ocx/hhctrl.rc:42
 msgid "Show"
 msgstr "Показувати"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:45 dlls/winemac.drv/winemac.rc:34
+#: dlls/hhctrl.ocx/hhctrl.rc:43 dlls/winemac.drv/winemac.rc:34
 msgid "Hide"
 msgstr "Приховати"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:46 dlls/ieframe/ieframe.rc:68
+#: dlls/hhctrl.ocx/hhctrl.rc:44 dlls/ieframe/ieframe.rc:68
 #: dlls/shdoclc/shdoclc.rc:167 dlls/shdoclc/shdoclc.rc:191
 msgid "Stop"
 msgstr "Зупинити"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:47 dlls/ieframe/ieframe.rc:69
+#: dlls/hhctrl.ocx/hhctrl.rc:45 dlls/ieframe/ieframe.rc:69
 #: dlls/shell32/shell32.rc:62
 msgid "Refresh"
 msgstr "Оновити"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:48 dlls/ieframe/ieframe.rc:66
+#: dlls/hhctrl.ocx/hhctrl.rc:46 dlls/ieframe/ieframe.rc:66
 msgid "Back"
 msgstr "Назад"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:49
+#: dlls/hhctrl.ocx/hhctrl.rc:47
 msgctxt "table of contents"
 msgid "Home"
 msgstr "Додому"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:50
+#: dlls/hhctrl.ocx/hhctrl.rc:48
 msgid "Sync"
 msgstr "Синхронізувати"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:53 dlls/ieframe/ieframe.rc:67
+#: dlls/hhctrl.ocx/hhctrl.rc:51 dlls/ieframe/ieframe.rc:67
 msgid "Forward"
 msgstr "Вперед"
 
@@ -3528,7 +3444,7 @@ msgstr "Вперед"
 msgid "Cinepak Video codec"
 msgstr "Відео кодек Cinepak"
 
-#: dlls/ieframe/ieframe.rc:28 dlls/shell32/shell32.rc:111
+#: dlls/ieframe/ieframe.rc:28 dlls/shell32/shell32.rc:114
 #: programs/notepad/notepad.rc:29 programs/oleview/oleview.rc:30
 #: programs/oleview/oleview.rc:80 programs/progman/progman.rc:32
 #: programs/taskmgr/taskmgr.rc:35 programs/view/view.rc:31
@@ -3823,69 +3739,61 @@ msgstr "Джойстик"
 msgid "&Disable"
 msgstr "Вим&кнути"
 
-#: dlls/joy.cpl/joy.rc:42
-msgid "&Override"
-msgstr "&Змінити заміщення"
+#: dlls/joy.cpl/joy.rc:41
+msgid "&Reset"
+msgstr "&Скинути"
 
-#: dlls/joy.cpl/joy.rc:43
+#: dlls/joy.cpl/joy.rc:42
 msgid "&Enable"
 msgstr "&Увімкнути"
 
+#: dlls/joy.cpl/joy.rc:43
+msgid "&Override"
+msgstr "&Змінити заміщення"
+
 #: dlls/joy.cpl/joy.rc:44
-#, fuzzy
-#| msgid "Connected (xinput device)"
-msgid "Connected (DirectInput devices)"
-msgstr "Під'єднано (пристрій xinput)"
+msgid "Connected"
+msgstr "Під'єднано"
 
 #: dlls/joy.cpl/joy.rc:46
-#, fuzzy
-#| msgid "Connected (xinput device)"
-msgid "Connected (XInput devices)"
+msgid "Connected (xinput device)"
 msgstr "Під'єднано (пристрій xinput)"
 
 #: dlls/joy.cpl/joy.rc:48
 msgid "Disabled"
 msgstr "Вимкнений"
 
-#: dlls/joy.cpl/joy.rc:51
-msgid "Advanced settings (restart prefix required to take effect)"
+#: dlls/joy.cpl/joy.rc:50
+msgid ""
+"After disabling or enabling a device, the connected joysticks won't be "
+"updated here until you restart this applet."
 msgstr ""
+"Після увімкнення чи вимкнення пристрою, під’єднаний джойстик не буде "
+"оновлений, поки Ви не перезавантажите цей аплет."
 
-#: dlls/joy.cpl/joy.rc:52
-#, fuzzy
-#| msgid "&Enable"
-msgid "Enable SDL"
-msgstr "&Увімкнути"
-
-#: dlls/joy.cpl/joy.rc:53
-#, fuzzy
-#| msgid "Disabled"
-msgid "Disable hidraw"
-msgstr "Вимкнений"
-
-#: dlls/joy.cpl/joy.rc:58
+#: dlls/joy.cpl/joy.rc:55
 msgid "DInput"
 msgstr ""
 
-#: dlls/joy.cpl/joy.rc:62
+#: dlls/joy.cpl/joy.rc:59
 msgid "Axes"
 msgstr ""
 
-#: dlls/joy.cpl/joy.rc:63
+#: dlls/joy.cpl/joy.rc:60
 msgid "POVs"
 msgstr ""
 
-#: dlls/joy.cpl/joy.rc:64
+#: dlls/joy.cpl/joy.rc:61
 msgid "Buttons"
 msgstr "Кнопки"
 
-#: dlls/joy.cpl/joy.rc:65
+#: dlls/joy.cpl/joy.rc:62
 #, fuzzy
 #| msgid "Test Force Feedback"
 msgid "Force Feedback Effect"
 msgstr "Перевірка Force Feedback"
 
-#: dlls/joy.cpl/joy.rc:67
+#: dlls/joy.cpl/joy.rc:64
 msgid ""
 "Press any button in the controller to activate the chosen effect. The effect "
 "direction can be changed with the controller axis."
@@ -3893,60 +3801,60 @@ msgstr ""
 "Натисніть будь-яку клавішу контролера щоб активувати обраний ефект. Напрямок "
 "ефекту можна змінити віссю контролера."
 
-#: dlls/joy.cpl/joy.rc:73
+#: dlls/joy.cpl/joy.rc:70
 msgid "XInput"
 msgstr ""
 
-#: dlls/joy.cpl/joy.rc:76
+#: dlls/joy.cpl/joy.rc:73
 #, fuzzy
 #| msgid "User"
 msgid "User #0"
 msgstr "Користувач"
 
-#: dlls/joy.cpl/joy.rc:77
+#: dlls/joy.cpl/joy.rc:74
 #, fuzzy
 #| msgid "User"
 msgid "User #1"
 msgstr "Користувач"
 
-#: dlls/joy.cpl/joy.rc:78
+#: dlls/joy.cpl/joy.rc:75
 #, fuzzy
 #| msgid "User"
 msgid "User #2"
 msgstr "Користувач"
 
-#: dlls/joy.cpl/joy.rc:79
+#: dlls/joy.cpl/joy.rc:76
 #, fuzzy
 #| msgid "User"
 msgid "User #3"
 msgstr "Користувач"
 
-#: dlls/joy.cpl/joy.rc:81
+#: dlls/joy.cpl/joy.rc:78
 msgid ""
 "No user detected on slot #0, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
 msgstr ""
 
-#: dlls/joy.cpl/joy.rc:85
+#: dlls/joy.cpl/joy.rc:82
 msgid ""
 "No user detected on slot #1, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
 msgstr ""
 
-#: dlls/joy.cpl/joy.rc:89
+#: dlls/joy.cpl/joy.rc:86
 msgid ""
 "No user detected on slot #2, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
 msgstr ""
 
-#: dlls/joy.cpl/joy.rc:93
+#: dlls/joy.cpl/joy.rc:90
 msgid ""
 "No user detected on slot #3, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
 msgstr ""
 
-#: dlls/joy.cpl/joy.rc:98 dlls/joy.cpl/joy.rc:99 dlls/joy.cpl/joy.rc:100
-#: dlls/joy.cpl/joy.rc:101
+#: dlls/joy.cpl/joy.rc:95 dlls/joy.cpl/joy.rc:96 dlls/joy.cpl/joy.rc:97
+#: dlls/joy.cpl/joy.rc:98
 msgid "Rumble"
 msgstr ""
 
@@ -3990,252 +3898,224 @@ msgstr "Об'єкт не підтримує цю властивість чи м�
 msgid "Object doesn't support this action"
 msgstr "Об'єкт не підтримує цю дію"
 
-#: dlls/jscript/jscript.rc:36 dlls/vbscript/vbscript.rc:54
+#: dlls/jscript/jscript.rc:36
 msgid "Argument not optional"
 msgstr "Відсутній обов'язковий аргумент"
 
-#: dlls/jscript/jscript.rc:37 dlls/vbscript/vbscript.rc:56
-msgid "Object not a collection"
-msgstr "Об'єкт не є набором"
-
-#: dlls/jscript/jscript.rc:38
+#: dlls/jscript/jscript.rc:37
 msgid "Syntax error"
 msgstr "Синтаксична помилка"
 
-#: dlls/jscript/jscript.rc:39
+#: dlls/jscript/jscript.rc:38
 msgid "Expected ';'"
 msgstr "Очікується ';'"
 
-#: dlls/jscript/jscript.rc:40
+#: dlls/jscript/jscript.rc:39
 msgid "Expected '('"
 msgstr "Очікується '('"
 
-#: dlls/jscript/jscript.rc:41
+#: dlls/jscript/jscript.rc:40
 msgid "Expected ')'"
 msgstr "Очікується ')'"
 
-#: dlls/jscript/jscript.rc:42
+#: dlls/jscript/jscript.rc:41
 #, fuzzy
 #| msgid "Subject Key Identifier"
 msgid "Expected identifier"
 msgstr "Ідентифікатор ключа суб’єкта"
 
-#: dlls/jscript/jscript.rc:43
+#: dlls/jscript/jscript.rc:42
 #, fuzzy
 #| msgid "Expected ';'"
 msgid "Expected '='"
 msgstr "Очікується ';'"
 
-#: dlls/jscript/jscript.rc:44
+#: dlls/jscript/jscript.rc:43
 msgid "Invalid character"
 msgstr "Невірний символ"
 
-#: dlls/jscript/jscript.rc:45
+#: dlls/jscript/jscript.rc:44
 msgid "Unterminated string constant"
 msgstr "Незавершена рядкова константа"
 
-#: dlls/jscript/jscript.rc:46
+#: dlls/jscript/jscript.rc:45
 msgid "'return' statement outside of function"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:47
+#: dlls/jscript/jscript.rc:46
 msgid "Can't have 'break' outside of loop"
 msgstr "'break' не може знаходитись за циклом"
 
-#: dlls/jscript/jscript.rc:48
+#: dlls/jscript/jscript.rc:47
 msgid "Can't have 'continue' outside of loop"
 msgstr "'continue' не може знаходитись за циклом"
 
-#: dlls/jscript/jscript.rc:49
+#: dlls/jscript/jscript.rc:48
 msgid "Label redefined"
 msgstr "Мітка перевизначена"
 
-#: dlls/jscript/jscript.rc:50
+#: dlls/jscript/jscript.rc:49
 msgid "Label not found"
 msgstr "Мітку не знайдено"
 
-#: dlls/jscript/jscript.rc:51
+#: dlls/jscript/jscript.rc:50
 #, fuzzy
 #| msgid "Expected ';'"
 msgid "Expected '@end'"
 msgstr "Очікується ';'"
 
-#: dlls/jscript/jscript.rc:52
+#: dlls/jscript/jscript.rc:51
 msgid "Conditional compilation is turned off"
 msgstr "Умовна компіляція вимкнена"
 
-#: dlls/jscript/jscript.rc:53
+#: dlls/jscript/jscript.rc:52
 #, fuzzy
 #| msgid "Expected ';'"
 msgid "Expected '@'"
 msgstr "Очікується ';'"
 
-#: dlls/jscript/jscript.rc:90
+#: dlls/jscript/jscript.rc:84
 msgid "Microsoft JScript compilation error"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:91
+#: dlls/jscript/jscript.rc:85
 msgid "Microsoft JScript runtime error"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:92 dlls/vbscript/vbscript.rc:64
+#: dlls/jscript/jscript.rc:86 dlls/vbscript/vbscript.rc:64
 #, fuzzy
 #| msgid "Unknown error"
 msgid "Unknown runtime error"
 msgstr "Невідома помилка"
 
-#: dlls/jscript/jscript.rc:56
+#: dlls/jscript/jscript.rc:55
 msgid "Number expected"
 msgstr "Очікується число"
 
-#: dlls/jscript/jscript.rc:54
+#: dlls/jscript/jscript.rc:53
 msgid "Function expected"
 msgstr "Очікується функція"
 
-#: dlls/jscript/jscript.rc:55
+#: dlls/jscript/jscript.rc:54
 msgid "'[object]' is not a date object"
 msgstr "'[object]' не об'єкт типу date"
 
-#: dlls/jscript/jscript.rc:57
+#: dlls/jscript/jscript.rc:56
 msgid "Object expected"
 msgstr "Очікується об'єкт"
 
-#: dlls/jscript/jscript.rc:58
+#: dlls/jscript/jscript.rc:57
 msgid "Illegal assignment"
 msgstr "Невірне присвоєння"
 
-#: dlls/jscript/jscript.rc:59
+#: dlls/jscript/jscript.rc:58
 msgid "'|' is undefined"
 msgstr "'|' не визначено"
 
-#: dlls/jscript/jscript.rc:60
+#: dlls/jscript/jscript.rc:59
 msgid "Boolean object expected"
 msgstr "Очікується об'єкт Boolean"
 
-#: dlls/jscript/jscript.rc:61
+#: dlls/jscript/jscript.rc:60
 msgid "Cannot delete '|'"
 msgstr "Неможливо видалити '|'"
 
-#: dlls/jscript/jscript.rc:62
+#: dlls/jscript/jscript.rc:61
 msgid "VBArray object expected"
 msgstr "Очікується об'єкт VBArray"
 
-#: dlls/jscript/jscript.rc:63
+#: dlls/jscript/jscript.rc:62
 msgid "JScript object expected"
 msgstr "Очікується об'єкт JScript"
 
-#: dlls/jscript/jscript.rc:64
+#: dlls/jscript/jscript.rc:63
 msgid "Enumerator object expected"
 msgstr "Очікується об’єкт перечислювача"
 
-#: dlls/jscript/jscript.rc:65
+#: dlls/jscript/jscript.rc:64
 msgid "Regular Expression object expected"
 msgstr "Очікується об’єкт регулярного виразу"
 
-#: dlls/jscript/jscript.rc:66
+#: dlls/jscript/jscript.rc:65
 msgid "Syntax error in regular expression"
 msgstr "Синтаксична помилка в регулярному виразі"
 
-#: dlls/jscript/jscript.rc:67
+#: dlls/jscript/jscript.rc:66
 #, fuzzy
 #| msgid "Subject Key Identifier"
 msgid "Unexpected quantifier"
 msgstr "Ідентифікатор ключа суб’єкта"
 
-#: dlls/jscript/jscript.rc:68
+#: dlls/jscript/jscript.rc:67
 msgid "Exception thrown and not caught"
 msgstr "Виняток викликано, але не перехоплено"
 
-#: dlls/jscript/jscript.rc:70
+#: dlls/jscript/jscript.rc:69
 msgid "URI to be encoded contains invalid characters"
 msgstr "URI, що буде закодований, містить неприпустимі символи"
 
-#: dlls/jscript/jscript.rc:69
+#: dlls/jscript/jscript.rc:68
 msgid "URI to be decoded is incorrect"
 msgstr "URI, що буде закодований, некоректний"
 
-#: dlls/jscript/jscript.rc:71
+#: dlls/jscript/jscript.rc:70
 msgid "Number of fraction digits is out of range"
 msgstr "Кількість знаків після коми поза діапазоном"
 
-#: dlls/jscript/jscript.rc:72
+#: dlls/jscript/jscript.rc:71
 msgid "Precision is out of range"
 msgstr "Точність поза діапазоном"
 
-#: dlls/jscript/jscript.rc:73
+#: dlls/jscript/jscript.rc:72
 msgid "Array length must be a finite positive integer"
 msgstr "Довжиною масиву повинне бути скінченне додатнє ціле число"
 
-#: dlls/jscript/jscript.rc:74
+#: dlls/jscript/jscript.rc:73
 msgid "Array object expected"
 msgstr "Очікується об'єкт Array"
 
-#: dlls/jscript/jscript.rc:75
+#: dlls/jscript/jscript.rc:74
 msgid ""
 "'writable' attribute on the property descriptor cannot be set to 'true' on "
 "this object"
 msgstr ""
 "Властивість 'writable' не може бути встановлена на 'true' для цього об'єкта"
 
-#: dlls/jscript/jscript.rc:76
+#: dlls/jscript/jscript.rc:75
 msgid "Cyclic __proto__ value"
 msgstr ""
 
-#: dlls/jscript/jscript.rc:77
+#: dlls/jscript/jscript.rc:76
 #, fuzzy
 #| msgid "Cannot define property '|': object is not extensible"
 msgid "Cannot create property for a non-extensible object"
 msgstr "Неможливо визначити властивість '|': об'єкт не є розширюваним"
 
-#: dlls/jscript/jscript.rc:78
+#: dlls/jscript/jscript.rc:77
 msgid "Cannot define property '|': object is not extensible"
 msgstr "Неможливо визначити властивість '|': об'єкт не є розширюваним"
 
-#: dlls/jscript/jscript.rc:79
+#: dlls/jscript/jscript.rc:78
 msgid "Cannot redefine non-configurable property '|'"
 msgstr "Неможливо перевизначити властивість, яка не підлягає налаштуванню '|'"
 
-#: dlls/jscript/jscript.rc:80
+#: dlls/jscript/jscript.rc:79
 msgid "Cannot modify non-writable property '|'"
 msgstr "Неможливо змінити властивість, яка не підлягає запису '|'"
 
-#: dlls/jscript/jscript.rc:81
-#, fuzzy
-#| msgid "'this' is not a Map object"
-msgid "'this' is not a DataView object"
-msgstr "'це' не є Map об'єкта"
-
-#: dlls/jscript/jscript.rc:82
-msgid "Required argument offset or value in DataView method is not specified"
-msgstr ""
-
-#: dlls/jscript/jscript.rc:83
-msgid "DataView operation access beyond specified buffer length"
-msgstr ""
-
-#: dlls/jscript/jscript.rc:84
-msgid "DataView constructor argument offset is invalid"
-msgstr ""
-
-#: dlls/jscript/jscript.rc:85
+#: dlls/jscript/jscript.rc:80
 #, fuzzy
 #| msgid "'this' is not a Map object"
 msgid "'this' is not a | object"
 msgstr "'це' не є Map об'єкта"
 
-#: dlls/jscript/jscript.rc:86
+#: dlls/jscript/jscript.rc:81
 #, fuzzy
 #| msgid "'this' is not a Map object"
 msgid "'key' is not an object"
 msgstr "'це' не є Map об'єкта"
 
-#: dlls/jscript/jscript.rc:87
-#, fuzzy
-#| msgid "Array object expected"
-msgid "ArrayBuffer object expected"
-msgstr "Очікується об'єкт Array"
-
-#: dlls/jscript/jscript.rc:88
+#: dlls/jscript/jscript.rc:82
 msgid "Property cannot have both accessors and a value"
 msgstr "Властивість не може одночасно мати доступ і значення"
 
@@ -4908,7 +4788,7 @@ msgstr "Змінна оточення не знайдена.\n"
 msgid "No signal sent.\n"
 msgstr "Сигнал не відіслано.\n"
 
-#: dlls/kernelbase/winerror.mc:818 programs/cmd/cmd.rc:406
+#: dlls/kernelbase/winerror.mc:818 programs/cmd/cmd.rc:410
 msgid "File name is too long.\n"
 msgstr "Ім'я файлу занадто довге.\n"
 
@@ -5656,7 +5536,7 @@ msgstr "Операція скасована користувачем.\n"
 msgid "File has a user-mapped section.\n"
 msgstr ""
 
-#: dlls/kernelbase/winerror.mc:1758 dlls/kernelbase/winerror.mc:3788
+#: dlls/kernelbase/winerror.mc:1758 dlls/kernelbase/winerror.mc:3783
 msgid "Connection refused.\n"
 msgstr "У з'єднанні відмовлено.\n"
 
@@ -7265,54 +7145,50 @@ msgid "Invalid argument.\n"
 msgstr "Невірне ім'я.\n"
 
 #: dlls/kernelbase/winerror.mc:3778
-msgid "Cannot assign requested address.\n"
-msgstr ""
-
-#: dlls/kernelbase/winerror.mc:3783
 #, fuzzy
 #| msgid "Connection refused.\n"
 msgid "Connection reset by peer.\n"
 msgstr "У з'єднанні відмовлено.\n"
 
-#: dlls/kernelbase/winerror.mc:3793
+#: dlls/kernelbase/winerror.mc:3788
 #, fuzzy
 #| msgid "Point not found.\n"
 msgid "Host not found.\n"
 msgstr "Точка не знайдена.\n"
 
-#: dlls/kernelbase/winerror.mc:3798
+#: dlls/kernelbase/winerror.mc:3793
 #, fuzzy
 #| msgid "Attribute is not found.\n"
 msgid "Nonauthoritative host not found.\n"
 msgstr "Атрибут не знайдено.\n"
 
-#: dlls/kernelbase/winerror.mc:3803
+#: dlls/kernelbase/winerror.mc:3798
 #, fuzzy
 #| msgid "Unrecoverable error occurred.\n"
 msgid "Nonrecoverable error.\n"
 msgstr "Виникла критична помилка.\n"
 
-#: dlls/kernelbase/winerror.mc:3808
+#: dlls/kernelbase/winerror.mc:3803
 msgid "Name valid, no data record.\n"
 msgstr ""
 
-#: dlls/kernelbase/winerror.mc:3822
+#: dlls/kernelbase/winerror.mc:3817
 msgid "Not implemented.\n"
 msgstr "Не реалізовано.\n"
 
-#: dlls/kernelbase/winerror.mc:3843
+#: dlls/kernelbase/winerror.mc:3838
 msgid "Call failed.\n"
 msgstr "Помилка запиту.\n"
 
-#: dlls/kernelbase/winerror.mc:3815
+#: dlls/kernelbase/winerror.mc:3810
 msgid "No Signature found in file.\n"
 msgstr "Відсутній підпис файла.\n"
 
-#: dlls/kernelbase/winerror.mc:3829
+#: dlls/kernelbase/winerror.mc:3824
 msgid "Invalid call.\n"
 msgstr "Невірний запит.\n"
 
-#: dlls/kernelbase/winerror.mc:3836
+#: dlls/kernelbase/winerror.mc:3831
 msgid "Resource is not currently available.\n"
 msgstr "Наразі ресурс недоступний.\n"
 
@@ -8347,7 +8223,7 @@ msgstr "Вся Мережа"
 msgid "Sound Selection"
 msgstr "Вибір звуку"
 
-#: dlls/msacm32/msacm32.rc:39 programs/winedbg/winedbg.rc:78
+#: dlls/msacm32/msacm32.rc:39 programs/winedbg/winedbg.rc:77
 msgid "&Save As..."
 msgstr "Зберегти &як..."
 
@@ -8516,7 +8392,7 @@ msgstr "можливість з:"
 msgid "choose which folder contains %s"
 msgstr "виберіть теку, що містить %s"
 
-#: dlls/msi/msi.rc:66 dlls/shell32/shell32.rc:238
+#: dlls/msi/msi.rc:66 dlls/shell32/shell32.rc:236
 msgid "New Folder"
 msgstr "Нова Тека"
 
@@ -9687,9 +9563,8 @@ msgstr "Джерело:"
 #: dlls/oledlg/oledlg.rc:86 dlls/shdoclc/shdoclc.rc:50
 #: dlls/shdoclc/shdoclc.rc:82 dlls/shdoclc/shdoclc.rc:95
 #: dlls/shdoclc/shdoclc.rc:135 dlls/shdoclc/shdoclc.rc:162
-#: dlls/shdoclc/shdoclc.rc:186 dlls/shell32/shell32.rc:99
-#: dlls/user32/user32.rc:62 programs/conhost/conhost.rc:37
-#: programs/wordpad/wordpad.rc:114
+#: dlls/shdoclc/shdoclc.rc:186 dlls/user32/user32.rc:62
+#: programs/conhost/conhost.rc:37 programs/wordpad/wordpad.rc:114
 msgid "&Paste"
 msgstr "Вст&авити"
 
@@ -9721,7 +9596,7 @@ msgstr ""
 "Вставка в документ вмісту файла у вигляді об'єкта, що активізується за "
 "допомогою програми, що створила його."
 
-#: dlls/oledlg/oledlg.rc:30 dlls/shell32/shell32.rc:197
+#: dlls/oledlg/oledlg.rc:30 dlls/shell32/shell32.rc:195
 msgid "Browse"
 msgstr "Огляд"
 
@@ -10018,12 +9893,12 @@ msgstr "Властивост&і"
 msgid "&Undo"
 msgstr "&Відмінити"
 
-#: dlls/shdoclc/shdoclc.rc:96 dlls/shell32/shell32.rc:102
+#: dlls/shdoclc/shdoclc.rc:96 dlls/shell32/shell32.rc:105
 #: dlls/user32/user32.rc:63
 msgid "&Delete"
 msgstr "Ви&далити"
 
-#: dlls/shdoclc/shdoclc.rc:103
+#: dlls/shdoclc/shdoclc.rc:103 dlls/shell32/shell32.rc:97
 msgid "&Select"
 msgstr "&Вибрати"
 
@@ -10192,26 +10067,26 @@ msgid "&w&bPage &p"
 msgstr "&w&bСторінка &p"
 
 #: dlls/shell32/shell32.rc:30 dlls/shell32/shell32.rc:45
-#: dlls/shell32/shell32.rc:119 dlls/shell32/shell32.rc:157
+#: dlls/shell32/shell32.rc:122 dlls/shell32/shell32.rc:160
 #: programs/taskmgr/taskmgr.rc:65 programs/taskmgr/taskmgr.rc:110
 #: programs/taskmgr/taskmgr.rc:252
 msgid "Lar&ge Icons"
 msgstr "Ве&ликі значки"
 
 #: dlls/shell32/shell32.rc:31 dlls/shell32/shell32.rc:46
-#: dlls/shell32/shell32.rc:120 dlls/shell32/shell32.rc:158
+#: dlls/shell32/shell32.rc:123 dlls/shell32/shell32.rc:161
 #: programs/taskmgr/taskmgr.rc:66 programs/taskmgr/taskmgr.rc:111
 #: programs/taskmgr/taskmgr.rc:253
 msgid "S&mall Icons"
 msgstr "&Малі Значки"
 
 #: dlls/shell32/shell32.rc:32 dlls/shell32/shell32.rc:47
-#: dlls/shell32/shell32.rc:121 dlls/shell32/shell32.rc:159
+#: dlls/shell32/shell32.rc:124 dlls/shell32/shell32.rc:162
 msgid "&List"
 msgstr "&Список"
 
 #: dlls/shell32/shell32.rc:33 dlls/shell32/shell32.rc:48
-#: dlls/shell32/shell32.rc:122 dlls/shell32/shell32.rc:160
+#: dlls/shell32/shell32.rc:125 dlls/shell32/shell32.rc:163
 #: programs/taskmgr/taskmgr.rc:67 programs/taskmgr/taskmgr.rc:112
 #: programs/taskmgr/taskmgr.rc:254
 msgid "&Details"
@@ -10254,7 +10129,7 @@ msgstr "Вставити Посилання"
 msgid "New"
 msgstr "Створити"
 
-#: dlls/shell32/shell32.rc:69 dlls/shell32/shell32.rc:240
+#: dlls/shell32/shell32.rc:69
 msgid "New &Folder"
 msgstr "Нова &Тека"
 
@@ -10271,19 +10146,23 @@ msgstr "&Відновити"
 msgid "&Erase"
 msgstr "&Стерти"
 
-#: dlls/shell32/shell32.rc:97
+#: dlls/shell32/shell32.rc:98
+msgid "E&xplore"
+msgstr "&Провідник"
+
+#: dlls/shell32/shell32.rc:101
 msgid "C&ut"
 msgstr "Ви&різати"
 
-#: dlls/shell32/shell32.rc:101
+#: dlls/shell32/shell32.rc:104
 msgid "Create &Link"
 msgstr "&Створити Посилання"
 
-#: dlls/shell32/shell32.rc:103
+#: dlls/shell32/shell32.rc:106
 msgid "&Rename"
 msgstr "Пере&йменувати"
 
-#: dlls/shell32/shell32.rc:114 programs/notepad/notepad.rc:39
+#: dlls/shell32/shell32.rc:117 programs/notepad/notepad.rc:39
 #: programs/oleview/oleview.rc:38 programs/regedit/regedit.rc:41
 #: programs/view/view.rc:34 programs/winefile/winefile.rc:40
 #: programs/winemine/winemine.rc:51 programs/winhlp32/winhlp32.rc:37
@@ -10291,51 +10170,51 @@ msgstr "Пере&йменувати"
 msgid "E&xit"
 msgstr "В&ихід"
 
-#: dlls/shell32/shell32.rc:127
+#: dlls/shell32/shell32.rc:130
 msgid "&About Control Panel"
 msgstr "&Про панель керування"
 
-#: dlls/shell32/shell32.rc:275 dlls/shell32/shell32.rc:290
+#: dlls/shell32/shell32.rc:271 dlls/shell32/shell32.rc:286
 msgid "Browse for Folder"
 msgstr "Огляд до теки"
 
-#: dlls/shell32/shell32.rc:295
+#: dlls/shell32/shell32.rc:291
 msgid "Folder:"
 msgstr "Тека:"
 
-#: dlls/shell32/shell32.rc:301
+#: dlls/shell32/shell32.rc:297
 msgid "&Make New Folder"
 msgstr "&Зробити нову теку"
 
-#: dlls/shell32/shell32.rc:308
+#: dlls/shell32/shell32.rc:304
 msgid "Message"
 msgstr "Повідомлення"
 
-#: dlls/shell32/shell32.rc:312
+#: dlls/shell32/shell32.rc:308
 msgid "Yes to &all"
 msgstr "Так для &всіх"
 
-#: dlls/shell32/shell32.rc:321
+#: dlls/shell32/shell32.rc:317
 msgid "About %s"
 msgstr "Про %s"
 
-#: dlls/shell32/shell32.rc:325
+#: dlls/shell32/shell32.rc:321
 msgid "Wine &license"
 msgstr "&Ліцензія Wine"
 
-#: dlls/shell32/shell32.rc:330
+#: dlls/shell32/shell32.rc:326
 msgid "Running on %s"
 msgstr "Працює на %s"
 
-#: dlls/shell32/shell32.rc:331
+#: dlls/shell32/shell32.rc:327
 msgid "Wine was brought to you by:"
 msgstr "Розробники Wine:"
 
-#: dlls/shell32/shell32.rc:336
+#: dlls/shell32/shell32.rc:332
 msgid "Run"
 msgstr "Запустити"
 
-#: dlls/shell32/shell32.rc:340
+#: dlls/shell32/shell32.rc:336
 msgid ""
 "Type the name of a program, folder, document, or Internet resource, and Wine "
 "will open it for you."
@@ -10343,296 +10222,287 @@ msgstr ""
 "Введіть ім'я програми, теки, документу чи ресурс Інтернету, і Wine відкриє "
 "їх."
 
-#: dlls/shell32/shell32.rc:341
+#: dlls/shell32/shell32.rc:337
 msgid "&Open:"
 msgstr "&Відкрити:"
 
-#: dlls/shell32/shell32.rc:345 programs/progman/progman.rc:182
+#: dlls/shell32/shell32.rc:341 programs/progman/progman.rc:182
 #: programs/progman/progman.rc:201 programs/progman/progman.rc:218
 #: programs/winecfg/winecfg.rc:247 programs/winefile/winefile.rc:129
 msgid "&Browse..."
 msgstr "&Огляд..."
 
-#: dlls/shell32/shell32.rc:357 dlls/shell32/shell32.rc:386
+#: dlls/shell32/shell32.rc:353 dlls/shell32/shell32.rc:382
 msgid "File type:"
 msgstr "Тип файлу:"
 
-#: dlls/shell32/shell32.rc:361 dlls/shell32/shell32.rc:394
+#: dlls/shell32/shell32.rc:357 dlls/shell32/shell32.rc:390
 #: dlls/urlmon/urlmon.rc:37 programs/explorer/explorer.rc:33
 msgid "Location:"
 msgstr "Розміщення:"
 
-#: dlls/shell32/shell32.rc:363 dlls/shell32/shell32.rc:396
+#: dlls/shell32/shell32.rc:359 dlls/shell32/shell32.rc:392
 #: programs/winefile/winefile.rc:169
 msgid "Size:"
 msgstr "Розмір:"
 
-#: dlls/shell32/shell32.rc:367 dlls/shell32/shell32.rc:400
+#: dlls/shell32/shell32.rc:363 dlls/shell32/shell32.rc:396
 msgid "Creation date:"
 msgstr "Дата створення:"
 
-#: dlls/shell32/shell32.rc:371 dlls/shell32/shell32.rc:408
+#: dlls/shell32/shell32.rc:367 dlls/shell32/shell32.rc:404
 msgid "Attributes:"
 msgstr "&Властивості:"
 
-#: dlls/shell32/shell32.rc:373 dlls/shell32/shell32.rc:410
+#: dlls/shell32/shell32.rc:369 dlls/shell32/shell32.rc:406
 #: programs/winefile/winefile.rc:173
 msgid "H&idden"
 msgstr "Пр&ихований"
 
-#: dlls/shell32/shell32.rc:374 dlls/shell32/shell32.rc:411
+#: dlls/shell32/shell32.rc:370 dlls/shell32/shell32.rc:407
 #: programs/winefile/winefile.rc:174
 msgid "&Archive"
 msgstr "&Архівний"
 
-#: dlls/shell32/shell32.rc:388
+#: dlls/shell32/shell32.rc:384
 msgid "Open with:"
 msgstr "Відкрити за допомогою:"
 
-#: dlls/shell32/shell32.rc:391
+#: dlls/shell32/shell32.rc:387
 msgid "&Change..."
 msgstr "З&мінити..."
 
-#: dlls/shell32/shell32.rc:402
+#: dlls/shell32/shell32.rc:398
 msgid "Last modified:"
 msgstr "Остання зміна:"
 
-#: dlls/shell32/shell32.rc:404
+#: dlls/shell32/shell32.rc:400
 msgid "Last accessed:"
 msgstr "Останній доступ:"
 
-#: dlls/shell32/shell32.rc:135 dlls/shell32/shell32.rc:139
+#: dlls/shell32/shell32.rc:138 dlls/shell32/shell32.rc:142
 #: programs/winefile/winefile.rc:107
 msgid "Size"
 msgstr "Розмір"
 
-#: dlls/shell32/shell32.rc:136 programs/regedit/regedit.rc:151
+#: dlls/shell32/shell32.rc:139 programs/regedit/regedit.rc:151
 msgid "Type"
 msgstr "Тип"
 
-#: dlls/shell32/shell32.rc:137
+#: dlls/shell32/shell32.rc:140
 msgid "Modified"
 msgstr "Змінено"
 
-#: dlls/shell32/shell32.rc:138 programs/winefile/winefile.rc:171
+#: dlls/shell32/shell32.rc:141 programs/winefile/winefile.rc:171
 #: programs/winefile/winefile.rc:113
 msgid "Attributes"
 msgstr "Атрибути"
 
-#: dlls/shell32/shell32.rc:140
+#: dlls/shell32/shell32.rc:143
 msgid "Size available"
 msgstr "Вільний Розмір"
 
-#: dlls/shell32/shell32.rc:142
+#: dlls/shell32/shell32.rc:145
 msgid "Comments"
 msgstr "Коментарі"
 
-#: dlls/shell32/shell32.rc:143
+#: dlls/shell32/shell32.rc:146
 msgid "Original location"
 msgstr "Оригінальне розміщення"
 
-#: dlls/shell32/shell32.rc:144
+#: dlls/shell32/shell32.rc:147
 msgid "Date deleted"
 msgstr "Дата видалення"
 
-#: dlls/shell32/shell32.rc:151 programs/winecfg/winecfg.rc:106
+#: dlls/shell32/shell32.rc:154 programs/winecfg/winecfg.rc:106
 #: programs/winefile/winefile.rc:99
 msgctxt "display name"
 msgid "Desktop"
 msgstr "Стільниця"
 
-#: dlls/shell32/shell32.rc:152 dlls/urlmon/urlmon.rc:56
-#: programs/regedit/regedit.rc:243
+#: dlls/shell32/shell32.rc:155 programs/regedit/regedit.rc:243
 msgid "My Computer"
 msgstr "Мій Комп'ютер"
 
-#: dlls/shell32/shell32.rc:154
+#: dlls/shell32/shell32.rc:157
 msgid "Control Panel"
 msgstr "Панель керування"
 
-#: dlls/shell32/shell32.rc:162
-msgid "Ne&w"
-msgstr ""
-
 #: dlls/shell32/shell32.rc:164
-msgid "E&xplore"
-msgstr "&Провідник"
+msgid "Select"
+msgstr "Ви&брати"
 
-#: dlls/shell32/shell32.rc:167
-msgid "Run as &Administrator"
-msgstr ""
-
-#: dlls/shell32/shell32.rc:189
+#: dlls/shell32/shell32.rc:187
 msgid "Restart"
 msgstr "Перезавантажити"
 
-#: dlls/shell32/shell32.rc:190
+#: dlls/shell32/shell32.rc:188
 msgid "Do you want to simulate a Windows reboot?"
 msgstr "Симулювати перезавантаження Windows?"
 
-#: dlls/shell32/shell32.rc:191
+#: dlls/shell32/shell32.rc:189
 msgid "Shutdown"
 msgstr "Вимкнути"
 
-#: dlls/shell32/shell32.rc:192
+#: dlls/shell32/shell32.rc:190
 msgid "Do you want to shutdown your Wine session?"
 msgstr "Завершити сесію роботи Wine?"
 
-#: dlls/shell32/shell32.rc:203 programs/progman/progman.rc:83
+#: dlls/shell32/shell32.rc:201 programs/progman/progman.rc:83
 msgid "Programs"
 msgstr "Програми"
 
-#: dlls/shell32/shell32.rc:204 dlls/shell32/shell32.rc:219
-#: dlls/shell32/shell32.rc:145 dlls/shell32/shell32.rc:235
+#: dlls/shell32/shell32.rc:202 dlls/shell32/shell32.rc:217
+#: dlls/shell32/shell32.rc:148 dlls/shell32/shell32.rc:233
 msgid "Documents"
 msgstr "Документи"
 
-#: dlls/shell32/shell32.rc:205
+#: dlls/shell32/shell32.rc:203
 msgid "Favorites"
 msgstr "Обране"
 
-#: dlls/shell32/shell32.rc:206
+#: dlls/shell32/shell32.rc:204
 msgid "StartUp"
 msgstr "Автозавантаження"
 
-#: dlls/shell32/shell32.rc:207
+#: dlls/shell32/shell32.rc:205
 msgid "Start Menu"
 msgstr "Головне меню"
 
-#: dlls/shell32/shell32.rc:208 dlls/shell32/shell32.rc:221
+#: dlls/shell32/shell32.rc:206 dlls/shell32/shell32.rc:219
 msgid "Music"
 msgstr "Музика"
 
-#: dlls/shell32/shell32.rc:209 dlls/shell32/shell32.rc:223
+#: dlls/shell32/shell32.rc:207 dlls/shell32/shell32.rc:221
 msgid "Videos"
 msgstr "Фільми"
 
-#: dlls/shell32/shell32.rc:210
+#: dlls/shell32/shell32.rc:208
 msgctxt "directory"
 msgid "Desktop"
 msgstr "Стільниця"
 
-#: dlls/shell32/shell32.rc:211
+#: dlls/shell32/shell32.rc:209
 msgid "NetHood"
 msgstr "Мережне оточення"
 
-#: dlls/shell32/shell32.rc:212
+#: dlls/shell32/shell32.rc:210
 msgid "Templates"
 msgstr "Шаблони"
 
-#: dlls/shell32/shell32.rc:213
+#: dlls/shell32/shell32.rc:211
 msgid "PrintHood"
 msgstr "Принтери"
 
-#: dlls/shell32/shell32.rc:214 programs/winhlp32/winhlp32.rc:49
+#: dlls/shell32/shell32.rc:212 programs/winhlp32/winhlp32.rc:49
 msgid "History"
 msgstr "Історія"
 
-#: dlls/shell32/shell32.rc:215
+#: dlls/shell32/shell32.rc:213
 msgid "Program Files"
 msgstr ""
 
-#: dlls/shell32/shell32.rc:217 dlls/shell32/shell32.rc:222
+#: dlls/shell32/shell32.rc:215 dlls/shell32/shell32.rc:220
 msgid "Pictures"
 msgstr "Малюнки"
 
-#: dlls/shell32/shell32.rc:218
+#: dlls/shell32/shell32.rc:216
 msgid "Common Files"
 msgstr ""
 
-#: dlls/shell32/shell32.rc:220
+#: dlls/shell32/shell32.rc:218
 msgid "Administrative Tools"
 msgstr ""
 
-#: dlls/shell32/shell32.rc:216
+#: dlls/shell32/shell32.rc:214
 msgid "Program Files (x86)"
 msgstr ""
 
-#: dlls/shell32/shell32.rc:224
+#: dlls/shell32/shell32.rc:222
 msgid "Contacts"
 msgstr "Контакти"
 
-#: dlls/shell32/shell32.rc:225 programs/winefile/winefile.rc:112
+#: dlls/shell32/shell32.rc:223 programs/winefile/winefile.rc:112
 msgid "Links"
 msgstr "Посилання"
 
-#: dlls/shell32/shell32.rc:226
+#: dlls/shell32/shell32.rc:224
 msgid "Slide Shows"
 msgstr "Слайд Покази"
 
-#: dlls/shell32/shell32.rc:227
+#: dlls/shell32/shell32.rc:225
 msgid "Playlists"
 msgstr "Списки відтворення"
 
-#: dlls/shell32/shell32.rc:146 programs/taskmgr/taskmgr.rc:326
+#: dlls/shell32/shell32.rc:149 programs/taskmgr/taskmgr.rc:326
 msgid "Status"
 msgstr "Стан"
 
-#: dlls/shell32/shell32.rc:148
+#: dlls/shell32/shell32.rc:151
 msgid "Model"
 msgstr "Модель"
 
-#: dlls/shell32/shell32.rc:228
+#: dlls/shell32/shell32.rc:226
 msgid "Sample Music"
 msgstr "Зразки Музики"
 
-#: dlls/shell32/shell32.rc:229
+#: dlls/shell32/shell32.rc:227
 msgid "Sample Pictures"
 msgstr "Зразки Малюнків"
 
-#: dlls/shell32/shell32.rc:230
+#: dlls/shell32/shell32.rc:228
 msgid "Sample Playlists"
 msgstr "Зразки Списків відтворення"
 
-#: dlls/shell32/shell32.rc:231
+#: dlls/shell32/shell32.rc:229
 msgid "Sample Videos"
 msgstr "Зразки Відео"
 
-#: dlls/shell32/shell32.rc:232
+#: dlls/shell32/shell32.rc:230
 msgid "Saved Games"
 msgstr "Збережені Ігри"
 
-#: dlls/shell32/shell32.rc:233
+#: dlls/shell32/shell32.rc:231
 msgid "Searches"
 msgstr "Пошуки"
 
-#: dlls/shell32/shell32.rc:234
+#: dlls/shell32/shell32.rc:232
 msgid "Users"
 msgstr "Користувачі"
 
-#: dlls/shell32/shell32.rc:236
+#: dlls/shell32/shell32.rc:234
 msgid "Downloads"
 msgstr "Завантаження"
 
-#: dlls/shell32/shell32.rc:169
+#: dlls/shell32/shell32.rc:167
 msgid "Unable to create new Folder: Permission denied."
 msgstr "Не вдалося створити нову теку: Відмова у доступі."
 
-#: dlls/shell32/shell32.rc:170
+#: dlls/shell32/shell32.rc:168
 msgid "Error during creation of a new folder"
 msgstr "Помилка при створенні нової теки"
 
-#: dlls/shell32/shell32.rc:171
+#: dlls/shell32/shell32.rc:169
 msgid "Confirm file deletion"
 msgstr "Підтвердження вилучення файлу"
 
-#: dlls/shell32/shell32.rc:172
+#: dlls/shell32/shell32.rc:170
 msgid "Confirm folder deletion"
 msgstr "Підтвердження вилучення теки"
 
-#: dlls/shell32/shell32.rc:173
+#: dlls/shell32/shell32.rc:171
 msgid "Are you sure you want to delete '%1'?"
 msgstr "Ви впевнені, що хочете вилучити '%1'?"
 
-#: dlls/shell32/shell32.rc:174
+#: dlls/shell32/shell32.rc:172
 msgid "Are you sure you want to delete these %1 items?"
 msgstr "Ви впевнені, що хочете вилучити ці %1 елементи(ів)?"
 
-#: dlls/shell32/shell32.rc:181
+#: dlls/shell32/shell32.rc:179
 msgid "Confirm file overwrite"
 msgstr "Підтвердження Перезапису Файлу"
 
-#: dlls/shell32/shell32.rc:180
+#: dlls/shell32/shell32.rc:178
 msgid ""
 "This folder already contains a file called '%1'.\n"
 "\n"
@@ -10642,29 +10512,29 @@ msgstr ""
 "\n"
 "Хочете замінити його?"
 
-#: dlls/shell32/shell32.rc:175
+#: dlls/shell32/shell32.rc:173
 msgid "Are you sure you want to delete the selected item(s)?"
 msgstr "Ви впевнені, що хочете вилучити обрані елементи?"
 
-#: dlls/shell32/shell32.rc:177
+#: dlls/shell32/shell32.rc:175
 msgid ""
 "Are you sure that you want to send '%1' and all its content to the Trash?"
 msgstr "Ви впевнені, що хочете відіслати '%1' та весь її вміст в Кошик?"
 
-#: dlls/shell32/shell32.rc:176
+#: dlls/shell32/shell32.rc:174
 msgid "Are you sure that you want to send '%1' to the Trash?"
 msgstr "Ви впевнені, що хочете відіслати '%1' в Кошик?"
 
-#: dlls/shell32/shell32.rc:178
+#: dlls/shell32/shell32.rc:176
 msgid "Are you sure that you want to send these %1 items to the Trash?"
 msgstr "Ви впевнені, що хочете відіслати ці %1 елементи(ів) в Кошик?"
 
-#: dlls/shell32/shell32.rc:179
+#: dlls/shell32/shell32.rc:177
 msgid "The item '%1' can't be sent to Trash. Do you want to delete it instead?"
 msgstr ""
 "Елемент '%1' не може бути відісланий в Кошик. Видалити його замість цього?"
 
-#: dlls/shell32/shell32.rc:186
+#: dlls/shell32/shell32.rc:184
 msgid ""
 "This folder already contains a folder named '%1'.\n"
 "\n"
@@ -10678,39 +10548,39 @@ msgstr ""
 "обраній теці, вони будуть замінені. Ви все ще бажаєте перемістити чи\n"
 "скопіювати теку?"
 
-#: dlls/shell32/shell32.rc:242
+#: dlls/shell32/shell32.rc:238
 msgid "Wine Control Panel"
 msgstr "Панель керування Wine"
 
-#: dlls/shell32/shell32.rc:195
+#: dlls/shell32/shell32.rc:193
 msgid "Unable to display Run dialog box (internal error)"
 msgstr "Неможливо відобразити діалог запуску програм (внутрішня помилка)"
 
-#: dlls/shell32/shell32.rc:196
+#: dlls/shell32/shell32.rc:194
 msgid "Unable to display Browse dialog box (internal error)"
 msgstr "Неможливо відобразити діалог Огляд (внутрішня помилка)"
 
-#: dlls/shell32/shell32.rc:198
+#: dlls/shell32/shell32.rc:196
 msgid "Executable files (*.exe)"
 msgstr "Виконувані Файли (*.exe)"
 
-#: dlls/shell32/shell32.rc:246
+#: dlls/shell32/shell32.rc:242
 msgid "There is no Windows program configured to open this type of file."
 msgstr "Не сконфігуровано програми Windows для відкриття файлів цього типу."
 
-#: dlls/shell32/shell32.rc:248
+#: dlls/shell32/shell32.rc:244
 msgid "Are you sure you wish to permanently delete '%1'?"
 msgstr "Ви впевнені, що хочете остаточно вилучити '%1'?"
 
-#: dlls/shell32/shell32.rc:249
+#: dlls/shell32/shell32.rc:245
 msgid "Are you sure you wish to permanently delete these %1 items?"
 msgstr "Ви впевнені, що хочете остаточно вилучити ці %1 елементи(ів)?"
 
-#: dlls/shell32/shell32.rc:250
+#: dlls/shell32/shell32.rc:246
 msgid "Confirm deletion"
 msgstr "Підтвердження вилучення"
 
-#: dlls/shell32/shell32.rc:251
+#: dlls/shell32/shell32.rc:247
 msgid ""
 "A file already exists at the path %1.\n"
 "\n"
@@ -10720,7 +10590,7 @@ msgstr ""
 "\n"
 "Замінити його?"
 
-#: dlls/shell32/shell32.rc:252
+#: dlls/shell32/shell32.rc:248
 msgid ""
 "A folder already exists at the path %1.\n"
 "\n"
@@ -10730,11 +10600,11 @@ msgstr ""
 "\n"
 "Замінити її?"
 
-#: dlls/shell32/shell32.rc:253
+#: dlls/shell32/shell32.rc:249
 msgid "Confirm overwrite"
 msgstr "Підтвердження перезапису"
 
-#: dlls/shell32/shell32.rc:270
+#: dlls/shell32/shell32.rc:266
 msgid ""
 "Wine is free software; you can redistribute it and/or modify it under the "
 "terms of the GNU Lesser General Public License as published by the Free "
@@ -10763,11 +10633,11 @@ msgstr ""
 "Wine; якщо ні, напишіть до Free Software Foundation, Inc., 51 Franklin St, "
 "Fifth Floor, Boston, MA 02110-1301, USA."
 
-#: dlls/shell32/shell32.rc:258
+#: dlls/shell32/shell32.rc:254
 msgid "Wine License"
 msgstr "Ліцензія Wine"
 
-#: dlls/shell32/shell32.rc:153
+#: dlls/shell32/shell32.rc:156
 msgid "Trash"
 msgstr "Кошик"
 
@@ -12832,55 +12702,6 @@ msgstr "Встановити (%d)"
 msgid "Install"
 msgstr "Встановити"
 
-#: dlls/urlmon/urlmon.rc:58
-#, fuzzy
-#| msgid "Local Port"
-msgid "Local intranet"
-msgstr "Локальний порт"
-
-#: dlls/urlmon/urlmon.rc:60
-#, fuzzy
-#| msgid "Trusted Publishers"
-msgid "Trusted sites"
-msgstr "Довірені видавці"
-
-#: dlls/urlmon/urlmon.rc:62
-#, fuzzy
-#| msgid "Ethernet"
-msgid "Internet"
-msgstr "Ethernet"
-
-#: dlls/urlmon/urlmon.rc:64
-msgid "Restricted sites"
-msgstr ""
-
-#: dlls/urlmon/urlmon.rc:57
-#, fuzzy
-#| msgid "My Computer"
-msgid "Your computer"
-msgstr "Мій Комп'ютер"
-
-#: dlls/urlmon/urlmon.rc:59
-msgid ""
-"This zone contains all Web sites that are on your organization's intranet."
-msgstr ""
-
-#: dlls/urlmon/urlmon.rc:61
-msgid ""
-"This zone contains Web sites that you trust not to damage your computer or "
-"data."
-msgstr ""
-
-#: dlls/urlmon/urlmon.rc:63
-msgid "This zone contains all Web sites you haven't placed in other zones"
-msgstr ""
-
-#: dlls/urlmon/urlmon.rc:65
-msgid ""
-"This zone contains Web sites that could potentially damage your computer or "
-"data."
-msgstr ""
-
 #: dlls/user32/user32.rc:30 dlls/user32/user32.rc:43
 #: programs/taskmgr/taskmgr.rc:138
 msgctxt "window"
@@ -13022,13 +12843,17 @@ msgstr "Об'єкт не підтримує названі аргументи"
 msgid "Object doesn't support current locale setting"
 msgstr "Об’єкт не підтримує поточні налаштування мови"
 
-#: dlls/vbscript/vbscript.rc:53
+#: dlls/vbscript/vbscript.rc:53 dlls/vbscript/vbscript.rc:54
 msgid "Named argument not found"
 msgstr "Названий аргумент не знайдено"
 
 #: dlls/vbscript/vbscript.rc:55
 msgid "Wrong number of arguments or invalid property assignment"
 msgstr "Неправильна кількість аргументів або недійсне призначення властивості"
+
+#: dlls/vbscript/vbscript.rc:56
+msgid "Object not a collection"
+msgstr "Об'єкт не є набором"
 
 #: dlls/vbscript/vbscript.rc:57
 msgid "Specified DLL function not found"
@@ -14089,7 +13914,7 @@ msgstr "Зациклювання при обробці посилань"
 msgid "Referral hop limit exceeded"
 msgstr "Перевищено граничну кількість пересилання посилань"
 
-#: programs/attrib/attrib.rc:30 programs/cmd/cmd.rc:370
+#: programs/attrib/attrib.rc:30 programs/cmd/cmd.rc:373
 msgid ""
 "Not Yet Implemented\n"
 "\n"
@@ -14097,7 +13922,7 @@ msgstr ""
 "Ще не реалізовано\n"
 "\n"
 
-#: programs/attrib/attrib.rc:31 programs/cmd/cmd.rc:373
+#: programs/attrib/attrib.rc:31 programs/cmd/cmd.rc:376
 msgid "%1: File Not Found\n"
 msgstr "%1: Файл не знайдено\n"
 
@@ -14247,18 +14072,22 @@ msgid "COPY <filename> copies a file.\n"
 msgstr "COPY <ім'я_файлу> копіює файл.\n"
 
 #: programs/cmd/cmd.rc:56
+msgid "CTTY changes the input/output device.\n"
+msgstr "CTTY змінює пристрій вводу/виводу.\n"
+
+#: programs/cmd/cmd.rc:59
 msgid "DATE shows or changes the system date.\n"
 msgstr "DATE показує чи змінює системну дату.\n"
 
-#: programs/cmd/cmd.rc:59
+#: programs/cmd/cmd.rc:62
 msgid "DEL <filename> deletes a file or set of files.\n"
 msgstr "DEL <ім'я_файлу> видаляє файл чи набір файлів.\n"
 
-#: programs/cmd/cmd.rc:62
+#: programs/cmd/cmd.rc:65
 msgid "DIR lists the contents of a directory.\n"
 msgstr "DIR показує вміст теки.\n"
 
-#: programs/cmd/cmd.rc:72
+#: programs/cmd/cmd.rc:75
 msgid ""
 "ECHO <string> displays <string> on the current terminal device.\n"
 "\n"
@@ -14278,11 +14107,11 @@ msgstr ""
 "за замовчуванням). Команда ECHO OFF може бути прихована зазначенням перед\n"
 "нею знаку @.\n"
 
-#: programs/cmd/cmd.rc:75
+#: programs/cmd/cmd.rc:78
 msgid "ERASE <filename> deletes a file or set of files.\n"
 msgstr "ERASE <ім'я_файлу> видаляє файл чи набір файлів.\n"
 
-#: programs/cmd/cmd.rc:82
+#: programs/cmd/cmd.rc:85
 #, fuzzy
 #| msgid ""
 #| "The FOR command is used to execute a command for each of a set of files.\n"
@@ -14299,7 +14128,7 @@ msgstr ""
 "\n"
 "Синтаксис: FOR %змінна IN (набір) DO команда\n"
 
-#: programs/cmd/cmd.rc:94
+#: programs/cmd/cmd.rc:97
 msgid ""
 "The GOTO command transfers execution to another statement within a batch\n"
 "file.\n"
@@ -14322,7 +14151,7 @@ msgstr ""
 "\n"
 "GOTO не працює в інтерактивному режимі.\n"
 
-#: programs/cmd/cmd.rc:98
+#: programs/cmd/cmd.rc:101
 msgid ""
 "HELP <command> shows brief help details on a topic.\n"
 "HELP without an argument shows all CMD built-in commands.\n"
@@ -14330,7 +14159,7 @@ msgstr ""
 "HELP <команда> показує коротку довідкову інформацію про команду.\n"
 "HELP без аргументів показує всі вбудовані команди CMD.\n"
 
-#: programs/cmd/cmd.rc:108
+#: programs/cmd/cmd.rc:111
 msgid ""
 "IF is used to conditionally execute a command.\n"
 "\n"
@@ -14350,7 +14179,7 @@ msgstr ""
 "В другій формі команди, рядок1 та рядок2 повинні бути в подвійних лапках.\n"
 "Порівняння не чутливе до регістру.\n"
 
-#: programs/cmd/cmd.rc:115
+#: programs/cmd/cmd.rc:118
 msgid ""
 "LABEL is used to set a disk volume label.\n"
 "\n"
@@ -14364,15 +14193,15 @@ msgstr ""
 "Команда запитує нову мітку тому для відповідного диску.\n"
 "З допомогою команди VOL ви можете подивитись мітку диску.\n"
 
-#: programs/cmd/cmd.rc:118
+#: programs/cmd/cmd.rc:121
 msgid "MD <name> is the short version of MKDIR. It creates a subdirectory.\n"
 msgstr "MD <ім'я> це коротка версія MKDIR. Вона створює підтеку.\n"
 
-#: programs/cmd/cmd.rc:120
+#: programs/cmd/cmd.rc:123
 msgid "MKDIR <name> creates a subdirectory.\n"
 msgstr "MKDIR <ім'я> створює підтеку.\n"
 
-#: programs/cmd/cmd.rc:128
+#: programs/cmd/cmd.rc:131
 msgid ""
 "MOVE relocates a file or directory to a new point within the file system.\n"
 "\n"
@@ -14388,7 +14217,7 @@ msgstr ""
 "\n"
 "MOVE не працює для переміщення даних з одного логічного диска DOS на інший.\n"
 
-#: programs/cmd/cmd.rc:139
+#: programs/cmd/cmd.rc:142
 msgid ""
 "PATH displays or changes the cmd search path.\n"
 "\n"
@@ -14410,7 +14239,7 @@ msgstr ""
 "наприклад:\n"
 "PATH %PATH%;c:\\temp\n"
 
-#: programs/cmd/cmd.rc:145
+#: programs/cmd/cmd.rc:148
 msgid ""
 "PAUSE displays a message on the screen asking the user to press a key.\n"
 "\n"
@@ -14422,7 +14251,7 @@ msgstr ""
 "В основному корисно в пакетних файлах щоб користувач міг прочитати вивід\n"
 "попередньої команди перед її зникненням з екрану.\n"
 
-#: programs/cmd/cmd.rc:166
+#: programs/cmd/cmd.rc:169
 msgid ""
 "PROMPT sets the command-line prompt.\n"
 "\n"
@@ -14464,7 +14293,7 @@ msgstr ""
 "Запрошення також може бути змінене зміною змінної оточення PROMPT, тому\n"
 "команда 'SET PROMPT=text' має той же ефект, що і 'PROMPT text'.\n"
 
-#: programs/cmd/cmd.rc:170
+#: programs/cmd/cmd.rc:173
 msgid ""
 "A command line beginning with REM (followed by a space) performs no action,\n"
 "and can therefore be used as a comment in a batch file.\n"
@@ -14472,27 +14301,27 @@ msgstr ""
 "Командний рядок, що починається з REM (з наступним пробілом) нічого не\n"
 "виконує, тому може бути використаний як коментар в пакетному файлі.\n"
 
-#: programs/cmd/cmd.rc:173
+#: programs/cmd/cmd.rc:176
 msgid "REN <filename> is the short version of RENAME. It renames a file.\n"
 msgstr "REN <ім'я_файлу> це коротка версія RENAME. Вона перейменовує файл.\n"
 
-#: programs/cmd/cmd.rc:175
+#: programs/cmd/cmd.rc:178
 msgid "RENAME <filename> renames a file.\n"
 msgstr "RENAME <ім'я_файлу> перейменовує файл.\n"
 
-#: programs/cmd/cmd.rc:178
+#: programs/cmd/cmd.rc:181
 #, fuzzy
 #| msgid "RD <dir> is the short version of RMDIR. It deletes a subdirectory.\n"
 msgid "RD <directory> is the short version of RMDIR. It deletes a directory.\n"
 msgstr "RD <тека> це коротка версія RMDIR. Вона видаляє підтеку.\n"
 
-#: programs/cmd/cmd.rc:180
+#: programs/cmd/cmd.rc:183
 #, fuzzy
 #| msgid "RMDIR <dir> deletes a subdirectory.\n"
 msgid "RMDIR <directory> deletes a directory.\n"
 msgstr "RMDIR <тека> видаляє підтеку.\n"
 
-#: programs/cmd/cmd.rc:226
+#: programs/cmd/cmd.rc:229
 msgid ""
 "SET displays or changes the cmd environment variables.\n"
 "\n"
@@ -14526,7 +14355,7 @@ msgstr ""
 "Зверніть увагу на те, що неможливо змінити оточення операційної системи з\n"
 "cmd.\n"
 
-#: programs/cmd/cmd.rc:231
+#: programs/cmd/cmd.rc:234
 msgid ""
 "SHIFT is used in a batch file to remove one parameter from the head of the\n"
 "list, so parameter 2 becomes parameter 1 and so on. It has no effect if\n"
@@ -14536,7 +14365,7 @@ msgstr ""
 "вершини списку, тому параметр 2 стає параметром 1 і т.д. Команда не працює\n"
 "при її виклику з командного рядка.\n"
 
-#: programs/cmd/cmd.rc:209
+#: programs/cmd/cmd.rc:212
 msgid ""
 "Start a program, or open a document in the program normally used for files\n"
 "with that suffix.\n"
@@ -14567,15 +14396,15 @@ msgid ""
 "/?             Display this help and exit.\n"
 msgstr ""
 
-#: programs/cmd/cmd.rc:234
+#: programs/cmd/cmd.rc:237
 msgid "TIME sets or shows the current system time.\n"
 msgstr "TIME задає чи показує поточний системний час.\n"
 
-#: programs/cmd/cmd.rc:237
+#: programs/cmd/cmd.rc:240
 msgid "TITLE <string> sets the window title for the cmd window.\n"
 msgstr "TITLE <рядок> задає заголовок вікна для вікна cmd.\n"
 
-#: programs/cmd/cmd.rc:241
+#: programs/cmd/cmd.rc:244
 msgid ""
 "TYPE <filename> copies <filename> to the console device (or elsewhere if\n"
 "redirected). No check is made that the file is readable text.\n"
@@ -14584,7 +14413,7 @@ msgstr ""
 "місце, якщо він перенаправлений). Не перевіряється, чи файл це текст,\n"
 "призначений для читання.\n"
 
-#: programs/cmd/cmd.rc:250
+#: programs/cmd/cmd.rc:253
 msgid ""
 "VERIFY is used to set, clear or test the verify flag. Valid forms are:\n"
 "\n"
@@ -14603,15 +14432,15 @@ msgstr ""
 "\n"
 "Прапор перевірки не має функцій в Wine.\n"
 
-#: programs/cmd/cmd.rc:253
+#: programs/cmd/cmd.rc:256
 msgid "VER displays the version of cmd you are running.\n"
 msgstr "VER відображає версію запущеного cmd.\n"
 
-#: programs/cmd/cmd.rc:256
+#: programs/cmd/cmd.rc:259
 msgid "VOL shows the volume label of a disk device.\n"
 msgstr "VOL відображає мітку тому дискового пристрою.\n"
 
-#: programs/cmd/cmd.rc:260
+#: programs/cmd/cmd.rc:263
 msgid ""
 "ENDLOCAL ends localization of environment changes in a batch file which\n"
 "were introduced by a preceding SETLOCAL.\n"
@@ -14619,7 +14448,7 @@ msgstr ""
 "ENDLOCAL завершує локалізацію змін оточення в пакетному файлі що були\n"
 "впроваджені командою SETLOCAL.\n"
 
-#: programs/cmd/cmd.rc:268
+#: programs/cmd/cmd.rc:271
 msgid ""
 "SETLOCAL starts localization of environment changes in a batch file.\n"
 "\n"
@@ -14635,7 +14464,7 @@ msgstr ""
 "трапиться раніше), після чого відновлюються попередні налаштування\n"
 "оточення.\n"
 
-#: programs/cmd/cmd.rc:272
+#: programs/cmd/cmd.rc:275
 #, fuzzy
 #| msgid ""
 #| "PUSHD <directoryname> saves the current directory onto a\n"
@@ -14647,11 +14476,11 @@ msgstr ""
 "PUSHD <ім'я_теки> зберігає поточну теку в стек, а потім змінює поточну теку\n"
 "на вказану.\n"
 
-#: programs/cmd/cmd.rc:275
+#: programs/cmd/cmd.rc:278
 msgid "POPD changes current directory to the last one saved with PUSHD.\n"
 msgstr "POPD змінює поточну теку на останню збережену командою PUSHD.\n"
 
-#: programs/cmd/cmd.rc:285
+#: programs/cmd/cmd.rc:288
 msgid ""
 "ASSOC shows or modifies file extension associations.\n"
 "\n"
@@ -14671,7 +14500,7 @@ msgstr ""
 "Якщо не вказати тип файлу після знаку рівності то існуюча асоціація буде\n"
 "видалена.\n"
 
-#: programs/cmd/cmd.rc:297
+#: programs/cmd/cmd.rc:300
 msgid ""
 "FTYPE shows or modifies open commands associated with file types.\n"
 "\n"
@@ -14695,11 +14524,11 @@ msgstr ""
 "Якщо не вказана команда відкриття після знаку рівності то це видалить\n"
 "команду для вказаного типу файлів.\n"
 
-#: programs/cmd/cmd.rc:300
+#: programs/cmd/cmd.rc:303
 msgid "MORE displays output of files or piped input in pages.\n"
 msgstr "MORE відображає вміст файлів чи каналів сторінками.\n"
 
-#: programs/cmd/cmd.rc:305
+#: programs/cmd/cmd.rc:308
 msgid ""
 "CHOICE displays a text and waits, until the User presses an allowed Key\n"
 "from a selectable list.\n"
@@ -14710,7 +14539,7 @@ msgstr ""
 "CHOICE переважно використовується для побудови меню вибору в пакетному\n"
 "файлі.\n"
 
-#: programs/cmd/cmd.rc:321
+#: programs/cmd/cmd.rc:324
 msgid ""
 "Create a symbolic link.\n"
 "\n"
@@ -14734,7 +14563,7 @@ msgstr ""
 "ім'я_посилання - це назва нового символьного посилання.\n"
 "ім'я_посилання вказує на шлях цілі.\n"
 
-#: programs/cmd/cmd.rc:309
+#: programs/cmd/cmd.rc:312
 msgid ""
 "EXIT terminates the current command session and returns to the operating\n"
 "system or shell from which you invoked cmd.\n"
@@ -14742,7 +14571,7 @@ msgstr ""
 "EXIT завершує поточну сесію командного рядка та повертає вас до операційної\n"
 "системи чи оболонки, з якої ви запустили cmd.\n"
 
-#: programs/cmd/cmd.rc:361
+#: programs/cmd/cmd.rc:364
 msgid ""
 "CMD built-in commands are:\n"
 "ASSOC\t\tShow or modify file extension associations\n"
@@ -14824,110 +14653,110 @@ msgstr ""
 "\n"
 "Введіть HELP <команда> для детальнішої інформації про вищенаведені команди.\n"
 
-#: programs/cmd/cmd.rc:362
+#: programs/cmd/cmd.rc:365
 msgid "Are you sure?"
 msgstr "Ви впевнені?"
 
-#: programs/cmd/cmd.rc:363 programs/reg/reg.rc:126 programs/xcopy/xcopy.rc:43
+#: programs/cmd/cmd.rc:366 programs/reg/reg.rc:126 programs/xcopy/xcopy.rc:43
 msgctxt "Yes key"
 msgid "Y"
 msgstr "Т"
 
-#: programs/cmd/cmd.rc:364 programs/reg/reg.rc:127 programs/xcopy/xcopy.rc:44
+#: programs/cmd/cmd.rc:367 programs/reg/reg.rc:127 programs/xcopy/xcopy.rc:44
 msgctxt "No key"
 msgid "N"
 msgstr "Н"
 
-#: programs/cmd/cmd.rc:365
+#: programs/cmd/cmd.rc:368
 msgid "File association missing for extension %1\n"
 msgstr "Файлова асоціація для розширення %1 відсутня\n"
 
-#: programs/cmd/cmd.rc:366
+#: programs/cmd/cmd.rc:369
 msgid "No open command associated with file type '%1'\n"
 msgstr "Немає команди відкриття, асоційованої з файловим типом '%1'\n"
 
-#: programs/cmd/cmd.rc:367
+#: programs/cmd/cmd.rc:370
 msgid "Overwrite %1?"
 msgstr "Перезаписати %1?"
 
-#: programs/cmd/cmd.rc:368
+#: programs/cmd/cmd.rc:371
 msgid "More..."
 msgstr "Більше..."
 
-#: programs/cmd/cmd.rc:369
+#: programs/cmd/cmd.rc:372
 msgid "Line in Batch processing possibly truncated. Using:\n"
 msgstr "Рядок в обробці Пакету мабуть урізаний. Використовую:\n"
 
-#: programs/cmd/cmd.rc:371
+#: programs/cmd/cmd.rc:374
 msgid "Argument missing\n"
 msgstr "Відсутній аргумент\n"
 
-#: programs/cmd/cmd.rc:372
+#: programs/cmd/cmd.rc:375
 msgid "Syntax error\n"
 msgstr "Синтаксична помилка\n"
 
-#: programs/cmd/cmd.rc:374
+#: programs/cmd/cmd.rc:377
 msgid "No help available for %1\n"
 msgstr "Немає довідки для %1\n"
 
-#: programs/cmd/cmd.rc:375
+#: programs/cmd/cmd.rc:378
 msgid "Target to GOTO not found\n"
 msgstr "Не знайдена ціль для GOTO\n"
 
-#: programs/cmd/cmd.rc:376
+#: programs/cmd/cmd.rc:379
 msgid "Current Date is %1\n"
 msgstr "Поточна дата: %1\n"
 
-#: programs/cmd/cmd.rc:377
+#: programs/cmd/cmd.rc:380
 msgid "Current Time is %1\n"
 msgstr "Поточний час: %1\n"
 
-#: programs/cmd/cmd.rc:378
+#: programs/cmd/cmd.rc:381
 msgid "Enter new date: "
 msgstr "Введіть нову дату: "
 
-#: programs/cmd/cmd.rc:379
+#: programs/cmd/cmd.rc:382
 msgid "Enter new time: "
 msgstr "Введіть новий час: "
 
-#: programs/cmd/cmd.rc:380
+#: programs/cmd/cmd.rc:383
 msgid "Environment variable %1 not defined\n"
 msgstr "Змінна оточення %1 не визначена\n"
 
-#: programs/cmd/cmd.rc:381 programs/xcopy/xcopy.rc:41
+#: programs/cmd/cmd.rc:384 programs/xcopy/xcopy.rc:41
 msgid "Failed to open '%1'\n"
 msgstr "Не вдалось відкрити '%1'\n"
 
-#: programs/cmd/cmd.rc:382
+#: programs/cmd/cmd.rc:385
 msgid "Cannot call batch label outside of a batch script\n"
 msgstr "Не можу викликати мітку пакету за межами пакетного скрипта\n"
 
-#: programs/cmd/cmd.rc:383 programs/reg/reg.rc:128 programs/xcopy/xcopy.rc:45
+#: programs/cmd/cmd.rc:386 programs/reg/reg.rc:128 programs/xcopy/xcopy.rc:45
 msgctxt "All key"
 msgid "A"
 msgstr "В"
 
-#: programs/cmd/cmd.rc:384
+#: programs/cmd/cmd.rc:387
 msgid "Delete %1?"
 msgstr "Видалити %1?"
 
-#: programs/cmd/cmd.rc:385
+#: programs/cmd/cmd.rc:388
 msgid "Echo is %1\n"
 msgstr "Echo зараз %1\n"
 
-#: programs/cmd/cmd.rc:386
+#: programs/cmd/cmd.rc:389
 msgid "Verify is %1\n"
 msgstr "Verify зараз %1\n"
 
-#: programs/cmd/cmd.rc:387
+#: programs/cmd/cmd.rc:390
 msgid "Verify must be ON or OFF\n"
 msgstr "Verify повинен бути ON чи OFF\n"
 
-#: programs/cmd/cmd.rc:388
+#: programs/cmd/cmd.rc:391
 msgid "Parameter error\n"
 msgstr "Помилка параметру\n"
 
-#: programs/cmd/cmd.rc:389
+#: programs/cmd/cmd.rc:392
 msgid ""
 "Volume Serial Number is %1!04x!-%2!04x!\n"
 "\n"
@@ -14935,96 +14764,82 @@ msgstr ""
 "Серійний номер диску: %1!04x!-%2!04x!\n"
 "\n"
 
-#: programs/cmd/cmd.rc:390
+#: programs/cmd/cmd.rc:393
 msgid "Volume label (11 characters, <Enter> for none)?"
 msgstr "Мітка диску (11 символів, <Enter> - без мітки)?"
 
-#: programs/cmd/cmd.rc:391
+#: programs/cmd/cmd.rc:394
+msgid "PATH not found\n"
+msgstr "PATH не знайдено\n"
+
+#: programs/cmd/cmd.rc:395
 msgid "Press any key to continue... "
 msgstr "Натисніть будь-яку клавішу, щоб продовжити... "
 
-#: programs/cmd/cmd.rc:392
+#: programs/cmd/cmd.rc:396
 msgid "Wine Command Prompt"
 msgstr "Командний рядок Wine"
 
-#: programs/cmd/cmd.rc:393
+#: programs/cmd/cmd.rc:397
 msgid "Microsoft Windows %1!S!\n"
 msgstr "Microsoft Windows %1!S!\n"
 
-#: programs/cmd/cmd.rc:394
+#: programs/cmd/cmd.rc:398
 msgid "More? "
 msgstr "Більше? "
 
-#: programs/cmd/cmd.rc:395
+#: programs/cmd/cmd.rc:399
 msgid "The input line is too long.\n"
 msgstr "Введений рядок задовгий.\n"
 
-#: programs/cmd/cmd.rc:396
+#: programs/cmd/cmd.rc:400
 msgid "Volume in drive %1!c! is %2\n"
 msgstr "Том в приводі %1!c! : %2\n"
 
-#: programs/cmd/cmd.rc:397
+#: programs/cmd/cmd.rc:401
 msgid "Volume in drive %1!c! has no label.\n"
 msgstr "Том в приводі %1!c! не має мітки.\n"
 
-#: programs/cmd/cmd.rc:398 programs/reg/reg.rc:129
+#: programs/cmd/cmd.rc:402 programs/reg/reg.rc:129
 msgid " (Yes|No)"
 msgstr " (Так|Ні)"
 
-#: programs/cmd/cmd.rc:399 programs/reg/reg.rc:130
+#: programs/cmd/cmd.rc:403 programs/reg/reg.rc:130
 msgid " (Yes|No|All)"
 msgstr " (Так|Ні|Всі)"
 
-#: programs/cmd/cmd.rc:400
+#: programs/cmd/cmd.rc:404
 msgid ""
 "Can't recognize '%1' as an internal or external command, or batch script.\n"
 msgstr ""
 "Не можу визначити '%1' як внутрішню або зовнішню команду, чи пакетний "
 "сценарій (скрипт).\n"
 
-#: programs/cmd/cmd.rc:401
+#: programs/cmd/cmd.rc:405
 msgid "Division by zero error.\n"
 msgstr "Помилка Ділення на нуль.\n"
 
-#: programs/cmd/cmd.rc:402
+#: programs/cmd/cmd.rc:406
 msgid "Expected an operand.\n"
 msgstr ""
 
-#: programs/cmd/cmd.rc:403
+#: programs/cmd/cmd.rc:407
 #, fuzzy
 #| msgid "Unexpected network error.\n"
 msgid "Expected an operator.\n"
 msgstr "Неочікувана помилка мережі.\n"
 
-#: programs/cmd/cmd.rc:404
+#: programs/cmd/cmd.rc:408
 msgid "Mismatch in parentheses.\n"
 msgstr ""
 
-#: programs/cmd/cmd.rc:405
+#: programs/cmd/cmd.rc:409
 msgid ""
 "Badly formed number - must be one of decimal (12),\n"
 " hexadecimal (0x34) or octal (056).\n"
 msgstr ""
 "Неправильно сформоване число - має бути або десятковим (12),\n"
 " або шістнадцятковим (0x34), або вісімковим (056).\n"
-
-#: programs/cmd/cmd.rc:407
-#, fuzzy
-#| msgid "Syntax error\n"
-msgid "Syntax error: unexpected %1\n"
-msgstr "Синтаксична помилка\n"
-
-#: programs/cmd/cmd.rc:408
-#, fuzzy
-#| msgid "End of file.\n"
-msgid "End of line"
-msgstr "Кінець файлу.\n"
-
-#: programs/cmd/cmd.rc:409
-#, fuzzy
-#| msgid "End of file.\n"
-msgid "End of file"
-msgstr "Кінець файлу.\n"
 
 #: programs/conhost/conhost.rc:54
 msgid "Cursor size"
@@ -15212,13 +15027,6 @@ msgid ""
 "Are you sure you want to close all programs and exit the virtual desktop?"
 msgstr "Ви впевнені, що хочете видалити ці значення?"
 
-#: programs/explorer/explorer.rc:38
-#, fuzzy
-#| msgctxt "display name"
-#| msgid "Desktop"
-msgid "Wine Desktop"
-msgstr "Стільниця"
-
 #: programs/findstr/findstr.rc:28
 #, fuzzy
 #| msgid "Use c&onnection string"
@@ -15403,12 +15211,6 @@ msgstr "Тип шифрування"
 #| msgid "Current Connections"
 msgid "Current LogonId is"
 msgstr "Поточних Підключень"
-
-#: programs/klist/klist.rc:38
-#, fuzzy
-#| msgid "client"
-msgid "Client"
-msgstr "клієнт"
 
 #: programs/msinfo32/msinfo32.rc:28
 #, fuzzy
@@ -18514,40 +18316,6 @@ msgstr "Виконується"
 msgid "Task"
 msgstr "Завдання"
 
-#: programs/timeout/timeout.rc:28
-msgid "Usage: timeout /T <timeout> [</NOBREAK>]\n"
-msgstr ""
-
-#: programs/timeout/timeout.rc:29
-#, fuzzy
-#| msgid "Invalid command line.\n"
-msgid "TIMEOUT: Bad command line\n"
-msgstr "Невірний командний рядок.\n"
-
-#: programs/timeout/timeout.rc:30
-msgid "waiting since %d sec. "
-msgstr ""
-
-#: programs/timeout/timeout.rc:31
-msgid "press CTRL+C..."
-msgstr ""
-
-#: programs/timeout/timeout.rc:32
-#, fuzzy
-#| msgid "Press any key to continue... "
-msgid "press a key to continue..."
-msgstr "Натисніть будь-яку клавішу, щоб продовжити... "
-
-#: programs/timeout/timeout.rc:33
-msgid "ERROR: not possible to redirect input\n"
-msgstr ""
-
-#: programs/timeout/timeout.rc:34
-msgid ""
-"ERROR: Timeout value out of range or invalid number. Valid range is -1 to "
-"99999.\n"
-msgstr ""
-
 #: programs/uninstaller/uninstaller.rc:29
 msgid "Wine Application Uninstaller"
 msgstr "Видалення додатків Wine"
@@ -19268,11 +19036,11 @@ msgstr ""
 "wineconsole: Запуск програми %s не вдався.\n"
 "Команда невірна.\n"
 
-#: programs/winedbg/winedbg.rc:51 programs/winedbg/winedbg.rc:38
+#: programs/winedbg/winedbg.rc:50 programs/winedbg/winedbg.rc:38
 msgid "Program Error"
 msgstr "Помилка програми"
 
-#: programs/winedbg/winedbg.rc:56
+#: programs/winedbg/winedbg.rc:55
 msgid ""
 "The program %s has encountered a serious problem and needs to close. We are "
 "sorry for the inconvenience."
@@ -19280,7 +19048,7 @@ msgstr ""
 "В програмі %s сталась серйозна помилка. Програма повинна бути закрита. "
 "Вибачте за незручності."
 
-#: programs/winedbg/winedbg.rc:60
+#: programs/winedbg/winedbg.rc:59
 msgid ""
 "This can be caused by a problem in the program or a deficiency in Wine. You "
 "may want to check the <a href=\"https://appdb.winehq.org\">Application "
@@ -19290,25 +19058,25 @@ msgstr ""
 "можете відвідати <a href=\"https://appdb.winehq.org\">Базу даних програм</a> "
 "та пошукати поради щодо запуску цієї програми."
 
-#: programs/winedbg/winedbg.rc:63
+#: programs/winedbg/winedbg.rc:62
 msgid "Show &Details"
 msgstr "&Детально"
 
-#: programs/winedbg/winedbg.rc:68
+#: programs/winedbg/winedbg.rc:67
 msgid "Program Error Details"
 msgstr "Дані про помилку програми"
 
-#: programs/winedbg/winedbg.rc:75
+#: programs/winedbg/winedbg.rc:74
 msgid ""
 "If this problem is not present under Windows and has not been reported yet, "
 "you can save the detailed information to a file using the \"Save As\" "
-"button, then <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/"
-"Bugs\">file a bug report</a> and attach that file to the report."
+"button, then <a href=\"https://wiki.winehq.org/Bugs\">file a bug report</a> "
+"and attach that file to the report."
 msgstr ""
 "Якщо ця проблема відсутня з-під Windows, і про неї ще не повідомлено, Ви "
 "можете зберегти детальну інформацію у файл, використовуючи кнопку \"Зберегти "
-"як\", і потім <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/"
-"Bugs\">відзвітувати про помилку</a>, долучивши збережений файл до звіту."
+"як\", і потім <a href=\"https://wiki.winehq.org/Bugs\">відзвітувати про "
+"помилку</a>, долучивши збережений файл до звіту."
 
 #: programs/winedbg/winedbg.rc:40
 msgid ""
@@ -19706,9 +19474,7 @@ msgid "Help topics: "
 msgstr "Розділи Довідки: "
 
 #: programs/wmic/wmic.rc:28
-#, fuzzy
-#| msgid "Error: Command line not supported\n"
-msgid "Error: Command not supported\n"
+msgid "Error: Command line not supported\n"
 msgstr "Помилка: Командний рядок не підтримується\n"
 
 #: programs/wmic/wmic.rc:29
@@ -19724,12 +19490,6 @@ msgstr "Помилка: невірний запит\n"
 #| msgid "reg: Invalid syntax. "
 msgid "Error: Invalid syntax for PATH\n"
 msgstr "reg: Невірний синтаксис. "
-
-#: programs/wmic/wmic.rc:32
-#, fuzzy
-#| msgid "Bad command.\n"
-msgid "Supply a command\n"
-msgstr "Невірна команда.\n"
 
 #: programs/wordpad/wordpad.rc:31
 msgid "&New...\tCtrl+N"

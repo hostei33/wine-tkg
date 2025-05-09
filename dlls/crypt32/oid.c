@@ -125,7 +125,7 @@ HCRYPTOIDFUNCSET WINAPI CryptInitOIDFunctionSet(LPCSTR pszFuncName,
             ret->name = CryptMemAlloc(strlen(pszFuncName) + 1);
             if (ret->name)
             {
-                InitializeCriticalSectionEx(&ret->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+                InitializeCriticalSection(&ret->cs);
                 ret->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": OIDFunctionSet.cs");
                 list_init(&ret->functions);
                 strcpy(ret->name, pszFuncName);
@@ -1716,13 +1716,7 @@ PCCRYPT_OID_INFO WINAPI CryptFindOIDInfo(DWORD dwKeyType, void *pvKey,
 {
     PCCRYPT_OID_INFO ret = NULL;
 
-    TRACE("(%#lx, %p, %lu)\n", dwKeyType, pvKey, dwGroupId);
-
-    if (dwKeyType & (CRYPT_OID_INFO_PUBKEY_ENCRYPT_KEY_FLAG | CRYPT_OID_INFO_PUBKEY_SIGN_KEY_FLAG))
-    {
-        FIXME("flags %#lx not supported\n", dwKeyType & (CRYPT_OID_INFO_PUBKEY_ENCRYPT_KEY_FLAG | CRYPT_OID_INFO_PUBKEY_SIGN_KEY_FLAG));
-        dwKeyType &= ~(CRYPT_OID_INFO_PUBKEY_ENCRYPT_KEY_FLAG | CRYPT_OID_INFO_PUBKEY_SIGN_KEY_FLAG);
-    }
+    TRACE("(%ld, %p, %ld)\n", dwKeyType, pvKey, dwGroupId);
 
     switch(dwKeyType)
     {

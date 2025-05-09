@@ -35,7 +35,7 @@
 @ stdcall BCryptHashData(ptr ptr long long) bcrypt.BCryptHashData
 @ stdcall BCryptImportKey(ptr ptr wstr ptr ptr long ptr long long) bcrypt.BCryptImportKey
 @ stdcall BCryptImportKeyPair(ptr ptr wstr ptr ptr long long) bcrypt.BCryptImportKeyPair
-@ stdcall BCryptKeyDerivation(ptr ptr ptr long ptr long) bcrypt.BCryptKeyDerivation
+@ stub BCryptKeyDerivation
 @ stdcall BCryptOpenAlgorithmProvider(ptr wstr wstr long) bcrypt.BCryptOpenAlgorithmProvider
 @ stub BCryptQueryContextConfiguration
 @ stub BCryptQueryContextFunctionConfiguration

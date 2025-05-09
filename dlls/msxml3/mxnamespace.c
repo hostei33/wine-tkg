@@ -51,6 +51,10 @@ struct nscontext
 
 #define DEFAULT_PREFIX_ALLOC_COUNT 16
 
+static const WCHAR xmlW[] = {'x','m','l',0};
+static const WCHAR xmluriW[] = {'h','t','t','p',':','/','/','w','w','w','.','w','3','.','o','r','g',
+    '/','X','M','L','/','1','9','9','8','/','n','a','m','e','s','p','a','c','e',0};
+
 typedef struct
 {
     DispatchEx dispex;
@@ -83,7 +87,7 @@ static HRESULT declare_prefix(namespacemanager *This, const WCHAR *prefix, const
     if (ctxt->count == ctxt->max_alloc)
     {
         ctxt->max_alloc *= 2;
-        ctxt->ns = realloc(ctxt->ns, ctxt->max_alloc * sizeof(*ctxt->ns));
+        ctxt->ns = heap_realloc(ctxt->ns, ctxt->max_alloc*sizeof(*ctxt->ns));
     }
 
     if (!prefix) prefix = emptyW;
@@ -169,26 +173,26 @@ static struct nscontext* alloc_ns_context(void)
 {
     struct nscontext *ctxt;
 
-    ctxt = malloc(sizeof(*ctxt));
+    ctxt = heap_alloc(sizeof(*ctxt));
     if (!ctxt) return NULL;
 
     ctxt->count = 0;
     ctxt->max_alloc = DEFAULT_PREFIX_ALLOC_COUNT;
-    ctxt->ns = malloc(ctxt->max_alloc * sizeof(*ctxt->ns));
+    ctxt->ns = heap_alloc(ctxt->max_alloc*sizeof(*ctxt->ns));
     if (!ctxt->ns)
     {
-        free(ctxt);
+        heap_free(ctxt);
         return NULL;
     }
 
     /* first allocated prefix is always 'xml' */
-    ctxt->ns[0].prefix = SysAllocString(L"xml");
-    ctxt->ns[0].uri = SysAllocString(L"http://www.w3.org/XML/1998/namespace");
+    ctxt->ns[0].prefix = SysAllocString(xmlW);
+    ctxt->ns[0].uri = SysAllocString(xmluriW);
     ctxt->count++;
     if (!ctxt->ns[0].prefix || !ctxt->ns[0].uri)
     {
-        free(ctxt->ns);
-        free(ctxt);
+        heap_free(ctxt->ns);
+        heap_free(ctxt);
         return NULL;
     }
 
@@ -205,8 +209,8 @@ static void free_ns_context(struct nscontext *ctxt)
         SysFreeString(ctxt->ns[i].uri);
     }
 
-    free(ctxt->ns);
-    free(ctxt);
+    heap_free(ctxt->ns);
+    heap_free(ctxt);
 }
 
 static HRESULT WINAPI namespacemanager_QueryInterface(IMXNamespaceManager *iface, REFIID riid, void **ppvObject)
@@ -269,11 +273,13 @@ static HRESULT WINAPI namespacemanager_popContext(IMXNamespaceManager *iface)
 static HRESULT WINAPI namespacemanager_declarePrefix(IMXNamespaceManager *iface,
     const WCHAR *prefix, const WCHAR *namespaceURI)
 {
+    static const WCHAR xmlnsW[] = {'x','m','l','n','s',0};
+
     namespacemanager *This = impl_from_IMXNamespaceManager( iface );
 
     TRACE("(%p)->(%s %s)\n", This, debugstr_w(prefix), debugstr_w(namespaceURI));
 
-    if (prefix && (!wcscmp(prefix, L"xml") || !wcscmp(prefix, L"xmlns") || !namespaceURI))
+    if (prefix && (!wcscmp(prefix, xmlW) || !wcscmp(prefix, xmlnsW) || !namespaceURI))
         return E_INVALIDARG;
 
     return declare_prefix(This, prefix, namespaceURI);
@@ -446,7 +452,7 @@ static ULONG WINAPI vbnamespacemanager_Release(IVBMXNamespaceManager *iface)
             free_ns_context(ctxt);
         }
 
-        free(This);
+        heap_free( This );
     }
 
     return ref;
@@ -636,7 +642,7 @@ HRESULT MXNamespaceManager_create(void **obj)
 
     TRACE("(%p)\n", obj);
 
-    This = malloc(sizeof(*This));
+    This = heap_alloc( sizeof (*This) );
     if( !This )
         return E_OUTOFMEMORY;
 
@@ -649,7 +655,7 @@ HRESULT MXNamespaceManager_create(void **obj)
     ctxt = alloc_ns_context();
     if (!ctxt)
     {
-        free(This);
+        heap_free(This);
         return E_OUTOFMEMORY;
     }
 

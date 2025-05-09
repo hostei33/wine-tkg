@@ -18,32 +18,19 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-
-#include "ntstatus.h"
-#define WIN32_NO_STATUS
-#include "windef.h"
-#include "winbase.h"
-#include "winerror.h"
-#include "wingdi.h"
-#include "winuser.h"
-#include "winternl.h"
-#include "ddk/d3dkmthk.h"
-
+#include <windows.h>
+#include <wingdi.h>
 #include "wine/test.h"
 #include "wine/wgl.h"
 
 #define MAX_FORMATS 256
-
-static NTSTATUS (WINAPI *pD3DKMTCreateDCFromMemory)( D3DKMT_CREATEDCFROMMEMORY *desc );
-static NTSTATUS (WINAPI *pD3DKMTDestroyDCFromMemory)( const D3DKMT_DESTROYDCFROMMEMORY *desc );
 
 /* WGL_ARB_create_context */
 static HGLRC (WINAPI *pwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, const int *attribList);
 
 /* WGL_ARB_extensions_string */
 static const char* (WINAPI *pwglGetExtensionsStringARB)(HDC);
+static int (WINAPI *pwglReleasePbufferDCARB)(HPBUFFERARB, HDC);
 
 /* WGL_ARB_make_current_read */
 static BOOL (WINAPI *pwglMakeContextCurrentARB)(HDC hdraw, HDC hread, HGLRC hglrc);
@@ -55,15 +42,7 @@ static BOOL (WINAPI *pwglGetPixelFormatAttribivARB)(HDC, int, int, UINT, const i
 
 /* WGL_ARB_pbuffer */
 static HPBUFFERARB (WINAPI *pwglCreatePbufferARB)(HDC, int, int, int, const int *);
-static BOOL (WINAPI *pwglDestroyPbufferARB)(HPBUFFERARB);
 static HDC (WINAPI *pwglGetPbufferDCARB)(HPBUFFERARB);
-static int (WINAPI *pwglReleasePbufferDCARB)(HPBUFFERARB, HDC);
-static BOOL (WINAPI *pwglQueryPbufferARB)(HPBUFFERARB,int,int*);
-
-/* WGL_ARB_render_texture */
-static BOOL (WINAPI *pwglBindTexImageARB)(HPBUFFERARB,int);
-static BOOL (WINAPI *pwglReleaseTexImageARB)(HPBUFFERARB,int);
-static BOOL (WINAPI *pwglSetPbufferAttribARB)(HPBUFFERARB,const int*);
 
 /* WGL_EXT_swap_control */
 static BOOL (WINAPI *pwglSwapIntervalEXT)(int interval);
@@ -74,28 +53,7 @@ static void (WINAPI *pglDebugMessageCallbackARB)(void *, void *);
 static void (WINAPI *pglDebugMessageControlARB)(GLenum, GLenum, GLenum, GLsizei, const GLuint *, GLboolean);
 static void (WINAPI *pglDebugMessageInsertARB)(GLenum, GLenum, GLuint, GLenum, GLsizei, const char *);
 
-/* GL_ARB_framebuffer_object */
-static void (WINAPI *pglBindFramebuffer)(GLenum target, GLuint framebuffer);
-static GLenum (WINAPI *pglCheckFramebufferStatus)(GLenum target);
-
 static const char* wgl_extensions = NULL;
-
-static void flush_events(void)
-{
-    MSG msg;
-    int diff = 200;
-    int min_timeout = 100;
-    DWORD time = GetTickCount() + diff;
-
-    while (diff > 0)
-    {
-        if (MsgWaitForMultipleObjects(0, NULL, FALSE, min_timeout, QS_ALLINPUT) == WAIT_TIMEOUT)
-            break;
-        while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
-            DispatchMessageA(&msg);
-        diff = time - GetTickCount();
-    }
-}
 
 static void init_functions(void)
 {
@@ -120,15 +78,8 @@ static void init_functions(void)
 
     /* WGL_ARB_pbuffer */
     GET_PROC(wglCreatePbufferARB)
-    GET_PROC(wglDestroyPbufferARB)
     GET_PROC(wglGetPbufferDCARB)
     GET_PROC(wglReleasePbufferDCARB)
-    GET_PROC(wglQueryPbufferARB)
-
-    /* WGL_ARB_render_texture */
-    GET_PROC(wglBindTexImageARB)
-    GET_PROC(wglReleaseTexImageARB)
-    GET_PROC(wglSetPbufferAttribARB)
 
     /* WGL_EXT_swap_control */
     GET_PROC(wglSwapIntervalEXT)
@@ -138,10 +89,6 @@ static void init_functions(void)
     GET_PROC(glDebugMessageCallbackARB)
     GET_PROC(glDebugMessageControlARB)
     GET_PROC(glDebugMessageInsertARB)
-
-    /* GL_ARB_framebuffer_object */
-    GET_PROC(glBindFramebuffer)
-    GET_PROC(glCheckFramebufferStatus)
 
 #undef GET_PROC
 }
@@ -173,558 +120,104 @@ static BOOL gl_extension_supported(const char *extensions, const char *extension
     return FALSE;
 }
 
-static void test_pbuffers( HDC old_hdc )
+static void test_pbuffers(HDC hdc)
 {
-    int attribs[32] = { WGL_DRAW_TO_PBUFFER_ARB, 1, 0 };
-    int formats[MAX_FORMATS], pbuffer_attribs[15] = {0};
-    unsigned int i, count, onscreen;
-    unsigned int pixels[16 * 16];
-    HDC hdc, pbuffer_dc, tmp_dc;
-    HPBUFFERARB pbuffer;
-    HGLRC rc, old_rc;
-    int res, value;
-    GLuint texture;
-    HWND hwnd;
-    BOOL ret;
+    const int iAttribList[] = { WGL_DRAW_TO_PBUFFER_ARB, 1, /* Request pbuffer support */
+                                0 };
+    int iFormats[MAX_FORMATS];
+    unsigned int nOnscreenFormats;
+    unsigned int nFormats;
+    int i, res;
+    int iPixelFormat = 0;
 
-    old_rc = wglGetCurrentContext();
+    nOnscreenFormats = DescribePixelFormat(hdc, 0, 0, NULL);
 
-    hwnd = CreateWindowW( L"static", NULL, WS_POPUP, 10, 10, 200, 200, NULL, NULL, NULL, NULL );
-    ok( !!hwnd, "CreateWindow failed, error %lu\n", GetLastError() );
-    hdc = GetDC( hwnd );
-    ok( !!hdc, "GetDC failed, error %lu\n", GetLastError() );
-
-    onscreen = DescribePixelFormat( hdc, 0, 0, NULL );
-    attribs[0] = WGL_DRAW_TO_WINDOW_ARB; attribs[1] = 1;
-    attribs[2] = WGL_COLOR_BITS_ARB; attribs[3] = 32;
-    attribs[4] = WGL_PIXEL_TYPE_ARB; attribs[5] = WGL_TYPE_RGBA_ARB;
-    res = pwglChoosePixelFormatARB( hdc, attribs, NULL, MAX_FORMATS, formats, &count );
-    ok( res > 0, "got %d\n", res );
-    ret = SetPixelFormat( hdc, formats[0], NULL );
-    ok( ret == 1, "got %u\n", ret );
-
-    attribs[0] = WGL_DRAW_TO_PBUFFER_ARB; attribs[1] = 1;
-    attribs[2] = WGL_COLOR_BITS_ARB; attribs[3] = 32;
-    attribs[4] = WGL_PIXEL_TYPE_ARB; attribs[5] = WGL_TYPE_RGBA_ARB;
-    res = pwglChoosePixelFormatARB( hdc, attribs, NULL, MAX_FORMATS, formats, &count );
-    ok( res > 0, "got %d\n", res );
-    if (count > MAX_FORMATS) count = MAX_FORMATS;
-
-    wglMakeCurrent( 0, 0 );
-
-    SetLastError( 0xdeadbeef );
-    pbuffer = pwglCreatePbufferARB( hdc, 0, 100, 100, pbuffer_attribs );
-    ok( !pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_PIXEL_FORMAT, "got %lu\n", GetLastError() );
-    if (pbuffer) pwglDestroyPbufferARB( pbuffer );
-    SetLastError( 0xdeadbeef );
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 0, 100, pbuffer_attribs );
-    ok( !pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA, "got %lu\n", GetLastError() );
-    if (pbuffer) pwglDestroyPbufferARB( pbuffer );
-    SetLastError( 0xdeadbeef );
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], -1, 100, pbuffer_attribs );
-    ok( !pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA, "got %lu\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 100, 0, pbuffer_attribs );
-    ok( !pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA, "got %lu\n", GetLastError() );
-    if (pbuffer) pwglDestroyPbufferARB( pbuffer );
-    SetLastError( 0xdeadbeef );
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 100, -1, pbuffer_attribs );
-    ok( !pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA, "got %#lx\n", GetLastError() );
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 100, 100, NULL );
-    ok( !!pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-    pwglDestroyPbufferARB( pbuffer );
-
-    for (i = 0; i < count; i++)
+    /* When you want to render to a pbuffer you need to call wglGetPbufferDCARB which
+     * returns a 'magic' HDC which you can then pass to wglMakeCurrent to switch rendering
+     * to the pbuffer. Below some tests are performed on what happens if you use standard WGL calls
+     * on this 'magic' HDC for both a pixelformat that support onscreen and offscreen rendering
+     * and a pixelformat that's only available for offscreen rendering (this means that only
+     * wglChoosePixelFormatARB and friends know about the format.
+     *
+     * The first thing we need are pixelformats with pbuffer capabilities.
+     */
+    res = pwglChoosePixelFormatARB(hdc, iAttribList, NULL, MAX_FORMATS, iFormats, &nFormats);
+    if(res <= 0)
     {
-        winetest_push_context( "%u", formats[i] );
-        pbuffer = pwglCreatePbufferARB( hdc, formats[i], 640, 480, pbuffer_attribs );
-        ok( !!pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-        pbuffer_dc = pwglGetPbufferDCARB( pbuffer );
-        ok( pbuffer_dc != hdc, "got %p\n", pbuffer_dc );
-        res = GetPixelFormat( pbuffer_dc );
-        ret = pwglReleasePbufferDCARB( pbuffer, pbuffer_dc );
-        ok( ret == 1, "got %u\n", ret );
-        if (formats[i] > onscreen) ok( res == 1, "got format %d\n", res );
-        else ok( res == formats[i] || broken( res == 1 ) /* AMD sometimes */, "got format %d\n", res );
-        ret = pwglDestroyPbufferARB( pbuffer );
-        ok( ret == 1, "got %u\n", ret );
-        winetest_pop_context();
+        skip("No pbuffer compatible formats found while WGL_ARB_pbuffer is supported\n");
+        return;
+    }
+    trace("nOnscreenFormats: %d\n", nOnscreenFormats);
+    trace("Total number of pbuffer capable pixelformats: %d\n", nFormats);
+
+    /* Try to select an onscreen pixelformat out of the list */
+    for(i=0; i < nFormats; i++)
+    {
+        /* Check if the format is onscreen, if it is choose it */
+        if(iFormats[i] <= nOnscreenFormats)
+        {
+            iPixelFormat = iFormats[i];
+            trace("Selected iPixelFormat=%d\n", iPixelFormat);
+            break;
+        }
     }
 
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 640, 480, pbuffer_attribs );
-    ok( !!pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-
-    pbuffer_dc = pwglGetPbufferDCARB( pbuffer );
-    ok( pbuffer_dc != hdc, "got %p\n", pbuffer_dc );
-
-    /* wglGetPbufferDCARB returns the same DC every time */
-    tmp_dc = pwglGetPbufferDCARB( pbuffer );
-    ok( tmp_dc == pbuffer_dc, "got %p\n", tmp_dc );
-
-    /* releasing the wrong DC returns an error */
-    SetLastError( 0xdeadbeef );
-    ret = pwglReleasePbufferDCARB( pbuffer, hdc );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_DC_NOT_FOUND, "got %#lx\n", GetLastError() );
-
-    ret = pwglReleasePbufferDCARB( pbuffer, pbuffer_dc );
-    ok( ret == 1, "got %u\n", ret );
-    /* releasing the DC more than once may return an error */
-    SetLastError( 0xdeadbeef );
-    ret = pwglReleasePbufferDCARB( pbuffer, pbuffer_dc );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-    if (!ret) todo_wine ok( (GetLastError() & 0xffff) == ERROR_DC_NOT_FOUND, "got %#lx\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-    ret = pwglReleasePbufferDCARB( pbuffer, pbuffer_dc );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-    if (!ret) todo_wine ok( (GetLastError() & 0xffff) == ERROR_DC_NOT_FOUND, "got %#lx\n", GetLastError() );
-
-    tmp_dc = pwglGetPbufferDCARB( pbuffer );
-    if (!ret) ok( tmp_dc != pbuffer_dc, "got %p\n", tmp_dc );
-    else ok( tmp_dc == pbuffer_dc, "got %p\n", tmp_dc );
-    ret = pwglReleasePbufferDCARB( pbuffer, tmp_dc );
-    ok( ret == 1, "got %u\n", ret );
-
-    SetLastError( 0xdeadbeef );
-    ret = pwglQueryPbufferARB( NULL, WGL_PBUFFER_WIDTH_ARB, &value );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_HANDLE, "got %#lx\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-    ret = pwglQueryPbufferARB( pbuffer, 0, &value );
-    todo_wine ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA, "got %#lx\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-    ret = pwglQueryPbufferARB( pbuffer, 0xdeadbeef, &value );
-    todo_wine ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA, "got %#lx\n", GetLastError() );
-
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_WIDTH_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 0 || value == 640, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_HEIGHT_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 0 || value == 480, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_LOST_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 0, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_TEXTURE_FORMAT_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == WGL_NO_TEXTURE_ARB || broken(value == 0xdeadbeef) /* AMD */, "got %#x\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_TEXTURE_TARGET_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == WGL_NO_TEXTURE_ARB || broken(value == 0xdeadbeef) /* AMD */, "got %#x\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_MIPMAP_TEXTURE_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 0 || broken(value > 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_MIPMAP_LEVEL_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 0 || broken(value > 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_CUBE_MAP_FACE_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == WGL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB || broken(value == 0xdeadbeef), "got %#x\n", value );
-
-    pbuffer_attribs[0] = WGL_PBUFFER_WIDTH_ARB;
-    pbuffer_attribs[1] = 50;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_PBUFFER_HEIGHT_ARB;
-    pbuffer_attribs[1] = 50;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_PBUFFER_LOST_ARB;
-    pbuffer_attribs[1] = 0;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_TEXTURE_FORMAT_ARB;
-    pbuffer_attribs[1] = WGL_TEXTURE_RGBA_ARB;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_TEXTURE_TARGET_ARB;
-    pbuffer_attribs[1] = WGL_TEXTURE_2D_ARB;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_MIPMAP_TEXTURE_ARB;
-    pbuffer_attribs[1] = 1;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_MIPMAP_LEVEL_ARB;
-    pbuffer_attribs[1] = 1;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0 || broken(ret == 1) /* AMD */, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_CUBE_MAP_FACE_ARB;
-    pbuffer_attribs[1] = WGL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB;
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    todo_wine ok( ret == 1, "got %u\n", ret );
-
-    SetLastError( 0xdeadbeef );
-    ret = pwglDestroyPbufferARB( pbuffer );
-    ok( ret == 1, "got %u\n", ret );
-    ok( GetLastError() == 0xdeadbeef, "got %#lx\n", GetLastError() );
-    /* destroying the pbuffer multiple times is an error */
-    SetLastError( 0xdeadbeef );
-    ret = pwglDestroyPbufferARB( pbuffer );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_HANDLE, "got %#lx\n", GetLastError() );
-
-    if (!winetest_platform_is_wine) /* triggers a BadAlloc */
+    /* A video driver supports a large number of onscreen and offscreen pixelformats.
+     * The traditional WGL calls only see a subset of the whole pixelformat list. First
+     * of all they only see the onscreen formats (the offscreen formats are at the end of the
+     * pixelformat list) and second extended pixelformat capabilities are hidden from the
+     * standard WGL calls. Only functions that depend on WGL_ARB_pixel_format can see them.
+     *
+     * Below we check if the pixelformat is also supported onscreen.
+     */
+    if(iPixelFormat != 0)
     {
-    pbuffer_attribs[0] = WGL_PBUFFER_LARGEST_ARB;
-    pbuffer_attribs[1] = 1;
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 65535, 65535, pbuffer_attribs );
-    ok( !!pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_WIDTH_ARB, &value );
-    ok( ret == 1 || ret == 0, "got %u\n", ret );
-    ok( value > 0 && value < 65535, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_HEIGHT_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value > 0 && value < 65535, "got %u\n", value );
-    pwglDestroyPbufferARB( pbuffer );
+        HDC pbuffer_hdc;
+        int attrib = 0;
+        HPBUFFERARB pbuffer = pwglCreatePbufferARB(hdc, iPixelFormat, 640 /* width */, 480 /* height */, &attrib);
+        if(!pbuffer)
+            skip("Pbuffer creation failed!\n");
 
-    pbuffer_attribs[0] = WGL_PBUFFER_LARGEST_ARB;
-    pbuffer_attribs[1] = 0;
-    SetLastError( 0xdeadbeef );
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 65535, 65535, pbuffer_attribs );
-    ok( !pbuffer || broken(!!pbuffer) /* AMD */, "wglCreatePbufferARB returned %p\n", pbuffer );
-    ok( (GetLastError() & 0xffff) == ERROR_NO_SYSTEM_RESOURCES || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    if (pbuffer) pwglDestroyPbufferARB( pbuffer );
+        /* Test the pixelformat returned by GetPixelFormat on a pbuffer as the behavior is not clear */
+        pbuffer_hdc = pwglGetPbufferDCARB(pbuffer);
+        res = GetPixelFormat(pbuffer_hdc);
+        ok(res == iPixelFormat, "Unexpected iPixelFormat=%d returned by GetPixelFormat for format %d\n", res, iPixelFormat);
+        trace("iPixelFormat returned by GetPixelFormat: %d\n", res);
+        trace("PixelFormat from wglChoosePixelFormatARB: %d\n", iPixelFormat);
+
+        pwglReleasePbufferDCARB(pbuffer, pbuffer_hdc);
+    }
+    else skip("Pbuffer test for onscreen pixelformat skipped as no onscreen format with pbuffer capabilities have been found\n");
+
+    /* Search for a real offscreen format */
+    for(i=0, iPixelFormat=0; i<nFormats; i++)
+    {
+        if(iFormats[i] > nOnscreenFormats)
+        {
+            iPixelFormat = iFormats[i];
+            trace("Selected iPixelFormat: %d\n", iPixelFormat);
+            break;
+        }
     }
 
-    pbuffer_attribs[0] = WGL_TEXTURE_FORMAT_ARB;
-    pbuffer_attribs[1] = WGL_TEXTURE_RGB_ARB;
-    pbuffer_attribs[2] = WGL_TEXTURE_TARGET_ARB;
-    pbuffer_attribs[3] = WGL_TEXTURE_CUBE_MAP_ARB;
-    pbuffer_attribs[4] = WGL_MIPMAP_TEXTURE_ARB;
-    pbuffer_attribs[5] = 4;
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 512, 512, pbuffer_attribs );
-    ok( !!pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_WIDTH_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 512 || broken(value == 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_HEIGHT_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 512 || broken(value == 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_LOST_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 0, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_TEXTURE_FORMAT_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == WGL_TEXTURE_RGB_ARB || broken(value == 0xdeadbeef) /* AMD */, "got %#x\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_TEXTURE_TARGET_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == WGL_TEXTURE_CUBE_MAP_ARB || broken(value == 0xdeadbeef) /* AMD */, "got %#x\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_MIPMAP_TEXTURE_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 1 || broken(value > 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_MIPMAP_LEVEL_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 0 || broken(value > 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_CUBE_MAP_FACE_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == WGL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB || broken(value == 0xdeadbeef) /* AMD */, "got %#x\n", value );
-
-    pbuffer_attribs[0] = WGL_PBUFFER_WIDTH_ARB;
-    pbuffer_attribs[1] = 50;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_PBUFFER_HEIGHT_ARB;
-    pbuffer_attribs[1] = 50;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_PBUFFER_LOST_ARB;
-    pbuffer_attribs[1] = 0;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_TEXTURE_FORMAT_ARB;
-    pbuffer_attribs[1] = WGL_TEXTURE_RGBA_ARB;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_TEXTURE_TARGET_ARB;
-    pbuffer_attribs[1] = WGL_TEXTURE_2D_ARB;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_MIPMAP_TEXTURE_ARB;
-    pbuffer_attribs[1] = 2;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_MIPMAP_LEVEL_ARB;
-    pbuffer_attribs[1] = 2;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0 || broken(ret == 1) /* AMD */, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    pbuffer_attribs[0] = WGL_CUBE_MAP_FACE_ARB;
-    pbuffer_attribs[1] = WGL_TEXTURE_CUBE_MAP_NEGATIVE_X_ARB;
-    SetLastError( 0xdeadbeef );
-    ret = pwglSetPbufferAttribARB( pbuffer, pbuffer_attribs );
-    ok( ret == 0 || broken(ret == 1) /* AMD */, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_WIDTH_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 512 || broken(value == 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_HEIGHT_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 512 || broken(value == 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_PBUFFER_LOST_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 0, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_TEXTURE_FORMAT_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == WGL_TEXTURE_RGB_ARB || broken(value == 0xdeadbeef) /* AMD */, "got %#x\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_TEXTURE_TARGET_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == WGL_TEXTURE_CUBE_MAP_ARB || broken(value == 0xdeadbeef) /* AMD */, "got %#x\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_MIPMAP_TEXTURE_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    ok( value == 1 || broken(value > 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_MIPMAP_LEVEL_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    todo_wine ok( value == 0 || broken(value > 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    ret = pwglQueryPbufferARB( pbuffer, WGL_CUBE_MAP_FACE_ARB, &value );
-    ok( ret == 1, "got %u\n", ret );
-    todo_wine ok( value == WGL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB || broken(value == 0xdeadbeef) /* AMD */, "got %#x\n", value );
-
-    pwglDestroyPbufferARB( pbuffer );
-
-
-    pbuffer_attribs[0] = WGL_TEXTURE_FORMAT_ARB;
-    pbuffer_attribs[1] = WGL_TEXTURE_RGB_ARB;
-    pbuffer_attribs[2] = WGL_TEXTURE_TARGET_ARB;
-    pbuffer_attribs[3] = WGL_TEXTURE_2D_ARB;
-    pbuffer_attribs[4] = 0;
-    pbuffer = pwglCreatePbufferARB( hdc, formats[0], 16, 16, pbuffer_attribs );
-    ok( !!pbuffer, "wglCreatePbufferARB returned %p\n", pbuffer );
-
-    pbuffer_dc = pwglGetPbufferDCARB( pbuffer );
-    ok( !!pbuffer_dc, "got %p\n", pbuffer_dc );
-    rc = wglCreateContext( pbuffer_dc );
-    ok( !!rc, "got %p\n", rc );
-    ret = wglMakeCurrent( pbuffer_dc, rc );
-    ok( ret == 1, "got %u\n", ret );
-
-    if (!winetest_platform_is_wine) /* triggers a BadMatch */
+    if(iPixelFormat != 0)
     {
-    glClearColor( (float)0x22 / 0xff, (float)0x33 / 0xff, (float)0x44 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
+        HDC pbuffer_hdc;
+        HPBUFFERARB pbuffer = pwglCreatePbufferARB(hdc, iPixelFormat, 640 /* width */, 480 /* height */, NULL);
+        if(pbuffer)
+        {
+            /* Test the pixelformat returned by GetPixelFormat on a pbuffer as the behavior is not clear */
+            pbuffer_hdc = pwglGetPbufferDCARB(pbuffer);
+            res = GetPixelFormat(pbuffer_hdc);
+
+            ok(res == 1, "Unexpected iPixelFormat=%d (1 expected) returned by GetPixelFormat for offscreen format %d\n", res, iPixelFormat);
+            trace("iPixelFormat returned by GetPixelFormat: %d\n", res);
+            trace("PixelFormat from wglChoosePixelFormatARB: %d\n", iPixelFormat);
+            pwglReleasePbufferDCARB(pbuffer, hdc);
+        }
+        else skip("Pbuffer creation failed!\n");
     }
-
-    ret = wglMakeCurrent( 0, 0 );
-    ok( ret == 1, "got %u\n", ret );
-    ret = wglDeleteContext( rc );
-    ok( ret == 1, "got %u\n", ret );
-    ret = pwglReleasePbufferDCARB( pbuffer, pbuffer_dc );
-    ok( ret == 1, "got %u\n", ret );
-
-
-    rc = wglCreateContext( hdc );
-    ok( !!rc, "got %p\n", rc );
-    ret = wglMakeCurrent( hdc, rc );
-    ok( ret == 1, "got %u\n", ret );
-
-    /* test some invalid params */
-    SetLastError( 0xdeadbeef );
-    ret = pwglReleaseTexImageARB( pbuffer, GL_FRONT );
-    todo_wine ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(GetLastError() == 0xdeadbeef) /* AMD */, "got %#lx\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-    ret = pwglBindTexImageARB( pbuffer, GL_BACK );
-    ok( ret == 0, "got %u\n", ret );
-    ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(GetLastError() == 0xdeadbeef) /* AMD */, "got %#lx\n", GetLastError() );
-
-    /* test invalid calls */
-    SetLastError( 0xdeadbeef );
-    ret = pwglReleaseTexImageARB( pbuffer, WGL_BACK_LEFT_ARB );
-    todo_wine ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-
-    value = 0xdeadbeef;
-    glGetIntegerv( GL_TEXTURE_BINDING_2D, &value );
-    ok( value == 0, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &value );
-    ok( value == 0, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &value );
-    ok( value == 0, "got %u\n", value );
-    memset( pixels, 0xcd, sizeof(pixels) );
-    glGetTexImage( GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels );
-    ok( pixels[0] == 0xcdcdcdcd, "got %#x\n", pixels[0] );
-    ret = pwglReleaseTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-
-    ret = pwglBindTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-
-    value = 0xdeadbeef;
-    glGetIntegerv( GL_TEXTURE_BINDING_2D, &value );
-    ok( value == 0, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &value );
-    ok( value == 16 || broken(value == 0) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &value );
-    ok( value == 16 || broken(value == 0) /* AMD */, "got %u\n", value );
-    memset( pixels, 0xcd, sizeof(pixels) );
-    glGetTexImage( GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x443322 || broken(pixels[0] == 0xcdcdcdcd) /* AMD */, "got %#x\n", pixels[0] );
-
-    SetLastError( 0xdeadbeef );
-    ret = pwglBindTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    todo_wine ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-    SetLastError( 0xdeadbeef );
-    ret = pwglBindTexImageARB( pbuffer, WGL_FRONT_RIGHT_ARB );
-    todo_wine ok( ret == 0, "got %u\n", ret );
-    todo_wine ok( (GetLastError() & 0xffff) == ERROR_INVALID_DATA || broken(!GetLastError()) /* AMD */, "got %#lx\n", GetLastError() );
-
-    pwglReleaseTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    ret = pwglReleaseTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-
-    glGenTextures( 1, &texture );
-    glEnable( GL_TEXTURE_2D );
-    glBindTexture( GL_TEXTURE_2D, texture );
-    memset( pixels, 0xa5, sizeof(pixels) );
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0,  GL_RGBA, GL_UNSIGNED_BYTE, pixels );
-
-    value = 0xdeadbeef;
-    glGetIntegerv( GL_TEXTURE_BINDING_2D, &value );
-    ok( value == texture, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &value );
-    ok( value == 8, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &value );
-    ok( value == 8, "got %u\n", value );
-    memset( pixels, 0xcd, sizeof(pixels) );
-    glGetTexImage( GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels );
-    ok( (pixels[0] & 0xffffff) == 0xa5a5a5, "got %#x\n", pixels[0] );
-
-    ret = pwglBindTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-
-    value = 0xdeadbeef;
-    glGetIntegerv( GL_TEXTURE_BINDING_2D, &value );
-    ok( value == texture, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &value );
-    ok( value == 16 || broken(value == 8) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &value );
-    ok( value == 16 || broken(value == 8) /* AMD */, "got %u\n", value );
-    memset( pixels, 0xcd, sizeof(pixels) );
-    glGetTexImage( GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x443322 || broken(pixels[0] == 0xa5a5a5a5) /* AMD */, "got %#x\n", pixels[0] );
-
-    ret = pwglReleaseTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-
-    value = 0xdeadbeef;
-    glGetIntegerv( GL_TEXTURE_BINDING_2D, &value );
-    ok( value == texture, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &value );
-    todo_wine ok( value == 0 || broken(value == 8) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &value );
-    todo_wine ok( value == 0 || broken(value == 8) /* AMD */, "got %u\n", value );
-    memset( pixels, 0xcd, sizeof(pixels) );
-    glGetTexImage( GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels );
-    todo_wine ok( pixels[0] == 0xcdcdcdcd || broken(pixels[0] == 0xa5a5a5a5) /* AMD */, "got %#x\n", pixels[0] );
-
-    ret = pwglReleaseTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-    ret = pwglReleaseTexImageARB( pbuffer, WGL_FRONT_LEFT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-
-    ret = pwglBindTexImageARB( pbuffer, WGL_FRONT_RIGHT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-
-    value = 0xdeadbeef;
-    glGetIntegerv( GL_TEXTURE_BINDING_2D, &value );
-    ok( value == texture, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &value );
-    todo_wine ok( value == 0 || broken(value == 8) /* AMD */, "got %u\n", value );
-    value = 0xdeadbeef;
-    glGetTexLevelParameteriv( GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &value );
-    todo_wine ok( value == 0 || broken(value == 8) /* AMD */, "got %u\n", value );
-    memset( pixels, 0xcd, sizeof(pixels) );
-    glGetTexImage( GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels );
-    todo_wine ok( pixels[0] == 0xcdcdcdcd || broken(pixels[0] == 0xa5a5a5a5) /* AMD */, "got %#x\n", pixels[0] );
-
-    ret = pwglReleaseTexImageARB( pbuffer, WGL_FRONT_RIGHT_ARB );
-    ok( ret == 1 || broken(ret == 0) /* AMD */, "got %u\n", ret );
-
-    glDeleteTextures( 1, &texture );
-
-    ret = wglDeleteContext( rc );
-    ok( ret == 1, "got %u\n", ret );
-
-    pwglDestroyPbufferARB( pbuffer );
-
-    ReleaseDC( hwnd, hdc );
-    DestroyWindow( hwnd );
-
-    wglMakeCurrent( old_hdc, old_rc );
+    else skip("Pbuffer test for offscreen pixelformat skipped as no offscreen-only format with pbuffer capabilities has been found\n");
 }
 
 static int test_pfd(const PIXELFORMATDESCRIPTOR *pfd, PIXELFORMATDESCRIPTOR *fmt)
@@ -1341,446 +834,155 @@ static void test_acceleration(HDC hdc)
     }
 }
 
-static void read_bitmap_pixels( HDC hdc, HBITMAP bmp, UINT *pixels, UINT width, UINT height, UINT bpp )
-{
-    BITMAPINFO bmi =
-    {
-        .bmiHeader.biSize = sizeof(BITMAPINFOHEADER),
-        .bmiHeader.biPlanes = 1,
-        .bmiHeader.biWidth = width,
-        .bmiHeader.biHeight = -height,
-        .bmiHeader.biBitCount = bpp,
-        .bmiHeader.biSizeImage = width * height * bpp / 8,
-        .bmiHeader.biCompression = BI_RGB,
-    };
-    BOOL ret;
-
-    ret = GetDIBits( hdc, bmp, 0, height, pixels, &bmi, DIB_RGB_COLORS );
-    ok( ret, "GetDIBits failed, error %lu\n", GetLastError() );
-}
-
 static void test_bitmap_rendering( BOOL use_dib )
 {
-    static const RECT expect_rect = {0, 0, 4, 4}, expect_rect2 = {0, 0, 12, 12};
-    BITMAPINFO bmi = {.bmiHeader = {.biSize = sizeof(BITMAPINFOHEADER), .biPlanes = 1, .biCompression = BI_RGB}};
-    UINT buffer[16 * 16], buffer2[16 * 16], *pixels = buffer, *pixels2 = buffer2, pixel;
-    int i, ret, bpp, count, pixel_format = 0;
-    HBITMAP bmp, old_bmp, bmp2, tmp_bmp;
-    GLint viewport[4], object;
+    PIXELFORMATDESCRIPTOR pfd;
+    int i, ret, bpp, iPixelFormat=0;
+    unsigned int nFormats;
     HGLRC hglrc, hglrc2;
-    HDC hdc;
+    BITMAPINFO biDst;
+    HBITMAP bmpDst, oldDst, bmp2;
+    HDC hdcDst, hdcScreen;
+    UINT *dstBuffer = NULL;
 
-    winetest_push_context( use_dib ? "DIB" : "DDB" );
-
-    hdc = CreateCompatibleDC( 0 );
+    hdcScreen = CreateCompatibleDC(0);
+    hdcDst = CreateCompatibleDC(0);
 
     if (use_dib)
     {
         bpp = 32;
-        bmi.bmiHeader.biWidth = 4;
-        bmi.bmiHeader.biHeight = -4;
-        bmi.bmiHeader.biBitCount = 32;
-        bmp = CreateDIBSection( 0, &bmi, DIB_RGB_COLORS, (void **)&pixels, NULL, 0 );
-        memset( (void *)pixels, 0xcd, sizeof(*pixels) * 4 * 4 );
+        memset(&biDst, 0, sizeof(BITMAPINFO));
+        biDst.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        biDst.bmiHeader.biWidth = 4;
+        biDst.bmiHeader.biHeight = -4;
+        biDst.bmiHeader.biPlanes = 1;
+        biDst.bmiHeader.biBitCount = 32;
+        biDst.bmiHeader.biCompression = BI_RGB;
 
-        bmi.bmiHeader.biWidth = 12;
-        bmi.bmiHeader.biHeight = -12;
-        bmi.bmiHeader.biBitCount = 16;
-        bmp2 = CreateDIBSection( 0, &bmi, DIB_RGB_COLORS, (void **)&pixels2, NULL, 0 );
-        memset( (void *)pixels2, 0xdc, sizeof(*pixels2) * 12 * 12 );
+        bmpDst = CreateDIBSection(0, &biDst, DIB_RGB_COLORS, (void**)&dstBuffer, NULL, 0);
+
+        biDst.bmiHeader.biWidth = 12;
+        biDst.bmiHeader.biHeight = -12;
+        biDst.bmiHeader.biBitCount = 16;
+        bmp2 = CreateDIBSection(0, &biDst, DIB_RGB_COLORS, NULL, NULL, 0);
     }
     else
     {
-        bpp = GetDeviceCaps( hdc, BITSPIXEL );
-        memset( (void *)pixels, 0xcd, sizeof(*pixels) * 4 * 4 );
-        bmp = CreateBitmap( 4, 4, 1, bpp, pixels );
-        memset( (void *)pixels2, 0xdc, sizeof(*pixels2) * 12 * 12 );
-        bmp2 = CreateBitmap( 12, 12, 1, bpp, pixels2 );
+        bpp = GetDeviceCaps( hdcScreen, BITSPIXEL );
+        bmpDst = CreateBitmap( 4, 4, 1, bpp, NULL );
+        bmp2 = CreateBitmap( 12, 12, 1, bpp, NULL );
     }
 
-    ret = GetPixelFormat( hdc );
-    ok( ret == 0, "got %d\n", ret );
-    count = DescribePixelFormat( hdc, 0, 0, NULL );
-    ok( count > 1, "got %d\n", count );
+    oldDst = SelectObject(hdcDst, bmpDst);
 
-    old_bmp = SelectObject( hdc, bmp );
-    ok( !!old_bmp, "got %p\n", old_bmp );
+    trace( "testing on %s\n", use_dib ? "DIB" : "DDB" );
 
-    /* cannot create a GL context without a pixel format */
-
-    hglrc = wglCreateContext( hdc );
-    ok( !hglrc, "wglCreateContext succeeded\n" );
-    if (hglrc) wglDeleteContext( hglrc );
-
-    /* cannot set pixel format twice */
-
-    for (i = 1; i <= count; i++)
+    /* Pick a pixel format by hand because ChoosePixelFormat is unreliable */
+    nFormats = DescribePixelFormat(hdcDst, 0, 0, NULL);
+    for(i=1; i<=nFormats; i++)
     {
-        PIXELFORMATDESCRIPTOR pfd = {0};
+        memset(&pfd, 0, sizeof(PIXELFORMATDESCRIPTOR));
+        DescribePixelFormat(hdcDst, i, sizeof(PIXELFORMATDESCRIPTOR), &pfd);
 
-        winetest_push_context( "%u", i );
-
-        ret = DescribePixelFormat( hdc, i, sizeof(pfd), &pfd );
-        ok( ret == count, "got %d\n", ret );
-
-        if ((pfd.dwFlags & PFD_DRAW_TO_BITMAP) && (pfd.dwFlags & PFD_SUPPORT_OPENGL) &&
-            pfd.cColorBits == bpp && pfd.cAlphaBits == 8)
+        if((pfd.dwFlags & PFD_DRAW_TO_BITMAP) &&
+           (pfd.dwFlags & PFD_SUPPORT_OPENGL) &&
+           (pfd.cColorBits == bpp) &&
+           (pfd.cAlphaBits == 8) )
         {
-            ret = SetPixelFormat( hdc, i, &pfd );
-            if (pixel_format) ok( !ret, "SetPixelFormat succeeded\n" );
-            else ok( ret, "SetPixelFormat failed\n" );
-            if (ret) pixel_format = i;
-            ret = GetPixelFormat( hdc );
-            ok( ret == pixel_format, "got %d\n", ret );
+            iPixelFormat = i;
+            break;
         }
-
-        winetest_pop_context();
     }
 
-    ok( !!pixel_format, "got pixel_format %u\n", pixel_format );
-
-    /* even after changing the selected bitmap */
-
-    tmp_bmp = SelectObject( hdc, bmp2 );
-    ok( tmp_bmp == bmp, "got %p\n", tmp_bmp );
-
-    for (i = 1; i <= count; i++)
+    if(!iPixelFormat)
     {
-        PIXELFORMATDESCRIPTOR pfd = {0};
-
-        winetest_push_context( "%u", i );
-
-        ret = DescribePixelFormat( hdc, i, sizeof(pfd), &pfd );
-        ok( ret == count, "got %d\n", ret );
-
-        ret = SetPixelFormat( hdc, i, &pfd );
-        if (pixel_format != i) ok( !ret, "SetPixelFormat succeeded\n" );
-        else ok( ret, "SetPixelFormat succeeded\n" );
-        ret = GetPixelFormat( hdc );
-        ok( ret == pixel_format, "got %d\n", ret );
-
-        winetest_pop_context();
+        skip("Unable to find a suitable pixel format\n");
     }
-
-    tmp_bmp = SelectObject( hdc, bmp );
-    ok( tmp_bmp == bmp2, "got %p\n", tmp_bmp );
-
-    /* creating a GL context now works */
-
-    hglrc = wglCreateContext( hdc );
-    ok( !!hglrc, "wglCreateContext failed, error %lu\n", GetLastError() );
-    ret = wglMakeCurrent( hdc, hglrc );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    glGetIntegerv( GL_READ_BUFFER, &object );
-    ok( object == GL_FRONT, "got %u\n", object );
-    glGetIntegerv( GL_DRAW_BUFFER, &object );
-    ok( object == GL_FRONT, "got %u\n", object );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    todo_wine ok( (pixel & 0xffffff) == 0xcdcdcd, "got %#x\n", pixel );
-
-    glClearColor( (float)0x22 / 0xff, (float)0x33 / 0xff, (float)0x44 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    ok( (pixels[0] & 0xffffff) == 0xcdcdcd, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0xdcdcdc, "got %#x\n", pixels2[0] );
-
-    glFinish();
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0xdcdcdc, "got %#x\n", pixels2[0] );
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    ok( (pixel & 0xffffff) == 0x443322, "got %#x\n", pixel );
-
-
-    glClearColor( (float)0x55 / 0xff, (float)0x66 / 0xff, (float)0x77 / 0xff, (float)0x88 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0xdcdcdc, "got %#x\n", pixels2[0] );
-
-    glFlush();
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    ok( (pixels[0] & 0xffffff) == 0x556677, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0xdcdcdc, "got %#x\n", pixels2[0] );
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    ok( (pixel & 0xffffff) == 0x776655, "got %#x\n", pixel );
-
-
-    glClearColor( (float)0x22 / 0xff, (float)0x33 / 0xff, (float)0x44 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    ok( (pixels[0] & 0xffffff) == 0x556677, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0xdcdcdc, "got %#x\n", pixels2[0] );
-
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    ok( (pixel & 0xffffff) == 0x443322, "got %#x\n", pixel );
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0xdcdcdc, "got %#x\n", pixels2[0] );
-
-
-    tmp_bmp = SelectObject( hdc, bmp2 );
-    ok( tmp_bmp == bmp, "got %p\n", tmp_bmp );
-
-    /* context still uses the old pixel format and viewport */
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    /* pixels are read from the selected bitmap */
-
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    todo_wine ok( (pixel & 0xffffff) == 0xdcdcdc, "got %#x\n", pixel );
-
-    if (use_dib)
+    else
     {
-        memset( buffer2, 0xa5, sizeof(buffer2) );
-        glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-        todo_wine ok( (pixel & 0xffffff) == 0xdcdcdc, "got %#x\n", pixel );
-        memset( buffer2, 0xdc, sizeof(buffer2) );
-    }
+        ret = SetPixelFormat(hdcDst, iPixelFormat, &pfd);
+        ok( ret, "SetPixelFormat failed\n" );
+        ret = GetPixelFormat( hdcDst );
+        ok( ret == iPixelFormat, "GetPixelFormat returned %d/%d\n", ret, iPixelFormat );
+        ret = SetPixelFormat(hdcDst, iPixelFormat + 1, &pfd);
+        ok( !ret, "SetPixelFormat succeeded\n" );
+        hglrc = wglCreateContext(hdcDst);
+        ok(hglrc != NULL, "Unable to create a context\n");
 
-    /* GL doesn't render to the bitmap that was selected on wglMakeCurrent, but
-     * copies to the bitmap that is currently selected on the HDC on Finish/Flush.
-     */
-
-    glClearColor( (float)0x44 / 0xff, (float)0x33 / 0xff, (float)0x22 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0xdcdcdc, "got %#x\n", pixels2[0] );
-
-    glFinish();
-
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    ok( (pixel & 0xffffff) == 0x223344, "got %#x\n", pixel );
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    todo_wine ok( (pixels2[0] & 0xffffff) == 0x443322, "got %#x\n", pixels2[0] );
-
-
-    ret = wglMakeCurrent( NULL, NULL );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-    ret = wglMakeCurrent( hdc, hglrc );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x44 / 0xff, (float)0x55 / 0xff, (float)0x66 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0x445566, "got %#x\n", pixels2[0] );
-
-
-    /* creating a context uses the currently selected bitmap size as viewport */
-
-    hglrc2 = wglCreateContext( hdc );
-    ok( !!hglrc2, "wglCreateContext failed, error %lu\n", GetLastError() );
-
-    ret = wglMakeCurrent( hdc, hglrc2 );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect2 ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x66 / 0xff, (float)0x55 / 0xff, (float)0x44 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    if (use_dib) todo_wine ok( (pixels2[0] & 0xffffff) == 0x03148, "got %#x\n", pixels2[0] );
-    else ok( (pixels2[0] & 0xffffff) == 0x665544, "got %#x\n", pixels2[0] );
-
-    ret = wglMakeCurrent( hdc, hglrc );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x66 / 0xff, (float)0x77 / 0xff, (float)0x88 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x223344, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0x667788, "got %#x\n", pixels2[0] );
-
-
-    tmp_bmp = SelectObject( hdc, bmp );
-    ok( tmp_bmp == bmp2, "got %p\n", tmp_bmp );
-
-    ret = wglMakeCurrent( hdc, hglrc2 );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect2 ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    glClearColor( (float)0x88 / 0xff, (float)0x77 / 0xff, (float)0x66 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    glFinish();
-
-    if (pixels == buffer) read_bitmap_pixels( hdc, bmp, pixels, 4, 4, bpp );
-    if (pixels2 == buffer2) read_bitmap_pixels( hdc, bmp2, pixels2, 12, 12, bpp );
-    if (use_dib) todo_wine ok( (pixels[0] & 0xffffff) == 0x45cc, "got %#x\n", pixels[0] );
-    else ok( (pixels[0] & 0xffffff) == 0x887766, "got %#x\n", pixels[0] );
-    ok( (pixels2[0] & 0xffffff) == 0x667788, "got %#x\n", pixels2[0] );
-
-    wglDeleteContext( hglrc2 );
-    wglDeleteContext( hglrc );
-
-    SelectObject( hdc, old_bmp );
-    DeleteObject( bmp2 );
-    DeleteObject( bmp );
-    DeleteDC( hdc );
-
-    winetest_pop_context();
-}
-
-static void test_d3dkmt_rendering(void)
-{
-    static const RECT expect_rect = {0, 0, 4, 4};
-    int i, ret, count, pixel_format = 0;
-    D3DKMT_CREATEDCFROMMEMORY create;
-    D3DKMT_DESTROYDCFROMMEMORY desc;
-    UINT pixels[16 * 16], pixel;
-    GLint viewport[4], object;
-    NTSTATUS status;
-    HGLRC hglrc;
-
-    create.pMemory = pixels;
-    create.Format = D3DDDIFMT_A8R8G8B8;
-    create.Width = 4;
-    create.Height = 4;
-    create.Pitch = 4 * 4;
-    create.hDeviceDc = CreateCompatibleDC( 0 );
-    create.pColorTable = NULL;
-    status = pD3DKMTCreateDCFromMemory( &create );
-    ok( !status, "got %#lx\n", status );
-    DeleteDC( create.hDeviceDc );
-    desc.hBitmap = create.hBitmap;
-    desc.hDc = create.hDc;
-
-    ret = GetPixelFormat( desc.hDc );
-    ok( ret == 0, "got %d\n", ret );
-    count = DescribePixelFormat( desc.hDc, 0, 0, NULL );
-    ok( count > 1, "got %d\n", count );
-
-    /* cannot create a GL context without a pixel format */
-
-    hglrc = wglCreateContext( desc.hDc );
-    ok( !hglrc, "wglCreateContext succeeded\n" );
-    if (hglrc) wglDeleteContext( hglrc );
-
-    /* cannot set pixel format twice */
-
-    for (i = 1; i <= count; i++)
-    {
-        PIXELFORMATDESCRIPTOR pfd = {0};
-
-        winetest_push_context( "%u", i );
-
-        ret = DescribePixelFormat( desc.hDc, i, sizeof(pfd), &pfd );
-        ok( ret == count, "got %d\n", ret );
-
-        if ((pfd.dwFlags & PFD_DRAW_TO_BITMAP) && (pfd.dwFlags & PFD_SUPPORT_OPENGL) &&
-            pfd.cColorBits == 32 && pfd.cAlphaBits == 8)
+        if(hglrc)
         {
-            ret = SetPixelFormat( desc.hDc, i, &pfd );
-            if (pixel_format) ok( !ret, "SetPixelFormat succeeded\n" );
-            else ok( ret, "SetPixelFormat failed\n" );
-            if (ret) pixel_format = i;
-            ret = GetPixelFormat( desc.hDc );
-            ok( ret == pixel_format, "got %d\n", ret );
-        }
+            GLint viewport[4];
+            wglMakeCurrent(hdcDst, hglrc);
+            hglrc2 = wglCreateContext(hdcDst);
+            ok(hglrc2 != NULL, "Unable to create a context\n");
 
-        winetest_pop_context();
+            /* Note this is RGBA but we read ARGB back */
+            glClearColor((float)0x22/0xff, (float)0x33/0xff, (float)0x44/0xff, (float)0x11/0xff);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            glFinish();
+
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 4 && viewport[3] == 4,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+            /* Note apparently the alpha channel is not supported by the software renderer (bitmap only works using software) */
+            if (dstBuffer)
+                for (i = 0; i < 16; i++)
+                    ok(dstBuffer[i] == 0x223344 || dstBuffer[i] == 0x11223344, "Received color=%x at %u\n",
+                       dstBuffer[i], i);
+
+            SelectObject(hdcDst, bmp2);
+            ret = GetPixelFormat( hdcDst );
+            ok( ret == iPixelFormat, "GetPixelFormat returned %d/%d\n", ret, iPixelFormat );
+            ret = SetPixelFormat(hdcDst, iPixelFormat + 1, &pfd);
+            ok( !ret, "SetPixelFormat succeeded\n" );
+
+            /* context still uses the old pixel format and viewport */
+            glClearColor((float)0x44/0xff, (float)0x33/0xff, (float)0x22/0xff, (float)0x11/0xff);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glFinish();
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 4 && viewport[3] == 4,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            wglMakeCurrent(NULL, NULL);
+            wglMakeCurrent(hdcDst, hglrc);
+            glClearColor((float)0x44/0xff, (float)0x55/0xff, (float)0x66/0xff, (float)0x11/0xff);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glFinish();
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 4 && viewport[3] == 4,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            wglMakeCurrent(hdcDst, hglrc2);
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 12 && viewport[3] == 12,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            wglMakeCurrent(hdcDst, hglrc);
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 4 && viewport[3] == 4,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            SelectObject(hdcDst, bmpDst);
+            ret = GetPixelFormat( hdcDst );
+            ok( ret == iPixelFormat, "GetPixelFormat returned %d/%d\n", ret, iPixelFormat );
+            ret = SetPixelFormat(hdcDst, iPixelFormat + 1, &pfd);
+            ok( !ret, "SetPixelFormat succeeded\n" );
+            wglMakeCurrent(hdcDst, hglrc2);
+            glGetIntegerv( GL_VIEWPORT, viewport );
+            ok( viewport[0] == 0 && viewport[1] == 0 && viewport[2] == 12 && viewport[3] == 12,
+                "wrong viewport %d,%d,%d,%d\n", viewport[0], viewport[1], viewport[2], viewport[3] );
+
+            wglDeleteContext(hglrc2);
+            wglDeleteContext(hglrc);
+        }
     }
 
-    ok( !!pixel_format, "got pixel_format %u\n", pixel_format );
-
-    /* creating a GL context now works */
-
-    hglrc = wglCreateContext( desc.hDc );
-    ok( !!hglrc, "wglCreateContext failed, error %lu\n", GetLastError() );
-    ret = wglMakeCurrent( desc.hDc, hglrc );
-    ok( ret, "wglMakeCurrent failed, error %lu\n", GetLastError() );
-
-    glGetIntegerv( GL_READ_BUFFER, &object );
-    ok( object == GL_FRONT, "got %u\n", object );
-    glGetIntegerv( GL_DRAW_BUFFER, &object );
-    ok( object == GL_FRONT, "got %u\n", object );
-
-    memset( viewport, 0xcd, sizeof(viewport) );
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    ok( EqualRect( (RECT *)viewport, &expect_rect ), "got viewport %s\n", wine_dbgstr_rect( (RECT *)viewport ) );
-
-    memset( (void *)pixels, 0xcd, sizeof(*pixels) * 4 * 4 );
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    todo_wine ok( (pixel & 0xffffff) == 0xcdcdcd, "got %#x\n", pixel );
-
-    glClearColor( (float)0x44 / 0xff, (float)0x33 / 0xff, (float)0x22 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    ok( (pixels[0] & 0xffffff) == 0xcdcdcd, "got %#x\n", pixels[0] );
-    glFinish();
-    ok( (pixels[0] & 0xffffff) == 0x443322, "got %#x\n", pixels[0] );
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    ok( (pixel & 0xffffff) == 0x223344, "got %#x\n", pixel );
-
-    glClearColor( (float)0x55 / 0xff, (float)0x66 / 0xff, (float)0x77 / 0xff, (float)0x88 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    ok( (pixels[0] & 0xffffff) == 0x443322, "got %#x\n", pixels[0] );
-    glFlush();
-    ok( (pixels[0] & 0xffffff) == 0x556677, "got %#x\n", pixels[0] );
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    ok( (pixel & 0xffffff) == 0x776655, "got %#x\n", pixel );
-
-    glClearColor( (float)0x44 / 0xff, (float)0x33 / 0xff, (float)0x22 / 0xff, (float)0x11 / 0xff );
-    glClear( GL_COLOR_BUFFER_BIT );
-    ok( (pixels[0] & 0xffffff) == 0x556677, "got %#x\n", pixels[0] );
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    ok( (pixel & 0xffffff) == 0x223344, "got %#x\n", pixel );
-    todo_wine ok( (pixels[0] & 0xffffff) == 0x443322, "got %#x\n", pixels[0] );
-
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    ok( (pixel & 0xffffff) == 0x223344, "got %#x\n", pixel );
-    memset( pixels, 0xa5, sizeof(pixels) );
-    glReadPixels( 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel );
-    todo_wine ok( (pixel & 0xffffff) == 0xa5a5a5, "got %#x\n", pixel );
-    memset( pixels, 0xcd, sizeof(pixels) );
-
-    wglDeleteContext( hglrc );
-
-    status = pD3DKMTDestroyDCFromMemory( &desc );
-    ok( !status, "got %#lx\n", status );
-
-    winetest_pop_context();
+    SelectObject(hdcDst, oldDst);
+    DeleteObject(bmp2);
+    DeleteObject(bmpDst);
+    DeleteDC(hdcDst);
+    DeleteDC(hdcScreen);
 }
 
 struct wgl_thread_param
@@ -1921,10 +1123,9 @@ static void test_make_current_read(HDC hdc)
 {
     int res;
     HDC hread;
-    HGLRC oldctx, hglrc;
+    HGLRC hglrc = wglCreateContext(hdc);
 
-    oldctx = wglGetCurrentContext();
-    if(!(hglrc = wglCreateContext(hdc)))
+    if(!hglrc)
     {
         skip("wglCreateContext failed!\n");
         return;
@@ -1934,7 +1135,6 @@ static void test_make_current_read(HDC hdc)
     if(!res)
     {
         skip("wglMakeCurrent failed!\n");
-        wglDeleteContext(hglrc);
         return;
     }
 
@@ -1946,9 +1146,6 @@ static void test_make_current_read(HDC hdc)
     pwglMakeContextCurrentARB(hdc, hdc, hglrc);
     hread = pwglGetCurrentReadDCARB();
     ok(hread == hdc, "wglGetCurrentReadDCARB failed for wglMakeContextCurrent\n");
-
-    wglMakeCurrent(hdc, oldctx);
-    wglDeleteContext(hglrc);
 }
 
 static void test_dc(HWND hwnd, HDC hdc)
@@ -2141,71 +1338,6 @@ static void test_minimized(void)
     ret = wglDeleteContext(ctx);
     ok(ret, "Failed to delete GL context, last error %#lx.\n", GetLastError());
 
-    ReleaseDC(window, dc);
-    DestroyWindow(window);
-}
-
-static void test_framebuffer(void)
-{
-    static const PIXELFORMATDESCRIPTOR pf_desc =
-    {
-        sizeof(PIXELFORMATDESCRIPTOR),
-        1,                     /* version */
-        PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-        PFD_TYPE_RGBA,
-        24,                    /* 24-bit color depth */
-        0, 0, 0, 0, 0, 0,      /* color bits */
-        0,                     /* alpha buffer */
-        0,                     /* shift bit */
-        0,                     /* accumulation buffer */
-        0, 0, 0, 0,            /* accum bits */
-        32,                    /* z-buffer */
-        0,                     /* stencil buffer */
-        0,                     /* auxiliary buffer */
-        PFD_MAIN_PLANE,        /* main layer */
-        0,                     /* reserved */
-        0, 0, 0                /* layer masks */
-    };
-    int pixel_format;
-    GLenum status;
-    HWND window;
-    HGLRC ctx;
-    BOOL ret;
-    HDC dc;
-
-    /* Test the default framebuffer status for a window that becomes visible after wglMakeCurrent() */
-    window = CreateWindowA("static", "opengl32_test", WS_POPUP, 0, 0, 640, 480, 0, 0, 0, 0);
-    ok(!!window, "Failed to create window, last error %#lx.\n", GetLastError());
-    dc = GetDC(window);
-    ok(!!dc, "Failed to get DC.\n");
-    pixel_format = ChoosePixelFormat(dc, &pf_desc);
-    if (!pixel_format)
-    {
-        win_skip("Failed to find pixel format.\n");
-        ReleaseDC(window, dc);
-        DestroyWindow(window);
-        return;
-    }
-
-    ret = SetPixelFormat(dc, pixel_format, &pf_desc);
-    ok(ret, "Failed to set pixel format, last error %#lx.\n", GetLastError());
-    ctx = wglCreateContext(dc);
-    ok(!!ctx, "Failed to create GL context, last error %#lx.\n", GetLastError());
-    ret = wglMakeCurrent(dc, ctx);
-    ok(ret, "Failed to make context current, last error %#lx.\n", GetLastError());
-
-    ShowWindow(window, SW_SHOW);
-    flush_events();
-
-    pglBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    status = pglCheckFramebufferStatus(GL_FRAMEBUFFER);
-    ok(status == GL_FRAMEBUFFER_COMPLETE, "Expected %#x, got %#x.\n", GL_FRAMEBUFFER_COMPLETE, status);
-
-    ret = wglMakeCurrent(NULL, NULL);
-    ok(ret, "Failed to clear current context, last error %#lx.\n", GetLastError());
-    ret = wglDeleteContext(ctx);
-    ok(ret, "Failed to delete GL context, last error %#lx.\n", GetLastError());
     ReleaseDC(window, dc);
     DestroyWindow(window);
 }
@@ -2518,6 +1650,8 @@ static void test_destroy_read(HDC oldhdc)
     DWORD err;
     HGLRC oldctx = wglGetCurrentContext();
 
+    ok(!!oldctx, "Expected to find a valid current context\n");
+
     draw_window = CreateWindowA("static", "opengl32_test",
             WS_POPUP, 0, 0, 640, 480, 0, 0, 0, 0);
     ok(!!draw_window, "Failed to create window, last error %#lx.\n", GetLastError());
@@ -2674,6 +1808,7 @@ static void test_swap_control(HDC oldhdc)
     int interval;
 
     oldctx = wglGetCurrentContext();
+    ok(!!oldctx, "Expected to find a valid current context.\n");
 
     window1 = CreateWindowA("static", "opengl32_test",
             WS_POPUP, 0, 0, 640, 480, 0, 0, 0, 0);
@@ -2780,26 +1915,12 @@ static void test_wglChoosePixelFormatARB(HDC hdc)
         0
     };
 
-    static int attrib_list_swap[] =
-    {
-        WGL_SWAP_METHOD_ARB, 0,
-        WGL_SUPPORT_OPENGL_ARB, 1,
-        WGL_DRAW_TO_WINDOW_ARB, 1,
-        0
-    };
-    static int swap_methods[] =
-    {
-        WGL_SWAP_COPY_ARB,
-        WGL_SWAP_EXCHANGE_ARB,
-        WGL_SWAP_UNDEFINED_ARB,
-    };
-
     PIXELFORMATDESCRIPTOR fmt, last_fmt;
     BYTE depth, last_depth;
     UINT format_count;
     int formats[1024];
-    unsigned int test, i;
-    int res, swap_method;
+    unsigned int i;
+    int res;
 
     if (!pwglChoosePixelFormatARB)
     {
@@ -2858,34 +1979,6 @@ static void test_wglChoosePixelFormatARB(HDC hdc)
         ok(format.dwFlags & PFD_SUPPORT_OPENGL, "got dwFlags %#lx\n", format.dwFlags);
         ok(format.dwFlags & PFD_SUPPORT_GDI, "got dwFlags %#lx\n", format.dwFlags);
 
-        winetest_pop_context();
-    }
-
-    for (test = 0; test < ARRAY_SIZE(swap_methods); ++test)
-    {
-        PIXELFORMATDESCRIPTOR format = {0};
-
-        winetest_push_context("swap method %#x", swap_methods[test]);
-        format_count = 0;
-        attrib_list_swap[1] = swap_methods[test];
-        res = pwglChoosePixelFormatARB(hdc, attrib_list_swap, NULL, ARRAY_SIZE(formats), formats, &format_count);
-        ok(res, "got %d.\n", res);
-        if (swap_methods[test] != WGL_SWAP_COPY_ARB)
-            ok(format_count, "got no formats.\n");
-        trace("count %d.\n", format_count);
-        for (i = 0; i < format_count; ++i)
-        {
-            res = pwglGetPixelFormatAttribivARB(hdc, formats[i], 0, 1, attrib_list_swap, &swap_method);
-            ok(res, "got %d.\n", res);
-            ok(swap_method == swap_methods[test]
-               /* AMD */
-               || (swap_methods[test] == WGL_SWAP_EXCHANGE_ARB && swap_method == WGL_SWAP_UNDEFINED_ARB)
-               || (swap_methods[test] == WGL_SWAP_UNDEFINED_ARB && swap_method == WGL_SWAP_EXCHANGE_ARB),
-               "got %#x.\n", swap_method);
-
-            res = DescribePixelFormat(hdc, formats[i], sizeof(format), &format);
-            ok(res, "DescribePixelFormat failed, error %lu\n", GetLastError());
-        }
         winetest_pop_context();
     }
 }
@@ -2998,15 +2091,10 @@ START_TEST(opengl)
     ok(hwnd != NULL, "err: %ld\n", GetLastError());
     if (hwnd)
     {
-        HMODULE gdi32 = GetModuleHandleA("gdi32.dll");
         HDC hdc;
         int iPixelFormat, res;
         HGLRC hglrc;
         DWORD error;
-
-        pD3DKMTCreateDCFromMemory  = (void *)GetProcAddress( gdi32, "D3DKMTCreateDCFromMemory" );
-        pD3DKMTDestroyDCFromMemory = (void *)GetProcAddress( gdi32, "D3DKMTDestroyDCFromMemory" );
-
         ShowWindow(hwnd, SW_SHOW);
 
         hdc = GetDC(hwnd);
@@ -3030,7 +2118,6 @@ START_TEST(opengl)
 
         test_bitmap_rendering( TRUE );
         test_bitmap_rendering( FALSE );
-        test_d3dkmt_rendering();
         test_minimized();
         test_window_dc();
         test_message_window();
@@ -3057,7 +2144,6 @@ START_TEST(opengl)
          * any WGL call :( On Wine this would work but not on real Windows because there can be different implementations (software, ICD, MCD).
          */
         init_functions();
-
         test_getprocaddress(hdc);
         test_deletecontext(hwnd, hdc);
         test_makecurrent(hdc);
@@ -3083,7 +2169,6 @@ START_TEST(opengl)
         test_colorbits(hdc);
         test_gdi_dbuf(hdc);
         test_acceleration(hdc);
-        test_framebuffer();
 
         wgl_extensions = pwglGetExtensionsStringARB(hdc);
         if(wgl_extensions == NULL) skip("Skipping opengl32 tests because this OpenGL implementation doesn't support WGL extensions!\n");

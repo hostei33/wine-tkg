@@ -38,7 +38,6 @@
 #include "winuser.h"
 #include "winioctl.h"
 #include "winnls.h"
-#include "ddk/ntifs.h"
 
 #ifndef IO_COMPLETION_ALL_ACCESS
 #define IO_COMPLETION_ALL_ACCESS 0x001F0003
@@ -52,7 +51,6 @@ static VOID     (WINAPI *pRtlInitUnicodeString)( PUNICODE_STRING, LPCWSTR );
 static BOOL     (WINAPI *pRtlDosPathNameToNtPathName_U)( LPCWSTR, PUNICODE_STRING, PWSTR*, CURDIR* );
 static NTSTATUS (WINAPI *pRtlWow64EnableFsRedirectionEx)( ULONG, ULONG * );
 
-static NTSTATUS (WINAPI *pNtAllocateReserveObject)( HANDLE *, const OBJECT_ATTRIBUTES *, MEMORY_RESERVE_OBJECT_TYPE );
 static NTSTATUS (WINAPI *pNtCreateMailslotFile)( PHANDLE, ULONG, POBJECT_ATTRIBUTES, PIO_STATUS_BLOCK,
                                        ULONG, ULONG, ULONG, PLARGE_INTEGER );
 static NTSTATUS (WINAPI *pNtCreateFile)(PHANDLE,ACCESS_MASK,POBJECT_ATTRIBUTES,PIO_STATUS_BLOCK,PLARGE_INTEGER,ULONG,ULONG,ULONG,ULONG,PVOID,ULONG);
@@ -78,7 +76,6 @@ static NTSTATUS (WINAPI *pNtQueryIoCompletion)(HANDLE, IO_COMPLETION_INFORMATION
 static NTSTATUS (WINAPI *pNtRemoveIoCompletion)(HANDLE, PULONG_PTR, PULONG_PTR, PIO_STATUS_BLOCK, PLARGE_INTEGER);
 static NTSTATUS (WINAPI *pNtRemoveIoCompletionEx)(HANDLE,FILE_IO_COMPLETION_INFORMATION*,ULONG,ULONG*,LARGE_INTEGER*,BOOLEAN);
 static NTSTATUS (WINAPI *pNtSetIoCompletion)(HANDLE, ULONG_PTR, ULONG_PTR, NTSTATUS, SIZE_T);
-static NTSTATUS (WINAPI *pNtSetIoCompletionEx)(HANDLE, HANDLE, ULONG_PTR, ULONG_PTR, NTSTATUS, SIZE_T);
 static NTSTATUS (WINAPI *pNtSetInformationFile)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
 static NTSTATUS (WINAPI *pNtQueryAttributesFile)(const OBJECT_ATTRIBUTES*,FILE_BASIC_INFORMATION*);
 static NTSTATUS (WINAPI *pNtQueryInformationFile)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
@@ -152,19 +149,44 @@ static void create_file_test(void)
     static const char testdata[] = "Hello World";
     static const WCHAR sepW[] = {'\\',0};
     FILE_NETWORK_OPEN_INFORMATION info;
+    UNICODE_STRING nameW, null_string;
     NTSTATUS status;
     HANDLE dir, file;
     WCHAR path[MAX_PATH], temp[MAX_PATH];
     OBJECT_ATTRIBUTES attr;
     IO_STATUS_BLOCK io;
-    UNICODE_STRING nameW;
     LARGE_INTEGER offset;
     char buf[32];
     DWORD ret;
 
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = NULL;
+    attr.ObjectName = &null_string;
+    attr.Attributes = 0;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
+    null_string.Buffer = NULL;
+    null_string.Length = 256;
+
+    /* try various open modes and options on directories */
+    status = pNtCreateFile( &dir, GENERIC_READ|GENERIC_WRITE, &attr, &io, NULL, 0,
+                            FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_OPEN, FILE_DIRECTORY_FILE, NULL, 0 );
+    ok( status == STATUS_ACCESS_VIOLATION, "Got unexpected status %#x.\n",  status );
+
+    null_string.Length = 0;
+    status = pNtCreateFile( &dir, GENERIC_READ|GENERIC_WRITE, &attr, &io, NULL, 0,
+                            FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_OPEN, FILE_DIRECTORY_FILE, NULL, 0 );
+    ok( status == STATUS_OBJECT_PATH_SYNTAX_BAD, "Got unexpected status %#x.\n",  status );
+
     GetCurrentDirectoryW( MAX_PATH, path );
     pRtlDosPathNameToNtPathName_U( path, &nameW, NULL, NULL );
-    InitializeObjectAttributes( &attr, &nameW, OBJ_CASE_INSENSITIVE, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.ObjectName = &nameW;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
 
     /* try various open modes and options on directories */
     status = pNtCreateFile( &dir, GENERIC_READ|GENERIC_WRITE, &attr, &io, NULL, 0,
@@ -253,7 +275,12 @@ static void create_file_test(void)
     pRtlFreeUnicodeString( &nameW );
 
     pRtlInitUnicodeString( &nameW, systemrootW );
-    InitializeObjectAttributes( &attr, &nameW, OBJ_CASE_INSENSITIVE, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = NULL;
+    attr.ObjectName = &nameW;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
     dir = NULL;
     status = pNtCreateFile( &dir, FILE_APPEND_DATA, &attr, &io, NULL, FILE_ATTRIBUTE_NORMAL, 0,
                             FILE_OPEN_IF, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0 );
@@ -328,7 +355,7 @@ static void create_file_test(void)
     GetWindowsDirectoryW( path, MAX_PATH );
     path[2] = 0;
     ok( QueryDosDeviceW( path, temp, MAX_PATH ),
-        "QueryDosDeviceW failed with error %lx\n", GetLastError() );
+        "QueryDosDeviceW failed with error %u\n", GetLastError() );
     lstrcatW( temp, sepW );
     lstrcatW( temp, path+3 );
     lstrcatW( temp, sepW );
@@ -337,12 +364,12 @@ static void create_file_test(void)
     pRtlInitUnicodeString( &nameW, temp );
     status = pNtQueryFullAttributesFile( &attr, &info );
     ok( status == STATUS_SUCCESS,
-        "query %s failed %lx\n", wine_dbgstr_w(nameW.Buffer), status );
+        "query %s failed %x\n", wine_dbgstr_w(nameW.Buffer), status );
 
     pRtlInitUnicodeString( &nameW, systemrootExplorerW );
     status = pNtQueryFullAttributesFile( &attr, &info );
     ok( status == STATUS_SUCCESS,
-        "query %s failed %lx\n", wine_dbgstr_w(nameW.Buffer), status );
+        "query %s failed %x\n", wine_dbgstr_w(nameW.Buffer), status );
 }
 
 static void open_file_test(void)
@@ -362,7 +389,12 @@ static void open_file_test(void)
 
     len = GetWindowsDirectoryW( path, MAX_PATH );
     pRtlDosPathNameToNtPathName_U( path, &nameW, NULL, NULL );
-    InitializeObjectAttributes( &attr, &nameW, 0, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.ObjectName = &nameW;
+    attr.Attributes = 0;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
     status = pNtOpenFile( &dir, SYNCHRONIZE|FILE_LIST_DIRECTORY, &attr, &io,
                           FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_DIRECTORY_FILE|FILE_SYNCHRONOUS_IO_NONALERT );
     ok( !status, "open %s failed %lx\n", wine_dbgstr_w(nameW.Buffer), status );
@@ -521,7 +553,12 @@ static void open_file_test(void)
     CloseHandle( root );
 
     pRtlDosPathNameToNtPathName_U( tmpfile, &nameW, NULL, NULL );
-    InitializeObjectAttributes( &attr, &nameW, OBJ_CASE_INSENSITIVE, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.ObjectName = &nameW;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
     status = pNtOpenFile( &file, SYNCHRONIZE|FILE_LIST_DIRECTORY, &attr, &io,
                          FILE_SHARE_READ, FILE_SYNCHRONOUS_IO_NONALERT );
     ok( !status, "open %s failed %lx\n", wine_dbgstr_w(nameW.Buffer), status );
@@ -608,7 +645,12 @@ static void delete_file_test(void)
 	return;
     }
 
-    InitializeObjectAttributes( &attr, &nameW, OBJ_CASE_INSENSITIVE, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.ObjectName = &nameW;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
 
     /* test NtDeleteFile on an empty directory */
     ret = pNtDeleteFile(&attr);
@@ -750,10 +792,7 @@ static void read_file_test(void)
     CloseHandle( handle );
 
     if (!(handle = create_temp_file(FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING)))
-    {
-        CloseHandle(event);
         return;
-    }
 
     apc_count = 0;
     offset.QuadPart = 0;
@@ -962,18 +1001,9 @@ static void test_set_io_completion(void)
     NTSTATUS res;
     ULONG count;
     SIZE_T size = 3;
-    HANDLE h, h2;
+    HANDLE h;
 
     if (sizeof(size) > 4) size |= (ULONGLONG)0x12345678 << 32;
-
-    res = pNtCreateIoCompletion( &h2, IO_COMPLETION_ALL_ACCESS, NULL, 0 );
-    ok( res == STATUS_SUCCESS, "NtCreateIoCompletion failed: %#lx\n", res );
-    ok( h2 && h2 != INVALID_HANDLE_VALUE, "got invalid handle %p\n", h2 );
-    res = pNtSetIoCompletion( h2, 123, 456, 789, size );
-    ok( res == STATUS_SUCCESS, "NtSetIoCompletion failed: %#lx\n", res );
-    res = pNtRemoveIoCompletionEx( h2, info, 2, &count, &timeout, TRUE );
-    ok( res == STATUS_SUCCESS, "NtRemoveIoCompletionEx failed: %#lx\n", res );
-    ok( count == 1, "wrong count %lu\n", count );
 
     res = pNtCreateIoCompletion( &h, IO_COMPLETION_ALL_ACCESS, NULL, 0 );
     ok( res == STATUS_SUCCESS, "NtCreateIoCompletion failed: %#lx\n", res );
@@ -984,22 +1014,12 @@ static void test_set_io_completion(void)
     res = pNtSetIoCompletion( h, 123, 456, 789, size );
     ok( res == STATUS_SUCCESS, "NtSetIoCompletion failed: %#lx\n", res );
     res = pNtRemoveIoCompletionEx( h, info, 2, &count, &timeout, TRUE );
-    /* APC goes first associated with completion port APC takes priority over pending completion.
-     * Even if the thread is associated with some other completion port. */
-    ok( res == STATUS_USER_APC, "NtRemoveIoCompletionEx unexpected status %#lx\n", res );
-    ok( apc_count == 1, "wrong apc count %u\n", apc_count );
-
-    CloseHandle( h2 );
-
-    apc_count = 0;
-    QueueUserAPC( user_apc_proc, GetCurrentThread(), (ULONG_PTR)&apc_count );
-    res = pNtRemoveIoCompletionEx( h, info, 2, &count, &timeout, TRUE );
-    /* Previous call resulted in STATUS_USER_APC did not associate the thread with the port. */
-    ok( res == STATUS_USER_APC, "NtRemoveIoCompletion unexpected status %#lx\n", res );
+    /* Before a thread is associated with completion port APC takes priority over pending completion. */
+    ok( res == STATUS_USER_APC, "NtRemoveIoCompletionEx failed: %#lx\n", res );
+    ok( count <= 1, "wrong count %lu\n", count );
     ok( apc_count == 1, "wrong apc count %u\n", apc_count );
 
     res = pNtRemoveIoCompletionEx( h, info, 2, &count, &timeout, TRUE );
-    /* Now the thread is associated. */
     ok( res == STATUS_SUCCESS, "NtRemoveIoCompletion failed: %#lx\n", res );
     ok( count == 1, "wrong count %lu\n", count );
 
@@ -1040,11 +1060,6 @@ static void test_set_io_completion(void)
         pNtClose( h );
         return;
     }
-
-    count = 0xdeadbeef;
-    res = pNtRemoveIoCompletionEx( h, info, 0, &count, &timeout, FALSE );
-    ok( res == STATUS_INVALID_PARAMETER, "NtRemoveIoCompletionEx failed: %#lx\n", res );
-    ok( count == 0xdeadbeef, "wrong count %lu\n", count );
 
     count = 0xdeadbeef;
     res = pNtRemoveIoCompletionEx( h, info, 2, &count, &timeout, FALSE );
@@ -1339,16 +1354,13 @@ static void test_file_io_completion(void)
 static void test_file_full_size_information(void)
 {
     IO_STATUS_BLOCK io;
-    FILE_FS_FULL_SIZE_INFORMATION_EX ffsie;
     FILE_FS_FULL_SIZE_INFORMATION ffsi;
     FILE_FS_SIZE_INFORMATION fsi;
-    ULONGLONG expected;
     HANDLE h;
     NTSTATUS res;
 
     if(!(h = create_temp_file(0))) return ;
 
-    memset(&ffsie,0,sizeof(ffsie));
     memset(&ffsi,0,sizeof(ffsi));
     memset(&fsi,0,sizeof(fsi));
 
@@ -1383,77 +1395,14 @@ static void test_file_full_size_information(void)
         "[ffsi] TotalAllocationUnits error fsi:0x%s, ffsi:0x%s\n",
         wine_dbgstr_longlong(fsi.TotalAllocationUnits.QuadPart),
         wine_dbgstr_longlong(ffsi.TotalAllocationUnits.QuadPart));
+    ok(ffsi.CallerAvailableAllocationUnits.QuadPart == fsi.AvailableAllocationUnits.QuadPart,
+        "[ffsi] CallerAvailableAllocationUnits error fsi:0x%s, ffsi: 0x%s\n",
+        wine_dbgstr_longlong(fsi.AvailableAllocationUnits.QuadPart),
+        wine_dbgstr_longlong(ffsi.CallerAvailableAllocationUnits.QuadPart));
 
     /* Assume file system is NTFS */
     ok(ffsi.BytesPerSector == 512, "[ffsi] BytesPerSector expected 512, got %ld\n",ffsi.BytesPerSector);
     ok(ffsi.SectorsPerAllocationUnit == 8, "[ffsi] SectorsPerAllocationUnit expected 8, got %ld\n",ffsi.SectorsPerAllocationUnit);
-
-    /* FileFsFullSizeInformationEx is supported on Windows 10 build 1809 and later */
-    res = pNtQueryVolumeInformationFile(h, &io, &ffsie, sizeof ffsie, FileFsFullSizeInformationEx);
-    if (res == STATUS_NOT_IMPLEMENTED || res == STATUS_INVALID_PARAMETER || res == STATUS_INVALID_INFO_CLASS)
-    {
-        win_skip( "FileFsFullSizeInformationEx not supported.\n" );
-        CloseHandle( h );
-        return;
-    }
-    ok(res == STATUS_SUCCESS, "cannot get attributes, res %lx\n", res);
-
-    expected = ffsie.ActualAvailableAllocationUnits + ffsie.ActualPoolUnavailableAllocationUnits
-            + ffsie.UsedAllocationUnits + ffsie.TotalReservedAllocationUnits;
-    ok(ffsie.ActualTotalAllocationUnits == expected,
-        "[ffsie] ActualTotalAllocationUnits expected 0x%s, got 0x%s\n", wine_dbgstr_longlong(expected),
-        wine_dbgstr_longlong(ffsie.ActualTotalAllocationUnits));
-    expected = ffsie.ActualTotalAllocationUnits - ffsie.UsedAllocationUnits - ffsie.TotalReservedAllocationUnits;
-    ok(ffsie.ActualAvailableAllocationUnits == expected,
-        "[ffsie] ActualAvailableAllocationUnits expected 0x%s, got 0x%s\n",
-        wine_dbgstr_longlong(expected), wine_dbgstr_longlong(ffsie.ActualAvailableAllocationUnits));
-    ok(ffsie.ActualPoolUnavailableAllocationUnits == 0,
-        "[ffsie] ActualPoolUnavailableAllocationUnits expected zero, got 0x%s\n",
-        wine_dbgstr_longlong(ffsie.ActualPoolUnavailableAllocationUnits));
-    expected = ffsie.CallerAvailableAllocationUnits + ffsie.CallerPoolUnavailableAllocationUnits
-            + ffsie.UsedAllocationUnits + ffsie.TotalReservedAllocationUnits;
-    ok(ffsie.CallerTotalAllocationUnits == expected,
-        "[ffsie] CallerTotalAllocationUnits expected 0x%s, got 0x%s\n", wine_dbgstr_longlong(expected),
-        wine_dbgstr_longlong(ffsie.CallerTotalAllocationUnits));
-    ok((LONGLONG)ffsie.CallerAvailableAllocationUnits > 0,
-        "[ffsie] CallerAvailableAllocationUnits expected positive, got 0x%s\n",
-        wine_dbgstr_longlong(ffsie.CallerAvailableAllocationUnits));
-    ok(ffsie.CallerPoolUnavailableAllocationUnits == 0,
-        "[ffsie] CallerPoolUnavailableAllocationUnits expected zero, got 0x%s\n",
-        wine_dbgstr_longlong(ffsie.CallerPoolUnavailableAllocationUnits));
-    ok((LONGLONG)ffsie.UsedAllocationUnits > 0, "[ffsie] UsedAllocationUnits expected positive, got 0x%s\n",
-            wine_dbgstr_longlong(ffsie.UsedAllocationUnits));
-    ok((LONGLONG)ffsie.TotalReservedAllocationUnits >= 0,
-        "[ffsie] TotalReservedAllocationUnits expected >= 0, got 0x%s\n",
-        wine_dbgstr_longlong(ffsie.TotalReservedAllocationUnits));
-    ok(ffsie.VolumeStorageReserveAllocationUnits <= ffsie.TotalReservedAllocationUnits,
-        "[ffsie] VolumeStorageReserveAllocationUnits expected <= 0x%s, got 0x%s\n",
-        wine_dbgstr_longlong(ffsie.TotalReservedAllocationUnits),
-        wine_dbgstr_longlong(ffsie.VolumeStorageReserveAllocationUnits));
-    ok(ffsie.AvailableCommittedAllocationUnits == 0
-            /* in win10 can be (0 - UsedAllocationUnits - TotalReservedAllocationUnits) */
-            || broken((LONGLONG)ffsie.AvailableCommittedAllocationUnits < 0),
-        "[ffsie] AvailableCommittedAllocationUnits expected zero, got 0x%s\n",
-        wine_dbgstr_longlong(ffsie.AvailableCommittedAllocationUnits));
-    ok(ffsie.PoolAvailableAllocationUnits == 0,
-        "[ffsie] PoolAvailableAllocationUnits expected zero, got 0x%s\n",
-        wine_dbgstr_longlong(ffsie.PoolAvailableAllocationUnits));
-    ok(ffsie.ActualTotalAllocationUnits == ffsi.TotalAllocationUnits.QuadPart,
-        "[ffsie] TotalAllocationUnits error ffsi:0x%s, ffsie:0x%s\n",
-        wine_dbgstr_longlong(ffsi.TotalAllocationUnits.QuadPart),
-        wine_dbgstr_longlong(ffsie.ActualTotalAllocationUnits));
-    ok(ffsie.CallerAvailableAllocationUnits == ffsi.CallerAvailableAllocationUnits.QuadPart,
-        "[ffsie] CallerAvailableAllocationUnits error ffsi:0x%s, ffsie:0x%s\n",
-        wine_dbgstr_longlong(ffsi.CallerAvailableAllocationUnits.QuadPart),
-        wine_dbgstr_longlong(ffsie.CallerAvailableAllocationUnits));
-    ok(ffsie.ActualAvailableAllocationUnits == ffsi.ActualAvailableAllocationUnits.QuadPart,
-        "[ffsie] ActualAvailableAllocationUnits error ffsi:0x%s, ffsie:0x%s\n",
-        wine_dbgstr_longlong(ffsi.ActualAvailableAllocationUnits.QuadPart),
-        wine_dbgstr_longlong(ffsie.ActualAvailableAllocationUnits));
-
-    /* Assume file system is NTFS */
-    ok(ffsie.BytesPerSector == 512, "[ffsie] BytesPerSector expected 512, got %ld\n",ffsie.BytesPerSector);
-    ok(ffsie.SectorsPerAllocationUnit == 8, "[ffsie] SectorsPerAllocationUnit expected 8, got %ld\n",ffsie.SectorsPerAllocationUnit);
 
     CloseHandle( h );
 }
@@ -3289,7 +3238,13 @@ static NTSTATUS nt_get_file_attrs(const char *name, DWORD *attrs)
     if (!pRtlDosPathNameToNtPathName_U( nameW, &nt_name, NULL, NULL ))
         return STATUS_UNSUCCESSFUL;
 
-    InitializeObjectAttributes( &attr, &nt_name, OBJ_CASE_INSENSITIVE, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.ObjectName = &nt_name;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
     status = pNtQueryAttributesFile( &attr, &info );
     pRtlFreeUnicodeString( &nt_name );
 
@@ -4182,22 +4137,21 @@ static void _test_completion_flags(unsigned line, HANDLE handle, DWORD expected_
     ok_(__FILE__,line)(status == STATUS_SUCCESS, "expected STATUS_SUCCESS, got %08lx\n", status);
     ok_(__FILE__,line)(io.Status == STATUS_SUCCESS, "Status = %lx\n", io.Status);
     ok_(__FILE__,line)(io.Information == sizeof(info), "Information = %Iu\n", io.Information);
-    ok_(__FILE__,line)((info.Flags & expected_flags) == expected_flags, "got %08lx\n", info.Flags);
+    /* FILE_SKIP_SET_USER_EVENT_ON_FAST_IO is not supported on win2k3 */
+    ok_(__FILE__,line)((info.Flags & ~FILE_SKIP_SET_USER_EVENT_ON_FAST_IO) == expected_flags,
+                       "got %08lx\n", info.Flags);
 }
 
 static void test_file_completion_information(void)
 {
     DECLSPEC_ALIGN(TEST_OVERLAPPED_READ_SIZE) static unsigned char aligned_buf[TEST_OVERLAPPED_READ_SIZE];
-    static const char pipe_name[] = "\\\\.\\pipe\\test_file_completion_information";
     static const char buf[] = "testdata";
     FILE_IO_COMPLETION_NOTIFICATION_INFORMATION info;
-    HANDLE port, h, completion, server, client;
-    FILE_COMPLETION_INFORMATION fci;
-    BYTE recv_buf[TEST_BUF_LEN];
-    DWORD num_bytes, flag;
     OVERLAPPED ov, *pov;
     IO_STATUS_BLOCK io;
     NTSTATUS status;
+    DWORD num_bytes;
+    HANDLE port, h;
     ULONG_PTR key;
     BOOL ret;
     int i;
@@ -4371,51 +4325,6 @@ static void test_file_completion_information(void)
     CloseHandle(ov.hEvent);
     CloseHandle(port);
     CloseHandle(h);
-
-    /* Test that setting FileCompletionInformation makes an overlapped file signaled unless FILE_SKIP_SET_EVENT_ON_HANDLE is set */
-    for (flag = 0; flag <= FILE_SKIP_SET_USER_EVENT_ON_FAST_IO; flag = flag ? flag << 1 : 1)
-    {
-        winetest_push_context("%#lx", flag);
-
-        status = pNtCreateIoCompletion(&completion, IO_COMPLETION_ALL_ACCESS, NULL, 0);
-        ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-
-        server = CreateNamedPipeA(pipe_name, PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
-                                  PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT, 4, 1024, 1024,
-                                  1000, NULL);
-        ok(server != INVALID_HANDLE_VALUE, "CreateNamedPipe failed, error %lu.\n", GetLastError());
-        client = CreateFileA(pipe_name, GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
-                             FILE_FLAG_NO_BUFFERING | FILE_FLAG_OVERLAPPED, NULL);
-        ok(client != INVALID_HANDLE_VALUE, "CreateFile failed, error %lu.\n", GetLastError());
-
-        memset(&ov, 0, sizeof(ov));
-        ReadFile(server, recv_buf, TEST_BUF_LEN, &num_bytes, &ov);
-        ok(!is_signaled(server), "Expected not signaled.\n");
-
-        info.Flags = flag;
-        status = pNtSetInformationFile(server, &io, &info, sizeof(info), FileIoCompletionNotificationInformation);
-        ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-        test_completion_flags(server, flag);
-
-        fci.CompletionPort = completion;
-        fci.CompletionKey = CKEY_FIRST;
-        io.Status = 0xdeadbeef;
-        status = pNtSetInformationFile(server, &io, &fci, sizeof(fci), FileCompletionInformation);
-        ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-        ok(io.Status == STATUS_SUCCESS, "Got unexpected iosb.Status %#lx.\n", io.Status);
-        if (flag == FILE_SKIP_SET_EVENT_ON_HANDLE)
-            ok(!is_signaled(server), "Expected not signaled.\n");
-        else
-            ok(is_signaled(server), "Expected signaled.\n");
-
-        status = pNtClose(client);
-        ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-        status = pNtClose(server);
-        ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-        status = pNtClose(completion);
-        ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-        winetest_pop_context();
-    }
 }
 
 static void test_file_id_information(void)
@@ -4522,57 +4431,6 @@ static void test_file_attribute_tag_information(void)
     ok( status == STATUS_SUCCESS, "got %#lx\n", status );
     todo_wine ok( info.FileAttributes == FILE_ATTRIBUTE_HIDDEN, "got attributes %#lx\n", info.FileAttributes );
     ok( !info.ReparseTag, "got reparse tag %#lx\n", info.ReparseTag );
-
-    CloseHandle( h );
-}
-
-static void test_file_stat_information(void)
-{
-    BY_HANDLE_FILE_INFORMATION info;
-    FILE_STAT_INFORMATION fsd;
-    IO_STATUS_BLOCK io;
-    NTSTATUS status;
-    HANDLE h;
-    BOOL ret;
-
-    if (!(h = create_temp_file(0))) return;
-
-    memset( &fsd, 0x11, sizeof(fsd) );
-    status = pNtQueryInformationFile( h, &io, &fsd, sizeof(fsd), FileStatInformation );
-    if (status == STATUS_NOT_IMPLEMENTED || status == STATUS_INVALID_INFO_CLASS)
-    {
-        win_skip( "FileStatInformation not supported\n" );
-        CloseHandle( h );
-        return;
-    }
-    ok( status == STATUS_SUCCESS, "query FileStatInformation returned %#lx\n", status );
-
-    memset( &info, 0x22, sizeof(info) );
-    ret = GetFileInformationByHandle( h, &info );
-    ok( ret, "GetFileInformationByHandle failed\n" );
-
-    ok( fsd.FileId.u.LowPart == info.nFileIndexLow, "expected %08lx, got %08lx\n", info.nFileIndexLow, fsd.FileId.u.LowPart );
-    ok( fsd.FileId.u.HighPart == info.nFileIndexHigh, "expected %08lx, got %08lx\n", info.nFileIndexHigh, fsd.FileId.u.HighPart );
-    ok( fsd.CreationTime.u.LowPart == info.ftCreationTime.dwLowDateTime, "expected %08lx, got %08lx\n",
-        info.ftCreationTime.dwLowDateTime, fsd.CreationTime.u.LowPart );
-    ok( fsd.CreationTime.u.HighPart == info.ftCreationTime.dwHighDateTime, "expected %08lx, got %08lx\n",
-        info.ftCreationTime.dwHighDateTime, fsd.CreationTime.u.HighPart );
-    ok( fsd.LastAccessTime.u.LowPart == info.ftLastAccessTime.dwLowDateTime, "expected %08lx, got %08lx\n",
-        info.ftLastAccessTime.dwLowDateTime, fsd.LastAccessTime.u.LowPart );
-    ok( fsd.LastAccessTime.u.HighPart == info.ftLastAccessTime.dwHighDateTime, "expected %08lx, got %08lx\n",
-        info.ftLastAccessTime.dwHighDateTime, fsd.LastAccessTime.u.HighPart );
-    ok( fsd.LastWriteTime.u.LowPart == info.ftLastWriteTime.dwLowDateTime, "expected %08lx, got %08lx\n",
-        info.ftLastWriteTime.dwLowDateTime, fsd.LastWriteTime.u.LowPart );
-    ok( fsd.LastWriteTime.u.HighPart == info.ftLastWriteTime.dwHighDateTime, "expected %08lx, got %08lx\n",
-        info.ftLastWriteTime.dwHighDateTime, fsd.LastWriteTime.u.HighPart );
-    /* TODO: ChangeTime */
-    /* TODO: AllocationSize */
-    ok( fsd.EndOfFile.u.LowPart == info.nFileSizeLow, "expected %08lx, got %08lx\n", info.nFileSizeLow, fsd.EndOfFile.u.LowPart );
-    ok( fsd.EndOfFile.u.HighPart == info.nFileSizeHigh, "expected %08lx, got %08lx\n", info.nFileSizeHigh, fsd.EndOfFile.u.HighPart );
-    ok( fsd.FileAttributes == info.dwFileAttributes, "expected %08lx, got %08lx\n", info.dwFileAttributes, fsd.FileAttributes );
-    ok( !fsd.ReparseTag, "got reparse tag %#lx\n", fsd.ReparseTag );
-    ok( fsd.NumberOfLinks == info.nNumberOfLinks, "expected %08lx, got %08lx\n", info.nNumberOfLinks, fsd.NumberOfLinks );
-    ok( fsd.EffectiveAccess == FILE_ALL_ACCESS, "got %08lx\n", fsd.EffectiveAccess );
 
     CloseHandle( h );
 }
@@ -4724,9 +4582,15 @@ static void test_file_mode(void)
     mountmgr_dev_name.Length = sizeof(mountmgr_devW);
     mountmgr_dev_name.MaximumLength = sizeof(mountmgr_devW);
 
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
     for (i = 0; i < ARRAY_SIZE(option_tests); i++)
     {
-        InitializeObjectAttributes( &attr, option_tests[i].file_name, OBJ_CASE_INSENSITIVE, 0, NULL );
+        attr.ObjectName = option_tests[i].file_name;
         access = SYNCHRONIZE;
 
         if (option_tests[i].file_name == &file_name)
@@ -4767,7 +4631,12 @@ static void test_query_volume_information_file(void)
 
     GetWindowsDirectoryW( path, MAX_PATH );
     pRtlDosPathNameToNtPathName_U( path, &nameW, NULL, NULL );
-    InitializeObjectAttributes( &attr, &nameW, OBJ_CASE_INSENSITIVE, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.ObjectName = &nameW;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
 
     status = pNtOpenFile( &dir, SYNCHRONIZE|FILE_LIST_DIRECTORY, &attr, &io,
                           FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_DIRECTORY_FILE|FILE_SYNCHRONOUS_IO_NONALERT );
@@ -4812,7 +4681,13 @@ static void test_query_attribute_information_file(void)
 
     GetWindowsDirectoryW( path, MAX_PATH );
     pRtlDosPathNameToNtPathName_U( path, &nameW, NULL, NULL );
-    InitializeObjectAttributes( &attr, &nameW, OBJ_CASE_INSENSITIVE, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.ObjectName = &nameW;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
     status = pNtOpenFile( &dir, SYNCHRONIZE|FILE_LIST_DIRECTORY, &attr, &io,
                           FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_DIRECTORY_FILE|FILE_SYNCHRONOUS_IO_NONALERT );
     ok( !status, "open %s failed %lx\n", wine_dbgstr_w(nameW.Buffer), status );
@@ -4879,7 +4754,13 @@ static void test_NtCreateFile(void)
     GetTempFileNameW(path, fooW, 0, path);
     DeleteFileW(path);
     pRtlDosPathNameToNtPathName_U(path, &nameW, NULL, NULL);
-    InitializeObjectAttributes( &attr, &nameW, OBJ_CASE_INSENSITIVE, 0, NULL );
+
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = NULL;
+    attr.ObjectName = &nameW;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
 
     for (i = 0; i < ARRAY_SIZE(td); i++)
     {
@@ -4929,8 +4810,84 @@ static void test_NtCreateFile(void)
                             0, FILE_SHARE_READ|FILE_SHARE_WRITE, FILE_CREATE,
                             FILE_DIRECTORY_FILE, NULL, 0);
     ok( !status, "failed %s %lx\n", debugstr_w(nameW.Buffer), status );
-    pRtlFreeUnicodeString( &nameW );
     RemoveDirectoryW( path );
+}
+
+static void test_readonly(void)
+{
+    static const WCHAR fooW[] = {'f','o','o',0};
+    NTSTATUS status;
+    HANDLE handle;
+    WCHAR path[MAX_PATH];
+    OBJECT_ATTRIBUTES attr;
+    IO_STATUS_BLOCK io;
+    UNICODE_STRING nameW;
+
+    GetTempPathW(MAX_PATH, path);
+    GetTempFileNameW(path, fooW, 0, path);
+    DeleteFileW(path);
+    pRtlDosPathNameToNtPathName_U(path, &nameW, NULL, NULL);
+
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = NULL;
+    attr.ObjectName = &nameW;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
+    status = pNtCreateFile(&handle, GENERIC_READ, &attr, &io, NULL, FILE_ATTRIBUTE_READONLY,
+                           FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_CREATE, 0, NULL, 0);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, GENERIC_WRITE,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_ACCESS_DENIED, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, GENERIC_READ,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, FILE_READ_ATTRIBUTES,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, FILE_WRITE_ATTRIBUTES,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, DELETE,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, READ_CONTROL,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, WRITE_DAC,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, WRITE_OWNER,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle(handle);
+
+    status = pNtOpenFile(&handle, SYNCHRONIZE,  &attr, &io,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, FILE_OPEN_FOR_BACKUP_INTENT);
+    ok(status == STATUS_SUCCESS, "got %#x\n", status);
+    CloseHandle( handle );
+
+    pRtlFreeUnicodeString(&nameW);
+    SetFileAttributesW(path, FILE_ATTRIBUTE_ARCHIVE);
+    DeleteFileW(path);
 }
 
 static void test_read_write(void)
@@ -5885,7 +5842,14 @@ static void test_file_readonly_access(void)
     GetTempFileNameW(path, fooW, 0, path);
     DeleteFileW(path);
     pRtlDosPathNameToNtPathName_U(path, &nameW, NULL, NULL);
-    InitializeObjectAttributes( &attr, &nameW, OBJ_CASE_INSENSITIVE, 0, NULL );
+
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = NULL;
+    attr.ObjectName = &nameW;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
     status = pNtCreateFile(&handle, FILE_GENERIC_WRITE, &attr, &io, NULL, FILE_ATTRIBUTE_READONLY, default_sharing,
                            FILE_CREATE, 0, NULL, 0);
     ok(status == STATUS_SUCCESS, "expected STATUS_SUCCESS, got %#lx.\n", status);
@@ -5994,613 +5958,32 @@ static void test_mailslot_name(void)
     CloseHandle( device );
 }
 
-static INT build_reparse_buffer(const WCHAR *filename, ULONG tag, ULONG flags,
-                                REPARSE_DATA_BUFFER **pbuffer)
-{
-    static INT header_size = offsetof(REPARSE_DATA_BUFFER, GenericReparseBuffer);
-    INT buffer_size, struct_size, data_size, string_len, prefix_len;
-    WCHAR *subst_dest, *print_dest;
-    REPARSE_DATA_BUFFER *buffer;
-
-    switch(tag)
-    {
-    case IO_REPARSE_TAG_MOUNT_POINT:
-        struct_size = offsetof(REPARSE_DATA_BUFFER, MountPointReparseBuffer.PathBuffer[0]);
-        break;
-    case IO_REPARSE_TAG_SYMLINK:
-        struct_size = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer[0]);
-        break;
-    default:
-        return 0;
-    }
-    prefix_len = (flags == SYMLINK_FLAG_RELATIVE) ? 0 : strlen("\\??\\");
-    string_len = lstrlenW(&filename[prefix_len]);
-    data_size = (prefix_len + 2 * string_len + 2) * sizeof(WCHAR);
-    buffer_size = struct_size + data_size;
-    buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_size);
-    buffer->ReparseTag = tag;
-    buffer->ReparseDataLength = struct_size - header_size + data_size;
-    switch(tag)
-    {
-    case IO_REPARSE_TAG_MOUNT_POINT:
-        buffer->MountPointReparseBuffer.SubstituteNameLength = (prefix_len + string_len) * sizeof(WCHAR);
-        buffer->MountPointReparseBuffer.PrintNameOffset = (prefix_len + string_len + 1) * sizeof(WCHAR);
-        buffer->MountPointReparseBuffer.PrintNameLength = string_len * sizeof(WCHAR);
-        subst_dest = &buffer->MountPointReparseBuffer.PathBuffer[0];
-        print_dest = &buffer->MountPointReparseBuffer.PathBuffer[prefix_len + string_len + 1];
-        break;
-    case IO_REPARSE_TAG_SYMLINK:
-        buffer->SymbolicLinkReparseBuffer.SubstituteNameLength = (prefix_len + string_len) * sizeof(WCHAR);
-        buffer->SymbolicLinkReparseBuffer.PrintNameOffset = (prefix_len + string_len + 1) * sizeof(WCHAR);
-        buffer->SymbolicLinkReparseBuffer.PrintNameLength = string_len * sizeof(WCHAR);
-        buffer->SymbolicLinkReparseBuffer.Flags = flags;
-        subst_dest = &buffer->SymbolicLinkReparseBuffer.PathBuffer[0];
-        print_dest = &buffer->SymbolicLinkReparseBuffer.PathBuffer[prefix_len + string_len + 1];
-        break;
-    default:
-        return 0;
-    }
-    lstrcpyW(subst_dest, filename);
-    lstrcpyW(print_dest, &filename[prefix_len]);
-    *pbuffer = buffer;
-    return buffer_size;
-}
-
 static void test_reparse_points(void)
 {
-    WCHAR path[MAX_PATH], reparse_path[MAX_PATH], target_path[MAX_PATH], volnameW[MAX_PATH], new_path[MAX_PATH], thru_path[MAX_PATH];
-    static const WCHAR new_reparseW[] = {'\\','n','e','w','_','r','e','p','a','r','s','e',0};
-    static const WCHAR reparseW[] = {'\\','r','e','p','a','r','s','e',0};
-    static const WCHAR targetW[] = {'\\','t','a','r','g','e','t',0};
-    static const WCHAR parentW[] = {'\\','.','.','\\',0};
-    INT buffer_len, string_len, path_len, total_len;
-    FILE_BASIC_INFORMATION old_attrib, new_attrib;
-    static const WCHAR fooW[] = {'f','o','o',0};
-    static WCHAR volW[] = {'c',':','\\',0};
-    const WCHAR *rel_target = &targetW[1];
-    WCHAR *dest, *long_path, *abs_target;
-    REPARSE_GUID_DATA_BUFFER guid_buffer;
-    static const WCHAR dotW[] = {'.',0};
-    FILE_ATTRIBUTE_TAG_INFORMATION info;
-    REPARSE_DATA_BUFFER *buffer = NULL;
-    DWORD dwret, dwLen, dwFlags, err;
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    char unix_target[] = "target";
-    UCHAR *unix_dest;
-    WCHAR buf[] = {0,0,0,0};
-    HANDLE handle, token;
-    IO_STATUS_BLOCK iosb;
+    OBJECT_ATTRIBUTES attr;
+    HANDLE handle;
+    IO_STATUS_BLOCK io;
+    NTSTATUS status;
     UNICODE_STRING nameW;
-    TOKEN_PRIVILEGES tp;
-    NTSTATUS status;
-    LUID luid;
-    BOOL bret;
+    unsigned char reparse_data[1];
 
-    /* Create a temporary folder for the junction point tests */
-    GetTempFileNameW(dotW, fooW, 0, path);
-    DeleteFileW(path);
-    if (!CreateDirectoryW(path, NULL))
-    {
-        win_skip("Unable to create a temporary junction point directory.\n");
-        return;
-    }
+    pRtlInitUnicodeString( &nameW, L"\\??\\C:\\" );
+    InitializeObjectAttributes( &attr, &nameW, 0, NULL, NULL );
 
-    /* Check that the volume this folder is located on supports junction points */
-    pRtlDosPathNameToNtPathName_U(path, &nameW, NULL, NULL);
-    volW[0] = nameW.Buffer[4];
-    pRtlFreeUnicodeString( &nameW );
-    if (!GetVolumeNameForVolumeMountPointW(volW, volnameW, MAX_PATH))
-    {
-        win_skip("Failed to obtain volume name for current volume.\n");
-        return;
-    }
-    GetVolumeInformationW(volnameW, 0, 0, 0, &dwLen, &dwFlags, 0, 0);
-    if (!(dwFlags & FILE_SUPPORTS_REPARSE_POINTS))
-    {
-        skip("File system does not support reparse points.\n");
-        RemoveDirectoryW(path);
-        return;
-    }
+    status = pNtOpenFile( &handle, READ_CONTROL, &attr, &io, 0, 0 );
+    ok( !status, "open %s failed %#lx\n", wine_dbgstr_w(nameW.Buffer), status );
 
-    /* Create the folder to be replaced by a junction point */
-    lstrcpyW(reparse_path, path);
-    lstrcatW(reparse_path, reparseW);
-    bret = CreateDirectoryW(reparse_path, NULL);
-    ok(bret, "Failed to create junction point directory.\n");
+    status = pNtFsControlFile( handle, NULL, NULL, NULL, &io, FSCTL_GET_REPARSE_POINT, NULL, 0, NULL, 0 );
+    ok( status == STATUS_INVALID_USER_BUFFER, "expected %#lx, got %#lx\n", STATUS_INVALID_USER_BUFFER, status );
 
-    /* Create a destination folder for the junction point to target */
-    lstrcpyW(target_path, path);
-    for (int i=0; i<1; i++)
-    {
-        lstrcatW(target_path, parentW);
-        lstrcatW(target_path, path);
-    }
-    lstrcatW(target_path, targetW);
-    bret = CreateDirectoryW(target_path, NULL);
-    ok(bret, "Failed to create junction point target directory.\n");
-    pRtlDosPathNameToNtPathName_U(path, &nameW, NULL, NULL);
+    status = pNtFsControlFile( handle, NULL, NULL, NULL, &io, FSCTL_GET_REPARSE_POINT, NULL, 0, reparse_data, 0 );
+    ok( status == STATUS_INVALID_USER_BUFFER, "expected %#lx, got %#lx\n", STATUS_INVALID_USER_BUFFER, status );
 
-    /* construct a too long pathname (resulting reparse buffer over 16 kiB limit) */
-    long_path = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 32767);
-    lstrcpyW(long_path, nameW.Buffer);
-    for (int i=0; i<250; i++)
-    {
-        lstrcatW(long_path, parentW);
-        lstrcatW(long_path, path);
-    }
-    lstrcatW(long_path, targetW);
+    /* a volume cannot be a reparse point by definition */
+    status = pNtFsControlFile( handle, NULL, NULL, NULL, &io, FSCTL_GET_REPARSE_POINT, NULL, 0, reparse_data, 1 );
+    ok( status == STATUS_NOT_A_REPARSE_POINT, "expected %#lx, got %#lx\n", STATUS_NOT_A_REPARSE_POINT, status );
 
-    /* Create the junction point */
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        win_skip("Failed to open junction point directory handle (0x%lx).\n", GetLastError());
-        goto cleanup;
-    }
-    buffer_len = build_reparse_buffer(long_path, IO_REPARSE_TAG_MOUNT_POINT, 0, &buffer);
-    bret = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_len, NULL, 0, &dwret, 0);
-    ok(!bret && GetLastError()==ERROR_INVALID_REPARSE_DATA, "Unexpected error (0x%lx)\n", GetLastError());
-    HeapFree(GetProcessHeap(), 0, buffer);
-    CloseHandle(handle);
-
-    /* construct a long pathname to demonstrate correct behavior with very large reparse points */
-    pRtlDosPathNameToNtPathName_U(path, &nameW, NULL, NULL);
-    lstrcpyW(long_path, nameW.Buffer);
-    for (int i=0; i<200; i++)
-    {
-        lstrcatW(long_path, parentW);
-        lstrcatW(long_path, path);
-    }
-    lstrcatW(long_path, targetW);
-
-    /* use a sane (not obscenely long) target for the rest of testing */
-    pRtlFreeUnicodeString(&nameW);
-    pRtlDosPathNameToNtPathName_U(target_path, &nameW, NULL, NULL);
-    abs_target = nameW.Buffer;
-
-    /* Create the junction point */
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        win_skip("Failed to open junction point directory handle (0x%lx).\n", GetLastError());
-        goto cleanup;
-    }
-    dwret = NtQueryInformationFile(handle, &iosb, &old_attrib, sizeof(old_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to get junction point folder's attributes (0x%lx).\n", dwret);
-    buffer_len = build_reparse_buffer(long_path, IO_REPARSE_TAG_MOUNT_POINT, 0, &buffer);
-    bret = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_len, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to create junction point! (0x%lx)\n", GetLastError());
-
-    /* Check the file attributes of the junction point */
-    dwret = GetFileAttributesW(reparse_path);
-    ok(dwret != (DWORD)~0, "Reparse point doesn't exist (attributes: 0x%lx)!\n", dwret);
-    ok(dwret & FILE_ATTRIBUTE_REPARSE_POINT, "File is not a reparse point! (attributes: 0x%lx)\n", dwret);
-
-    /* Read back the junction point */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    buffer_len = sizeof(*buffer) + 2*32767;
-    buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_len);
-    bret = DeviceIoControl(handle, FSCTL_GET_REPARSE_POINT, NULL, 0, (LPVOID)buffer, buffer_len, &dwret, 0);
-    ok(bret, "Failed to read junction point! (last error=0x%lx)\n", GetLastError());
-    string_len = buffer->MountPointReparseBuffer.SubstituteNameLength;
-    dest = &buffer->MountPointReparseBuffer.PathBuffer[buffer->MountPointReparseBuffer.SubstituteNameOffset/sizeof(WCHAR)];
-    ok((memcmp(dest, long_path, string_len) == 0), "Junction point destination does not match ('%s' != '%s')!\n",
-                                                   wine_dbgstr_w(dest), wine_dbgstr_w(long_path));
-    path_len = buffer->MountPointReparseBuffer.PrintNameOffset/sizeof(WCHAR);
-    path_len += buffer->MountPointReparseBuffer.PrintNameLength/sizeof(WCHAR);
-    total_len = FIELD_OFFSET(typeof(*buffer), MountPointReparseBuffer.PathBuffer[path_len+1])
-                - FIELD_OFFSET(typeof(*buffer), GenericReparseBuffer);
-    ok(buffer->ReparseDataLength == total_len, "ReparseDataLength has unexpected value (%d != %d)\n",
-                                               buffer->ReparseDataLength, total_len);
-
-    /* Delete the junction point */
-    memset(&old_attrib, 0x00, sizeof(old_attrib));
-    old_attrib.LastAccessTime.QuadPart = 0x200deadcafebeef;
-    dwret = NtSetInformationFile(handle, &iosb, &old_attrib, sizeof(old_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to set junction point folder's attributes (0x%lx).\n", dwret);
-    memset(&guid_buffer, 0x00, sizeof(guid_buffer));
-    guid_buffer.ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
-    bret = DeviceIoControl(handle, FSCTL_DELETE_REPARSE_POINT, (LPVOID)&guid_buffer,
-                           REPARSE_GUID_DATA_BUFFER_HEADER_SIZE, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to delete junction point! (0x%lx)\n", GetLastError());
-    memset(&new_attrib, 0x00, sizeof(new_attrib));
-    dwret = NtQueryInformationFile(handle, &iosb, &new_attrib, sizeof(new_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to get junction point folder's attributes (0x%lx).\n", dwret);
-    ok(old_attrib.LastAccessTime.QuadPart == new_attrib.LastAccessTime.QuadPart,
-       "Junction point folder's access time does not match.\n");
-    CloseHandle(handle);
-
-    /* Check deleting a junction point as if it were a directory */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    buffer_len = build_reparse_buffer(abs_target, IO_REPARSE_TAG_MOUNT_POINT, 0, &buffer);
-    bret = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_len, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to create junction point! (0x%lx)\n", GetLastError());
-    CloseHandle(handle);
-    bret = RemoveDirectoryW(reparse_path);
-    ok(bret, "Failed to delete junction point as directory!\n");
-    dwret = GetFileAttributesW(reparse_path);
-    ok(dwret == (DWORD)~0, "Junction point still exists (attributes: 0x%lx)!\n", dwret);
-
-    /* Check deleting a junction point as if it were a file */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    bret = CreateDirectoryW(reparse_path, NULL);
-    ok(bret, "Failed to create junction point target directory.\n");
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    buffer_len = build_reparse_buffer(abs_target, IO_REPARSE_TAG_MOUNT_POINT, 0, &buffer);
-    bret = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_len, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to create junction point! (0x%lx)\n", GetLastError());
-    CloseHandle(handle);
-    bret = DeleteFileW(reparse_path);
-    ok(!bret, "Succeeded in deleting junction point as file!\n");
-    err = GetLastError();
-    ok(err == ERROR_ACCESS_DENIED, "Expected last error 0x%x for DeleteFile on junction point (actually 0x%lx)!\n",
-                                   ERROR_ACCESS_DENIED, err);
-    dwret = GetFileAttributesW(reparse_path);
-    ok(dwret != (DWORD)~0, "Junction point doesn't exist (attributes: 0x%lx)!\n", dwret);
-    ok(dwret & FILE_ATTRIBUTE_REPARSE_POINT, "File is not a junction point! (attributes: 0x%lx)\n", dwret);
-
-    /* Test deleting a junction point's target */
-    dwret = GetFileAttributesW(reparse_path);
-    ok(dwret == 0x410 || broken(dwret == 0x430) /* win2k */ || broken(dwret == 0xc10) /* vista */,
-       "Unexpected junction point attributes (0x%lx != 0x410)!\n", dwret);
-    bret = RemoveDirectoryW(target_path);
-    ok(bret, "Failed to delete junction point target!\n");
-    bret = CreateDirectoryW(target_path, NULL);
-    ok(bret, "Failed to create junction point target directory.\n");
-
-    /* Establish permissions for symlink creation */
-    bret = OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &token);
-    ok(bret, "OpenProcessToken failed: %lx\n", GetLastError());
-    bret = LookupPrivilegeValueA(NULL, "SeCreateSymbolicLinkPrivilege", &luid);
-    todo_wine ok(bret || broken(!bret && GetLastError() == ERROR_NO_SUCH_PRIVILEGE) /* winxp */,
-                 "LookupPrivilegeValue failed: %lx\n", GetLastError());
-    if (bret)
-    {
-        tp.PrivilegeCount = 1;
-        tp.Privileges[0].Luid = luid;
-        tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-        bret = AdjustTokenPrivileges(token, FALSE, &tp, 0, NULL, NULL);
-        ok(bret, "AdjustTokenPrivileges failed: %lx\n", GetLastError());
-        if (GetLastError() == ERROR_NOT_ALL_ASSIGNED)
-        {
-            win_skip("Insufficient permissions to perform symlink tests.\n");
-            goto cleanup;
-        }
-    }
-
-    /* Delete the junction point directory and create a blank slate for symlink tests */
-    bret = RemoveDirectoryW(reparse_path);
-    ok(bret, "Failed to delete junction point!\n");
-    bret = RemoveDirectoryW(target_path);
-    ok(bret, "Failed to delete junction point target!\n");
-    handle = CreateFileW(target_path, GENERIC_READ | GENERIC_WRITE, 0, 0, CREATE_NEW, 0, 0);
-    ok(handle != INVALID_HANDLE_VALUE, "Failed to create symlink target file.\n");
-    bret = WriteFile(handle, fooW, sizeof(fooW), &dwLen, NULL);
-    ok(bret, "Failed to write data to the symlink target file.\n");
-    ok(GetFileSize(handle, NULL) == sizeof(fooW), "target size is incorrect (%ld vs %d)\n",
-       GetFileSize(handle, NULL), (int)sizeof(fooW));
-    CloseHandle(handle);
-
-    /* Create the file symlink */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, CREATE_NEW,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    ok(handle != INVALID_HANDLE_VALUE, "Failed to create symlink file.\n");
-    dwret = NtQueryInformationFile(handle, &iosb, &old_attrib, sizeof(old_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to get symlink file's attributes (0x%lx).\n", dwret);
-    buffer_len = build_reparse_buffer(nameW.Buffer, IO_REPARSE_TAG_SYMLINK, 0, &buffer);
-    bret = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_len, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to create symlink! (0x%lx)\n", GetLastError());
-    CloseHandle(handle);
-
-    /* Check the size of the symlink */
-    bret = GetFileAttributesExW(reparse_path, GetFileExInfoStandard, &fad);
-    ok(bret, "Failed to read file attributes from the symlink target.\n");
-    ok(fad.nFileSizeLow == 0 && fad.nFileSizeHigh == 0, "Size of symlink is not zero.\n");
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    ok(handle != INVALID_HANDLE_VALUE, "Failed to open symlink file.\n");
-    ok(GetFileSize(handle, NULL) == 0, "symlink size is not zero\n");
-    bret = ReadFile(handle, &buf, sizeof(buf), &dwLen, NULL);
-    ok(bret, "Failed to read data from the symlink.\n");
-    ok(dwLen == 0, "Length of symlink data is not zero.\n");
-    memset(&info, 0x0, sizeof(info));
-    status = pNtQueryInformationFile(handle, &iosb, &info, sizeof(info), FileAttributeTagInformation);
-    ok( status == STATUS_SUCCESS, "got %#lx\n", status );
-    ok( info.ReparseTag == IO_REPARSE_TAG_SYMLINK, "got reparse tag %#lx\n", info.ReparseTag );
-    CloseHandle(handle);
-
-    /* Check the size/data of the symlink target */
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        win_skip("Failed to open symlink file handle (0x%lx).\n", GetLastError());
-        goto cleanup;
-    }
-    ok(GetFileSize(handle, NULL) == sizeof(fooW), "symlink target size does not match (%ld != %d)\n",
-       GetFileSize(handle, NULL), (int)sizeof(fooW));
-    bret = ReadFile(handle, &buf, sizeof(buf), &dwLen, NULL);
-    ok(bret, "Failed to read data from the symlink.\n");
-    ok(dwLen == sizeof(fooW), "Length of symlink target data does not match (%ld != %d).\n",
-       dwLen, (int)sizeof(fooW));
-    ok(!memcmp(fooW, &buf, sizeof(fooW)), "Symlink target data does not match (%s != %s).\n",
-       wine_dbgstr_wn(buf, dwLen), wine_dbgstr_w(fooW));
-    CloseHandle(handle);
-
-    /* Check the size/data of the symlink target when opened with FILE_FLAG_OPEN_REPARSE_POINT */
-    handle = CreateFileW(target_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        win_skip("Failed to open symlink file handle (0x%lx).\n", GetLastError());
-        goto cleanup;
-    }
-    ok(GetFileSize(handle, NULL) == sizeof(fooW), "symlink target size does not match (%ld != %d)\n",
-       GetFileSize(handle, NULL), (int)sizeof(fooW));
-    bret = ReadFile(handle, &buf, sizeof(buf), &dwLen, NULL);
-    ok(bret, "Failed to read data from the symlink target.\n");
-    ok(dwLen == sizeof(fooW), "Length of symlink target data does not match (%ld != %d).\n",
-       dwLen, (int)sizeof(fooW));
-    ok(!memcmp(fooW, &buf, sizeof(fooW)), "Symlink target data does not match (%s != %s).\n",
-       wine_dbgstr_wn(buf, dwLen), wine_dbgstr_w(fooW));
-    CloseHandle(handle);
-
-    /* Check deleting a file symlink as if it were a directory */
-    bret = RemoveDirectoryW(reparse_path);
-    ok(!bret, "Succeeded in deleting file symlink as a directory!\n");
-    err = GetLastError();
-    ok(err == ERROR_DIRECTORY,
-                 "Expected last error 0x%x for RemoveDirectory on file symlink (actually 0x%lx)!\n",
-                 ERROR_DIRECTORY, err);
-    dwret = GetFileAttributesW(reparse_path);
-    ok(dwret != (DWORD)~0, "Symlink doesn't exist (attributes: 0x%lx)!\n", dwret);
-    ok(dwret & FILE_ATTRIBUTE_REPARSE_POINT, "File is not a symlink! (attributes: 0x%lx)\n", dwret);
-
-    /* Delete the symlink as a file */
-    bret = DeleteFileW(reparse_path);
-    ok(bret, "Failed to delete symlink as a file!\n");
-
-    /* Create a blank slate for directory symlink tests */
-    bret = CreateDirectoryW(reparse_path, NULL);
-    ok(bret, "Failed to create junction point directory.\n");
-    dwret = GetFileAttributesW(reparse_path);
-    ok(dwret != (DWORD)~0, "Path doesn't exist (attributes: 0x%lx)!\n", dwret);
-    ok(!(dwret & FILE_ATTRIBUTE_REPARSE_POINT), "File is already a reparse point! (attributes: %lx)\n", dwret);
-    bret = DeleteFileW(target_path);
-    ok(bret, "Failed to delete symlink target!\n");
-    bret = CreateDirectoryW(target_path, NULL);
-    ok(bret, "Failed to create symlink target directory.\n");
-
-    /* Create the directory symlink */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        win_skip("Failed to open symlink directory handle (0x%lx).\n", GetLastError());
-        goto cleanup;
-    }
-    dwret = NtQueryInformationFile(handle, &iosb, &old_attrib, sizeof(old_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to get symlink folder's attributes (0x%lx).\n", dwret);
-    buffer_len = build_reparse_buffer(abs_target, IO_REPARSE_TAG_SYMLINK, 0, &buffer);
-    bret = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_len, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to create symlink! (0x%lx)\n", GetLastError());
-
-    /* Check the file attributes of the symlink */
-    dwret = GetFileAttributesW(reparse_path);
-    ok(dwret != (DWORD)~0, "Symlink doesn't exist (attributes: 0x%lx)!\n", dwret);
-    ok(dwret & FILE_ATTRIBUTE_REPARSE_POINT, "File is not a symlink! (attributes: %lx)\n", dwret);
-
-    /* Read back the symlink */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    buffer_len = sizeof(*buffer) + MAX_PATH*sizeof(WCHAR);
-    buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_len);
-    bret = DeviceIoControl(handle, FSCTL_GET_REPARSE_POINT, NULL, 0, (LPVOID)buffer, buffer_len, &dwret, 0);
-    string_len = buffer->SymbolicLinkReparseBuffer.SubstituteNameLength;
-    dest = &buffer->SymbolicLinkReparseBuffer.PathBuffer[buffer->SymbolicLinkReparseBuffer.SubstituteNameOffset/sizeof(WCHAR)];
-    ok(bret, "Failed to read symlink!\n");
-    ok((memcmp(dest, nameW.Buffer, string_len) == 0), "Symlink destination does not match ('%s' != '%s')!\n",
-                                                      wine_dbgstr_w(dest), wine_dbgstr_w(nameW.Buffer));
-    path_len = buffer->SymbolicLinkReparseBuffer.PrintNameOffset/sizeof(WCHAR);
-    path_len += buffer->SymbolicLinkReparseBuffer.PrintNameLength/sizeof(WCHAR);
-    total_len = FIELD_OFFSET(typeof(*buffer), SymbolicLinkReparseBuffer.PathBuffer[path_len+1])
-                - FIELD_OFFSET(typeof(*buffer), GenericReparseBuffer);
-    ok(buffer->ReparseDataLength == total_len, "ReparseDataLength has unexpected value (%d != %d)\n",
-                                               buffer->ReparseDataLength, total_len);
-
-    /* Delete the symlink */
-    memset(&old_attrib, 0x00, sizeof(old_attrib));
-    old_attrib.LastAccessTime.QuadPart = 0x200deadcafebeef;
-    dwret = NtSetInformationFile(handle, &iosb, &old_attrib, sizeof(old_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to set symlink folder's attributes (0x%lx).\n", dwret);
-    memset(&guid_buffer, 0x00, sizeof(guid_buffer));
-    guid_buffer.ReparseTag = IO_REPARSE_TAG_SYMLINK;
-    bret = DeviceIoControl(handle, FSCTL_DELETE_REPARSE_POINT, (LPVOID)&guid_buffer,
-                           REPARSE_GUID_DATA_BUFFER_HEADER_SIZE, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to delete symlink! (0x%lx)\n", GetLastError());
-    memset(&new_attrib, 0x00, sizeof(new_attrib));
-    dwret = NtQueryInformationFile(handle, &iosb, &new_attrib, sizeof(new_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to get symlink folder's attributes (0x%lx).\n", dwret);
-    ok(old_attrib.LastAccessTime.QuadPart == new_attrib.LastAccessTime.QuadPart,
-       "Symlink folder's access time does not match.\n");
-    CloseHandle(handle);
-
-    /* Create a Unix/Linux symlink */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    RemoveDirectoryW(reparse_path);
-    bret = CreateDirectoryW(reparse_path, NULL);
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        win_skip("Failed to open symlink directory handle (0x%lx).\n", GetLastError());
-        goto cleanup;
-    }
-    dwret = NtQueryInformationFile(handle, &iosb, &old_attrib, sizeof(old_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to get symlink folder's attributes (0x%lx).\n", dwret);
-    path_len = strlen(unix_target);
-    buffer_len = offsetof(REPARSE_DATA_BUFFER, LinuxSymbolicLinkReparseBuffer.PathBuffer[path_len]);
-    buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_len);
-    buffer->ReparseTag = IO_REPARSE_TAG_LX_SYMLINK;
-    buffer->ReparseDataLength = sizeof(ULONG) + path_len;
-    memcpy(buffer->LinuxSymbolicLinkReparseBuffer.PathBuffer, unix_target, path_len);
-    bret = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_len, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to create symlink! (0x%lx)\n", GetLastError());
-
-    /* Read back the Unix/Linux symlink */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    buffer_len = sizeof(*buffer) + MAX_PATH*sizeof(WCHAR);
-    buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_len);
-    bret = DeviceIoControl(handle, FSCTL_GET_REPARSE_POINT, NULL, 0, (LPVOID)buffer, buffer_len, &dwret, 0);
-    ok(bret, "Failed to read symlink!\n");
-    string_len = buffer->ReparseDataLength - sizeof(ULONG);
-    unix_dest = &buffer->LinuxSymbolicLinkReparseBuffer.PathBuffer[0];
-    ok((memcmp(unix_dest, unix_target, string_len) == 0), "Symlink destination does not match ('%s' != '%s')!\n",
-                                                          unix_dest, unix_target);
-    total_len = FIELD_OFFSET(typeof(*buffer), LinuxSymbolicLinkReparseBuffer.PathBuffer[path_len])
-                - FIELD_OFFSET(typeof(*buffer), GenericReparseBuffer);
-    ok(buffer->ReparseDataLength == total_len, "ReparseDataLength has unexpected value (%d != %d)\n",
-                                               buffer->ReparseDataLength, total_len);
-
-    /* Delete the symlink */
-    memset(&guid_buffer, 0x00, sizeof(guid_buffer));
-    guid_buffer.ReparseTag = IO_REPARSE_TAG_LX_SYMLINK;
-    bret = DeviceIoControl(handle, FSCTL_DELETE_REPARSE_POINT, (LPVOID)&guid_buffer,
-                           REPARSE_GUID_DATA_BUFFER_HEADER_SIZE, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to delete symlink! (0x%lx)\n", GetLastError());
-    CloseHandle(handle);
-    RemoveDirectoryW(reparse_path);
-    DeleteFileW(reparse_path);
-    CreateDirectoryW(reparse_path, NULL);
-
-    /* Create a relative directory symlink */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    handle = CreateFileW(reparse_path, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        win_skip("Failed to open symlink directory handle (0x%lx).\n", GetLastError());
-        goto cleanup;
-    }
-    dwret = NtQueryInformationFile(handle, &iosb, &old_attrib, sizeof(old_attrib), FileBasicInformation);
-    ok(dwret == STATUS_SUCCESS, "Failed to get symlink folder's attributes (0x%lx).\n", dwret);
-    buffer_len = build_reparse_buffer(rel_target, IO_REPARSE_TAG_SYMLINK, SYMLINK_FLAG_RELATIVE, &buffer);
-    bret = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_len, NULL, 0, &dwret, 0);
-    ok(bret, "Failed to create symlink! (0x%lx)\n", GetLastError());
-
-    /* Read back the relative symlink */
-    HeapFree(GetProcessHeap(), 0, buffer);
-    buffer_len = sizeof(*buffer) + MAX_PATH*sizeof(WCHAR);
-    buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_len);
-    bret = DeviceIoControl(handle, FSCTL_GET_REPARSE_POINT, NULL, 0, (LPVOID)buffer, buffer_len, &dwret, 0);
-    ok(bret, "Failed to read relative symlink!\n");
-    string_len = buffer->SymbolicLinkReparseBuffer.SubstituteNameLength;
-    ok(string_len != lstrlenW(rel_target), "Symlink destination length does not match ('%d' != '%d')!\n",
-                                            string_len, lstrlenW(rel_target));
-    dest = &buffer->SymbolicLinkReparseBuffer.PathBuffer[buffer->SymbolicLinkReparseBuffer.SubstituteNameOffset/sizeof(WCHAR)];
-    ok((memcmp(dest, rel_target, string_len) == 0), "Symlink destination does not match ('%s' != '%s')!\n",
-                                                     wine_dbgstr_w(dest), wine_dbgstr_w(rel_target));
-    CloseHandle(handle);
-
-    /* Check moving a reparse point to another location */
-    lstrcpyW(new_path, path);
-    lstrcatW(new_path, parentW);
-    lstrcatW(new_path, new_reparseW);
-    bret = MoveFileW(reparse_path, new_path);
-    ok(bret, "Failed to move and rename reparse point.\n");
-    bret = MoveFileW(new_path, reparse_path);
-    ok(bret, "Failed to move and rename reparse point.\n");
-
-    /* Check copying a reparse point to another location */
-    lstrcpyW(new_path, path);
-    lstrcatW(new_path, new_reparseW);
-    bret = CopyFileW(reparse_path, new_path, TRUE);
-    ok(!bret, "Reparse points cannot be copied.\n");
-
-    /* Create a file on the other side of a reparse point */
-    lstrcpyW(thru_path, reparse_path);
-    lstrcatW(thru_path, new_reparseW);
-    handle = CreateFileW(thru_path, GENERIC_READ | GENERIC_WRITE, 0, 0, CREATE_NEW, 0, 0);
-    ok( handle != INVALID_HANDLE_VALUE, "Failed to create file on other side of reparse point: %lx.\n", GetLastError() );
-    CloseHandle(handle);
-
-cleanup:
-    /* Cleanup */
-    pRtlFreeUnicodeString(&nameW);
-    HeapFree(GetProcessHeap(), 0, long_path);
-    HeapFree(GetProcessHeap(), 0, buffer);
-    bret = DeleteFileW(thru_path);
-    ok(bret, "Failed to delete file on other side of junction point!\n");
-    bret = RemoveDirectoryW(reparse_path);
-    ok(bret, "Failed to remove temporary reparse point directory!\n");
-    bret = RemoveDirectoryW(target_path);
-    ok(bret, "Failed to remove temporary target directory!\n");
-    RemoveDirectoryW(path);
-}
-
-static void test_set_io_completion_ex(void)
-{
-    HANDLE completion, completion_reserve, apc_reserve;
-    LARGE_INTEGER timeout = {{0}};
-    IO_STATUS_BLOCK iosb;
-    ULONG_PTR key, value;
-    NTSTATUS status;
-    SIZE_T size = 3;
-
-    if (!pNtSetIoCompletionEx || !pNtAllocateReserveObject)
-    {
-        win_skip("NtSetIoCompletionEx() or NtAllocateReserveObject() is unavailable.\n");
-        return;
-    }
-
-    if (sizeof(size) > 4) size |= (ULONGLONG)0x12345678 << 32;
-
-    status = pNtCreateIoCompletion(&completion, IO_COMPLETION_ALL_ACCESS, NULL, 0);
-    ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-    status = pNtAllocateReserveObject(&completion_reserve, NULL, MemoryReserveObjectTypeIoCompletion);
-    ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-    status = pNtAllocateReserveObject(&apc_reserve, NULL, MemoryReserveObjectTypeUserApc);
-    ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-
-    /* Parameter checks */
-    status = pNtSetIoCompletionEx(NULL, completion_reserve, CKEY_FIRST, CVALUE_FIRST, STATUS_INVALID_DEVICE_REQUEST, size);
-    ok(status == STATUS_INVALID_HANDLE, "Got unexpected status %#lx.\n", status);
-
-    status = pNtSetIoCompletionEx(INVALID_HANDLE_VALUE, completion_reserve, CKEY_FIRST, CVALUE_FIRST, STATUS_INVALID_DEVICE_REQUEST, size);
-    ok(status == STATUS_OBJECT_TYPE_MISMATCH, "Got unexpected status %#lx.\n", status);
-
-    status = pNtSetIoCompletionEx(completion, NULL, CKEY_FIRST, CVALUE_FIRST, STATUS_INVALID_DEVICE_REQUEST, size);
-    ok(status == STATUS_INVALID_HANDLE, "Got unexpected status %#lx.\n", status);
-
-    status = pNtSetIoCompletionEx(completion, INVALID_HANDLE_VALUE, CKEY_FIRST, CVALUE_FIRST, STATUS_INVALID_DEVICE_REQUEST, size);
-    ok(status == STATUS_OBJECT_TYPE_MISMATCH, "Got unexpected status %#lx.\n", status);
-
-    status = pNtSetIoCompletionEx(completion, apc_reserve, CKEY_FIRST, CVALUE_FIRST, STATUS_INVALID_DEVICE_REQUEST, size);
-    ok(status == STATUS_OBJECT_TYPE_MISMATCH, "Got unexpected status %#lx.\n", status);
-
-    /* Normal call */
-    status = pNtSetIoCompletionEx(completion, completion_reserve, CKEY_FIRST, CVALUE_FIRST, STATUS_INVALID_DEVICE_REQUEST, size);
-    ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-
-    status = pNtRemoveIoCompletion(completion, &key, &value, &iosb, &timeout);
-    ok(status == STATUS_SUCCESS, "Got unexpected status %#lx.\n", status);
-    ok(key == CKEY_FIRST, "Invalid completion key: %#Ix\n", key);
-    ok(iosb.Information == size, "Invalid iosb.Information: %Iu\n", iosb.Information);
-    ok(iosb.Status == STATUS_INVALID_DEVICE_REQUEST, "Invalid iosb.Status: %#lx\n", iosb.Status);
-    ok(value == CVALUE_FIRST, "Invalid completion value: %#Ix\n", value);
-
-    CloseHandle(apc_reserve);
-    CloseHandle(completion_reserve);
-    CloseHandle(completion);
+    CloseHandle( handle );
 }
 
 START_TEST(file)
@@ -6620,7 +6003,6 @@ START_TEST(file)
     pRtlInitUnicodeString   = (void *)GetProcAddress(hntdll, "RtlInitUnicodeString");
     pRtlDosPathNameToNtPathName_U = (void *)GetProcAddress(hntdll, "RtlDosPathNameToNtPathName_U");
     pRtlWow64EnableFsRedirectionEx = (void *)GetProcAddress(hntdll, "RtlWow64EnableFsRedirectionEx");
-    pNtAllocateReserveObject= (void *)GetProcAddress(hntdll, "NtAllocateReserveObject");
     pNtCreateMailslotFile   = (void *)GetProcAddress(hntdll, "NtCreateMailslotFile");
     pNtCreateFile           = (void *)GetProcAddress(hntdll, "NtCreateFile");
     pNtOpenFile             = (void *)GetProcAddress(hntdll, "NtOpenFile");
@@ -6637,7 +6019,6 @@ START_TEST(file)
     pNtRemoveIoCompletion   = (void *)GetProcAddress(hntdll, "NtRemoveIoCompletion");
     pNtRemoveIoCompletionEx = (void *)GetProcAddress(hntdll, "NtRemoveIoCompletionEx");
     pNtSetIoCompletion      = (void *)GetProcAddress(hntdll, "NtSetIoCompletion");
-    pNtSetIoCompletionEx    = (void *)GetProcAddress(hntdll, "NtSetIoCompletionEx");
     pNtSetInformationFile   = (void *)GetProcAddress(hntdll, "NtSetInformationFile");
     pNtQueryAttributesFile  = (void *)GetProcAddress(hntdll, "NtQueryAttributesFile");
     pNtQueryInformationFile = (void *)GetProcAddress(hntdll, "NtQueryInformationFile");
@@ -6649,6 +6030,7 @@ START_TEST(file)
 
     test_read_write();
     test_NtCreateFile();
+    test_readonly();
     create_file_test();
     open_file_test();
     delete_file_test();
@@ -6656,7 +6038,6 @@ START_TEST(file)
     append_file_test();
     nt_mailslot_test();
     test_set_io_completion();
-    test_set_io_completion_ex();
     test_file_io_completion();
     test_file_basic_information();
     test_file_all_information();
@@ -6675,7 +6056,6 @@ START_TEST(file)
     test_file_id_information();
     test_file_access_information();
     test_file_attribute_tag_information();
-    test_file_stat_information();
     test_dotfile_file_attributes();
     test_file_mode();
     test_file_readonly_access();
@@ -6684,6 +6064,6 @@ START_TEST(file)
     test_ioctl();
     test_query_ea();
     test_flush_buffers_file();
-    test_reparse_points();
     test_mailslot_name();
+    test_reparse_points();
 }

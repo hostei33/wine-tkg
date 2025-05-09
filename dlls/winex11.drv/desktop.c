@@ -35,7 +35,8 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 
-static RECT host_primary_rect;
+static RECT *host_monitor_rects;
+static int host_monitor_rect_count;
 
 #define _NET_WM_STATE_REMOVE 0
 #define _NET_WM_STATE_ADD 1
@@ -51,11 +52,14 @@ BOOL is_virtual_desktop(void)
  *
  * Setup the desktop when not using the root window.
  */
-void X11DRV_init_desktop( Window win, unsigned int width, unsigned int height )
+void X11DRV_init_desktop( Window win )
 {
-    host_primary_rect = get_host_primary_monitor_rect();
+    if (host_monitor_rects) free( host_monitor_rects );
+    if (!get_host_monitor_rects( &host_monitor_rects, &host_monitor_rect_count ))
+        ERR("Failed to get host monitor rectangle.\n");
     root_window = win;
     managed_mode = FALSE;  /* no managed windows in desktop mode */
+    fs_hack_disable();
 }
 
 /***********************************************************************
@@ -73,8 +77,7 @@ BOOL X11DRV_CreateDesktop( const WCHAR *name, UINT width, UINT height )
 
     /* Create window */
     win_attr.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask | EnterWindowMask |
-                          PointerMotionMask | ButtonPressMask | ButtonReleaseMask | FocusChangeMask |
-                          PropertyChangeMask;
+                          PointerMotionMask | ButtonPressMask | ButtonReleaseMask | FocusChangeMask;
     win_attr.cursor = XCreateFontCursor( display, XC_top_left_arrow );
 
     if (default_visual.visual != DefaultVisual( display, DefaultScreen(display) ))
@@ -87,17 +90,48 @@ BOOL X11DRV_CreateDesktop( const WCHAR *name, UINT width, UINT height )
                          0, 0, width, height, 0, default_visual.depth, InputOutput,
                          default_visual.visual, CWEventMask | CWCursor | CWColormap, &win_attr );
     if (!win) return FALSE;
-
-    x11drv_xinput2_enable( display, win );
+    X11DRV_XInput2_Enable( display, win, win_attr.event_mask );
     XFlush( display );
 
-    X11DRV_init_desktop( win, width, height );
+    X11DRV_init_desktop( win );
     return TRUE;
 }
 
 BOOL is_desktop_fullscreen(void)
 {
-    RECT primary_rect = NtUserGetPrimaryMonitorRect();
-    return (primary_rect.right - primary_rect.left == host_primary_rect.right - host_primary_rect.left &&
-            primary_rect.bottom - primary_rect.top == host_primary_rect.bottom - host_primary_rect.top);
+    Display *display = thread_display();
+    unsigned int width, height, border, depth;
+    int x, y, i;
+    Window root;
+    RECT rect;
+
+    XGetGeometry( display, root_window, &root, &x, &y, &width, &height, &border, &depth );
+    SetRect( &rect, x, y, x + width, y + height );
+
+    for (i = 0; i < host_monitor_rect_count; i++)
+        if (EqualRect( &host_monitor_rects[i], &rect) ) return TRUE;
+
+    return FALSE;
+}
+
+/***********************************************************************
+ *		X11DRV_resize_desktop
+ */
+void X11DRV_resize_desktop(void)
+{
+    static RECT old_virtual_rect;
+
+    RECT virtual_rect = NtUserGetVirtualScreenRect();
+    HWND hwnd = NtUserGetDesktopWindow();
+    INT width = virtual_rect.right - virtual_rect.left, height = virtual_rect.bottom - virtual_rect.top;
+
+    TRACE( "desktop %p change to (%dx%d)\n", hwnd, width, height );
+    NtUserSetWindowPos( hwnd, 0, virtual_rect.left, virtual_rect.top, width, height,
+                        SWP_NOZORDER | SWP_NOACTIVATE | SWP_DEFERERASE );
+
+    /* HACK: always send the desktop resize notification, to eventually update fshack on windows */
+    send_message_timeout( HWND_BROADCAST, WM_X11DRV_DESKTOP_RESIZED, old_virtual_rect.left,
+                          old_virtual_rect.top, SMTO_ABORTIFHUNG, 2000, FALSE );
+
+    old_virtual_rect = virtual_rect;
 }

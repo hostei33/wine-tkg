@@ -208,7 +208,7 @@ static BOOL parse_failure_params( int argc, const WCHAR *argv[], SERVICE_FAILURE
 static void usage( void )
 {
     WINE_MESSAGE( "Usage: sc command servicename [parameter= value ...]\n" );
-    exit( ERROR_INVALID_COMMAND_LINE );
+    exit( 1 );
 }
 
 static const WCHAR *service_type_string( DWORD type )
@@ -231,20 +231,18 @@ static const WCHAR *service_state_string( DWORD state )
     return L"";
 }
 
-static DWORD query_service( SC_HANDLE manager, const WCHAR *name )
+static BOOL query_service( SC_HANDLE manager, const WCHAR *name )
 {
     SC_HANDLE service;
     SERVICE_STATUS status;
-    DWORD ret = ERROR_SUCCESS;
+    BOOL ret = FALSE;
 
     service = OpenServiceW( manager, name, SERVICE_QUERY_STATUS );
     if (service)
     {
-        if (!QueryServiceStatus( service, &status ))
-        {
-            ret = GetLastError();
-            WINE_ERR("failed to query service status %lu\n", ret);
-        }
+        ret = QueryServiceStatus( service, &status );
+        if (!ret)
+            WINE_ERR("failed to query service status %lu\n", GetLastError());
         else
             printf( "SERVICE_NAME: %ls\n"
                     "        TYPE               : %lx  %ls\n"
@@ -260,11 +258,7 @@ static DWORD query_service( SC_HANDLE manager, const WCHAR *name )
                     status.dwCheckPoint, status.dwWaitHint );
         CloseServiceHandle( service );
     }
-    else
-    {
-        ret = GetLastError();
-        WINE_ERR("failed to open service %lu\n", ret);
-    }
+    else WINE_ERR("failed to open service %lu\n", GetLastError());
 
     return ret;
 }
@@ -273,22 +267,21 @@ int __cdecl wmain( int argc, const WCHAR *argv[] )
 {
     SC_HANDLE manager, service;
     SERVICE_STATUS status;
-    DWORD ret = ERROR_SUCCESS;
+    BOOL ret = FALSE;
 
     if (argc < 3) usage();
 
     if (argv[2][0] == '\\' && argv[2][1] == '\\')
     {
         WINE_FIXME("server argument not supported\n");
-        return ERROR_INVALID_COMMAND_LINE;
+        return 1;
     }
 
     manager = OpenSCManagerW( NULL, NULL, SC_MANAGER_ALL_ACCESS );
     if (!manager)
     {
-        ret = GetLastError();
-        WINE_ERR("failed to open service manager: %lu\n", ret);
-        return ret;
+        WINE_ERR("failed to open service manager\n");
+        return 1;
     }
 
     if (!wcsicmp( argv[1], L"create" ))
@@ -304,7 +297,7 @@ int __cdecl wmain( int argc, const WCHAR *argv[] )
         {
             WINE_ERR("failed to parse create parameters\n");
             CloseServiceHandle( manager );
-            return ret;
+            return 1;
         }
         service = CreateServiceW( manager, argv[2], cp.displayname, SERVICE_ALL_ACCESS,
                                   cp.type, cp.start, cp.error, cp.binpath, cp.group, NULL,
@@ -312,13 +305,9 @@ int __cdecl wmain( int argc, const WCHAR *argv[] )
         if (service)
         {
             CloseServiceHandle( service );
-            ret = ERROR_SUCCESS;
+            ret = TRUE;
         }
-        else
-        {
-            ret = GetLastError();
-            WINE_ERR("failed to create service %lu\n", ret);
-        }
+        else WINE_ERR("failed to create service %lu\n", GetLastError());
     }
     else if (!wcsicmp( argv[1], L"description" ))
     {
@@ -327,18 +316,11 @@ int __cdecl wmain( int argc, const WCHAR *argv[] )
         {
             SERVICE_DESCRIPTIONW sd;
             sd.lpDescription = argc > 3 ? (WCHAR *)argv[3] : NULL;
-            if (!ChangeServiceConfig2W( service, SERVICE_CONFIG_DESCRIPTION, &sd ))
-            {
-                ret = GetLastError();
-                WINE_ERR("failed to set service description %lu\n", ret);
-            }
+            ret = ChangeServiceConfig2W( service, SERVICE_CONFIG_DESCRIPTION, &sd );
+            if (!ret) WINE_ERR("failed to set service description %lu\n", GetLastError());
             CloseServiceHandle( service );
         }
-        else
-        {
-            ret = GetLastError();
-            WINE_ERR("failed to open service %lu\n", ret);
-        }
+        else WINE_ERR("failed to open service %lu\n", GetLastError());
     }
     else if (!wcsicmp( argv[1], L"failure" ))
     {
@@ -348,80 +330,50 @@ int __cdecl wmain( int argc, const WCHAR *argv[] )
             SERVICE_FAILURE_ACTIONSW sfa;
             if (parse_failure_params( argc - 3, argv + 3, &sfa ))
             {
-                if (!ChangeServiceConfig2W( service, SERVICE_CONFIG_FAILURE_ACTIONS, &sfa ))
-                {
-                    ret = GetLastError();
-                    WINE_ERR("failed to set service failure actions %lu\n", ret);
-                }
+                ret = ChangeServiceConfig2W( service, SERVICE_CONFIG_FAILURE_ACTIONS, &sfa );
+                if (!ret) WINE_ERR("failed to set service failure actions %lu\n", GetLastError());
                 free( sfa.lpsaActions );
             }
             else
                 WINE_ERR("failed to parse failure parameters\n");
             CloseServiceHandle( service );
         }
-        else
-        {
-            ret = GetLastError();
-            WINE_ERR("failed to open service %lu\n", ret);
-        }
+        else WINE_ERR("failed to open service %lu\n", GetLastError());
     }
     else if (!wcsicmp( argv[1], L"delete" ))
     {
         service = OpenServiceW( manager, argv[2], DELETE );
         if (service)
         {
-            if (!DeleteService( service ))
-            {
-                ret = GetLastError();
-                WINE_ERR("failed to delete service %lu\n", ret);
-            }
+            ret = DeleteService( service );
+            if (!ret) WINE_ERR("failed to delete service %lu\n", GetLastError());
             CloseServiceHandle( service );
         }
-        else
-        {
-            ret = GetLastError();
-            WINE_ERR("failed to open service %lu\n", ret);
-        }
+        else WINE_ERR("failed to open service %lu\n", GetLastError());
     }
     else if (!wcsicmp( argv[1], L"start" ))
     {
         service = OpenServiceW( manager, argv[2], SERVICE_START );
         if (service)
         {
-            if (!StartServiceW( service, argc - 3, argv + 3 ))
-            {
-                ret = GetLastError();
-                WINE_ERR("failed to start service %lu\n", ret);
-            }
-            else
-                ret = query_service( manager, argv[2] );
+            ret = StartServiceW( service, argc - 3, argv + 3 );
+            if (!ret) WINE_ERR("failed to start service %lu\n", GetLastError());
+            else query_service( manager, argv[2] );
             CloseServiceHandle( service );
         }
-        else
-        {
-            ret = GetLastError();
-            WINE_ERR("failed to open service %lu\n", ret);
-        }
+        else WINE_ERR("failed to open service %lu\n", GetLastError());
     }
     else if (!wcsicmp( argv[1], L"stop" ))
     {
         service = OpenServiceW( manager, argv[2], SERVICE_STOP );
         if (service)
         {
-            if (!ControlService( service, SERVICE_CONTROL_STOP, &status ))
-            {
-                ret = GetLastError();
-                WINE_ERR("failed to stop service %lu\n", ret);
-            }
-            else
-                ret = query_service( manager, argv[2] );
+            ret = ControlService( service, SERVICE_CONTROL_STOP, &status );
+            if (!ret) WINE_ERR("failed to stop service %lu\n", GetLastError());
+            else query_service( manager, argv[2] );
             CloseServiceHandle( service );
         }
-        else
-        {
-            ret = GetLastError();
-            WINE_ERR("failed to open service %lu\n", ret);
-        }
+        else WINE_ERR("failed to open service %lu\n", GetLastError());
     }
     else if (!wcsicmp( argv[1], L"query" ))
     {
@@ -430,13 +382,11 @@ int __cdecl wmain( int argc, const WCHAR *argv[] )
     else if (!wcsicmp( argv[1], L"sdset" ))
     {
         WINE_FIXME("SdSet command not supported, faking success\n");
+        ret = TRUE;
     }
     else
-    {
         WINE_FIXME("command not supported\n");
-        ret = ERROR_INVALID_COMMAND_LINE;
-    }
 
     CloseServiceHandle( manager );
-    return ret;
+    return !ret;
 }

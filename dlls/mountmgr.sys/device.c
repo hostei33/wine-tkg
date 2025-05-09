@@ -177,36 +177,6 @@ static void get_filesystem_serial( struct volume *volume )
     volume->serial = strtoul( buffer, NULL, 16 );
 }
 
-/* get the flags for the volume by looking at the type of underlying filesystem */
-static DWORD get_filesystem_flags( struct volume *volume )
-{
-    char fstypename[256];
-    ULONG size = sizeof(fstypename);
-    struct get_volume_filesystem_params params = { volume->device->unix_mount, fstypename, &size };
-
-    if (!volume->device->unix_mount) return 0;
-    if (MOUNTMGR_CALL( get_volume_filesystem, &params )) return 0;
-
-    if (!strcmp("apfs", fstypename) ||
-        !strcmp("nfs", fstypename) ||
-        !strcmp("cifs", fstypename) ||
-        !strcmp("ncpfs", fstypename) ||
-        !strcmp("tmpfs", fstypename) ||
-        !strcmp("cramfs", fstypename) ||
-        !strcmp("devfs", fstypename) ||
-        !strcmp("procfs", fstypename) ||
-        !strcmp("ext2", fstypename) ||
-        !strcmp("ext3", fstypename) ||
-        !strcmp("ext4", fstypename) ||
-        !strcmp("hfs", fstypename) ||
-        !strcmp("hpfs", fstypename) ||
-        !strcmp("ntfs", fstypename))
-    {
-        return FILE_SUPPORTS_REPARSE_POINTS;
-    }
-    return 0;
-}
-
 
 /******************************************************************
  *		VOLUME_FindCdRomDataBestVoldesc
@@ -979,7 +949,7 @@ static void set_dos_devices_disk_serial( struct disk_device *device )
 /* change the information for an existing volume */
 static NTSTATUS set_volume_info( struct volume *volume, struct dos_drive *drive, const char *device,
                                  const char *mount_point, enum device_type type, const GUID *guid,
-                                 const char *label, const char *disk_serial )
+                                 const char *disk_serial )
 {
     void *id = NULL;
     unsigned int id_len = 0;
@@ -1025,8 +995,6 @@ static NTSTATUS set_volume_info( struct volume *volume, struct dos_drive *drive,
         get_filesystem_label( volume );
         get_filesystem_serial( volume );
     }
-    if (label && label[0] && !volume->label[0])
-        RtlMultiByteToUnicodeN(volume->label, ARRAY_SIZE(volume->label), NULL, label, strlen(label)+1);
 
     TRACE("fs_type %#x, label %s, serial %08lx\n", volume->fs_type, debugstr_w(volume->label), volume->serial);
 
@@ -1053,8 +1021,8 @@ static NTSTATUS set_volume_info( struct volume *volume, struct dos_drive *drive,
         id = disk_device->unix_mount;
         id_len = strlen( disk_device->unix_mount ) + 1;
     }
-    if (volume->mount) set_mount_point_id( volume->mount, id, id_len, -1 );
-    if (drive && drive->mount) set_mount_point_id( drive->mount, id, id_len, drive->drive );
+    if (volume->mount) set_mount_point_id( volume->mount, id, id_len );
+    if (drive && drive->mount) set_mount_point_id( drive->mount, id, id_len );
 
     return STATUS_SUCCESS;
 }
@@ -1130,7 +1098,7 @@ static void create_drive_devices(void)
         {
             /* don't reset uuid if we used an existing volume */
             const GUID *guid = volume ? NULL : get_default_uuid(i);
-            set_volume_info( drive->volume, drive, device, link, drive_type, guid, NULL, NULL );
+            set_volume_info( drive->volume, drive, device, link, drive_type, guid, NULL );
         }
         if (volume) release_volume( volume );
     }
@@ -1230,7 +1198,7 @@ static void create_scsi_entry( struct volume *volume, const struct scsi_info *in
 /* create a new disk volume */
 NTSTATUS add_volume( const char *udi, const char *device, const char *mount_point,
                      enum device_type type, const GUID *guid, const char *disk_serial,
-                     const char *label, const struct scsi_info *scsi_info )
+                     const struct scsi_info *scsi_info )
 {
     struct volume *volume;
     NTSTATUS status = STATUS_SUCCESS;
@@ -1251,7 +1219,7 @@ NTSTATUS add_volume( const char *udi, const char *device, const char *mount_poin
     else status = create_volume( udi, type, &volume );
 
 found:
-    if (!status) status = set_volume_info( volume, NULL, device, mount_point, type, guid, label, disk_serial );
+    if (!status) status = set_volume_info( volume, NULL, device, mount_point, type, guid, disk_serial );
     if (!status && scsi_info) create_scsi_entry( volume, scsi_info );
     if (volume) release_volume( volume );
     LeaveCriticalSection( &device_section );
@@ -1280,7 +1248,7 @@ NTSTATUS remove_volume( const char *udi )
 /* create a new dos drive */
 NTSTATUS add_dos_device( int letter, const char *udi, const char *device,
                          const char *mount_point, enum device_type type, const GUID *guid,
-                         const char *label, const struct scsi_info *scsi_info )
+                         const struct scsi_info *scsi_info )
 {
     HKEY hkey;
     NTSTATUS status = STATUS_SUCCESS;
@@ -1337,7 +1305,7 @@ found:
         struct set_dosdev_symlink_params params = { dosdev, mount_point };
         MOUNTMGR_CALL( set_dosdev_symlink, &params );
     }
-    set_volume_info( volume, drive, device, mount_point, type, guid, label, NULL );
+    set_volume_info( volume, drive, device, mount_point, type, guid, NULL );
 
     TRACE( "added device %c: udi %s for %s on %s type %u\n",
            'a' + drive->drive, wine_dbgstr_a(udi), wine_dbgstr_a(device),
@@ -1764,8 +1732,7 @@ static NTSTATUS WINAPI harddisk_query_volume( DEVICE_OBJECT *device, IRP *irp )
             break;
         default:
             fsname = L"NTFS";
-            info->FileSystemAttributes = FILE_CASE_PRESERVED_NAMES | FILE_PERSISTENT_ACLS
-                                         | get_filesystem_flags( volume );
+            info->FileSystemAttributes = FILE_CASE_PRESERVED_NAMES | FILE_PERSISTENT_ACLS;
             info->MaximumComponentNameLength = 255;
             break;
         }
@@ -1933,7 +1900,7 @@ static BOOL create_port_device( DRIVER_OBJECT *driver, int n, const char *unix_p
     UNICODE_STRING nt_name, symlink_name, default_name;
     DEVICE_OBJECT *dev_obj;
     NTSTATUS status;
-    struct set_dosdev_symlink_params params = { dosdevices_path, unix_path, driver == serial_driver };
+    struct set_dosdev_symlink_params params = { dosdevices_path, unix_path };
 
     /* create DOS device */
     if (MOUNTMGR_CALL( set_dosdev_symlink, &params )) return FALSE;

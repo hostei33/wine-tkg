@@ -36,20 +36,6 @@ struct typed_event_handler_entry
     ITypedEventHandler_IInspectable_IInspectable *handler;
 };
 
-static struct typed_event_handler_entry *typed_event_handler_entry_create( ITypedEventHandler_IInspectable_IInspectable *handler )
-{
-    struct typed_event_handler_entry *entry;
-    if (!(entry = calloc( 1, sizeof(*entry) ))) return NULL;
-    ITypedEventHandler_IInspectable_IInspectable_AddRef( (entry->handler = handler) );
-    return entry;
-}
-
-static void typed_event_handler_entry_destroy( struct typed_event_handler_entry *entry )
-{
-    ITypedEventHandler_IInspectable_IInspectable_Release( entry->handler );
-    free( entry );
-}
-
 HRESULT typed_event_handlers_append( struct list *list, ITypedEventHandler_IInspectable_IInspectable *handler, EventRegistrationToken *token )
 {
     struct typed_event_handler_entry *entry;
@@ -92,25 +78,14 @@ HRESULT typed_event_handlers_remove( struct list *list, EventRegistrationToken *
 
 HRESULT typed_event_handlers_notify( struct list *list, IInspectable *sender, IInspectable *args )
 {
-    struct typed_event_handler_entry *entry, *next, *copy;
-    struct list copies = LIST_INIT(copies);
+    struct typed_event_handler_entry *entry;
 
     EnterCriticalSection( &handlers_cs );
 
     LIST_FOR_EACH_ENTRY( entry, list, struct typed_event_handler_entry, entry )
-    {
-        if (!(copy = typed_event_handler_entry_create( entry->handler ))) continue;
-        list_add_tail( &copies, &copy->entry );
-    }
+        ITypedEventHandler_IInspectable_IInspectable_Invoke( entry->handler, sender, args );
 
     LeaveCriticalSection( &handlers_cs );
-
-    LIST_FOR_EACH_ENTRY_SAFE( entry, next, &copies, struct typed_event_handler_entry, entry )
-    {
-        ITypedEventHandler_IInspectable_IInspectable_Invoke( entry->handler, sender, args );
-        list_remove( &entry->entry );
-        typed_event_handler_entry_destroy( entry );
-    }
 
     return S_OK;
 }

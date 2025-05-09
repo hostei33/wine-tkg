@@ -9,8 +9,7 @@
 @ stdcall DsGetDcNameA(str str ptr str long ptr)
 @ stdcall DsGetDcNameW(wstr wstr ptr wstr long ptr)
 @ stub DsGetDcNext
-@ stdcall DsGetDcOpenA(str long str ptr str long ptr)
-@ stdcall DsGetDcOpenW(wstr long wstr ptr wstr long ptr)
+@ stub DsGetDcOpen
 @ stub DsGetDcSiteCoverage
 @ stub DsGetForestTrustInformationW
 @ stdcall DsGetSiteNameA(str ptr)
@@ -67,10 +66,10 @@
 @ stub I_NetServerSetServiceBitsEx
 @ stub NetAlertRaise
 @ stub NetAlertRaiseEx
-@ stdcall NetApiBufferAllocate(long ptr) netutils.NetApiBufferAllocate
-@ stdcall NetApiBufferFree(ptr) netutils.NetApiBufferFree
-@ stdcall NetApiBufferReallocate(ptr long ptr) netutils.NetApiBufferReallocate
-@ stdcall NetApiBufferSize(ptr ptr) netutils.NetApiBufferSize
+@ stdcall NetApiBufferAllocate(long ptr)
+@ stdcall NetApiBufferFree(ptr)
+@ stdcall NetApiBufferReallocate(ptr long ptr)
+@ stdcall NetApiBufferSize(ptr ptr)
 @ stub NetAuditClear
 @ stub NetAuditRead
 @ stub NetAuditWrite
@@ -94,8 +93,6 @@
 @ stub NetFileClose
 @ stdcall NetFileEnum(wstr wstr wstr long ptr long ptr ptr ptr)
 @ stub NetFileGetInfo
-@ stdcall NetFreeAadJoinInformation(ptr)
-@ stdcall NetGetAadJoinInformation(wstr ptr)
 @ stdcall NetGetAnyDCName(wstr wstr ptr)
 @ stdcall NetGetDCName(wstr wstr ptr)
 @ stub NetGetDisplayInformationIndex
@@ -127,7 +124,7 @@
 @ stub NetMessageNameGetInfo
 @ stdcall NetQueryDisplayInformation(wstr long long long long ptr ptr)
 @ stub NetRemoteComputerSupports
-@ stdcall NetRemoteTOD(wstr ptr)
+@ stub NetRemoteTOD
 @ stub NetReplExportDirAdd
 @ stub NetReplExportDirDel
 @ stub NetReplExportDirEnum
@@ -226,7 +223,7 @@
 @ stdcall NetWkstaUserEnum(wstr long ptr long ptr ptr ptr)
 @ stdcall NetWkstaUserGetInfo(wstr long ptr)
 @ stub NetWkstaUserSetInfo
-@ stdcall NetapipBufferAllocate(long ptr) netutils.NetapipBufferAllocate
+@ stdcall NetapipBufferAllocate(long ptr) NetApiBufferAllocate
 @ stdcall Netbios(ptr)
 @ stub NetpAccessCheck
 @ stub NetpAccessCheckAndAudit

@@ -212,7 +212,6 @@ static BOOL add_cert_to_store(WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *ce
         if (existing)
         {
             TRACE("found matching certificate, not adding\n");
-            CertFreeCertificateContext(existing);
             SetLastError(CRYPT_E_EXISTS);
             return FALSE;
         }
@@ -232,9 +231,7 @@ static BOOL add_cert_to_store(WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *ce
         {
             Context_CopyProperties(existing, cert);
             if (ret_context)
-                *ret_context = existing;
-            else
-                CertFreeCertificateContext(existing);
+                *ret_context = CertDuplicateCertificateContext(existing);
             return TRUE;
         }
         break;
@@ -242,7 +239,6 @@ static BOOL add_cert_to_store(WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *ce
         if (existing && CompareFileTime(&existing->pCertInfo->NotBefore, &cert->pCertInfo->NotBefore) >= 0)
         {
             TRACE("existing certificate is newer, not adding\n");
-            CertFreeCertificateContext(existing);
             SetLastError(CRYPT_E_EXISTS);
             return FALSE;
         }
@@ -253,7 +249,6 @@ static BOOL add_cert_to_store(WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *ce
             if (CompareFileTime(&existing->pCertInfo->NotBefore, &cert->pCertInfo->NotBefore) >= 0)
             {
                 TRACE("existing certificate is newer, not adding\n");
-                CertFreeCertificateContext(existing);
                 SetLastError(CRYPT_E_EXISTS);
                 return FALSE;
             }
@@ -272,10 +267,7 @@ static BOOL add_cert_to_store(WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *ce
     ret = store->vtbl->certs.addContext(store, context_from_ptr(cert), existing ? context_from_ptr(existing) : NULL,
      (ret_context || inherit_props) ? &new_context : NULL, use_link);
     if(!ret)
-    {
-        CertFreeCertificateContext(existing);
         return FALSE;
-    }
 
     if(inherit_props)
         Context_CopyProperties(context_ptr(new_context), existing);
@@ -284,9 +276,6 @@ static BOOL add_cert_to_store(WINECRYPT_CERTSTORE *store, const CERT_CONTEXT *ce
         *ret_context = context_ptr(new_context);
     else if(new_context)
         Context_Release(new_context);
-
-    if (existing)
-        CertFreeCertificateContext(existing);
 
     TRACE("returning %d\n", ret);
     return ret;
@@ -1493,15 +1482,10 @@ static BOOL compare_cert_by_name(PCCERT_CONTEXT pCertContext, DWORD dwType,
     CERT_NAME_BLOB *blob = (CERT_NAME_BLOB *)pvPara, *toCompare;
     BOOL ret;
 
-    if ((dwType & CERT_COMPARE_MASK) == CERT_INFO_SUBJECT_FLAG)
+    if (dwType & CERT_INFO_SUBJECT_FLAG)
         toCompare = &pCertContext->pCertInfo->Subject;
-    else if ((dwType & CERT_COMPARE_MASK) == CERT_INFO_ISSUER_FLAG)
-        toCompare = &pCertContext->pCertInfo->Issuer;
     else
-    {
-        ERR("dwType %08lx doesn't specify SUBJECT or ISSUER\n", dwType);
-        return FALSE;
-    }
+        toCompare = &pCertContext->pCertInfo->Issuer;
     ret = CertCompareCertificateName(pCertContext->dwCertEncodingType,
      toCompare, blob);
     return ret;
@@ -1751,7 +1735,7 @@ static PCCERT_CONTEXT find_cert_by_issuer(HCERTSTORE store, DWORD dwType,
     }
     else
        found = cert_compare_certs_in_store(store, prev,
-        compare_cert_by_name, CERT_FIND_SUBJECT_NAME,
+        compare_cert_by_name, CERT_COMPARE_NAME | CERT_COMPARE_SUBJECT_CERT,
         dwFlags, &subject->pCertInfo->Issuer);
     return found;
 }
@@ -1763,7 +1747,7 @@ static BOOL compare_cert_by_name_str(PCCERT_CONTEXT pCertContext,
     DWORD len;
     BOOL ret = FALSE;
 
-    if ((dwType & CERT_COMPARE_MASK) == CERT_INFO_SUBJECT_FLAG)
+    if (dwType & CERT_INFO_SUBJECT_FLAG)
         name = &pCertContext->pCertInfo->Subject;
     else
         name = &pCertContext->pCertInfo->Issuer;

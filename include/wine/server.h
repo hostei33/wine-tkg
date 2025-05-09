@@ -26,6 +26,7 @@
 #include <winbase.h>
 #include <winternl.h>
 #include <wine/server_protocol.h>
+#include <wine/debug.h>
 
 /* client communication functions */
 
@@ -47,6 +48,7 @@ struct __server_request_info
     unsigned int          data_count; /* count of request data pointers */
     void                 *reply_data; /* reply data pointer */
     struct __server_iovec data[__SERVER_MAX_DATA];  /* request variable size data */
+    const char *name;
 };
 
 NTSYSAPI unsigned int CDECL wine_server_call( void *req_ptr );
@@ -118,32 +120,6 @@ static inline void *wine_server_get_ptr( client_ptr_t ptr )
     return (void *)(ULONG_PTR)ptr;
 }
 
-/* convert a server struct rectangle to a RECT */
-static inline RECT wine_server_get_rect( struct rectangle rectangle )
-{
-    RECT rect =
-    {
-        .left = rectangle.left,
-        .top = rectangle.top,
-        .right = rectangle.right,
-        .bottom = rectangle.bottom,
-    };
-    return rect;
-}
-
-/* convert a RECT to a server struct rectangle */
-static inline struct rectangle wine_server_rectangle( RECT rect )
-{
-    struct rectangle rectangle =
-    {
-        .left = rect.left,
-        .top = rect.top,
-        .right = rect.right,
-        .bottom = rect.bottom,
-    };
-    return rectangle;
-}
-
 
 /* macros for server requests */
 
@@ -153,6 +129,7 @@ static inline struct rectangle wine_server_rectangle( RECT rect )
         struct type##_request * const req = &__req.u.req.type##_request; \
         const struct type##_reply * const reply = &__req.u.reply.type##_reply; \
         memset( &__req.u.req, 0, sizeof(__req.u.req) ); \
+        __req.name = #type; \
         __req.u.req.request_header.req = REQ_##type; \
         __req.data_count = 0; \
         (void)reply; \

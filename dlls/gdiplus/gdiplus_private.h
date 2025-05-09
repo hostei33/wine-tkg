@@ -42,14 +42,12 @@
 #define VERSION_MAGIC  0xdbc01001
 #define VERSION_MAGIC2 0xdbc01002
 #define VALID_MAGIC(x) (((x) & 0xfffff000) == 0xdbc01000)
-#define TENSION_CONST (0.333333333f)
+#define TENSION_CONST (0.3)
 
 #define GIF_DISPOSE_UNSPECIFIED 0
 #define GIF_DISPOSE_DO_NOT_DISPOSE 1
 #define GIF_DISPOSE_RESTORE_TO_BKGND 2
 #define GIF_DISPOSE_RESTORE_TO_PREV 3
-
-#define PIXELFORMATBPP(x) ((x) ? ((x) >> 8) & 255 : 24)
 
 
 COLORREF ARGB2COLORREF(ARGB color);
@@ -64,8 +62,6 @@ extern REAL units_scale(GpUnit from, GpUnit to, REAL dpi, BOOL printer_display);
 
 #define WineCoordinateSpaceGdiDevice ((GpCoordinateSpace)4)
 
-extern GpStatus gdi_dc_acquire(GpGraphics *graphics, HDC *hdc);
-extern void gdi_dc_release(GpGraphics *graphics, HDC hdc);
 extern GpStatus gdi_transform_acquire(GpGraphics *graphics);
 extern GpStatus gdi_transform_release(GpGraphics *graphics);
 extern GpStatus get_graphics_transform(GpGraphics *graphics, GpCoordinateSpace dst_space,
@@ -139,8 +135,6 @@ extern void free_installed_fonts(void);
 
 extern BOOL lengthen_path(GpPath *path, INT len);
 
-extern GpStatus widen_flat_path_anchors(GpPath *flat_path, GpPen *pen, REAL pen_width, GpPath **anchors);
-
 extern DWORD write_region_data(const GpRegion *region, void *data);
 extern DWORD write_path_data(GpPath *path, void *data);
 
@@ -148,8 +142,6 @@ extern GpStatus trace_path(GpGraphics *graphics, GpPath *path);
 
 typedef struct region_element region_element;
 extern void delete_element(region_element *element);
-
-extern GpStatus get_region_hrgn(struct region_element *element, const RECT *bounds, HRGN *hrgn);
 
 extern GpStatus get_hatch_data(GpHatchStyle hatchstyle, const unsigned char **result);
 
@@ -256,7 +248,6 @@ struct GpPen{
 struct GpGraphics{
     HDC hdc;
     HWND hwnd;
-    INT hdc_refs;
     BOOL owndc;
     BOOL alpha_hdc;
     BOOL printer_display;
@@ -381,38 +372,6 @@ struct GpAdjustableArrowCap{
     REAL width;
 };
 
-typedef enum EffectType {
-    NoneEffect,
-    BlurEffect,
-    SharpenEffect,
-    TintEffect,
-    RedEyeCorrectionEffect,
-    ColorMatrixEffect,
-    ColorLUTEffect,
-    BrightnessContrastEffect,
-    HueSaturationLightnessEffect,
-    ColorBalanceEffect,
-    LevelsEffect,
-    ColorCurveEffect,
-} EffectType;
-
-typedef struct CGpEffect{
-    EffectType type;
-    union {
-        BYTE data[1];
-        struct BlurParams blur;
-        struct TintParams tint;
-        struct RedEyeCorrectionParams redeye;
-        ColorMatrix matrix;
-        struct ColorLUTParams lut;
-        struct BrightnessContrastParams brightness;
-        struct HueSaturationLightnessParams hue;
-        struct ColorBalanceParams balance;
-        struct LevelsParams levels;
-        struct ColorCurveParams curve;
-    } params;
-} CGpEffect;
-
 struct GpImage{
     IWICBitmapDecoder *decoder;
     IWICBitmapEncoder *encoder;
@@ -503,6 +462,8 @@ struct GpBitmap{
     PixelFormat format;
     ImageLockMode lockmode;
     BYTE *bitmapbits;   /* pointer to the buffer we passed in BitmapLockBits */
+    HBITMAP hbitmap;
+    HDC hdc;
     BYTE *bits; /* actual image bits if this is a DIB */
     INT stride; /* stride of bits if this is a DIB */
     BYTE *own_bits; /* image bits that need to be freed with this object */
@@ -695,11 +656,6 @@ static inline BOOL image_lock(GpImage *image)
 static inline void image_unlock(GpImage *image)
 {
     ReleaseSRWLockExclusive(&image->lock);
-}
-
-static inline BOOL has_gdi_dc(GpGraphics *graphics)
-{
-    return graphics->hdc != NULL || graphics->owndc;
 }
 
 static inline void set_rect(GpRectF *rect, REAL x, REAL y, REAL width, REAL height)

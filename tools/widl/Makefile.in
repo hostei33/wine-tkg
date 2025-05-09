@@ -21,9 +21,12 @@ SOURCES = \
 	widl.c \
 	widl.man.in \
 	wpp.c \
-	write_msft.c \
-	write_sltg.c
+	write_msft.c
 
-widl_EXTRADEFS = -DINCLUDEDIR="\"${includedir}\"" -DBINDIR="\"${bindir}\"" -DLIBDIR="\"${libdir}\""
+widl_EXTRADEFS = \
+	-DINCLUDEDIR="\"${includedir}\"" \
+	-DDLLDIR="\"${dlldir}\"" \
+	-DBIN_TO_INCLUDEDIR=\"`${MAKEDEP} -R ${bindir} ${includedir}`\" \
+	-DBIN_TO_DLLDIR=\"`${MAKEDEP} -R ${bindir} ${dlldir}`\"
 
 INSTALL_DEV = $(PROGRAMS)

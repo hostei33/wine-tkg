@@ -1,10 +1,6 @@
-MODULE    = wintypes.dll
-IMPORTLIB = wintypes
-IMPORTS   = combase
+MODULE = wintypes.dll
+IMPORTS = combase
 
 SOURCES = \
-	buffer.c \
 	classes.idl \
-	main.c \
-	storage.c \
-	wintypes_private.idl
+	main.c

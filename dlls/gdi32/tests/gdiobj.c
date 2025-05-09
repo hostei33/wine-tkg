@@ -403,7 +403,6 @@ static void test_shared_handle_entry( HGDIOBJ obj, unsigned int type, BOOL is_st
        "Type = %x, expected %x\n", entry->Type, type & 0x1f);
     ok(entry->Object, "Object = NULL\n");
     ok(entry->Owner.Count == 0, "Count = %u\n", entry->Owner.Count);
-    ok(entry->Generation <= (sizeof(void *) == 8) ? 127 : 255, "Generation = %u\n", entry->Generation);
 }
 
 static void test_shared_handle_table(void)
@@ -446,7 +445,6 @@ static void test_shared_handle_table(void)
     ok(entry->Owner.ProcessId == GetCurrentProcessId(), "ProcessId = %x, expected %lx\n",
        entry->Owner.ProcessId, GetCurrentProcessId());
     ok(entry->Owner.Count == 0, "Count = %u\n", entry->Owner.Count);
-    ok(entry->Generation <= (sizeof(void *) == 8) ? 127 : 255, "Generation = %u\n", entry->Generation);
 
     test_shared_handle_entry( GetStockObject( WHITE_PEN ), NTGDI_OBJ_PEN, TRUE );
     test_shared_handle_entry( GetStockObject( WHITE_BRUSH ), NTGDI_OBJ_BRUSH, TRUE );

@@ -31,11 +31,11 @@ problemløsing.
 
 Følgende kreves for å bygge og kjøre Wine:
 
-- Linux versjon 2.6.22 eller nyere
+- Linux versjon 2.0.36 eller nyere
 - FreeBSD 12.4 eller nyere
 - Solaris x86 9 eller nyere
 - NetBSD-current
-- macOS 10.12 eller nyere
+- Mac OS X 10.8 eller nyere
 
 Wine krever støtte for tråder på kjernenivå, og derfor er det bare
 operativsystemene ovenfor som støttes. Andre operativsystemer som
@@ -72,12 +72,15 @@ støtter kjernetråder støttes kanskje i framtiden.
   flex 2.5.33 eller nyere og bison er også nødvendig.
 
 **Valgfrie støttebiblioteker**:
-  configure-skriptet viser meldinger når valgfrie biblioteker ikke
-  blir funnet. Se
-  https://gitlab.winehq.org/wine/wine/-/wikis/Building-Wine for info
-  om hvilke pakker du bør installere.  På 64 bit-systemer trenger du
-  32 bit-versjoner av disse bibliotekene hvis du skal bygge Wine som
-  et 32 bit-program (standard).
+  configure-skriptet viser meldinger når valgfrie biblioteker ikke blir
+  funnet. Se https://wiki.winehq.org/Recommended_Packages for info om
+  hvilke pakker du bør installere.
+  På 64 bit-systemer trenger du 32 bit-versjoner av disse bibliotekene
+  hvis du skal bygge Wine som et 32 bit-program (standard);
+  se https://wiki.winehq.org/WineOn64bit for flere detaljer.
+  Hvis du ønsker å bygge Wine som et 64 bit-program (eller et oppsett
+  med blandet 32 bit og 64 bit) kan du lese mer på
+  https://wiki.winehq.org/Wine64
 
 ## BYGGING
 
@@ -136,15 +139,15 @@ når du rapporterer en feil.
            https://www.winehq.org/ : diverse veiledere, en programdatabase
            og feilsporing. Dette er antakelig det beste stedet å begynnne.
 
-- **Svar**: Wines spørsmål og svar finnes på https://gitlab.winehq.org/wine/wine/-/wikis/FAQ
+- **Svar**: Wines spørsmål og svar finnes på https://www.winehq.org/FAQ
 
-- **Wiki**: Wines Wiki er tilgjengelig på https://gitlab.winehq.org/wine/wine/-/wikis/
+- **Wiki**: Wines Wiki er tilgjengelig på https://wiki.winehq.org
 
 - **Gitlab**: https://gitlab.winehq.org
 
 - **E-postlister**:
            Det finnes flere e-postlister for Wine-utviklere og -brukere;
-           besøk https://gitlab.winehq.org/wine/wine/-/wikis/Forums for mer informasjon.
+           besøk https://www.winehq.org/forums for mer informasjon.
 
 - **Feil**: Rapporter feil til Wines Bugzilla på https://bugs.winehq.org
            Søk i Bugzilla-databasen og se om probelmet allerede er funnet

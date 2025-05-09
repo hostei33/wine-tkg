@@ -797,21 +797,26 @@ static LRESULT ICCVID_DecompressQuery( ICCVID_Info *info, LPBITMAPINFO in, LPBIT
         if( in->bmiHeader.biWidth != out->bmiHeader.biWidth )
             return ICERR_BADFORMAT;
 
-        switch( out->bmiHeader.biCompression )
+        switch( out->bmiHeader.biBitCount )
         {
-        case BI_RGB:
-            if ( out->bmiHeader.biBitCount == 16 || out->bmiHeader.biBitCount == 24 || out->bmiHeader.biBitCount == 32 )
-                return ICERR_OK;
+        case 16:
+            if ( out->bmiHeader.biCompression == BI_BITFIELDS )
+            {
+                if ( !ICCVID_CheckMask(out->bmiColors, 0x7C00, 0x03E0, 0x001F) &&
+                     !ICCVID_CheckMask(out->bmiColors, 0xF800, 0x07E0, 0x001F) )
+                {
+                    TRACE("unsupported output bit field(s) for 16-bit colors\n");
+                    return ICERR_BADFORMAT;
+                }
+            }
             break;
-        case BI_BITFIELDS:
-            if ( out->bmiHeader.biBitCount == 16 && ICCVID_CheckMask(out->bmiColors, 0x7C00, 0x03E0, 0x001F) )
-                return ICERR_OK;
-            if ( out->bmiHeader.biBitCount == 16 && ICCVID_CheckMask(out->bmiColors, 0xF800, 0x07E0, 0x001F) )
-                return ICERR_OK;
+        case 24:
+        case 32:
             break;
+        default:
+            TRACE("unsupported output bitcount = %d\n", out->bmiHeader.biBitCount );
+            return ICERR_BADFORMAT;
         }
-        TRACE("unsupported output format\n");
-        return ICERR_BADFORMAT;
     }
 
     return ICERR_OK;

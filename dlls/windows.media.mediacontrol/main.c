@@ -178,7 +178,6 @@ static ULONG WINAPI music_properties_Release( IMusicDisplayProperties *iface )
 
     if (!ref)
     {
-        WindowsDeleteString( impl->album_title );
         WindowsDeleteString( impl->artist );
         WindowsDeleteString( impl->title );
         free( impl );

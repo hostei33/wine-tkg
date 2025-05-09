@@ -17,7 +17,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <assert.h>
 #include <stdarg.h>
 
 #include "windef.h"
@@ -103,24 +102,6 @@ typedef struct packed_point
     short X;
     short Y;
 } packed_point;
-
-struct edge
-{
-    /* Represents an intersection of a path segment with a scanline */
-    int x;
-    int y;
-    BOOL rising;
-};
-
-struct edge_list
-{
-    struct edge *edges;
-    size_t capacity;
-    size_t length;
-};
-
-static void get_region_bounding_box(struct region_element *element,
-    REAL *min_x, REAL *min_y, REAL *max_x, REAL *max_y, BOOL *empty, BOOL *infinite);
 
 static inline INT get_element_size(const region_element* element)
 {
@@ -597,8 +578,9 @@ GpStatus WINGDIPAPI GdipDeleteRegion(GpRegion *region)
  */
 GpStatus WINGDIPAPI GdipGetRegionBounds(GpRegion *region, GpGraphics *graphics, GpRectF *rect)
 {
-    REAL min_x, min_y, max_x, max_y;
-    BOOL empty, infinite;
+    HRGN hrgn;
+    RECT r;
+    GpStatus status;
 
     TRACE("(%p, %p, %p)\n", region, graphics, rect);
 
@@ -606,29 +588,31 @@ GpStatus WINGDIPAPI GdipGetRegionBounds(GpRegion *region, GpGraphics *graphics, 
         return InvalidParameter;
 
     /* Contrary to MSDN, native ignores the graphics transform. */
-    get_region_bounding_box(&region->node, &min_x, &min_y, &max_x, &max_y, &empty, &infinite);
+    status = GdipGetRegionHRgn(region, NULL, &hrgn);
+    if(status != Ok)
+        return status;
 
     /* infinite */
-    if(infinite){
+    if(!hrgn){
         rect->X = rect->Y = -(REAL)(1 << 22);
         rect->Width = rect->Height = (REAL)(1 << 23);
         TRACE("%p => infinite\n", region);
         return Ok;
     }
 
-    if(empty){
-        rect->X = rect->Y = rect->Width = rect->Height = 0.0;
-        TRACE("%p => empty\n", region);
-        return Ok;
+    if(GetRgnBox(hrgn, &r)){
+        rect->X = r.left;
+        rect->Y = r.top;
+        rect->Width  = r.right  - r.left;
+        rect->Height = r.bottom - r.top;
+        TRACE("%p => %s\n", region, debugstr_rectf(rect));
     }
+    else
+        status = GenericError;
 
-    rect->X = min_x;
-    rect->Y = min_y;
-    rect->Width  = max_x - min_x;
-    rect->Height = max_y - min_y;
-    TRACE("%p => %s\n", region, debugstr_rectf(rect));
+    DeleteObject(hrgn);
 
-    return Ok;
+    return status;
 }
 
 /*****************************************************************************
@@ -1003,233 +987,71 @@ GpStatus WINGDIPAPI GdipGetRegionDataSize(GpRegion *region, UINT *needed)
     return Ok;
 }
 
-static GpStatus edge_list_reserve(struct edge_list *edges, size_t count)
+static GpStatus get_path_hrgn(GpPath *path, GpGraphics *graphics, HRGN *hrgn)
 {
-    size_t new_capacity, max_capacity;
-    struct edge *new_edges;
+    HDC new_hdc=NULL;
+    GpGraphics *new_graphics=NULL;
+    GpStatus stat;
+    INT save_state;
 
-    if (count <= edges->capacity)
-        return Ok;
-
-    max_capacity = ~(SIZE_T)0 / sizeof(edges->edges[0]);
-    if (count > max_capacity)
-        return OutOfMemory;
-
-    new_capacity = max(4, edges->capacity);
-    while (new_capacity < count && new_capacity <= max_capacity / 2)
-        new_capacity *= 2;
-    if (new_capacity < count)
-        new_capacity = max_capacity;
-
-    new_edges = realloc(edges->edges, new_capacity * sizeof(edges->edges[0]));
-    if (!new_edges)
-        return OutOfMemory;
-
-    edges->edges = new_edges;
-    edges->capacity = new_capacity;
-
-    return Ok;
-}
-
-static const REAL RGN_ROUND_OFS = 0.03; /* arbitrary constant found by experiment to be close to native */
-
-static inline INT rgn_round(REAL x)
-{
-    return (INT) ceilf(x - RGN_ROUND_OFS);
-}
-
-static GpStatus line_to_edge_list(GpPointF p1, GpPointF p2, const RECT *bounds, struct edge_list *edges)
-{
-    GpStatus stat = Ok;
-    int y, top_y, bottom_y;
-    BOOL rising = (p2.Y < p1.Y);
-    GpPointF top_pt, bottom_pt;
-    REAL dx, dy;
-
-    top_pt = rising ? p2 : p1;
-    bottom_pt = rising ? p1 : p2;
-
-    top_y = rgn_round(top_pt.Y);
-    bottom_y = rgn_round(bottom_pt.Y);
-
-    if (top_y < bounds->top)
-        top_y = bounds->top;
-
-    if (bottom_y > bounds->bottom)
-        bottom_y = bounds->bottom;
-
-    if (bottom_y <= top_y)
-        /* No scanlines intersect this segment */
-        return Ok;
-
-    dx = bottom_pt.X - top_pt.X;
-    dy = bottom_pt.Y - top_pt.Y;
-
-    stat = edge_list_reserve(edges, edges->length + (bottom_y - top_y));
-    if (stat != Ok)
-        return stat;
-
-    for (y = top_y; y < bottom_y && stat == Ok; y++)
-    {
-        REAL x = top_pt.X + (y + RGN_ROUND_OFS - top_pt.Y) * dx / dy;
-
-        int rounded_x = rgn_round(x);
-
-        if (rounded_x < bounds->left)
-            rounded_x = bounds->left;
-        else if (rounded_x > bounds->right)
-            rounded_x = bounds->right;
-
-        edges->edges[edges->length].x = rounded_x;
-        edges->edges[edges->length].y = y;
-        edges->edges[edges->length].rising = rising;
-        edges->length++;
-    }
-
-    return stat;
-}
-
-static GpStatus flat_path_to_edge_list(GpPath *path, const RECT *bounds, struct edge_list *edges)
-{
-    GpStatus stat=Ok;
-    int i, subpath_start=0;
-
-    for (i=1; i < path->pathdata.Count && stat == Ok; i++)
-    {
-        BYTE type = path->pathdata.Types[i];
-
-        if ((type&PathPointTypePathTypeMask) == PathPointTypeStart)
-            subpath_start = i;
-
-        if ((type&PathPointTypePathTypeMask) == PathPointTypeLine)
-        {
-            stat = line_to_edge_list(path->pathdata.Points[i-1], path->pathdata.Points[i], bounds, edges);
-
-            if (stat == Ok && ((type & PathPointTypeCloseSubpath) || i == path->pathdata.Count - 1))
-                stat = line_to_edge_list(path->pathdata.Points[i], path->pathdata.Points[subpath_start], bounds, edges);
-        }
-    }
-
-    return stat;
-}
-
-static int cmp_edges(const void *a, const void *b)
-{
-    const struct edge *edge1 = (struct edge*)a;
-    const struct edge *edge2 = (struct edge*)b;
-
-    if (edge1->y != edge2->y)
-    {
-        return (edge1->y > edge2->y) - (edge1->y < edge2->y);
-    }
-
-    return (edge1->x > edge2->x) - (edge1->x < edge2->x);
-}
-
-static GpStatus edge_list_to_rgndata(struct edge_list *edges, FillMode fill_mode, RGNDATA **rgndata)
-{
-    int i, start_x = 0, winding_count = 0;
-    BOOL in_shape = FALSE;
-    INT scan_count = 0;
-    RECT *scans, bound = {0};
-
-    /* sort edges */
-    qsort(edges->edges, edges->length, sizeof(edges->edges[0]), cmp_edges);
-
-    /* allocate rgndata */
-    *rgndata = malloc(sizeof(RGNDATAHEADER) + sizeof(RECT) * edges->length / 2);
-    if (!*rgndata)
-        return OutOfMemory;
-
-    scans = (RECT*)&(*rgndata)->Buffer;
-
-    /* translate edges into scans based on winding mode */
-    for (i=0; i < edges->length; i++)
-    {
-        BOOL new_in_shape;
-
-        winding_count += edges->edges[i].rising ? 1 : -1;
-
-        /* check all edges at this point before starting/ending a scan */
-        if (i + 1 < edges->length &&
-            edges->edges[i+1].x == edges->edges[i].x && edges->edges[i+1].y == edges->edges[i].y)
-            continue;
-
-        new_in_shape = (fill_mode == FillModeWinding) ? (winding_count != 0) : ((winding_count & 1) == 1);
-
-        if (new_in_shape == in_shape)
-            continue;
-
-        in_shape = new_in_shape;
-
-        if (in_shape)
-        {
-            start_x = edges->edges[i].x;
-        }
-        else
-        {
-            scans[scan_count].left = start_x;
-            scans[scan_count].right = edges->edges[i].x;
-            scans[scan_count].top = edges->edges[i].y;
-            scans[scan_count].bottom = edges->edges[i].y+1;
-            UnionRect(&bound, &bound, &scans[scan_count]);
-            scan_count++;
-        }
-    }
-
-    (*rgndata)->rdh.dwSize = sizeof(RGNDATAHEADER);
-    (*rgndata)->rdh.iType = RDH_RECTANGLES;
-    (*rgndata)->rdh.nCount = scan_count;
-    (*rgndata)->rdh.nRgnSize = scan_count * sizeof(RECT);
-    (*rgndata)->rdh.rcBound = bound;
-
-    return Ok;
-}
-
-static GpStatus get_path_hrgn(GpPath *path, const RECT *bounds, HRGN *hrgn)
-{
-    GpStatus stat = Ok;
-    GpPath *flat_path = NULL;
-    struct edge_list edge_list = { 0 };
-    RGNDATA *rgndata = NULL;
-
-    if (!path->pathdata.Count)
+    if (!path->pathdata.Count)  /* PathToRegion doesn't support empty paths */
     {
         *hrgn = CreateRectRgn( 0, 0, 0, 0 );
         return *hrgn ? Ok : OutOfMemory;
     }
 
-    if (stat == Ok)
-        stat = GdipClonePath(path, &flat_path);
+    if (!graphics)
+    {
+        new_hdc = CreateCompatibleDC(0);
+        if (!new_hdc)
+            return OutOfMemory;
 
-    if (stat == Ok)
-        stat = GdipFlattenPath(flat_path, NULL, FlatnessDefault);
+        stat = GdipCreateFromHDC(new_hdc, &new_graphics);
+        graphics = new_graphics;
+        if (stat != Ok)
+        {
+            DeleteDC(new_hdc);
+            return stat;
+        }
+    }
+    else if (!graphics->hdc)
+    {
+        graphics->hdc = new_hdc = CreateCompatibleDC(0);
+        if (!new_hdc)
+            return OutOfMemory;
+    }
 
-    /* build edge list */
-    if (stat == Ok)
-        stat = flat_path_to_edge_list(flat_path, bounds, &edge_list);
+    save_state = SaveDC(graphics->hdc);
+    EndPath(graphics->hdc);
 
-    /* transform edge list into scans list */
-    if (stat == Ok)
-        stat = edge_list_to_rgndata(&edge_list, path->fill, &rgndata);
+    SetPolyFillMode(graphics->hdc, (path->fill == FillModeAlternate ? ALTERNATE
+                                                                    : WINDING));
 
-    /* transform scans list into hrgn */
+    gdi_transform_acquire(graphics);
+
+    stat = trace_path(graphics, path);
     if (stat == Ok)
     {
-        *hrgn = ExtCreateRegion(NULL, rgndata->rdh.dwSize + rgndata->rdh.nRgnSize, rgndata);
+        *hrgn = PathToRegion(graphics->hdc);
         stat = *hrgn ? Ok : OutOfMemory;
     }
 
-    free(edge_list.edges);
-    free(rgndata);
+    gdi_transform_release(graphics);
 
-    if (flat_path != NULL)
-        GdipDeletePath(flat_path);
+    RestoreDC(graphics->hdc, save_state);
+    if (new_hdc)
+    {
+        DeleteDC(new_hdc);
+        if (new_graphics)
+            GdipDeleteGraphics(new_graphics);
+        else
+            graphics->hdc = NULL;
+    }
 
     return stat;
 }
 
-GpStatus get_region_hrgn(struct region_element *element, const RECT *bounds, HRGN *hrgn)
+static GpStatus get_region_hrgn(struct region_element *element, GpGraphics *graphics, HRGN *hrgn)
 {
     switch (element->type)
     {
@@ -1240,17 +1062,24 @@ GpStatus get_region_hrgn(struct region_element *element, const RECT *bounds, HRG
             *hrgn = CreateRectRgn(0, 0, 0, 0);
             return *hrgn ? Ok : OutOfMemory;
         case RegionDataPath:
-            return get_path_hrgn(element->elementdata.path, bounds, hrgn);
+            return get_path_hrgn(element->elementdata.path, graphics, hrgn);
         case RegionDataRect:
         {
+            GpPath* path;
+            GpStatus stat;
             GpRectF* rc = &element->elementdata.rect;
 
-            if (rc->Width <= 0.0 || rc->Height <= 0.0)
-                *hrgn = CreateRectRgn(0, 0, 0, 0);
-            else
-                *hrgn = CreateRectRgn(rgn_round(rc->X), rgn_round(rc->Y),
-                    rgn_round(rc->X + rc->Width), rgn_round(rc->Y + rc->Height));
-            return *hrgn ? Ok : OutOfMemory;
+            stat = GdipCreatePath(FillModeAlternate, &path);
+            if (stat != Ok)
+                return stat;
+            stat = GdipAddPathRectangle(path, rc->X, rc->Y, rc->Width, rc->Height);
+
+            if (stat == Ok)
+                stat = get_path_hrgn(path, graphics, hrgn);
+
+            GdipDeletePath(path);
+
+            return stat;
         }
         case CombineModeIntersect:
         case CombineModeUnion:
@@ -1262,7 +1091,7 @@ GpStatus get_region_hrgn(struct region_element *element, const RECT *bounds, HRG
             GpStatus stat;
             int ret;
 
-            stat = get_region_hrgn(element->elementdata.combine.left, bounds, &left);
+            stat = get_region_hrgn(element->elementdata.combine.left, graphics, &left);
             if (stat != Ok)
             {
                 *hrgn = NULL;
@@ -1275,20 +1104,17 @@ GpStatus get_region_hrgn(struct region_element *element, const RECT *bounds, HRG
                 switch (element->type)
                 {
                     case CombineModeIntersect:
-                        return get_region_hrgn(element->elementdata.combine.right, bounds, hrgn);
+                        return get_region_hrgn(element->elementdata.combine.right, graphics, hrgn);
                     case CombineModeXor: case CombineModeExclude:
                         left = CreateRectRgn(-(1 << 22), -(1 << 22), 1 << 22, 1 << 22);
                         break;
-                    case CombineModeComplement:
-                        *hrgn = CreateRectRgn(0, 0, 0, 0);
-                        return *hrgn ? Ok : OutOfMemory;
-                    case CombineModeUnion:
+                    case CombineModeUnion: case CombineModeComplement:
                         *hrgn = NULL;
                         return Ok;
                 }
             }
 
-            stat = get_region_hrgn(element->elementdata.combine.right, bounds, &right);
+            stat = get_region_hrgn(element->elementdata.combine.right, graphics, &right);
             if (stat != Ok)
             {
                 DeleteObject(left);
@@ -1307,11 +1133,7 @@ GpStatus get_region_hrgn(struct region_element *element, const RECT *bounds, HRG
                     case CombineModeXor: case CombineModeComplement:
                         right = CreateRectRgn(-(1 << 22), -(1 << 22), 1 << 22, 1 << 22);
                         break;
-                    case CombineModeExclude:
-                        DeleteObject(left);
-                        *hrgn = CreateRectRgn(0, 0, 0, 0);
-                        return *hrgn ? Ok : OutOfMemory;
-                    case CombineModeUnion:
+                    case CombineModeUnion: case CombineModeExclude:
                         DeleteObject(left);
                         *hrgn = NULL;
                         return Ok;
@@ -1363,53 +1185,12 @@ GpStatus get_region_hrgn(struct region_element *element, const RECT *bounds, HRG
  */
 GpStatus WINGDIPAPI GdipGetRegionHRgn(GpRegion *region, GpGraphics *graphics, HRGN *hrgn)
 {
-    GpStatus stat=Ok;
-    REAL min_x, min_y, max_x, max_y;
-    BOOL empty, infinite;
-    RECT bounds;
-    GpRegion *tmp_region = NULL;
-    GpMatrix transform;
-
     TRACE("(%p, %p, %p)\n", region, graphics, hrgn);
 
     if (!region || !hrgn)
         return InvalidParameter;
 
-    if (graphics) {
-        stat = GdipCloneRegion(region, &tmp_region);
-        region = tmp_region;
-
-        if (stat == Ok)
-            stat = get_graphics_transform(graphics, WineCoordinateSpaceGdiDevice, CoordinateSpaceWorld, &transform);
-
-        if (stat == Ok)
-            stat = GdipTransformRegion(region, &transform);
-    }
-
-    if (stat == Ok)
-    {
-        get_region_bounding_box(&region->node, &min_x, &min_y, &max_x, &max_y, &empty, &infinite);
-
-        if (empty)
-        {
-            if (infinite)
-                *hrgn = NULL;
-            else
-                *hrgn = CreateRectRgn(0, 0, 0, 0);
-        }
-        else
-        {
-            bounds.left = floorf(min_x);
-            bounds.top = floorf(min_y);
-            bounds.right = ceilf(max_x) + 1;
-            bounds.bottom = ceilf(max_y) + 1;
-            stat = get_region_hrgn(&region->node, &bounds, hrgn);
-        }
-    }
-
-    GdipDeleteRegion(tmp_region);
-
-    return stat;
+    return get_region_hrgn(&region->node, graphics, hrgn);
 }
 
 GpStatus WINGDIPAPI GdipIsEmptyRegion(GpRegion *region, GpGraphics *graphics, BOOL *res)
@@ -1525,208 +1306,6 @@ GpStatus WINGDIPAPI GdipIsVisibleRegionRectI(GpRegion* region, INT x, INT y, INT
     return GdipIsVisibleRegionRect(region, (REAL)x, (REAL)y, (REAL)w, (REAL)h, graphics, res);
 }
 
-/* get_region_bounding_box
- *
- * Returns a box guaranteed to enclose the entire region, but not guaranteed to be minimal.
- * Sets "empty" if bounding box is empty.
- * Sets "infinite" if everything outside bounding box is inside the region.
- * In the infinite case, the bounding box encloses all points not in the region. */
-static void get_region_bounding_box(struct region_element *element,
-    REAL *min_x, REAL *min_y, REAL *max_x, REAL *max_y, BOOL *empty, BOOL *infinite)
-{
-    REAL left_min_x, left_min_y, left_max_x, left_max_y;
-    BOOL left_empty, left_infinite;
-    REAL right_min_x, right_min_y, right_max_x, right_max_y;
-    BOOL right_empty, right_infinite;
-    /* For combine modes, we convert the mode to flags as follows to simplify the logic:
-     * 0x8 = point in combined region if it's in both
-     * 0x4 = point in combined region if it's in left and not right
-     * 0x2 = point in combined region if it's not in left and is in right
-     * 0x1 = point in combined region if it's in neither region */
-    int flags;
-    const int combine_mode_flags[] = {
-        0xa, /* CombineModeReplace - shouldn't be used */
-        0x8, /* CombineModeIntersect */
-        0xe, /* CombineModeUnion */
-        0x6, /* CombineModeXor */
-        0x4, /* CombineModeExclude */
-        0x2, /* CombineModeComplement */
-    };
-
-    /* handle unit elements first */
-    switch (element->type)
-    {
-        case RegionDataInfiniteRect:
-            *min_x = *min_y = *max_x = *max_y = 0.0;
-            *empty = TRUE;
-            *infinite = TRUE;
-            return;
-        case RegionDataEmptyRect:
-            *min_x = *min_y = *max_x = *max_y = 0.0;
-            *empty = TRUE;
-            *infinite = FALSE;
-            return;
-        case RegionDataPath:
-        {
-            GpPath *path = element->elementdata.path;
-            int i;
-
-            if (path->pathdata.Count <= 1) {
-                *min_x = *min_y = *max_x = *max_y = 0.0;
-                *empty = TRUE;
-                *infinite = FALSE;
-                return;
-            }
-
-            *min_x = *max_x = path->pathdata.Points[0].X;
-            *min_y = *max_y = path->pathdata.Points[0].Y;
-            *empty = FALSE;
-            *infinite = FALSE;
-
-            for (i=1; i < path->pathdata.Count; i++)
-            {
-                if (path->pathdata.Points[i].X < *min_x)
-                    *min_x = path->pathdata.Points[i].X;
-                else if (path->pathdata.Points[i].X > *max_x)
-                    *max_x = path->pathdata.Points[i].X;
-                if (path->pathdata.Points[i].Y < *min_y)
-                    *min_y = path->pathdata.Points[i].Y;
-                else if (path->pathdata.Points[i].Y > *max_y)
-                    *max_y = path->pathdata.Points[i].Y;
-            }
-
-            return;
-        }
-        case RegionDataRect:
-            *min_x = element->elementdata.rect.X;
-            *min_y = element->elementdata.rect.Y;
-            *max_x = element->elementdata.rect.X + element->elementdata.rect.Width;
-            *max_y = element->elementdata.rect.Y + element->elementdata.rect.Height;
-            *empty = FALSE;
-            *infinite = FALSE;
-            return;
-    }
-
-    /* Should be only combine modes left */
-    assert(element->type < ARRAY_SIZE(combine_mode_flags));
-
-    flags = combine_mode_flags[element->type];
-
-    get_region_bounding_box(element->elementdata.combine.left,
-        &left_min_x, &left_min_y, &left_max_x, &left_max_y, &left_empty, &left_infinite);
-
-    if (left_infinite)
-    {
-        /* change our function so we can ignore the infinity */
-        flags = ((flags & 0x3) << 2) | ((flags & 0xc) >> 2);
-    }
-
-    if (left_empty && (flags & 0x3) == 0) {
-        /* no points in region regardless of right region, return empty */
-        *empty = TRUE;
-        *infinite = FALSE;
-        return;
-    }
-
-    if (left_empty && (flags & 0x3) == 0x3) {
-        /* all points in region regardless of right region, return infinite */
-        *empty = TRUE;
-        *infinite = TRUE;
-        return;
-    }
-
-    get_region_bounding_box(element->elementdata.combine.right,
-        &right_min_x, &right_min_y, &right_max_x, &right_max_y, &right_empty, &right_infinite);
-
-    if (right_infinite)
-    {
-        /* change our function so we can ignore the infinity */
-        flags = ((flags & 0x5) << 1) | ((flags & 0xa) >> 1);
-    }
-
-    /* result is infinite if points in neither region are in the result */
-    *infinite = (flags & 0x1);
-
-    if (*infinite)
-    {
-        /* Again, we modify our function to ignore the infinity.
-         * The points we care about are the ones that are different from the outside of our box,
-         * not the points inside the region, so we invert the whole thing.
-         * From here we can assume 0x1 is not set. */
-        flags ^= 0xf;
-    }
-
-    if (left_empty)
-    {
-        /* We already took care of the cases where the right region doesn't matter,
-         * so we can just use the right bounding box. */
-        *min_x = right_min_x;
-        *min_y = right_min_y;
-        *max_x = right_max_x;
-        *max_y = right_max_y;
-        *empty = right_empty;
-        return;
-    }
-
-    if (right_empty)
-    {
-        /* With no points in right region, and infinities eliminated, we only care
-         * about flag 0x4, the case where a point is in left region and not right. */
-        if (flags & 0x4)
-        {
-            /* We have a copy of the left region. */
-            *min_x = left_min_x;
-            *min_y = left_min_y;
-            *max_x = left_max_x;
-            *max_y = left_max_y;
-            *empty = left_empty;
-            return;
-        }
-        /* otherwise, it's an empty (or infinite) region */
-        *empty = TRUE;
-        return;
-    }
-
-    /* From here we know 0x1 isn't set, and we know at least one flag is set.
-     * We can ignore flag 0x8 because we must assume that any point within the
-     * intersection of the bounding boxes might be within the region. */
-    switch (flags & 0x6)
-    {
-    case 0x0:
-        /* intersection */
-        *min_x = fmaxf(left_min_x, right_min_x);
-        *min_y = fmaxf(left_min_y, right_min_y);
-        *max_x = fminf(left_max_x, right_max_x);
-        *max_y = fminf(left_max_y, right_max_y);
-        *empty = *min_x > *max_x || *min_y > *max_y;
-        return;
-    case 0x2:
-        /* right (or complement) */
-        *min_x = right_min_x;
-        *min_y = right_min_y;
-        *max_x = right_max_x;
-        *max_y = right_max_y;
-        *empty = right_empty;
-        return;
-    case 0x4:
-        /* left (or exclude) */
-        *min_x = left_min_x;
-        *min_y = left_min_y;
-        *max_x = left_max_x;
-        *max_y = left_max_y;
-        *empty = left_empty;
-        return;
-    case 0x6:
-        /* union (or xor) */
-        *min_x = fminf(left_min_x, right_min_x);
-        *min_y = fminf(left_min_y, right_min_y);
-        *max_x = fmaxf(left_max_x, right_max_x);
-        *max_y = fmaxf(left_max_y, right_max_y);
-        *empty = FALSE;
-        return;
-    }
-}
-
 /*****************************************************************************
  * GdipIsVisibleRegionPoint [GDIPLUS.@]
  */
@@ -1734,24 +1313,11 @@ GpStatus WINGDIPAPI GdipIsVisibleRegionPoint(GpRegion* region, REAL x, REAL y, G
 {
     HRGN hrgn;
     GpStatus stat;
-    REAL min_x, min_y, max_x, max_y;
-    BOOL empty, infinite;
 
     TRACE("(%p, %.2f, %.2f, %p, %p)\n", region, x, y, graphics, res);
 
     if(!region || !res)
         return InvalidParameter;
-
-    x = gdip_round(x);
-    y = gdip_round(y);
-
-    /* Check for cases where we can skip quantization. */
-    get_region_bounding_box(&region->node, &min_x, &min_y, &max_x, &max_y, &empty, &infinite);
-    if (empty || x < min_x || y < min_y || x > max_x || y > max_y)
-    {
-        *res = infinite;
-        return Ok;
-    }
 
     if((stat = GdipGetRegionHRgn(region, NULL, &hrgn)) != Ok)
         return stat;
@@ -1762,7 +1328,7 @@ GpStatus WINGDIPAPI GdipIsVisibleRegionPoint(GpRegion* region, REAL x, REAL y, G
         return Ok;
     }
 
-    *res = PtInRegion(hrgn, x, y);
+    *res = PtInRegion(hrgn, gdip_round(x), gdip_round(y));
 
     DeleteObject(hrgn);
 

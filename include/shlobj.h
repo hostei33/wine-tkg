@@ -43,7 +43,7 @@ extern "C" {
 #endif
 
 /* Except for specific structs, this header is byte packed */
-#pragma pack(push,1)
+#include <pshpack1.h>
 
 #ifndef HPSXA_DEFINED
 #define HPSXA_DEFINED
@@ -77,7 +77,6 @@ typedef int GPFIDL_FLAGS;
 WINSHELLAPI void         WINAPI SHFree(void*);
 WINSHELLAPI UINT         WINAPI SHAddFromPropSheetExtArray(HPSXA,LPFNADDPROPSHEETPAGE,LPARAM);
 WINSHELLAPI void*        WINAPI SHAlloc(ULONG) __WINE_ALLOC_SIZE(1) __WINE_DEALLOC(SHFree) __WINE_MALLOC;
-WINSHELLAPI HRESULT      WINAPI SHBindToObject(IShellFolder *, const ITEMIDLIST *, IBindCtx *, REFIID, void **);
 WINSHELLAPI HRESULT      WINAPI SHCoCreateInstance(LPCWSTR,const CLSID*,IUnknown*,REFIID,LPVOID*);
 WINSHELLAPI HPSXA        WINAPI SHCreatePropSheetExtArray(HKEY,LPCWSTR,UINT);
 WINSHELLAPI HPSXA        WINAPI SHCreatePropSheetExtArrayEx(HKEY,LPCWSTR,UINT,IDataObject*);
@@ -180,14 +179,14 @@ typedef enum
     OAIF_FILE_IS_URI        = 0x00000080
 } OPEN_AS_INFO_FLAGS;
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 typedef struct
 {
     LPCWSTR pcszFile;
     LPCWSTR pcszClass;
     OPEN_AS_INFO_FLAGS oaifInFlags;
 } OPENASINFO;
-#pragma pack(pop)
+#include <poppack.h>
 
 WINSHELLAPI HRESULT WINAPI SHOpenWithDialog(HWND,const OPENASINFO*);
 
@@ -392,6 +391,8 @@ typedef struct
 #define FCIDM_SHVIEW_NEWFOLDER  0x7053
 
 #define FCIDM_SHVIEW_REFRESH    0x7100 /* FIXME */
+#define FCIDM_SHVIEW_EXPLORE    0x7101 /* FIXME */
+#define FCIDM_SHVIEW_OPEN       0x7102 /* FIXME */
 
 #define FCIDM_SHVIEWLAST        0x7fff
 #define FCIDM_BROWSERFIRST      0xA000
@@ -620,7 +621,7 @@ DECLARE_INTERFACE_(IShellFolderViewCB,IUnknown)
  * IShellFolderView interface
  */
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 typedef struct _ITEMSPACING
 {
@@ -630,7 +631,7 @@ typedef struct _ITEMSPACING
     int cyLarge;
 } ITEMSPACING;
 
-#pragma pack(pop)
+#include <poppack.h>
 
 #define INTERFACE IShellFolderView
 DEFINE_GUID(IID_IShellFolderView,0x37a378c0,0xf82d,0x11ce,0xae,0x65,0x08,0x00,0x2b,0x2e,0x12,0x62);
@@ -876,7 +877,7 @@ WINSHELLAPI void WINAPI SHAddToRecentDocs(UINT,LPCVOID);
  */
 typedef INT (CALLBACK *BFFCALLBACK)(HWND,UINT,LPARAM,LPARAM);
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 typedef struct tagBROWSEINFOA {
     HWND        hwndOwner;
@@ -904,7 +905,7 @@ typedef struct tagBROWSEINFOW {
 #define PBROWSEINFO  WINELIB_NAME_AW(PBROWSEINFO)
 #define LPBROWSEINFO WINELIB_NAME_AW(LPBROWSEINFO)
 
-#pragma pack(pop)
+#include <poppack.h>
 
 /* Browsing for directory. */
 #define BIF_RETURNONLYFSDIRS   0x0001
@@ -959,7 +960,7 @@ typedef HRESULT (CALLBACK *LPFNVIEWCALLBACK)(
 	WPARAM wParam,
 	LPARAM lParam);
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 typedef struct _CSFV
 {
@@ -972,7 +973,7 @@ typedef struct _CSFV
   FOLDERVIEWMODE   fvm;
 } CSFV, *LPCSFV;
 
-#pragma pack(pop)
+#include <poppack.h>
 
 WINSHELLAPI HRESULT WINAPI SHCreateShellFolderViewEx(LPCSFV pshfvi, IShellView **ppshv);
 
@@ -1034,7 +1035,7 @@ WINSHELLAPI HRESULT WINAPI SHCreateShellFolderViewEx(LPCSFV pshfvi, IShellView *
 #define SFVM_GET_WEBVIEW_THEME        86 /* undocumented */
 #define SFVM_GETDEFERREDVIEWSETTINGS  92 /* undocumented */
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 typedef struct _SFV_CREATE
 {
@@ -1044,12 +1045,12 @@ typedef struct _SFV_CREATE
     IShellFolderViewCB *psfvcb;
 } SFV_CREATE;
 
-#pragma pack(pop)
+#include <poppack.h>
 
 WINSHELLAPI HRESULT WINAPI SHCreateShellFolderView(const SFV_CREATE *pscfv, IShellView **ppsv);
 
 /* Types and definitions for the SFM_* parameters */
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 #define QCMINFO_PLACE_BEFORE          0
 #define QCMINFO_PLACE_AFTER           1
@@ -1088,7 +1089,7 @@ typedef struct _TBINFO
     UINT uFlags;
 } TBINFO, *LPTBINFO;
 
-#pragma pack(pop)
+#include <poppack.h>
 
 /****************************************************************************
 *	SHShellFolderView_Message API
@@ -1149,14 +1150,14 @@ WINSHELLAPI LRESULT WINAPI SHShellFolderView_Message(HWND hwndCabinet, UINT uMes
 #define SHDID_COMPUTER_AUDIO        19
 #define SHDID_COMPUTER_SHAREDDOCS   20
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 typedef struct _SHDESCRIPTIONID
 {   DWORD   dwDescriptionId;
     CLSID   clsid;
 } SHDESCRIPTIONID, *LPSHDESCRIPTIONID;
 
-#pragma pack(pop)
+#include <poppack.h>
 
 WINSHELLAPI HRESULT WINAPI SHGetDataFromIDListA(LPSHELLFOLDER psf, LPCITEMIDLIST pidl, int nFormat, LPVOID pv, int cb);
 WINSHELLAPI HRESULT WINAPI SHGetDataFromIDListW(LPSHELLFOLDER psf, LPCITEMIDLIST pidl, int nFormat, LPVOID pv, int cb);
@@ -1636,7 +1637,7 @@ WINSHELLAPI int WINAPI SHCreateDirectoryExW(HWND, LPCWSTR, LPSECURITY_ATTRIBUTES
 #define FCSM_LOGO            0x00000020
 #define FCSM_FLAGS           0x00000040
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 typedef struct {
     DWORD dwSize;
     DWORD dwMask;
@@ -1654,7 +1655,7 @@ typedef struct {
     LPWSTR pszLogo;
     DWORD cchLogo;
 } SHFOLDERCUSTOMSETTINGS, *LPSHFOLDERCUSTOMSETTINGS;
-#pragma pack(pop)
+#include <poppack.h>
 
 WINSHELLAPI HRESULT WINAPI SHGetSetFolderCustomSettings(LPSHFOLDERCUSTOMSETTINGS pfcs, PCWSTR pszPath, DWORD dwReadWrite);
 
@@ -1940,7 +1941,7 @@ static inline BOOL ILIsEmpty(LPCITEMIDLIST pidl)
     return !(pidl && pidl->mkid.cb);
 }
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 typedef struct {
     HWND hwnd;
@@ -1954,7 +1955,7 @@ typedef struct {
     const HKEY *aKeys;
 } DEFCONTEXTMENU;
 
-#pragma pack(pop)
+#include <poppack.h>
 
 WINSHELLAPI HRESULT WINAPI SHCreateDefaultContextMenu(const DEFCONTEXTMENU *pdcm, REFIID riid, void **ppv);
 
@@ -1968,7 +1969,7 @@ WINSHELLAPI HRESULT WINAPI CDefFolderMenu_Create2(LPCITEMIDLIST pidlFolder, HWND
 WINSHELLAPI int WINAPI PickIconDlg(HWND owner, WCHAR *path, UINT path_len, int *index);
 WINSHELLAPI HRESULT WINAPI SHLimitInputEdit(HWND hwnd, IShellFolder *folder);
 
-#pragma pack(pop)
+#include <poppack.h>
 
 #ifdef __cplusplus
 } /* extern "C" */

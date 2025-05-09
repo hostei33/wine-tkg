@@ -442,6 +442,7 @@ static HRESULT WINAPI mmsysaudio_Write(ISpMMSysAudio *iface, const void *pv, ULO
 
     EnterCriticalSection(&This->pending_cs);
     ++This->pending_buf_count;
+    TRACE("pending_buf_count = %Iu\n", This->pending_buf_count);
     LeaveCriticalSection(&This->pending_cs);
 
     ResetEvent(This->event);
@@ -568,6 +569,7 @@ static void free_out_buf_proc(struct async_task *task)
     LeaveCriticalSection(&fbt->audio->pending_cs);
     if (!buf_count)
         SetEvent(fbt->audio->event);
+    TRACE("pending_buf_count = %Iu.\n", buf_count);
 }
 
 static void CALLBACK wave_out_proc(HWAVEOUT hwo, UINT msg, DWORD_PTR instance, DWORD_PTR param1, DWORD_PTR param2)

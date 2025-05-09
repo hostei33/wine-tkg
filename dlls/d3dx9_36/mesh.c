@@ -2967,7 +2967,7 @@ static HRESULT parse_vertex_colors(ID3DXFileData *filedata, struct mesh_data *me
         goto end;
     }
 
-    mesh->vertex_colors = malloc(mesh->num_vertices * sizeof(*mesh->vertex_colors));
+    mesh->vertex_colors = malloc(mesh->num_vertices * sizeof(uint32_t));
     if (!mesh->vertex_colors) {
         hr = E_OUTOFMEMORY;
         goto end;
@@ -3060,7 +3060,7 @@ static HRESULT parse_normals(ID3DXFileData *filedata, struct mesh_data *mesh, DW
     }
 
     mesh->normals = malloc(mesh->num_normals * sizeof(D3DXVECTOR3));
-    mesh->normal_indices = malloc(num_face_indices * sizeof(*mesh->normal_indices));
+    mesh->normal_indices = malloc(num_face_indices * sizeof(uint32_t));
     if (!mesh->normals || !mesh->normal_indices) {
         hr = E_OUTOFMEMORY;
         goto end;
@@ -4079,8 +4079,7 @@ HRESULT WINAPI D3DXLoadMeshHierarchyFromXInMemory(const void *memory, DWORD memo
     if (anim_controller)
     {
         *anim_controller = NULL;
-        /*FIXME("Animation controller creation not implemented.\n");*/
-        D3DXCreateAnimationController(1, 1, 1, 1, anim_controller);
+        FIXME("Animation controller creation not implemented.\n");
     }
 
 cleanup:
@@ -7354,23 +7353,6 @@ error:
     return hr;
 }
 
-HRESULT WINAPI D3DXOptimizeVertices(const void *indices, UINT face_count, UINT vertex_count,
-        BOOL indices_are_32bit, DWORD *vertex_remap)
-{
-    unsigned int i;
-
-    FIXME("indices %p, face_count %u, vertex_count %u, indices_are_32bit %#x, vertex_remap %p semi-stub.\n",
-            indices, face_count, vertex_count, indices_are_32bit, vertex_remap);
-
-    if (!indices || !face_count || !vertex_count || !vertex_remap)
-        return D3DERR_INVALIDCALL;
-
-    for (i = 0; i < vertex_count; ++i)
-        vertex_remap[i] = i;
-
-    return D3D_OK;
-}
-
 static D3DXVECTOR3 *vertex_element_vec3(BYTE *vertices, const D3DVERTEXELEMENT9 *declaration,
         DWORD vertex_stride, DWORD index)
 {
@@ -7677,8 +7659,6 @@ HRESULT WINAPI D3DXIntersect(ID3DXBaseMesh *mesh, const D3DXVECTOR3 *ray_pos, co
 {
     FIXME("mesh %p, ray_pos %p, ray_dir %p, hit %p, face_index %p, u %p, v %p, distance %p, all_hits %p, "
             "count_of_hits %p stub!\n", mesh, ray_pos, ray_dir, hit, face_index, u, v, distance, all_hits, count_of_hits);
-
-    *hit = FALSE;
 
     return E_NOTIMPL;
 }

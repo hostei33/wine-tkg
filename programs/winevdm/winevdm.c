@@ -36,7 +36,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(winevdm);
 #define DOSBOX "dosbox"
 
 /*** PIF file structures ***/
-#pragma pack(push,1)
+#include "pshpack1.h"
 
 /* header of a PIF file */
 typedef struct {
@@ -101,7 +101,7 @@ typedef struct {
     CHAR optparams[64];  /* optional params, replaces those in the pif header */
 } pif386rec_t;
 
-#pragma pack(pop)
+#include "poppack.h"
 
 /***********************************************************************
  *           start_dosbox
@@ -359,7 +359,7 @@ static char *build_command_line( char **argv )
         return NULL;
 
     p = cmd_line;
-    *p++ = (len < 256) ? len : '\xff';
+    *p++ = (len < 256) ? len : 255;
     for (arg = argv; *arg; arg++)
     {
         BOOL has_space,has_quote;

@@ -25,19 +25,6 @@
 #define COBJMACROS
 #include <d3d9.h>
 #include "utils.h"
-#include <initguid.h>
-#include <d3d9on12.h>
-#include <dxgi1_4.h>
-
-static HMODULE d3d9_handle = 0;
-static HMODULE d3d12_handle = 0;
-static HMODULE dxgi_handle = 0;
-
-static IDirect3D9 * (WINAPI *pDirect3DCreate9On12)(UINT sdk_version, D3D9ON12_ARGS *d3d9on12_args, UINT d3d9on12_args_count);
-static HRESULT (WINAPI *pCreateDXGIFactory2)(UINT flags, REFIID iid, void **factory);
-static HRESULT (WINAPI *pD3D12CreateDevice)(IUnknown *adapter, D3D_FEATURE_LEVEL feature_level, REFIID iid, void **device);
-
-DEFINE_GUID(IID_IDeadbeef, 0xdeadbeef, 0xdead, 0xbeef, 0xde, 0xad, 0xbe, 0xee, 0xee, 0xee, 0xee, 0xef);
 
 struct vec3
 {
@@ -2731,19 +2718,6 @@ static void test_scene(void)
     hr = IDirect3DDevice9_EndScene(device);
     ok(hr == D3DERR_INVALIDCALL, "Got hr %#lx.\n", hr);
 
-    /* Calling Reset clears scene state. */
-    hr = IDirect3DDevice9_BeginScene(device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    reset_device(device, NULL);
-    hr = IDirect3DDevice9_EndScene(device);
-    ok(hr == D3DERR_INVALIDCALL, "Got hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice9_BeginScene(device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_EndScene(device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
     /* Create some surfaces to test stretchrect between the scenes */
     hr = IDirect3DDevice9_CreateOffscreenPlainSurface(device, 128, 128,
             D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &surface1, NULL);
@@ -3775,6 +3749,7 @@ struct wndproc_thread_param
     HWND dummy_window;
     HANDLE window_created;
     HANDLE test_finished;
+    BOOL running_in_foreground;
 };
 
 static LRESULT CALLBACK test_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
@@ -3852,9 +3827,10 @@ static DWORD WINAPI wndproc_thread(void *param)
     DWORD res;
     BOOL ret;
 
-    p->dummy_window = CreateWindowA("static", "d3d9_test", WS_VISIBLE | WS_CAPTION,
-            100, 100, 200, 200, 0, 0, 0, 0);
-    flush_events();
+    p->dummy_window = CreateWindowA("d3d9_test_wndproc_wc", "d3d9_test",
+            WS_MAXIMIZE | WS_VISIBLE | WS_CAPTION, 0, 0, registry_mode.dmPelsWidth,
+            registry_mode.dmPelsHeight, 0, 0, 0, 0);
+    p->running_in_foreground = SetForegroundWindow(p->dummy_window);
 
     ret = SetEvent(p->window_created);
     ok(ret, "SetEvent failed, last error %#lx.\n", GetLastError());
@@ -4158,14 +4134,11 @@ static void test_wndproc(void)
                 WS_MAXIMIZE | WS_VISIBLE | WS_CAPTION, 0, 0, user32_width, user32_height, 0, 0, 0, 0);
         device_window = CreateWindowA("d3d9_test_wndproc_wc", "d3d9_test",
                 WS_MAXIMIZE | WS_VISIBLE | WS_CAPTION, 0, 0, user32_width, user32_height, 0, 0, 0, 0);
-        flush_events();
-
         thread = CreateThread(NULL, 0, wndproc_thread, &thread_params, 0, &tid);
         ok(!!thread, "Failed to create thread, last error %#lx.\n", GetLastError());
 
         res = WaitForSingleObject(thread_params.window_created, INFINITE);
         ok(res == WAIT_OBJECT_0, "Wait failed (%#lx), last error %#lx.\n", res, GetLastError());
-        flush_events();
 
         proc = GetWindowLongPtrA(device_window, GWLP_WNDPROC);
         ok(proc == (LONG_PTR)test_proc, "Expected wndproc %#Ix, got %#Ix.\n",
@@ -4178,10 +4151,15 @@ static void test_wndproc(void)
                 device_window, focus_window, thread_params.dummy_window);
 
         tmp = GetFocus();
-        ok(tmp == NULL, "Expected focus %p, got %p.\n", NULL, tmp);
-        tmp = GetForegroundWindow();
-        ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
-                thread_params.dummy_window, tmp);
+        ok(tmp == device_window, "Expected focus %p, got %p.\n", device_window, tmp);
+        if (thread_params.running_in_foreground)
+        {
+            tmp = GetForegroundWindow();
+            ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
+                    thread_params.dummy_window, tmp);
+        }
+        else
+            skip("Not running in foreground, skip foreground window test\n");
 
         flush_events();
 
@@ -4202,10 +4180,13 @@ static void test_wndproc(void)
                 expect_messages->message, expect_messages->window, i);
         expect_messages = NULL;
 
-        tmp = GetFocus();
-        ok(tmp == focus_window, "Expected focus %p, got %p.\n", focus_window, tmp);
-        tmp = GetForegroundWindow();
-        ok(tmp == focus_window, "Expected foreground window %p, got %p.\n", focus_window, tmp);
+        if (0) /* Disabled until we can make this work in a reliable way on Wine. */
+        {
+            tmp = GetFocus();
+            ok(tmp == focus_window, "Expected focus %p, got %p.\n", focus_window, tmp);
+            tmp = GetForegroundWindow();
+            ok(tmp == focus_window, "Expected foreground window %p, got %p.\n", focus_window, tmp);
+        }
         SetForegroundWindow(focus_window);
         flush_events();
 
@@ -4620,14 +4601,11 @@ static void test_wndproc_windowed(void)
     device_window = CreateWindowA("d3d9_test_wndproc_wc", "d3d9_test",
             WS_MAXIMIZE | WS_VISIBLE | WS_CAPTION, 0, 0, registry_mode.dmPelsWidth,
             registry_mode.dmPelsHeight, 0, 0, 0, 0);
-    flush_events();
-
     thread = CreateThread(NULL, 0, wndproc_thread, &thread_params, 0, &tid);
     ok(!!thread, "Failed to create thread, last error %#lx.\n", GetLastError());
 
     res = WaitForSingleObject(thread_params.window_created, INFINITE);
     ok(res == WAIT_OBJECT_0, "Wait failed (%#lx), last error %#lx.\n", res, GetLastError());
-    flush_events();
 
     proc = GetWindowLongPtrA(device_window, GWLP_WNDPROC);
     ok(proc == (LONG_PTR)test_proc, "Expected wndproc %#Ix, got %#Ix.\n",
@@ -4640,10 +4618,15 @@ static void test_wndproc_windowed(void)
             device_window, focus_window, thread_params.dummy_window);
 
     tmp = GetFocus();
-    ok(tmp == NULL, "Expected focus %p, got %p.\n", NULL, tmp);
-    tmp = GetForegroundWindow();
-    ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
-            thread_params.dummy_window, tmp);
+    ok(tmp == device_window, "Expected focus %p, got %p.\n", device_window, tmp);
+    if (thread_params.running_in_foreground)
+    {
+        tmp = GetForegroundWindow();
+        ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
+                thread_params.dummy_window, tmp);
+    }
+    else
+        skip("Not running in foreground, skip foreground window test\n");
 
     filter_messages = focus_window;
 
@@ -4659,7 +4642,7 @@ static void test_wndproc_windowed(void)
     }
 
     tmp = GetFocus();
-    ok(tmp == NULL, "Expected focus %p, got %p.\n", NULL, tmp);
+    ok(tmp == device_window, "Expected focus %p, got %p.\n", device_window, tmp);
     tmp = GetForegroundWindow();
     ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
             thread_params.dummy_window, tmp);
@@ -4923,34 +4906,28 @@ cleanup:
 }
 
 
-static const GUID d3d9_private_data_test_guid =
-{
-    0xfdb37466,
-    0x428f,
-    0x4edf,
-    {0xa3,0x7f,0x9b,0x1d,0xf4,0x88,0xc5,0xfc}
-};
-
-#if defined(__i386__) || (defined(__x86_64__) && !defined(__arm64ec__) && (defined(__GNUC__) || defined(__clang__)))
-
 static inline void set_fpu_cw(WORD cw)
 {
-#if defined(_MSC_VER) && defined(__i386__)
-    __asm fnclex;
-    __asm fldcw cw;
-#else
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+#define D3D9_TEST_SET_FPU_CW 1
     __asm__ volatile ("fnclex");
     __asm__ volatile ("fldcw %0" : : "m" (cw));
+#elif defined(__i386__) && defined(_MSC_VER)
+#define D3D9_TEST_SET_FPU_CW 1
+    __asm fnclex;
+    __asm fldcw cw;
 #endif
 }
 
 static inline WORD get_fpu_cw(void)
 {
     WORD cw = 0;
-#if defined(_MSC_VER) && defined(__i386__)
-    __asm fnstcw cw;
-#else
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+#define D3D9_TEST_GET_FPU_CW 1
     __asm__ volatile ("fnstcw %0" : "=m" (cw));
+#elif defined(__i386__) && defined(_MSC_VER)
+#define D3D9_TEST_GET_FPU_CW 1
+    __asm fnstcw cw;
 #endif
     return cw;
 }
@@ -4987,8 +4964,17 @@ static const IUnknownVtbl dummy_object_vtbl =
     dummy_object_Release,
 };
 
+static const GUID d3d9_private_data_test_guid =
+{
+    0xfdb37466,
+    0x428f,
+    0x4edf,
+    {0xa3,0x7f,0x9b,0x1d,0xf4,0x88,0xc5,0xfc}
+};
+
 static void test_fpu_setup(void)
 {
+#if defined(D3D9_TEST_SET_FPU_CW) && defined(D3D9_TEST_GET_FPU_CW)
     static const BOOL is_64bit = sizeof(void *) > sizeof(int);
     IUnknown dummy_object = {&dummy_object_vtbl};
     struct device_desc device_desc;
@@ -5093,15 +5079,8 @@ static void test_fpu_setup(void)
 done:
     IDirect3D9_Release(d3d9);
     DestroyWindow(window);
-}
-
-#else
-
-static void test_fpu_setup(void)
-{
-}
-
 #endif
+}
 
 static void test_window_style(void)
 {
@@ -15048,244 +15027,6 @@ static void test_window_position(void)
     IDirect3D9_Release(d3d);
 }
 
-static BOOL init_d3d9on12_modules(void)
-{
-    d3d9_handle = LoadLibraryA("d3d9.dll");
-    if (!d3d9_handle)
-    {
-        skip("Could not load d3d9.dll\n");
-        return FALSE;
-    }
-    dxgi_handle = LoadLibraryA("dxgi.dll");
-    if (!dxgi_handle)
-    {
-        skip("Could not load dxgi.dll\n");
-        return FALSE;
-    }
-    d3d12_handle = LoadLibraryA("d3d12.dll");
-    if (!d3d12_handle)
-    {
-        skip("Could not load d3d12.dll\n");
-        return FALSE;
-    }
-
-    pDirect3DCreate9On12 = (void *)GetProcAddress(d3d9_handle, "Direct3DCreate9On12");
-    if (!pDirect3DCreate9On12)
-    {
-        win_skip("Direct3DCreate9On12 is not supported, skipping d3d9on12 tests\n");
-        return FALSE;
-    }
-    pCreateDXGIFactory2 = (void *)GetProcAddress(dxgi_handle, "CreateDXGIFactory2");
-    if (!pCreateDXGIFactory2)
-    {
-        win_skip("CreateDXGIFactory2 is not supported, skipping d3d9on12 tests\n");
-        return FALSE;
-    }
-    pD3D12CreateDevice = (void *)GetProcAddress(d3d12_handle, "D3D12CreateDevice");
-    if (!pD3D12CreateDevice)
-    {
-        win_skip("D3D12CreateDevice is not supported, skipping d3d9on12 tests\n");
-        return FALSE;
-    }
-
-    return TRUE;
-}
-
-#define create_d3d9on12_device(out_d3d9, window, d3d9on12_args, d3d9on12_args_count, out_device) \
-        create_d3d9on12_device_(__LINE__, out_d3d9, window, d3d9on12_args, d3d9on12_args_count, out_device)
-static HRESULT create_d3d9on12_device_(unsigned int line, IDirect3D9 **out_d3d9, HWND window, D3D9ON12_ARGS *d3d9on12_args,
-        UINT d3d9on12_args_count, IDirect3DDevice9 **out_device)
-{
-    IDirect3DDevice9On12 *d3d9on12 = (void *)0xdeadbeef;
-    IDirect3DDevice9 *device = (void *)0xdeadbeef;
-    IDirect3D9 *d3d9 = (void *)0xdeadbeef;
-    D3DPRESENT_PARAMETERS present_parameters;
-    HRESULT hr;
-
-    memset(&present_parameters, 0, sizeof(present_parameters));
-    present_parameters.Windowed = TRUE;
-    present_parameters.hDeviceWindow = window;
-    present_parameters.SwapEffect = D3DSWAPEFFECT_COPY;
-    present_parameters.BackBufferWidth = 640;
-    present_parameters.BackBufferHeight = 480;
-    present_parameters.EnableAutoDepthStencil = FALSE;
-    present_parameters.AutoDepthStencilFormat = D3DFMT_D16;
-
-    d3d9 = pDirect3DCreate9On12(D3D_SDK_VERSION, d3d9on12_args, d3d9on12_args_count);
-    ok_(__FILE__, line)(d3d9 != NULL, "got NULL d3d9 object\n");
-
-    hr = IDirect3D9_QueryInterface(d3d9, &IID_IDirect3DDevice9On12, (void **)&d3d9on12);
-    ok_(__FILE__, line)(hr == E_NOINTERFACE, "Got hr %#lx.\n", hr);
-    ok_(__FILE__, line)(d3d9on12 == NULL, "QueryInterface returned interface %p, expected NULL\n", d3d9on12);
-
-    hr = IDirect3D9_CreateDevice(d3d9, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, present_parameters.hDeviceWindow,
-                                 D3DCREATE_SOFTWARE_VERTEXPROCESSING, &present_parameters, &device);
-
-    *out_d3d9 = d3d9;
-    *out_device = device;
-
-    return hr;
-}
-
-static void test_d3d9on12(void)
-{
-    IDirect3DDevice9On12 *d3d9on12_2 = (void *)0xdeadbeef;
-    IDirect3DDevice9On12 *d3d9on12 = (void *)0xdeadbeef;
-    IDirect3DDevice9 *device = (void *)0xdeadbeef;
-    IDirect3D9 *d3d9 = (void *)0xdeadbeef;
-    IDXGIAdapter *adapter = (void *)0xdeadbeef;
-    IDXGIFactory4 *factory = (void *)0xdeadbeef;
-    ID3D12Device *d3d12device = (void *)0xdeadbeef;
-    ID3D12Device *d3d12device_2 = (void *)0xdeadbeef;
-    D3D9ON12_ARGS d3d9on12_args;
-    ULONG ref;
-    HRESULT hr;
-    HWND window = create_window();
-
-    if (!init_d3d9on12_modules())
-    {
-        win_skip("Failed to load d3d9on12 modules, skipping d3d9on12 tests.\n");
-        DestroyWindow(window);
-        return;
-    }
-
-    d3d9 = pDirect3DCreate9On12(D3D_SDK_VERSION, NULL, 0);
-    ok(d3d9 != NULL, "got NULL d3d9 object\n");
-    IDirect3D9_Release(d3d9);
-
-    memset(&d3d9on12_args, 0, sizeof(d3d9on12_args));
-    hr = create_d3d9on12_device(&d3d9, window, &d3d9on12_args, 0, &device);
-    if (FAILED(hr))
-    {
-        win_skip("Failed to create a regular Direct3DDevice9, skipping d3d9on12 tests\n");
-        goto out;
-    }
-    hr = IDirect3DDevice9_QueryInterface(device, &IID_IDirect3DDevice9On12, (void **)&d3d9on12);
-    ok(hr == E_NOINTERFACE, "Got hr %#lx.\n", hr);
-    ok(d3d9on12 == NULL, "QueryInterface returned interface %p, expected NULL\n", d3d9on12);
-    IDirect3DDevice9_Release(device);
-    IDirect3D9_Release(d3d9);
-
-    memset(&d3d9on12_args, 0, sizeof(d3d9on12_args));
-    d3d9on12_args.Enable9On12 = TRUE;
-    d3d9on12 = (void *)0xdeadbeef;
-    hr = create_d3d9on12_device(&d3d9, window, &d3d9on12_args, 0, &device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_QueryInterface(device, &IID_IDirect3DDevice9On12, (void **)&d3d9on12);
-    ok(hr == E_NOINTERFACE, "Got hr %#lx.\n", hr);
-    ok(d3d9on12 == NULL, "QueryInterface returned interface %p, expected NULL\n", d3d9on12);
-    ref = IDirect3DDevice9_Release(device);
-    ok(ref == 0, "Got refcount %lu.\n", ref);
-    IDirect3D9_Release(d3d9);
-
-    memset(&d3d9on12_args, 0, sizeof(d3d9on12_args));
-    d3d9on12 = (void *)0xdeadbeef;
-    hr = create_d3d9on12_device(&d3d9, window, &d3d9on12_args, 1, &device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_QueryInterface(device, &IID_IDirect3DDevice9On12, (void **)&d3d9on12);
-    ok(hr == E_NOINTERFACE, "Got hr %#lx.\n", hr);
-    ok(d3d9on12 == NULL, "QueryInterface returned interface %p, expected NULL\n", d3d9on12);
-    ref = IDirect3DDevice9_Release(device);
-    ok(ref == 0, "Got refcount %lu.\n", ref);
-    IDirect3D9_Release(d3d9);
-
-    memset(&d3d9on12_args, 0, sizeof(d3d9on12_args));
-    d3d9on12_args.Enable9On12 = TRUE;
-    d3d9on12_args.NodeMask = 0xdeadbeef;
-    d3d9on12 = (void *)0xdeadbeef;
-    hr = create_d3d9on12_device(&d3d9, window, &d3d9on12_args, 1, &device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_QueryInterface(device, &IID_IDirect3DDevice9On12, (void **)&d3d9on12);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9On12_QueryInterface(d3d9on12, &IID_IDirect3DDevice9On12, (void **)&d3d9on12_2);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    ref = IDirect3DDevice9On12_Release(d3d9on12_2);
-    todo_wine
-    ok(ref == 1, "Got refcount %lu.\n", ref);
-    ref = IDirect3DDevice9On12_Release(d3d9on12);
-    todo_wine
-    ok(ref == 0, "Got refcount %lu.\n", ref);
-    ref = IDirect3DDevice9_Release(device);
-    ok(ref == 0, "Got refcount %lu.\n", ref);
-    IDirect3D9_Release(d3d9);
-
-    memset(&d3d9on12_args, 0, sizeof(d3d9on12_args));
-    d3d9on12_args.Enable9On12 = TRUE;
-    d3d9on12 = (void *)0xdeadbeef;
-    hr = create_d3d9on12_device(&d3d9, window, &d3d9on12_args, 1, &device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_QueryInterface(device, &IID_IDirect3DDevice9On12, (void **)&d3d9on12);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9On12_GetD3D12Device(d3d9on12, NULL, NULL);
-    ok(hr == E_INVALIDARG, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9On12_GetD3D12Device(d3d9on12, &IID_IDeadbeef, NULL);
-    ok(hr == E_INVALIDARG, "Got hr %#lx.\n", hr);
-    IDirect3DDevice9On12_Release(d3d9on12);
-    IDirect3DDevice9_Release(device);
-    IDirect3D9_Release(d3d9);
-
-    memset(&d3d9on12_args, 0, sizeof(d3d9on12_args));
-    d3d9on12_args.Enable9On12 = TRUE;
-    d3d9on12 = (void *)0xdeadbeef;
-    hr = create_d3d9on12_device(&d3d9, window, &d3d9on12_args, 0xdeadbeef, &device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_QueryInterface(device, &IID_IDirect3DDevice9On12, (void **)&d3d9on12);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    ref = IDirect3DDevice9On12_Release(d3d9on12);
-    todo_wine
-    ok(ref == 0, "Got refcount %lu.\n", ref);
-    ref = IDirect3DDevice9_Release(device);
-    ok(ref == 0, "Got refcount %lu.\n", ref);
-    IDirect3D9_Release(d3d9);
-
-    hr = pCreateDXGIFactory2(0, &IID_IDXGIFactory4, (void **)&factory);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDXGIFactory4_EnumAdapters(factory, 0, &adapter);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    IDXGIFactory4_Release(factory);
-
-    hr = pD3D12CreateDevice((IUnknown *)adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, (void **)&d3d12device);
-    if (FAILED(hr))
-    {
-        skip("Failed to create a D3D12 device, skipping d3d9on12 tests\n");
-        goto out;
-    }
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    IDXGIAdapter_Release(adapter);
-
-    memset(&d3d9on12_args, 0, sizeof(d3d9on12_args));
-    d3d9on12_args.Enable9On12 = TRUE;
-    d3d9on12_args.pD3D12Device = (IUnknown *)d3d12device;
-    d3d9on12 = (void *)0xdeadbeef;
-    hr = create_d3d9on12_device(&d3d9, window, &d3d9on12_args, 1, &device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice9_QueryInterface(device, &IID_IDirect3DDevice9On12, (void **)&d3d9on12);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice9On12_GetD3D12Device(d3d9on12, &IID_ID3D12Device, (void **)&d3d12device_2);
-    todo_wine
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    todo_wine
-    ok(d3d9on12_args.pD3D12Device == (IUnknown *)d3d12device_2, "GetD3D12Device returned device %p, expected %p\n", d3d12device_2, d3d9on12_args.pD3D12Device);
-    d3d12device_2 = (void *)0xdeadbeef;
-    hr = IDirect3DDevice9On12_GetD3D12Device(d3d9on12, &IID_IDeadbeef, (void **)&d3d12device_2);
-    ok(hr == E_NOINTERFACE, "Got hr %#lx.\n", hr);
-    ok(d3d12device_2 == NULL, "GetD3D12Device returned device %p, expected NULL\n", d3d12device_2);
-
-    ref = ID3D12Device_Release(d3d12device);
-    todo_wine
-    ok(ref == 28, "Got refcount %lu.\n", ref);
-    ref = IDirect3DDevice9On12_Release(d3d9on12);
-    todo_wine
-    ok(ref == 0, "Got refcount %lu.\n", ref);
-    ref = IDirect3DDevice9_Release(device);
-    ok(ref == 0, "Got refcount %lu.\n", ref);
-out:
-    IDirect3D9_Release(d3d9);
-    DestroyWindow(window);
-}
-
 START_TEST(device)
 {
     HMODULE d3d9_handle = GetModuleHandleA("d3d9.dll");
@@ -15422,7 +15163,6 @@ START_TEST(device)
     test_creation_parameters();
     test_cursor_clipping();
     test_window_position();
-    test_d3d9on12();
 
     UnregisterClassA("d3d9_test_wc", GetModuleHandleA(NULL));
 }

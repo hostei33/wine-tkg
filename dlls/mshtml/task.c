@@ -33,6 +33,7 @@
 WINE_DEFAULT_DEBUG_CHANNEL(mshtml);
 
 #define WM_PROCESSTASK 0x8008
+#define WM_CREATEDOC   0x8018
 #define TIMER_ID 0x3000
 
 typedef struct {
@@ -112,20 +113,6 @@ static void release_task_timer(HWND thread_hwnd, task_timer_t *timer)
     free(timer);
 }
 
-static void unblock_timers(thread_data_t *thread_data)
-{
-    if(!thread_data->timer_blocked)
-        return;
-    thread_data->timer_blocked = FALSE;
-
-    if(!list_empty(&thread_data->timer_list)) {
-        task_timer_t *timer = LIST_ENTRY(list_head(&thread_data->timer_list), task_timer_t, entry);
-        DWORD tc = GetTickCount();
-
-        SetTimer(thread_data->thread_hwnd, TIMER_ID, timer->time > tc ? timer->time - tc : 0, NULL);
-    }
-}
-
 void remove_target_tasks(LONG target)
 {
     thread_data_t *thread_data = get_thread_data(FALSE);
@@ -142,11 +129,11 @@ void remove_target_tasks(LONG target)
             release_task_timer(thread_data->thread_hwnd, timer);
     }
 
-    if(!list_empty(&thread_data->timer_list) && !thread_data->tasks_locked && !thread_data->blocking_xhr) {
+    if(!list_empty(&thread_data->timer_list)) {
         DWORD tc = GetTickCount();
 
         timer = LIST_ENTRY(list_head(&thread_data->timer_list), task_timer_t, entry);
-        SetTimer(thread_data->thread_hwnd, TIMER_ID, timer->time > tc ? timer->time - tc : 0, NULL);
+        SetTimer(thread_data->thread_hwnd, TIMER_ID, max( (int)(timer->time - tc), 0 ), NULL);
     }
 
     LIST_FOR_EACH_SAFE(liter, ltmp, &thread_data->task_list) {
@@ -226,12 +213,8 @@ HRESULT set_task_timer(HTMLInnerWindow *window, LONG msec, enum timer_type timer
     IDispatch_AddRef(disp);
     timer->disp = disp;
 
-    if(queue_timer(thread_data, timer)) {
-        if(thread_data->tasks_locked || thread_data->blocking_xhr)
-            thread_data->timer_blocked = TRUE;
-        else
-            SetTimer(thread_data->thread_hwnd, TIMER_ID, msec, NULL);
-    }
+    if(queue_timer(thread_data, timer))
+        SetTimer(thread_data->thread_hwnd, TIMER_ID, msec, NULL);
 
     *id = timer->id;
     return S_OK;
@@ -328,28 +311,25 @@ static LRESULT process_timer(void)
     thread_data = get_thread_data(FALSE);
     assert(thread_data != NULL);
 
-    if(list_empty(&thread_data->timer_list) || thread_data->tasks_locked || thread_data->blocking_xhr) {
-        if(!list_empty(&thread_data->timer_list))
-            thread_data->timer_blocked = TRUE;
+    if(list_empty(&thread_data->timer_list) || thread_data->blocking_xhr) {
         KillTimer(thread_data->thread_hwnd, TIMER_ID);
         return 0;
     }
 
-    thread_data->tasks_locked++;
     last_timer = LIST_ENTRY(list_tail(&thread_data->timer_list), task_timer_t, entry);
     do {
         tc = GetTickCount();
         if(timer == last_timer) {
             timer = LIST_ENTRY(list_head(&thread_data->timer_list), task_timer_t, entry);
             SetTimer(thread_data->thread_hwnd, TIMER_ID, timer->time>tc ? timer->time-tc : 0, NULL);
-            goto done;
+            return 0;
         }
 
         timer = LIST_ENTRY(list_head(&thread_data->timer_list), task_timer_t, entry);
 
         if(timer->time > tc) {
             SetTimer(thread_data->thread_hwnd, TIMER_ID, timer->time-tc, NULL);
-            goto done;
+            return 0;
         }
 
         disp = timer->disp;
@@ -368,15 +348,16 @@ static LRESULT process_timer(void)
         IDispatch_Release(disp);
     }while(!list_empty(&thread_data->timer_list) && !thread_data->blocking_xhr);
 
-    if(!list_empty(&thread_data->timer_list))
-        thread_data->timer_blocked = TRUE;
     KillTimer(thread_data->thread_hwnd, TIMER_ID);
-
-done:
-    if(!--thread_data->tasks_locked && (!list_empty(&thread_data->task_list) || !list_empty(&thread_data->event_task_list)))
-        PostMessageW(thread_data->thread_hwnd, WM_PROCESSTASK, 0, 0);
     return 0;
 }
+
+typedef struct {
+    IUnknown *unk;
+    IID iid;
+    IStream *stream;
+    HRESULT hres;
+} create_doc_params_t;
 
 static LRESULT WINAPI hidden_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -388,16 +369,13 @@ static LRESULT WINAPI hidden_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         if(!thread_data)
             return 0;
 
-        while(!thread_data->tasks_locked) {
+        while(1) {
             struct list *head = list_head(&thread_data->task_list);
 
             if(head) {
                 task_t *task = LIST_ENTRY(head, task_t, entry);
                 list_remove(&task->entry);
-                thread_data->tasks_locked++;
                 task->proc(task);
-                if(!--thread_data->tasks_locked)
-                    unblock_timers(thread_data);
                 task->destr(task);
                 free(task);
                 continue;
@@ -409,10 +387,7 @@ static LRESULT WINAPI hidden_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 
                 if((!task->thread_blocked || !thread_data->blocking_xhr) && !task->window->blocking_depth) {
                     unlink_event_task(task, thread_data);
-                    thread_data->tasks_locked++;
                     task->proc(task);
-                    if(!--thread_data->tasks_locked)
-                        unblock_timers(thread_data);
                     release_event_task(task);
                     break;
                 }
@@ -423,6 +398,20 @@ static LRESULT WINAPI hidden_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         return 0;
     case WM_TIMER:
         return process_timer();
+    case WM_CREATEDOC: {
+        create_doc_params_t *params = (create_doc_params_t*)lParam;
+        IUnknown *unk;
+
+        TRACE("WM_CREATEDOC %p\n", params);
+
+        params->hres = HTMLDocument_Create(NULL, &params->iid, (void**)&unk);
+        if(FAILED(params->hres))
+            return 0;
+
+        params->hres = CoMarshalInterface(params->stream, &params->iid, unk, MSHCTX_INPROC, NULL, MSHLFLAGS_NORMAL);
+        IUnknown_Release(unk);
+        return 0;
+    }
     }
 
     if(msg > WM_USER)
@@ -463,6 +452,35 @@ HWND get_thread_hwnd(void)
         thread_data->thread_hwnd = create_thread_hwnd();
 
     return thread_data->thread_hwnd;
+}
+
+HRESULT create_marshaled_doc(HWND main_thread_hwnd, REFIID riid, void **ppv)
+{
+    create_doc_params_t params = {NULL, *riid, NULL, E_FAIL};
+    LARGE_INTEGER zero;
+    BOOL res;
+    HRESULT hres;
+
+    hres = CreateStreamOnHGlobal(NULL, TRUE, &params.stream);
+    if(FAILED(hres))
+        return hres;
+
+    res = SendMessageW(main_thread_hwnd, WM_CREATEDOC, 0, (LPARAM)&params);
+    TRACE("SendMessage ret %x\n", res);
+    if(FAILED(params.hres)) {
+        WARN("EM_CREATEDOC failed: %08lx\n", params.hres);
+        IStream_Release(params.stream);
+        return hres;
+    }
+
+    zero.QuadPart = 0;
+    hres = IStream_Seek(params.stream, zero, STREAM_SEEK_SET, NULL);
+    if(SUCCEEDED(hres))
+        hres = CoUnmarshalInterface(params.stream, riid, ppv);
+    IStream_Release(params.stream);
+    if(FAILED(hres))
+        WARN("CoUnmarshalInterface failed: %08lx\n", hres);
+    return hres;
 }
 
 thread_data_t *get_thread_data(BOOL create)
@@ -514,8 +532,13 @@ ULONGLONG get_time_stamp(void)
 
 void unblock_tasks_and_timers(thread_data_t *thread_data)
 {
-    if(!list_empty(&thread_data->task_list) || !list_empty(&thread_data->event_task_list))
+    if(!list_empty(&thread_data->event_task_list))
         PostMessageW(thread_data->thread_hwnd, WM_PROCESSTASK, 0, 0);
 
-    unblock_timers(thread_data);
+    if(!thread_data->blocking_xhr && !list_empty(&thread_data->timer_list)) {
+        task_timer_t *timer = LIST_ENTRY(list_head(&thread_data->timer_list), task_timer_t, entry);
+        DWORD tc = GetTickCount();
+
+        SetTimer(thread_data->thread_hwnd, TIMER_ID, timer->time > tc ? timer->time - tc : 0, NULL);
+    }
 }

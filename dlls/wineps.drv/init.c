@@ -21,7 +21,6 @@
 
 #include <stdarg.h>
 #include <string.h>
-#include <locale.h>
 
 #include "windef.h"
 #include "winbase.h"
@@ -88,7 +87,6 @@ static const PSDRV_DEVMODE DefaultDevmode =
 
 HINSTANCE PSDRV_hInstance = 0;
 HANDLE PSDRV_Heap = 0;
-_locale_t c_locale;
 
 static BOOL import_ntf_from_reg(void)
 {
@@ -135,10 +133,6 @@ static BOOL import_ntf_from_reg(void)
     return ret;
 }
 
-#define DWORD_ALIGN(x) (((x) + 3) & ~3)
-#define ntf_strsize(str) DWORD_ALIGN(strlen(str) + 1)
-#define ntf_wcssize(str) DWORD_ALIGN((wcslen(str) + 1) * sizeof(WCHAR))
-
 static BOOL convert_afm_to_ntf(void)
 {
     int i, count, size, off, metrics_size;
@@ -182,8 +176,8 @@ static BOOL convert_afm_to_ntf(void)
 
             list = (void *)(data + header->glyph_set_off + sizeof(*list) * count);
             list->name_off = off + sizeof(*glyph_set);
-            list->size = sizeof(*glyph_set) + ntf_strsize(glyph_set_name) + sizeof(*cp) +
-                DWORD_ALIGN(sizeof(short) * afmle->afm->NumofMetrics);
+            list->size = sizeof(*glyph_set) + strlen(glyph_set_name) + 1 + sizeof(*cp) +
+                sizeof(short) * afmle->afm->NumofMetrics;
             list->off = off;
             size += list->size;
             new_data = realloc(data, size);
@@ -202,7 +196,7 @@ static BOOL convert_afm_to_ntf(void)
             glyph_set->name_off = sizeof(*glyph_set);
             glyph_set->glyph_count = afmle->afm->NumofMetrics;
             glyph_set->cp_count = 1;
-            glyph_set->cp_off = glyph_set->name_off + ntf_strsize(glyph_set_name);
+            glyph_set->cp_off = glyph_set->name_off + strlen(glyph_set_name) + 1;
             glyph_set->glyph_set_off = glyph_set->cp_off + sizeof(*cp);
             strcpy(data + off + glyph_set->name_off, glyph_set_name);
             cp = (void *)(data + off + glyph_set->cp_off);
@@ -211,11 +205,12 @@ static BOOL convert_afm_to_ntf(void)
                 *(WCHAR*)(data + off + glyph_set->glyph_set_off + i * sizeof(short)) = afmle->afm->Metrics[i].UV;
             off = size;
 
-            metrics_size = sizeof(IFIMETRICS) + ntf_wcssize(afmle->afm->FamilyName);
+            metrics_size = sizeof(IFIMETRICS) +
+                (wcslen(afmle->afm->FamilyName) + 1) * sizeof(WCHAR);
             list = (void *)(data + header->font_mtx_off + sizeof(*list) * count);
             list->name_off = off + sizeof(*font_mtx);
-            list->size = sizeof(*font_mtx) + ntf_strsize(afmle->afm->FontName) +
-                ntf_strsize(glyph_set_name) + metrics_size +
+            list->size = sizeof(*font_mtx) + strlen(afmle->afm->FontName) + 1 +
+                strlen(glyph_set_name) + 1 + metrics_size +
                 (afmle->afm->IsFixedPitch ? 0 : sizeof(*width_range) * afmle->afm->NumofMetrics);
             list->off = off;
             size += list->size;
@@ -232,9 +227,9 @@ static BOOL convert_afm_to_ntf(void)
             font_mtx = (void *)(data + off);
             font_mtx->size = size - off;
             font_mtx->name_off = sizeof(*font_mtx);
-            font_mtx->glyph_set_name_off = font_mtx->name_off + ntf_strsize(afmle->afm->FontName);
+            font_mtx->glyph_set_name_off = font_mtx->name_off + strlen(afmle->afm->FontName) + 1;
             font_mtx->glyph_count = afmle->afm->NumofMetrics;
-            font_mtx->metrics_off = font_mtx->glyph_set_name_off + ntf_strsize(glyph_set_name);
+            font_mtx->metrics_off = font_mtx->glyph_set_name_off + strlen(glyph_set_name) + 1;
             font_mtx->width_count = afmle->afm->IsFixedPitch ? 0 : afmle->afm->NumofMetrics;
             font_mtx->width_off = font_mtx->metrics_off + metrics_size;
             font_mtx->def_width = afmle->afm->Metrics[0].WX;
@@ -296,7 +291,6 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
         {
             PSDRV_hInstance = hinst;
             DisableThreadLibraryCalls(hinst);
-            c_locale = _create_locale( LC_ALL, "C" );
 
             if (__wine_init_unix_call())
                 return FALSE;
@@ -322,8 +316,7 @@ BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
 	case DLL_PROCESS_DETACH:
             if (reserved) break;
             WINE_UNIX_CALL(unix_free_printer_info, NULL);
-            _free_locale( c_locale );
-            HeapDestroy( PSDRV_Heap );
+	    HeapDestroy( PSDRV_Heap );
             break;
     }
 
@@ -471,7 +464,7 @@ BOOL PSDRV_ResetDC( print_ctx *ctx, const DEVMODEW *devmode )
         dump_devmode( devmode );
         PSDRV_MergeDevmodes( ctx->Devmode, devmode, ctx->pi );
     }
-    return !!ResetDCW( ctx->hdc, devmode );
+    return TRUE;
 }
 
 static PRINTER_ENUM_VALUESW *load_font_sub_table( HANDLE printer, DWORD *num_entries )

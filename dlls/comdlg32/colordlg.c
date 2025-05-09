@@ -79,6 +79,7 @@ typedef struct CCPRIVATE
     RECT fullsize;       /* original dialog window size */
     UINT msetrgb;        /* # of SETRGBSTRING message (today not used)  */
     RECT old3angle;      /* last position of l-marker */
+    RECT oldcross;       /* last position of color/saturation marker */
     BOOL updating;       /* to prevent recursive WM_COMMAND/EN_UPDATE processing */
     int h;
     int s;
@@ -392,7 +393,7 @@ static BOOL CC_MouseCheckResultWindow( HWND hDlg, LPARAM lParam )
 /***********************************************************************
  *                       CC_CheckDigitsInEdit                 [internal]
  */
-static int CC_CheckDigitsInEdit( CCPRIV *infoPtr, HWND hwnd, int maxval )
+static int CC_CheckDigitsInEdit( HWND hwnd, int maxval )
 {
  int i, k, m, result, value;
  char buffer[30];
@@ -416,17 +417,14 @@ static int CC_CheckDigitsInEdit( CCPRIV *infoPtr, HWND hwnd, int maxval )
  value = atoi(buffer);
  if (value > maxval)       /* build a new string */
  {
-  value = maxval;
   sprintf(buffer, "%d", maxval);
   result = 2;
  }
  if (result)
  {
   LRESULT editpos = SendMessageA(hwnd, EM_GETSEL, 0, 0);
-  infoPtr->updating = TRUE;
   SetWindowTextA(hwnd, buffer );
   SendMessageA(hwnd, EM_SETSEL, 0, editpos);
-  infoPtr->updating = FALSE;
  }
  return value;
 }
@@ -517,20 +515,17 @@ static void CC_PaintCross(CCPRIV *infoPtr)
 
  if (IsWindowVisible(hwnd))   /* if full size */
  {
-   int w, wc, width;
    HDC hDC;
+   int w = GetDialogBaseUnits() - 1;
+   int wc = GetDialogBaseUnits() * 3 / 4;
    RECT rect;
-   POINT point;
+   POINT point, p;
    HRGN region;
+   HPEN hPen;
+   int x, y;
 
-   rect.left = 6;
-   rect.right = 2;
-   rect.top = 1;
-   rect.bottom = 0;
-   MapDialogRect(infoPtr->hwndSelf, &rect);
-   w = rect.left;
-   wc = rect.right;
-   width = rect.top;
+   x = infoPtr->h;
+   y = infoPtr->s;
 
    GetClientRect(hwnd, &rect);
    hDC = GetDC(hwnd);
@@ -538,28 +533,29 @@ static void CC_PaintCross(CCPRIV *infoPtr)
    SelectClipRgn(hDC, region);
    DeleteObject(region);
 
-   point.x = (rect.right * infoPtr->h) / MAXHORI;
-   point.y = rect.bottom - (rect.bottom * infoPtr->s) / MAXVERT;
+   point.x = (rect.right * x) / MAXHORI;
+   point.y = rect.bottom - (rect.bottom * y) / MAXVERT;
+   if ( infoPtr->oldcross.left != infoPtr->oldcross.right )
+     BitBlt(hDC, infoPtr->oldcross.left, infoPtr->oldcross.top,
+              infoPtr->oldcross.right - infoPtr->oldcross.left,
+              infoPtr->oldcross.bottom - infoPtr->oldcross.top,
+              infoPtr->hdcMem, infoPtr->oldcross.left, infoPtr->oldcross.top, SRCCOPY);
+   infoPtr->oldcross.left   = point.x - w - 1;
+   infoPtr->oldcross.right  = point.x + w + 1;
+   infoPtr->oldcross.top    = point.y - w - 1;
+   infoPtr->oldcross.bottom = point.y + w + 1;
 
-   rect.left = point.x - w;
-   rect.right = point.x - wc;
-   rect.top = point.y - width;
-   rect.bottom = point.y + width;
-   FillRect(hDC, &rect, GetStockObject(BLACK_BRUSH));
-
-   rect.left = point.x + wc;
-   rect.right = point.x + w;
-   FillRect(hDC, &rect, GetStockObject(BLACK_BRUSH));
-
-   rect.left = point.x - width;
-   rect.right = point.x + width;
-   rect.top = point.y - w;
-   rect.bottom = point.y - wc;
-   FillRect(hDC, &rect, GetStockObject(BLACK_BRUSH));
-
-   rect.top = point.y + wc;
-   rect.bottom = point.y + w;
-   FillRect(hDC, &rect, GetStockObject(BLACK_BRUSH));
+   hPen = CreatePen(PS_SOLID, 3, RGB(0, 0, 0)); /* -black- color */
+   hPen = SelectObject(hDC, hPen);
+   MoveToEx(hDC, point.x - w, point.y, &p);
+   LineTo(hDC, point.x - wc, point.y);
+   MoveToEx(hDC, point.x + wc, point.y, &p);
+   LineTo(hDC, point.x + w, point.y);
+   MoveToEx(hDC, point.x, point.y - w, &p);
+   LineTo(hDC, point.x, point.y - wc);
+   MoveToEx(hDC, point.x, point.y + wc, &p);
+   LineTo(hDC, point.x, point.y + w);
+   DeleteObject( SelectObject(hDC, hPen));
 
    ReleaseDC(hwnd, hDC);
  }
@@ -970,10 +966,10 @@ static LRESULT CC_WMCommand(CCPRIV *lpp, WPARAM wParam, LPARAM lParam, WORD noti
         case COLOR_BLUE:
 	       if (notifyCode == EN_UPDATE && !lpp->updating)
 			 {
-			   i = CC_CheckDigitsInEdit(lpp, hwndCtl, 255);
+			   i = CC_CheckDigitsInEdit(hwndCtl, 255);
 			   r = GetRValue(lpp->lpcc->rgbResult);
 			   g = GetGValue(lpp->lpcc->rgbResult);
-			   b = GetBValue(lpp->lpcc->rgbResult);
+			   b= GetBValue(lpp->lpcc->rgbResult);
 			   xx = 0;
 			   switch (LOWORD(wParam))
 			   {
@@ -1000,7 +996,7 @@ static LRESULT CC_WMCommand(CCPRIV *lpp, WPARAM wParam, LPARAM lParam, WORD noti
         case COLOR_LUM:
 	       if (notifyCode == EN_UPDATE && !lpp->updating)
 			 {
-			   i = CC_CheckDigitsInEdit(lpp, hwndCtl, LOWORD(wParam) == COLOR_HUE ? 239 : 240);
+			   i = CC_CheckDigitsInEdit(hwndCtl , LOWORD(wParam) == COLOR_HUE ? 239 : 240);
 			   xx = 0;
 			   switch (LOWORD(wParam))
 			   {
@@ -1015,7 +1011,6 @@ static LRESULT CC_WMCommand(CCPRIV *lpp, WPARAM wParam, LPARAM lParam, WORD noti
 			    CC_EditSetRGB(lpp);
 			    CC_PaintCross(lpp);
 			    CC_PaintTriangle(lpp);
-			    CC_PaintLumBar(lpp);
 			   }
 			 }
 	       break;
@@ -1102,7 +1097,6 @@ static LRESULT CC_WMLButtonUp( CCPRIV *infoPtr )
    {
        infoPtr->capturedGraph = 0;
        ReleaseCapture();
-       CC_PaintColorGraph(infoPtr);
        CC_PaintCross(infoPtr);
        return 1;
    }
@@ -1127,7 +1121,6 @@ static LRESULT CC_WMMouseMove( CCPRIV *infoPtr, LPARAM lParam )
           infoPtr->lpcc->rgbResult = CC_HSLtoRGB(infoPtr->h, infoPtr->s, infoPtr->l);
           CC_EditSetRGB(infoPtr);
           CC_EditSetHSL(infoPtr);
-          CC_PaintColorGraph(infoPtr);
           CC_PaintCross(infoPtr);
           CC_PaintTriangle(infoPtr);
           CC_PaintSelectedColor(infoPtr);
@@ -1181,7 +1174,6 @@ static LRESULT CC_WMLButtonDown( CCPRIV *infoPtr, LPARAM lParam )
    {
       CC_EditSetRGB(infoPtr);
       CC_EditSetHSL(infoPtr);
-      CC_PaintColorGraph(infoPtr);
       CC_PaintCross(infoPtr);
       CC_PaintTriangle(infoPtr);
       CC_PaintSelectedColor(infoPtr);

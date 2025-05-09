@@ -63,12 +63,12 @@
 
 #ifdef __i386__
 #define ARCH "x86"
-#elif defined __aarch64__ || defined__arm64ec__
-#define ARCH "arm64"
 #elif defined __x86_64__
 #define ARCH "amd64"
 #elif defined __arm__
 #define ARCH "arm"
+#elif defined __aarch64__
+#define ARCH "arm64"
 #else
 #define ARCH "none"
 #endif
@@ -151,8 +151,7 @@ typedef enum {
     hook=0x100,
     winevent_hook=0x200,
     kbd_hook=0x400,
-    msg_todo=0x800,
-    wine_only=0x1000
+    winevent_hook_todo=0x800
 } msg_flags_t;
 
 struct message {
@@ -203,7 +202,7 @@ static const struct message WmSWP_ShowOverlappedSeq[] = {
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NOTIFYFORMAT, sent|optional },
     { WM_QUERYUISTATE, sent|optional },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
@@ -215,7 +214,7 @@ static const struct message WmSWP_ShowOverlappedSeq[] = {
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_GETTEXT, sent|optional },
     { WM_NCPAINT, sent|wparam|optional, 1 },
@@ -267,7 +266,7 @@ static const struct message WmSWP_ResizeSeq[] = {
     { WM_NCPAINT, sent|optional },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* XP sends a duplicate */
     { 0 }
 };
@@ -288,7 +287,7 @@ static const struct message WmSWP_ResizePopupSeq[] = {
     { WM_NCPAINT, sent|optional },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 
@@ -302,7 +301,7 @@ static const struct message WmSWP_MoveSeq[] = {
     { WM_ERASEBKGND, sent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOCLIENTSIZE },
     { WM_MOVE, sent|defwinproc|wparam, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* Resize with SetWindowPos(SWP_NOZORDER)
@@ -324,7 +323,7 @@ static const struct message WmSWP_ResizeNoZOrder[] = {
     { WM_NCPAINT, sent|optional }, /* Win9x doesn't send it */
     { WM_GETTEXT, sent|defwinproc|optional }, /* Win9x doesn't send it */
     { WM_ERASEBKGND, sent|optional }, /* Win9x doesn't send it */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Not sent on win10. */
     { 0 }
 };
@@ -389,7 +388,7 @@ static const struct message WmSwitchNotMaximizedChild[] = {
     /* Switch not maximized MDI child */
     { WM_MDIACTIVATE, sent },/* in the MDI client */
     { WM_WINDOWPOSCHANGING, sent|wparam,SWP_NOSIZE|SWP_NOMOVE },/* in the 2nd MDI child */
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_CHILDACTIVATE, sent },/* in the 2nd MDI child */
     /* Deactivate 1st MDI child */
     { WM_NCACTIVATE, sent|wparam|defwinproc, 0 }, /* in the 1st MDI child */
@@ -424,11 +423,11 @@ static const struct message WmSWP_FrameChanged_clip[] = {
     { WM_NCCALCSIZE, sent|wparam|parent, 1 },
     { WM_NCPAINT, sent|parent|optional }, /* wparam != 1 */
     { WM_GETTEXT, sent|parent|defwinproc|optional },
-    { WM_ERASEBKGND, sent|parent|msg_todo },
+    { WM_ERASEBKGND, sent|parent|optional }, /* FIXME: remove optional once Wine is fixed */
     { WM_NCPAINT, sent }, /* wparam != 1 */
     { WM_ERASEBKGND, sent },
     { WM_WINDOWPOSCHANGED, sent|wparam|parent, SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_PAINT, sent },
     { 0 }
 };
@@ -440,7 +439,7 @@ static const struct message WmSWP_FrameChangedDeferErase[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam|parent, SWP_NOSIZE|SWP_NOMOVE|SWP_DEFERERASE|SWP_NOACTIVATE|SWP_FRAMECHANGED },
     { WM_NCCALCSIZE, sent|wparam|parent, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam|parent, SWP_NOSIZE|SWP_NOMOVE|SWP_DEFERERASE|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_PAINT, sent|parent|optional },
     { WM_NCPAINT, sent|beginpaint|parent|optional }, /* wparam != 1 */
     { WM_GETTEXT, sent|beginpaint|parent|defwinproc|optional },
@@ -461,7 +460,7 @@ static const struct message WmSWP_FrameChanged_noclip[] = {
     { WM_GETTEXT, sent|parent|defwinproc|optional },
     { WM_ERASEBKGND, sent|parent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam|parent, SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_PAINT, sent },
     { WM_NCPAINT, sent|beginpaint }, /* wparam != 1 */
     { WM_ERASEBKGND, sent|beginpaint|optional },
@@ -546,7 +545,7 @@ static const struct message WmShowMaxOverlappedSeq[] = {
     { WM_NCCALCSIZE, sent|optional },
     { WM_NCPAINT, sent|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Not sent on win10. */
     { WM_SYNCPAINT, sent|optional },
     { WM_GETTITLEBARINFOEX, sent|optional },
@@ -575,17 +574,9 @@ static const struct message WmShowRestoreMaxOverlappedSeq[] = {
     { WM_GETTITLEBARINFOEX, sent|optional },
     { WM_NCPAINT, sent|beginpaint|optional },
     { WM_ERASEBKGND, sent|beginpaint|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
     { WM_SYNCPAINT, sent|optional },
-    { WM_WINDOWPOSCHANGING, sent|optional|wine_only },
-    { WM_WINDOWPOSCHANGED, sent|optional|wine_only },
-    { WM_MOVE, sent|defwinproc|optional|wine_only },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional|wine_only, 0, 0 },
-    { WM_WINDOWPOSCHANGING, sent|optional|wine_only },
-    { WM_WINDOWPOSCHANGED, sent|optional|wine_only },
-    { WM_MOVE, sent|defwinproc|optional|wine_only },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional|wine_only, 0, 0 },
     { 0 }
 };
 /* ShowWindow(SW_RESTORE) for a not visible minimized overlapped window */
@@ -631,16 +622,15 @@ static const struct message WmShowRestoreMinOverlappedSeq[] = {
     { WM_NCCALCSIZE, sent|wparam|optional, TRUE },
     { WM_NCPAINT, sent|wparam|optional, 1 },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook|optional },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|optional, 0 },
     { WM_ACTIVATE, sent|wparam, 1 },
     { WM_GETTEXT, sent|optional },
     { WM_PAINT, sent|optional },
-    { WM_PAINT, sent|optional|wine_only },
     { WM_GETTITLEBARINFOEX, sent|optional },
     { WM_NCPAINT, sent|beginpaint|optional },
     { WM_ERASEBKGND, sent|beginpaint|optional },
@@ -658,16 +648,16 @@ static const struct message WmShowMinOverlappedSeq[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOCOPYBITS|SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_STATECHANGED },
     { WM_GETMINMAXINFO, sent|defwinproc },
     { WM_NCCALCSIZE, sent|wparam, TRUE },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NCPAINT, sent|optional },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_WINDOWPOSCHANGED, sent },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam|lparam, SIZE_MINIMIZED, 0 },
     { WM_NCCALCSIZE, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Not sent on win10. */
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NCACTIVATE, sent|wparam|optional, 0 },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ACTIVATE, sent|optional },
@@ -758,12 +748,12 @@ static const struct message WmCreateMaxPopupSeq[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOREDRAW|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SHOWWINDOW, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCPAINT, sent|wparam|optional, 1 },
@@ -775,7 +765,7 @@ static const struct message WmCreateMaxPopupSeq[] = {
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_GETTEXT, sent|optional },
     { WM_SYNCPAINT, sent|wparam|optional, 4 },
@@ -802,7 +792,7 @@ static const struct message WmCreateInvisibleMaxPopupSeq[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOREDRAW|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* ShowWindow(SW_SHOWMAXIMIZED) for a resized not visible popup window */
@@ -813,7 +803,7 @@ static const struct message WmShowMaxPopupResizedSeq[] = {
     { WM_NCCALCSIZE, sent|wparam, TRUE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCPAINT, sent|wparam|optional, 1 },
@@ -825,7 +815,7 @@ static const struct message WmShowMaxPopupResizedSeq[] = {
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_GETTEXT, sent|optional },
     { WM_NCPAINT, sent|wparam|optional, 1 },
@@ -834,7 +824,7 @@ static const struct message WmShowMaxPopupResizedSeq[] = {
     /* WinNT4.0 sends WM_MOVE */
     { WM_MOVE, sent|defwinproc|optional },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* ShowWindow(SW_SHOWMAXIMIZED) for a not visible popup window */
@@ -845,7 +835,7 @@ static const struct message WmShowMaxPopupSeq[] = {
     { WM_NCCALCSIZE, sent|wparam, TRUE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCPAINT, sent|wparam|optional, 1 },
@@ -857,7 +847,7 @@ static const struct message WmShowMaxPopupSeq[] = {
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_GETTEXT, sent|optional },
     { WM_SYNCPAINT, sent|wparam|optional, 4 },
@@ -867,7 +857,7 @@ static const struct message WmShowMaxPopupSeq[] = {
     { WM_ERASEBKGND, sent|defwinproc|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE|SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOSIZE, 0, SWP_STATECHANGED /* w1064v1809 */ },
     { WM_SIZE, sent|defwinproc|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* CreateWindow(WS_VISIBLE) for popup window */
@@ -883,7 +873,7 @@ static const struct message WmCreatePopupSeq[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCPAINT, sent|wparam|optional, 1 },
@@ -895,7 +885,7 @@ static const struct message WmCreatePopupSeq[] = {
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_GETTEXT, sent|optional },
     { WM_SYNCPAINT, sent|wparam|optional, 4 },
@@ -918,7 +908,7 @@ static const struct message WmShowVisMaxPopupSeq[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* ShowWindow(hwnd, SW_RESTORE) to a minimized window */
@@ -930,9 +920,9 @@ static const struct message WmShowRestoreMinimizedOverlappedSeq[] =
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_GETMINMAXINFO, sent|defwinproc },
     { WM_NCCALCSIZE, sent },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCACTIVATE, sent },
     { WM_GETTEXT, sent|defwinproc|optional },
@@ -950,9 +940,9 @@ static const struct message WmShowRestoreMinimizedOverlappedSeq[] =
     { WM_NCCALCSIZE, sent|optional },
     { WM_NCPAINT, sent|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     /* Note this WM_ACTIVATE message even if the window is already active and focused */
     { WM_ACTIVATE, sent|wparam|lparam, WA_ACTIVE, 0 },
     { WM_SYNCPAINT, sent|optional },
@@ -969,7 +959,7 @@ static const struct message WmShowNoActivateMinimizedOverlappedSeq[] =
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_GETMINMAXINFO, sent|defwinproc },
     { WM_NCCALCSIZE, sent },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NCPAINT, sent },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent },
@@ -980,9 +970,9 @@ static const struct message WmShowNoActivateMinimizedOverlappedSeq[] =
     { WM_NCCALCSIZE, sent|optional },
     { WM_NCPAINT, sent|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook|optional },
     { WM_SETFOCUS, sent|optional },
     { HCBT_ACTIVATE, hook|optional },
@@ -1029,9 +1019,9 @@ static const struct message WmShowRestoreActiveMinimizedOverlappedSeq[] =
     { WM_NCCALCSIZE, sent|optional },
     { WM_NCPAINT, sent|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent },
@@ -1070,9 +1060,9 @@ static const struct message WmShowNoActivateActiveMinimizedOverlappedSeq[] =
     { WM_NCCALCSIZE, sent|optional },
     { WM_NCPAINT, sent|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     /* Following optional messages are present on XP */
     { HCBT_SETFOCUS, hook|optional },
     { WM_SETFOCUS, sent|optional },
@@ -1122,7 +1112,7 @@ static const struct message WmShowVisiblePopupSeq_2[] = {
 static const struct message WmShowVisiblePopupSeq_3[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCACTIVATE, sent },
@@ -1152,7 +1142,7 @@ static const struct message WmShowPopupExtremeLocationSeq[] = {
     { WM_WINDOWPOSCHANGING, sent },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_QUERYNEWPALETTE, sent|optional },
 
@@ -1169,7 +1159,7 @@ static const struct message WmShowPopupExtremeLocationSeq[] = {
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 }, /* Not sent on Win10. */
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|defwinproc },
     { WM_NCPAINT, sent|wparam|optional, 1 }, /* Not always sent on Win8+ */
     { WM_ERASEBKGND, sent|optional }, /* Not always sent on Win8+ */
@@ -1193,7 +1183,7 @@ static const struct message WmShowPopupFirstDrawSeq_1[] = {
     { WM_WINDOWPOSCHANGING, sent },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_QUERYNEWPALETTE, sent|optional },
     { WM_ACTIVATEAPP, sent },
@@ -1204,7 +1194,7 @@ static const struct message WmShowPopupFirstDrawSeq_1[] = {
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 }, /* Not sent on Win10. */
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|defwinproc },
     { WM_NCPAINT, sent|wparam, 1 },
     { WM_ERASEBKGND, sent },
@@ -1231,7 +1221,7 @@ static const struct message WmShowPopupFirstDrawSeq_2[] = {
     { WM_NCCALCSIZE, sent|wparam, TRUE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_NCPAINT, sent|optional|wparam, 1 },
     { WM_ERASEBKGND, sent|optional },
@@ -1245,14 +1235,14 @@ static const struct message WmShowPopupFirstDrawSeq_2[] = {
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 }, /* Not sent on Win10. */
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|defwinproc },
     { WM_NCPAINT, sent|wparam, 1 },
     { WM_ERASEBKGND, sent },
     { WM_WINDOWPOSCHANGED, sent|optional },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_PAINT, sent},
     /* occasionally received on test machines */
     { WM_NCPAINT, sent|beginpaint|optional },
@@ -1270,7 +1260,7 @@ static const struct message WmFirstDrawSetWindowPosSeq1[] = {
     { WM_WINDOWPOSCHANGING, sent },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_QUERYNEWPALETTE, sent|optional },
     { WM_ACTIVATEAPP, sent },
@@ -1281,13 +1271,13 @@ static const struct message WmFirstDrawSetWindowPosSeq1[] = {
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 }, /* Not sent on Win10. */
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|defwinproc },
     { WM_NCPAINT, sent|wparam, 1 },
     { WM_ERASEBKGND, sent },
     { WM_WINDOWPOSCHANGED, sent },
     { WM_MOVE, sent|defwinproc },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmFirstDrawSetWindowPosSeq2[] = {
@@ -1301,7 +1291,7 @@ static const struct message WmFirstDrawSetWindowPosSeq2[] = {
     { WM_WINDOWPOSCHANGING, sent },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Not always sent. */
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|optional },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_ACTIVATEAPP, sent },
@@ -1312,11 +1302,11 @@ static const struct message WmFirstDrawSetWindowPosSeq2[] = {
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 }, /* Not sent on Win10. */
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|defwinproc },
     { WM_WINDOWPOSCHANGED, sent },
     { WM_MOVE, sent|defwinproc },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmFirstDrawSetWindowPosSeq3[] = {
@@ -1327,17 +1317,15 @@ static const struct message WmFirstDrawSetWindowPosSeq3[] = {
     { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, 0, 0 },
     { WM_SIZE, sent|wparam, SIZE_RESTORED },
     { WM_MOVE, sent },
-    { EVENT_OBJECT_SHOW, winevent_hook|wine_only },
-    { HCBT_ACTIVATE, hook|wine_only },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|wine_only, 0, 0 },
-    { WM_QUERYNEWPALETTE, sent|wine_only },
-    { WM_ACTIVATEAPP, sent|wine_only },
-    { WM_NCACTIVATE, sent|wine_only },
-    { WM_ACTIVATE, sent|wine_only },
-    { HCBT_SETFOCUS, hook|wine_only },
-    { EVENT_OBJECT_FOCUS, winevent_hook|lparam|wparam|wine_only, OBJID_CLIENT, 0 },
-    { WM_SETFOCUS, sent|defwinproc|wine_only },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|lparam|wparam|wine_only, 0, 0 },
+    /* These happen only on Wine: */
+    { EVENT_OBJECT_SHOW, winevent_hook|optional },
+    { HCBT_ACTIVATE, hook|optional },
+    { WM_QUERYNEWPALETTE, sent|optional },
+    { WM_ACTIVATEAPP, sent|optional },
+    { WM_NCACTIVATE, sent|optional },
+    { WM_ACTIVATE, sent|optional },
+    { HCBT_SETFOCUS, hook|optional },
+    { WM_SETFOCUS, sent|defwinproc|optional },
     { 0 }
 };
 static const struct message WmFirstDrawSetWindowPosSeq4[] = {
@@ -1351,7 +1339,7 @@ static const struct message WmFirstDrawSetWindowPosSeq4[] = {
     { WM_WINDOWPOSCHANGING, sent },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_QUERYNEWPALETTE, sent|optional },
     { WM_ACTIVATEAPP, sent },
@@ -1362,7 +1350,7 @@ static const struct message WmFirstDrawSetWindowPosSeq4[] = {
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 }, /* Not sent on Win10. */
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|defwinproc },
     { WM_NCPAINT, sent|wparam, 1 },
     { WM_ERASEBKGND, sent },
@@ -1380,7 +1368,7 @@ static const struct message WmFirstDrawSetWindowPosSeq5[] = {
     { WM_WINDOWPOSCHANGING, sent },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_QUERYNEWPALETTE, sent|optional },
     { WM_ACTIVATEAPP, sent },
@@ -1391,33 +1379,13 @@ static const struct message WmFirstDrawSetWindowPosSeq5[] = {
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 }, /* Not sent on Win10. */
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|defwinproc },
     { WM_WINDOWPOSCHANGED, sent },
     { 0 }
 };
-static const struct message WmFirstDrawSetWindowPosSeq6[] = {
-    { HCBT_CREATEWND, hook },
-    { WM_NCCREATE, sent },
-    { WM_NCCALCSIZE, sent|wparam, 0 },
-    { WM_CREATE, sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, 0, 0 },
-    { WM_SIZE, sent|wparam, SIZE_RESTORED },
-    { WM_MOVE, sent },
-    { EVENT_OBJECT_SHOW, winevent_hook|wine_only },
-    { HCBT_ACTIVATE, hook|wine_only },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|wine_only, 0, 0 },
-    { WM_QUERYNEWPALETTE, sent|wine_only },
-    { WM_ACTIVATEAPP, sent|wine_only },
-    { WM_NCACTIVATE, sent|wine_only },
-    { WM_ACTIVATE, sent|wine_only },
-    { HCBT_SETFOCUS, hook|wine_only },
-    { EVENT_OBJECT_FOCUS, winevent_hook|lparam|wparam|wine_only, OBJID_CLIENT, 0 },
-    { WM_SETFOCUS, sent|defwinproc|wine_only },
-    { 0 }
-};
 static const struct message WmFirstDrawChildSeq1[] = {
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
     { 0 }
 };
@@ -1427,7 +1395,7 @@ static const struct message WmFirstDrawChildSeq2[] = {
     /* occasionally received on test machines */
     { WM_NCPAINT, sent|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
     { 0 }
 };
@@ -1459,7 +1427,7 @@ static const struct message WmCreateMaximizedChildSeq[] = {
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOCLIENTMOVE|SWP_STATECHANGED },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_PARENTNOTIFY, sent|parent|wparam, WM_CREATE },
     { 0 }
 };
@@ -1481,7 +1449,7 @@ static const struct message WmCreateVisibleChildSeq[] = {
     { WM_ERASEBKGND, sent|parent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { WM_NCCALCSIZE, sent|wparam|optional, 1 }, /* WinXP */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* ShowWindow(SW_SHOW) for a not visible child window */
@@ -1548,8 +1516,10 @@ static const struct message WmShowChildInvisibleParentSeq_1[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOREDRAW|SWP_NOCOPYBITS|SWP_STATECHANGED, 0, SWP_NOACTIVATE },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam|lparam, SIZE_MINIMIZED, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    /* FIXME: Wine creates an icon/title window while Windows doesn't */
+    { WM_PARENTNOTIFY, sent|parent|wparam|optional, WM_CREATE },
     { WM_GETTEXT, sent|optional },
     { 0 }
 };
@@ -1568,7 +1538,7 @@ static const struct message WmShowChildInvisibleParentSeq_2[] = {
     { WM_CHILDACTIVATE, sent },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOCLIENTMOVE|SWP_STATECHANGED },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* repeated ShowWindow(SW_MAXIMIZE) for child with invisible parent */
@@ -1586,8 +1556,10 @@ static const struct message WmShowChildInvisibleParentSeq_3[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOREDRAW|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam|lparam, SIZE_MINIMIZED, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    /* FIXME: Wine creates an icon/title window while Windows doesn't */
+    { WM_PARENTNOTIFY, sent|parent|wparam|optional, WM_CREATE },
     { WM_GETTEXT, sent|optional },
     { 0 }
 };
@@ -1605,9 +1577,10 @@ static const struct message WmShowChildInvisibleParentSeq_4[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOREDRAW|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam|lparam, SIZE_MINIMIZED, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     /* FIXME: Wine creates an icon/title window while Windows doesn't */
+    { WM_PARENTNOTIFY, sent|parent|wparam|optional, WM_CREATE },
     { WM_GETTEXT, sent|optional },
     { 0 }
 };
@@ -1690,7 +1663,7 @@ static const struct message WmResizingChildWithMoveWindowSeq[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOACTIVATE },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_RESTORED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* Creation of a custom dialog (32) */
@@ -1701,7 +1674,7 @@ static const struct message WmCreateCustomDialogSeq[] = {
     { WM_NCCALCSIZE, sent|wparam, 0 },
     { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Not sent on Win10. */
     { WM_CREATE, sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NOTIFYFORMAT, sent|optional },
     { WM_QUERYUISTATE, sent|optional },
     { WM_WINDOWPOSCHANGING, sent|optional },
@@ -1712,7 +1685,7 @@ static const struct message WmCreateCustomDialogSeq[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
 
 
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
@@ -1763,7 +1736,7 @@ static const struct message WmEndCustomDialogSeq[] = {
     { WM_GETTEXT, sent|optional|defwinproc },
     { WM_GETTEXT, sent|optional|defwinproc },
     { WM_ACTIVATE, sent|wparam, 0 },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_NOACTIVATE|SWP_NOREDRAW|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { WM_GETTEXT, sent|optional|defwinproc },
@@ -1783,7 +1756,7 @@ static const struct message WmShowCustomDialogSeq[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
 
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
 
@@ -1813,18 +1786,18 @@ static const struct message WmModalDialogSeq[] = {
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_KILLFOCUS, sent|parent },
     { WM_IME_SETCONTEXT, sent|parent|wparam|optional, 0 },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ENABLE, sent|parent|wparam, 0 },
     { HCBT_CREATEWND, hook },
     { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Not sent on Win10. */
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SETFONT, sent },
     { WM_INITDIALOG, sent },
     { WM_CHANGEUISTATE, sent|optional },
     { WM_UPDATEUISTATE, sent|optional },
     { WM_SHOWWINDOW, sent },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCACTIVATE, sent },
@@ -1868,7 +1841,7 @@ static const struct message WmModalDialogSeq[] = {
     { WM_ENTERIDLE, sent|parent|optional },
     { WM_ENTERIDLE, sent|parent|optional },
     { WM_TIMER, sent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ENABLE, sent|parent|wparam, 1 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_HIDEWINDOW|SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE },
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
@@ -1878,17 +1851,17 @@ static const struct message WmModalDialogSeq[] = {
     { WM_NCACTIVATE, sent|wparam, 0 },
     { WM_GETTEXT, sent|optional },
     { WM_ACTIVATE, sent|wparam, 0 },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_WINDOWPOSCHANGED, sent|optional },
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|parent|wparam|defwinproc|optional, 1 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|parent|defwinproc },
-    { EVENT_SYSTEM_DIALOGEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_DIALOGEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_DESTROYWND, hook },
     { 0x0090, sent|optional },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_DESTROY, sent },
     { WM_NCDESTROY, sent },
     { 0 }
@@ -1899,14 +1872,14 @@ static const struct message WmModalDialogSeq_2[] = {
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_KILLFOCUS, sent },
     { WM_IME_SETCONTEXT, sent|parent|wparam|optional, 0 },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ENABLE, sent|wparam, 0 },
     { HCBT_CREATEWND, hook },
     { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|optional, 0, 0 },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SETFONT, sent },
     { WM_INITDIALOG, sent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CHANGEUISTATE, sent|optional },
     { WM_UPDATEUISTATE, sent|optional },
     { WM_ENABLE, sent|wparam, 1 },
@@ -1914,56 +1887,24 @@ static const struct message WmModalDialogSeq_2[] = {
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|optional, 0, 0 },
     { WM_CHANGEUISTATE, sent|optional },
     { WM_UPDATEUISTATE, sent|optional },
-    { EVENT_SYSTEM_DIALOGEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_DIALOGEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_DESTROYWND, hook },
     { 0x0090, sent|optional },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_DESTROY, sent },
     { WM_NCDESTROY, sent },
-    { 0 }
-};
-static const struct message create_visible_dialog_seq[] =
-{
-    { HCBT_CREATEWND, hook },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, 0, 0 },
-    { WM_SETFONT, sent },
-    { WM_INITDIALOG, sent },
-    { WM_CHANGEUISTATE, sent|optional },
-    { WM_SHOWWINDOW, sent|wparam, 1 },
-    { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
-    { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE|SWP_NOMOVE },
-    { WM_ACTIVATEAPP, sent|wparam, 1 },
-    { WM_NCACTIVATE, sent|wparam, 0 },
-    { WM_ACTIVATE, sent|wparam, 1 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { WM_SETFOCUS, sent },
-    { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
-    { WM_NCPAINT, sent|wparam, 1 },
-    { WM_ERASEBKGND, sent },
-    { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    /* the following 6 messages only appear before windows 8 */
-    { WM_NCCALCSIZE, sent|wparam|optional, 0 },
-    { WM_NCPAINT, sent|wparam|optional, 1 },
-    { WM_ERASEBKGND, sent|optional },
-    { WM_MOVE, sent|optional },
-    { WM_SIZE, sent|wparam|optional, SIZE_RESTORED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 },
-    { WM_PAINT, sent },
-    { WM_CTLCOLORBTN, sent },
     { 0 }
 };
 /* SetMenu for NonVisible windows with size change*/
 static const struct message WmSetMenuNonVisibleSizeChangeSeq[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOREDRAW },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_RESTORED },
     { WM_NCCALCSIZE,sent|wparam|optional, 1 }, /* XP */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* XP sends a duplicate */
     { WM_GETTEXT, sent|optional },
     { WM_NCCALCSIZE, sent|wparam|optional, 1 },
@@ -1974,7 +1915,7 @@ static const struct message WmSetMenuNonVisibleNoSizeChangeSeq[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* SetMenu for Visible windows with size change */
@@ -1982,7 +1923,7 @@ static const struct message WmSetMenuVisibleSizeChangeSeq[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { 0x0093, sent|defwinproc|optional },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NCPAINT, sent|optional }, /* wparam != 1 */
     { 0x0093, sent|defwinproc|optional },
     { 0x0093, sent|defwinproc|optional },
@@ -2003,7 +1944,7 @@ static const struct message WmSetMenuVisibleSizeChangeSeq[] = {
     { 0x0091, sent|defwinproc|optional },
     { 0x0092, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* XP sends a duplicate */
     { 0 }
 };
@@ -2016,7 +1957,7 @@ static const struct message WmSetMenuVisibleNoSizeChangeSeq[] = {
     { WM_ERASEBKGND, sent|optional },
     { WM_ACTIVATE, sent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 /* DrawMenuBar for a visible window */
@@ -2034,7 +1975,7 @@ static const struct message WmDrawMenuBarSeq[] =
     { WM_ERASEBKGND, sent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { 0x0093, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 
@@ -2116,7 +2057,7 @@ static const struct message WmSetScrollRangeHVSeq[] =
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOSIZE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_VALUECHANGE, winevent_hook|lparam|optional, 0/*OBJID_HSCROLL or OBJID_VSCROLL*/, 0 },
     { 0 }
 };
@@ -2125,7 +2066,7 @@ static const struct message WmSetScrollRangeHV_NC_Seq[] =
 {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOSIZE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NCPAINT, sent|optional },
     { WM_STYLECHANGING, sent|defwinproc|optional },
     { WM_STYLECHANGED, sent|defwinproc|optional },
@@ -2141,7 +2082,7 @@ static const struct message WmSetScrollRangeHV_NC_Seq[] =
     { WM_CTLCOLORDLG, sent|defwinproc|optional }, /* sent to a parent of the dialog */
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOSIZE|SWP_NOCLIENTMOVE, 0, SWP_NOCLIENTSIZE },
     { WM_SIZE, sent|defwinproc|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_VALUECHANGE, winevent_hook|lparam|optional, 0/*OBJID_HSCROLL or OBJID_VSCROLL*/, 0 },
     { WM_GETTEXT, sent|optional },
     { WM_GETTEXT, sent|optional },
@@ -2206,19 +2147,19 @@ static const struct message WmSHOWNATopInvisible[] = {
 
 static const struct message WmTrackPopupMenuMinimizeWindow[] = {
     { HCBT_CREATEWND, hook },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ENTERMENULOOP, sent|wparam|lparam, TRUE, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENU, sent|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENUPOPUP, sent|lparam, 0, 0 },
     { 0x0093, sent|optional },
     { 0x0094, sent|optional },
     { 0x0094, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_ENTERIDLE, sent|wparam, 2 },
     { HCBT_MINMAX, hook },
     { HCBT_SETFOCUS, hook },
@@ -2228,25 +2169,25 @@ static const struct message WmTrackPopupMenuMinimizeWindow[] = {
     { WM_WINDOWPOSCHANGING, sent },
     { WM_GETMINMAXINFO, sent|defwinproc },
     { WM_NCCALCSIZE, sent|wparam|optional, 1 },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGED, sent },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc },
     { WM_GETTEXT, sent|optional },
     { WM_NCCALCSIZE, sent|wparam|optional, 1 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CANCELMODE, sent },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|defwinproc },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook },
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_UNINITMENUPOPUP, sent|defwinproc|lparam, 0, 0 },
     { WM_MENUSELECT, sent|defwinproc|wparam|lparam, 0xffff0000, 0 },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_EXITMENULOOP, sent|defwinproc|wparam|lparam, 1, 0 },
     { WM_NCACTIVATE, sent },
     { WM_GETTEXT, sent|defwinproc|optional },
@@ -2258,29 +2199,29 @@ static const struct message WmTrackPopupMenuMinimizeWindow[] = {
 
 static const struct message WmTrackPopupMenu[] = {
     { HCBT_CREATEWND, hook },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ENTERMENULOOP, sent|wparam|lparam, TRUE, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENU, sent|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENUPOPUP, sent|lparam, 0, 0 },
     { 0x0093, sent|optional },
     { 0x0094, sent|optional },
     { 0x0094, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_ENTERIDLE, sent|wparam, 2 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook },
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_UNINITMENUPOPUP, sent|lparam, 0, 0 },
     { WM_MENUSELECT, sent|wparam|lparam, 0xffff0000, 0 },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_EXITMENULOOP, sent|wparam|lparam, 1, 0 },
     { 0 }
 };
@@ -2291,86 +2232,86 @@ static const struct message WmTrackPopupMenuEsc[] = {
 
 static const struct message WmTrackPopupMenuCapture[] = {
     { HCBT_CREATEWND, hook },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ENTERMENULOOP, sent|wparam|lparam, TRUE, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent },
     { WM_INITMENU, sent|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENUPOPUP, sent|lparam, 0, 0 },
     { 0x0093, sent|optional },
     { 0x0094, sent|optional },
     { 0x0094, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_ENTERIDLE, sent|wparam, 2 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook },
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_UNINITMENUPOPUP, sent|lparam, 0, 0 },
     { WM_MENUSELECT, sent|wparam|lparam, 0xffff0000, 0 },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_EXITMENULOOP, sent|wparam|lparam, 1, 0 },
     { 0 }
 };
 
 static const struct message WmTrackPopupMenuEmpty[] = {
     { HCBT_CREATEWND, hook },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ENTERMENULOOP, sent|wparam|lparam, TRUE, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENU, sent|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENUPOPUP, sent|lparam, 0, 0 },
     { 0x0093, sent|optional },
     { 0x0094, sent|optional },
     { 0x0094, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent },
     { WM_EXITMENULOOP, sent|wparam|lparam, 1, 0 },
     { HCBT_DESTROYWND, hook },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_UNINITMENUPOPUP, sent|lparam, 0, 0 },
     { 0 }
 };
 
 static const struct message WmTrackPopupMenuAbort[] = {
     { HCBT_CREATEWND, hook },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ENTERMENULOOP, sent|wparam|lparam, TRUE, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENU, sent|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENUPOPUP, sent|lparam, 0, 0 },
     { 0x0093, sent|optional },
     { 0x0094, sent|optional },
     { 0x0094, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook },
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_UNINITMENUPOPUP, sent|lparam, 0, 0 },
     { WM_MENUSELECT, sent|wparam|lparam, 0xffff0000, 0 },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_EXITMENULOOP, sent|wparam|lparam, 1, 0 },
     { 0 }
 };
 
-static BOOL after_end_dialog, test_def_id, paint_loop_done, wm_copydata_done;
+static BOOL after_end_dialog, test_def_id, paint_loop_done;
 static int sequence_cnt, sequence_size;
 static struct recvd_message* sequence;
 static int log_all_parent_messages;
@@ -2708,9 +2649,7 @@ static BOOL can_skip_message(const struct message *expected)
     if ((expected->flags & kbd_hook) && !hKBD_hook) return TRUE;
     if ((expected->flags & hook) && !hCBT_hook) return TRUE;
 
-    if ((expected->flags & msg_todo) && !strcmp(winetest_platform, "wine")) return TRUE;
-
-    if ((expected->flags & wine_only) && strcmp(winetest_platform, "wine")) return TRUE;
+    if ((expected->flags & winevent_hook_todo) && !strcmp(winetest_platform, "wine")) return TRUE;
 
     return FALSE;
 }
@@ -2718,24 +2657,17 @@ static BOOL can_skip_message(const struct message *expected)
 static BOOL messages_equal(const struct message *expected, const struct recvd_message *actual,
     BOOL expect_equal, const char* file, int line)
 {
-    int todo = (expected->flags & msg_todo) != 0;
-    int msg_wine_only = (expected->flags & wine_only) != 0;
+    int todo = (expected->flags & winevent_hook_todo) != 0;
     const int message_type_flags = hook|winevent_hook|kbd_hook;
     static int todo_reported;
 
     if (!todo && can_skip_message(expected))
         expect_equal = FALSE;
 
-    if (msg_wine_only && strcmp(winetest_platform, "wine"))
-    {
-        /* Ignore Wine-only message records on Windows. */
-        return FALSE;
-    }
-
     if (!expected->message || !actual->message) {
         if (expect_equal && (!todo || !todo_reported++))
-            todo_wine_if(todo || msg_wine_only)
-            ok_( file, line) (msg_wine_only, "the msg sequence is not complete: expected %s %04x - actual %s %04x\n",
+            todo_wine_if(todo)
+            ok_( file, line) (FALSE, "the msg sequence is not complete: expected %s %04x - actual %s %04x\n",
                               message_type_name(expected->flags), expected->message, message_type_name(actual->flags), actual->message);
         return FALSE;
     }
@@ -2744,8 +2676,8 @@ static BOOL messages_equal(const struct message *expected, const struct recvd_me
         (expected->flags & message_type_flags) != (actual->flags & message_type_flags))
     {
         if (expect_equal && (!todo || !todo_reported++))
-            todo_wine_if(todo || msg_wine_only)
-            ok_( file, line) (msg_wine_only, "the %s 0x%04x was expected, but got %s 0x%04x instead\n",
+            todo_wine_if(todo)
+            ok_( file, line) (FALSE, "the %s 0x%04x was expected, but got %s 0x%04x instead\n",
                               message_type_name(expected->flags), expected->message, message_type_name(actual->flags), actual->message);
         return FALSE;
     }
@@ -2761,8 +2693,8 @@ static BOOL messages_equal(const struct message *expected, const struct recvd_me
     }
 
     if (expect_equal)
-        todo_wine_if(todo || msg_wine_only)
-        ok_( file, line) (!msg_wine_only, "got %s 0x%04x as expected\n",
+        todo_wine_if(todo)
+        ok_( file, line) (TRUE, "got %s 0x%04x as expected\n",
                           message_type_name(expected->flags), expected->message);
 
     return TRUE;
@@ -2984,11 +2916,7 @@ static void ok_sequence_(const struct message *expected_list, const char *contex
                 messages_equal(expected, actual, TRUE, file, line);
             }
         }
-        if (is_wine && !failcount) /* succeeded yet marked todo */
-            todo_wine {
-                dump++;
-                ok_( file, line)( TRUE, "marked \"todo_wine\" but succeeds\n");
-            }
+        if (is_wine) goto done;
     }
     else
     {
@@ -2998,6 +2926,11 @@ static void ok_sequence_(const struct message *expected_list, const char *contex
             messages_equal(expected, actual, TRUE, file, line);
         }
     }
+    if (todo && !failcount && !strcmp(winetest_platform, "wine")) /* succeeded yet marked todo */
+        todo_wine {
+            dump++;
+            ok_( file, line)( TRUE, "marked \"todo_wine\" but succeeds\n");
+        }
 
 done:
     winetest_pop_context();
@@ -3028,7 +2961,7 @@ static const struct message WmCreateMDIframeSeq[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* XP */
     { WM_ACTIVATEAPP, sent|wparam|optional, 1 }, /* Win9x doesn't send it */
@@ -3039,7 +2972,7 @@ static const struct message WmCreateMDIframeSeq[] = {
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     /* Win9x adds SWP_NOZORDER below */
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
@@ -3060,7 +2993,7 @@ static const struct message WmDestroyMDIframeSeq[] = {
     { WM_NCACTIVATE, sent|wparam|optional, 0 }, /* XP */
     { WM_ACTIVATE, sent|wparam|optional, 0 }, /* Win9x */
     { WM_ACTIVATEAPP, sent|wparam|optional, 0 }, /* Win9x */
-    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 },
     { WM_DESTROY, sent },
     { WM_NCDESTROY, sent },
@@ -3145,7 +3078,7 @@ static const struct message WmCreateMDIchildVisibleSeq[] = {
     { HCBT_SETFOCUS, hook }, /* in MDI client */
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 }, /* in MDI client */
     { WM_IME_NOTIFY, sent|wparam|optional, 2 }, /* in MDI client */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent }, /* in MDI client */
     { HCBT_SETFOCUS, hook },
     { WM_KILLFOCUS, sent }, /* in MDI client */
@@ -3167,7 +3100,7 @@ static const struct message WmChildActivateWindowSeq[] = {
     { WM_NCACTIVATE, sent|wparam|defwinproc, 0 },
     { WM_MDIACTIVATE, sent|defwinproc },
     { WM_WINDOWPOSCHANGING, sent|wparam|defwinproc, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam|defwinproc, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { WM_NCACTIVATE, sent|wparam|defwinproc, 1 },
     { HCBT_SETFOCUS, hook },
@@ -3205,7 +3138,7 @@ static const struct message WmCreateMDIchildInvisibleParentSeq[] = {
     { HCBT_SETFOCUS, hook }, /* in MDI client */
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 }, /* in MDI client */
     { WM_IME_NOTIFY, sent|wparam|optional, 2 }, /* in MDI client */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent }, /* in MDI client */
     { HCBT_SETFOCUS, hook },
     { WM_KILLFOCUS, sent }, /* in MDI client */
@@ -3250,7 +3183,7 @@ static const struct message WmDestroyMDIchildVisibleSeq[] = {
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent }, /* in MDI client */
 
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
 
     { HCBT_SETFOCUS, hook }, /* set focus to MDI client */
     { WM_KILLFOCUS, sent },
@@ -3315,6 +3248,8 @@ static const struct message WmDestroyMDIchildInvisibleSeq[] = {
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 },
     { WM_DESTROY, sent },
     { WM_NCDESTROY, sent },
+    /* FIXME: Wine destroys an icon/title window while Windows doesn't */
+    { WM_PARENTNOTIFY, sent|wparam|optional, WM_DESTROY }, /* MDI client */
     { 0 }
 };
 /* CreateWindow for the 1st MDI child window, initially visible and maximized */
@@ -3323,7 +3258,7 @@ static const struct message WmCreateMDIchildVisibleMaxSeq1[] = {
     { WM_NCCREATE, sent }, 
     { WM_NCCALCSIZE, sent|wparam, 0 },
     { WM_CREATE, sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SIZE, sent|wparam, SIZE_RESTORED },
     { WM_MOVE, sent },
     { HCBT_MINMAX, hook|lparam, 0, SW_MAXIMIZE },
@@ -3336,8 +3271,8 @@ static const struct message WmCreateMDIchildVisibleMaxSeq1[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     /* Win2k sends wparam set to
      * MAKEWPARAM(WM_CREATE, MDI_FIRST_CHILD_ID + nTotalCreated),
      * while Win9x doesn't bother to set child window id according to
@@ -3372,7 +3307,7 @@ static const struct message WmCreateMDIchildVisibleMaxSeq1[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
     { 0 }
 };
 /* CreateWindow for the 2nd MDI child window, initially visible and maximized */
@@ -3389,30 +3324,30 @@ static const struct message WmCreateMDIchildVisibleMaxSeq2[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     { WM_SETREDRAW, sent|wparam, 1 }, /* in the 1st MDI child */
     /* create the 2nd MDI child */
     { HCBT_CREATEWND, hook },
     { WM_NCCREATE, sent }, 
     { WM_NCCALCSIZE, sent|wparam, 0 },
     { WM_CREATE, sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SIZE, sent|wparam, SIZE_RESTORED },
     { WM_MOVE, sent },
     { HCBT_MINMAX, hook|lparam, 0, SW_MAXIMIZE },
     { WM_GETMINMAXINFO, sent },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_STATECHANGED },
     { WM_NCCALCSIZE, sent|wparam, 1 },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOCLIENTMOVE|SWP_STATECHANGED },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     /* Win2k sends wparam set to
      * MAKEWPARAM(WM_CREATE, MDI_FIRST_CHILD_ID + nTotalCreated),
      * while Win9x doesn't bother to set child window id according to
@@ -3453,7 +3388,7 @@ static const struct message WmCreateMDIchildVisibleMaxSeq2[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
     { 0 }
 };
 /* WM_MDICREATE MDI child window, initially visible and maximized */
@@ -3463,7 +3398,7 @@ static const struct message WmCreateMDIchildVisibleMaxSeq3[] = {
     { WM_NCCREATE, sent }, 
     { WM_NCCALCSIZE, sent|wparam, 0 },
     { WM_CREATE, sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SIZE, sent|wparam, SIZE_RESTORED },
     { WM_MOVE, sent },
     { HCBT_MINMAX, hook|lparam, 0, SW_MAXIMIZE },
@@ -3477,8 +3412,8 @@ static const struct message WmCreateMDIchildVisibleMaxSeq3[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
 
     /* Win2k sends wparam set to
      * MAKEWPARAM(WM_CREATE, MDI_FIRST_CHILD_ID + nTotalCreated),
@@ -3520,7 +3455,7 @@ static const struct message WmCreateMDIchildVisibleMaxSeq3[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
 
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
@@ -3546,14 +3481,14 @@ static const struct message WmCreateMDIchildVisibleMaxSeq3[] = {
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
 
     { 0x0093, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* MDI client, not sent on Win7. */
     { 0x0093, sent|optional }, /* Win8+ sends an extra. */
     { WM_NCCALCSIZE, sent|wparam|optional, 1 }, /* XP sends it to MDI frame */
     { 0x0093, sent|defwinproc|optional },
     { 0x0093, sent|defwinproc|optional },
     { 0x0093, sent|defwinproc|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* XP sends a duplicate */
 
     { 0 }
@@ -3580,15 +3515,14 @@ static const struct message WmCreateMDIchildInvisibleMaxSeq4[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOREDRAW|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|wine_only, 0, 0 },
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
     { WM_NCCALCSIZE, sent|wparam|optional, 1 }, /* MDI child */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     /* Win2k sends wparam set to
      * MAKEWPARAM(WM_CREATE, MDI_FIRST_CHILD_ID + nTotalCreated),
      * while Win9x doesn't bother to set child window id according to
@@ -3608,7 +3542,7 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq2[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam|defwinproc, SWP_NOSIZE|SWP_NOMOVE }, /* in the 1st MDI child */
     { WM_WINDOWPOSCHANGING, sent|wparam|defwinproc, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE }, /* in the 2nd MDI child */
 
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
 
     { WM_CHILDACTIVATE, sent|defwinproc|wparam|lparam, 0, 0 }, /* in the 1st MDI child */
     { WM_NCACTIVATE, sent|wparam|defwinproc, 0 }, /* in the 1st MDI child */
@@ -3634,15 +3568,15 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq2[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam|defwinproc, SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_SHOWWINDOW|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOCLIENTMOVE|SWP_STATECHANGED },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_RESTORED },
 
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
 
     { WM_SETREDRAW, sent|defwinproc|wparam, 1 },
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
 
     /* bring the 1st MDI child to top */
     { WM_WINDOWPOSCHANGING, sent|wparam|defwinproc, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
@@ -3683,7 +3617,7 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq2[] = {
     { WM_ERASEBKGND, sent|parent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam|defwinproc, SWP_HIDEWINDOW|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
 
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_DESTROY, sent|defwinproc },
     { WM_NCDESTROY, sent|defwinproc },
     { 0 }
@@ -3714,7 +3648,7 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq1[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
 
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
@@ -3741,7 +3675,7 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq1[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam|defwinproc, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam|defwinproc, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam|defwinproc, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
 
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam|defwinproc, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
@@ -3764,8 +3698,8 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq1[] = {
     { WM_NCCALCSIZE, sent|wparam|defwinproc, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam|defwinproc, SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOREDRAW|SWP_NOCLIENTMOVE },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI client */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI client */
 
     { 0x0093, sent|defwinproc|optional },
     { WM_NCCALCSIZE, sent|wparam|defwinproc|optional, 1 }, /* XP sends it to MDI frame */
@@ -3774,9 +3708,9 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq1[] = {
     { 0x0093, sent|defwinproc|optional },
     { 0x0093, sent|optional },
 
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI client */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI client */
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* MDI frame */
     { 0x0093, sent|optional }, /* Win8+ sends an extra. */
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* XP sends a duplicate */
@@ -3789,7 +3723,7 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq1[] = {
     { 0x0093, sent|defwinproc|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { 0x0093, sent|optional }, /* Win8+ sends an extra. */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
     { 0x0093, sent|optional },
 
     { WM_NCACTIVATE, sent|wparam, 0 },
@@ -3809,7 +3743,7 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq1[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam|defwinproc, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam|defwinproc, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam|defwinproc, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
 
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
@@ -3823,10 +3757,10 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq1[] = {
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOCLIENTMOVE },
     { WM_SIZE, sent|wparam, SIZE_RESTORED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     { WM_NCCALCSIZE, sent|wparam|optional, 1 }, /* XP */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI client */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI client */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* XP sends a duplicate */
 
     { HCBT_SETFOCUS, hook },
@@ -3853,7 +3787,7 @@ static const struct message WmDestroyMDIchildVisibleMaxSeq1[] = {
     { WM_ERASEBKGND, sent|parent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_HIDEWINDOW|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
 
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_DESTROY, sent },
     { WM_NCDESTROY, sent },
     { 0 }
@@ -3871,7 +3805,7 @@ static const struct message WmMaximizeMDIchildInvisibleSeq[] = {
     { WM_NCACTIVATE, sent|wparam|optional|defwinproc, 1 },
     { HCBT_SETFOCUS, hook|optional },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 }, /* in MDI client */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|optional }, /* in MDI client */
     { HCBT_SETFOCUS, hook|optional },
     { WM_KILLFOCUS, sent|optional }, /* in MDI client */
@@ -3882,13 +3816,12 @@ static const struct message WmMaximizeMDIchildInvisibleSeq[] = {
     { WM_MDIACTIVATE, sent|optional|defwinproc },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOCLIENTMOVE|SWP_STATECHANGED },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|wine_only, 0, 0 },
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     { 0 }
 };
 /* ShowWindow(SW_MAXIMIZE) for a not visible maximized MDI child window */
@@ -3905,7 +3838,7 @@ static const struct message WmMaximizeMDIchildInvisibleSeq2[] = {
     { WM_NCACTIVATE, sent|wparam|defwinproc|optional, 1 },
     { HCBT_SETFOCUS, hook|optional },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 }, /* in MDI client */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|optional }, /* in MDI client */
     { HCBT_SETFOCUS, hook|optional },
     { WM_KILLFOCUS, sent|optional }, /* in MDI client */
@@ -4000,13 +3933,12 @@ static const struct message WmMaximizeMDIchildVisibleSeq[] = {
     { WM_CHILDACTIVATE, sent|wparam|lparam, 0, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOCLIENTMOVE|SWP_STATECHANGED },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|wine_only, 0, 0 },
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     { 0 }
 };
 /* ShowWindow(SW_RESTORE) for a visible maximized MDI child window */
@@ -4017,13 +3949,12 @@ static const struct message WmRestoreMDIchildVisibleSeq[] = {
     { WM_CHILDACTIVATE, sent|wparam|lparam, 0, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOCLIENTMOVE|SWP_STATECHANGED },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_RESTORED },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|wine_only, 0, 0 },
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     { 0 }
 };
 /* ShowWindow(SW_RESTORE) for a visible minimized MDI child window */
@@ -4036,12 +3967,12 @@ static const struct message WmRestoreMDIchildVisibleSeq_2[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_RESTORED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent },
     { 0 }
 };
@@ -4054,8 +3985,10 @@ static const struct message WmMinimizeMDIchildVisibleSeq[] = {
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc|wparam|lparam, SIZE_MINIMIZED, 0 },
     { WM_CHILDACTIVATE, sent|wparam|lparam|defwinproc, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
+    /* FIXME: Wine creates an icon/title window while Windows doesn't */
+    { WM_PARENTNOTIFY, sent|parent|wparam|optional, WM_CREATE }, /* MDI client */
     { 0 }
 };
 /* ShowWindow(SW_RESTORE) for a not visible MDI child window */
@@ -4067,13 +4000,12 @@ static const struct message WmRestoreMDIchildInvisibleSeq[] = {
     { WM_CHILDACTIVATE, sent|wparam|lparam, 0, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOMOVE|SWP_NOCLIENTMOVE|SWP_STATECHANGED },
     { WM_SIZE, sent|defwinproc|wparam, SIZE_RESTORED },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|wine_only, 0, 0 },
      /* in MDI frame */
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI frame */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 }, /* MDI child */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI frame */
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* MDI child */
     { 0 }
 };
 
@@ -5276,39 +5208,6 @@ static void test_showwindow(void)
     flush_sequence();
 }
 
-static void test_recursive_activation(void)
-{
-    static const struct message seq[] =
-    {
-        { HCBT_ACTIVATE, hook },
-        { WM_NCACTIVATE, sent|wparam, TRUE },
-        { WM_ACTIVATE, sent|wparam, WA_ACTIVE },
-        { HCBT_ACTIVATE, hook },
-        { WM_NCACTIVATE, sent|wparam, FALSE },
-        { WM_ACTIVATE, sent|wparam, WA_INACTIVE },
-        { WM_SETFOCUS, sent|optional },
-        { 0 }
-    };
-    HWND hwnd, recursive;
-
-    hwnd = CreateWindowExA(0, "SimpleWindowClass", NULL, WS_OVERLAPPED|WS_VISIBLE,
-                              100, 100, 200, 200, 0, 0, 0, NULL);
-    ok(hwnd != 0, "Failed to create simple window\n");
-
-    recursive = CreateWindowExA(0, "RecursiveActivationClass", NULL, WS_OVERLAPPED|WS_VISIBLE,
-                                10, 10, 50, 50, hwnd, 0, 0, NULL);
-    ok(recursive != 0, "Failed to create recursive activation window\n");
-    SetActiveWindow(hwnd);
-
-    flush_sequence();
-    SetActiveWindow(recursive);
-    ok_sequence(seq, "Recursive Activation", FALSE);
-
-    DestroyWindow(recursive);
-    DestroyWindow(hwnd);
-    flush_sequence();
-}
-
 static void test_sys_menu(void)
 {
     HWND hwnd;
@@ -5438,7 +5337,7 @@ static const struct message WmZOrder[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, 0, 0 },
     { WM_GETMINMAXINFO, sent|defwinproc|wparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, 3, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_NOREDRAW|SWP_NOMOVE|SWP_NOSIZE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE, 0 },
@@ -5694,7 +5593,7 @@ static void test_messages(void)
     {
         ShowWindow(hwnd, SW_RESTORE);
         flush_events();
-        ok_sequence(WmShowRestoreMaxOverlappedSeq, "ShowWindow(SW_RESTORE):overlapped", FALSE);
+        ok_sequence(WmShowRestoreMaxOverlappedSeq, "ShowWindow(SW_RESTORE):overlapped", TRUE);
         flush_sequence();
     }
 
@@ -5789,7 +5688,7 @@ static void test_messages(void)
     /* Test SetWindowPos */
     test_msg_setpos(WmFirstDrawSetWindowPosSeq1, SWP_SHOWWINDOW, FALSE);
     test_msg_setpos(WmFirstDrawSetWindowPosSeq2, 0, FALSE);
-    test_msg_setpos(WmFirstDrawSetWindowPosSeq6,
+    test_msg_setpos(WmFirstDrawSetWindowPosSeq3,
             SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOCLIENTSIZE | SWP_NOCLIENTMOVE | SWP_NOZORDER, FALSE);
 
     test_msg_setpos(WmFirstDrawSetWindowPosSeq1, SWP_SHOWWINDOW | SWP_NOSIZE, FALSE);
@@ -6225,7 +6124,7 @@ static const struct message WmFrameChanged[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam|lparam, SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOREDRAW
             |SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE, 0xf },
     { WM_GETTEXT, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
     { 0 }
 };
@@ -6237,7 +6136,7 @@ static const struct message WmFrameChanged_move[] = {
             |SWP_NOSIZE|SWP_NOCLIENTSIZE, 0x3 },
     { WM_MOVE, sent|defwinproc, 0 },
     { WM_GETTEXT, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
     { 0 }
 };
@@ -6522,7 +6421,7 @@ static const struct message WmSetFocusButtonSeq[] =
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam, 0 },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_BUTTON, BN_SETFOCUS) },
@@ -6532,7 +6431,7 @@ static const struct message WmSetFocusButtonSeq[] =
 static const struct message WmKillFocusButtonSeq[] =
 {
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_KILLFOCUS, sent|wparam, 0 },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_BUTTON, BN_KILLFOCUS) },
@@ -6548,7 +6447,7 @@ static const struct message WmSetFocusStaticSeq[] =
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam, 0 },
     { WM_CTLCOLORSTATIC, sent|parent },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_BUTTON, BN_SETFOCUS) },
@@ -6559,7 +6458,7 @@ static const struct message WmSetFocusStaticSeq[] =
 static const struct message WmKillFocusStaticSeq[] =
 {
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_KILLFOCUS, sent|wparam, 0 },
     { WM_CTLCOLORSTATIC, sent|parent },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_BUTTON, BN_KILLFOCUS) },
@@ -6575,7 +6474,7 @@ static const struct message WmSetFocusOwnerdrawSeq[] =
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam, 0 },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_BUTTON, 0x001040e4 },
@@ -6586,7 +6485,7 @@ static const struct message WmSetFocusOwnerdrawSeq[] =
 static const struct message WmKillFocusOwnerdrawSeq[] =
 {
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_KILLFOCUS, sent|wparam, 0 },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_BUTTON, 0x000040e4 },
@@ -6602,31 +6501,31 @@ static const struct message WmKillFocusOwnerdrawSeq[] =
 static const struct message WmLButtonDownSeq[] =
 {
     { WM_LBUTTONDOWN, sent|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_CTLCOLORBTN, sent|defwinproc },
     { BM_SETSTATE, sent|wparam|defwinproc, TRUE },
     { WM_CTLCOLORBTN, sent|defwinproc },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { 0 }
 };
 static const struct message WmLButtonDownStaticSeq[] =
 {
     { WM_LBUTTONDOWN, sent|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_CTLCOLORSTATIC, sent|defwinproc },
     { BM_SETSTATE, sent|wparam|defwinproc, TRUE },
     { WM_CTLCOLORSTATIC, sent|defwinproc },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { 0 }
 };
 static const struct message WmLButtonUpSeq[] =
@@ -6634,8 +6533,8 @@ static const struct message WmLButtonUpSeq[] =
     { WM_LBUTTONUP, sent|wparam|lparam, 0, 0 },
     { BM_SETSTATE, sent|wparam|defwinproc, FALSE },
     { WM_CTLCOLORBTN, sent|defwinproc },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|wparam|defwinproc, 0 },
     { 0 }
 };
@@ -6644,8 +6543,8 @@ static const struct message WmLButtonUpStaticSeq[] =
     { WM_LBUTTONUP, sent|wparam|lparam, 0, 0 },
     { BM_SETSTATE, sent|wparam|defwinproc, FALSE },
     { WM_CTLCOLORSTATIC, sent|defwinproc },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|wparam|defwinproc, 0 },
     { 0 }
 };
@@ -6654,12 +6553,12 @@ static const struct message WmLButtonUpAutoSeq[] =
     { WM_LBUTTONUP, sent|wparam|lparam, 0, 0 },
     { BM_SETSTATE, sent|wparam|defwinproc, FALSE },
     { WM_CTLCOLORSTATIC, sent|defwinproc },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|optional, 0, 0 },
     { BM_SETCHECK, sent|defwinproc },
     { WM_CTLCOLORSTATIC, sent|defwinproc|optional, 0, 0 }, /* Sent here on Win7. */
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CTLCOLORSTATIC, sent|defwinproc|optional, 0, 0 }, /* Sent here on Win8+. */
     { WM_CAPTURECHANGED, sent|wparam|defwinproc, 0 },
     { 0 }
@@ -6675,15 +6574,7 @@ static const struct message WmSetFontButtonSeq[] =
     { WM_PAINT, sent },
     { WM_ERASEBKGND, sent|defwinproc|optional },
     { WM_CTLCOLORBTN, sent|defwinproc },
-    { 0 }
-};
-static const struct message WmSetFontOwnerdrawSeq[] =
-{
-    { WM_SETFONT, sent },
-    { WM_PAINT, sent },
-    { WM_ERASEBKGND, sent|defwinproc|optional },
-    { WM_CTLCOLORBTN, sent|defwinproc },
-    { WM_CTLCOLORBTN, sent|defwinproc|wine_only }, /* FIXME: Wine sends it twice for BS_OWNERDRAW */
+    { WM_CTLCOLORBTN, sent|defwinproc|optional }, /* FIXME: Wine sends it twice for BS_OWNERDRAW */
     { 0 }
 };
 static const struct message WmSetFontStaticSeq[] =
@@ -6697,9 +6588,8 @@ static const struct message WmSetFontStaticSeq[] =
 static const struct message WmSetTextButtonSeq[] =
 {
     { WM_SETTEXT, sent },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CTLCOLORBTN, sent|parent },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_COMMAND, sent|parent|optional },
     { WM_DRAWITEM, sent|parent|optional },
@@ -6708,9 +6598,8 @@ static const struct message WmSetTextButtonSeq[] =
 static const struct message WmSetTextStaticSeq[] =
 {
     { WM_SETTEXT, sent },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { WM_CTLCOLORSTATIC, sent|parent },
     { 0 }
 };
@@ -6718,23 +6607,24 @@ static const struct message WmSetTextGroupSeq[] =
 {
     { WM_SETTEXT, sent },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { WM_CTLCOLORSTATIC, sent|parent|msg_todo }, /* FIXME: Missing in Wine */
-    { WM_CTLCOLORSTATIC, sent|parent|msg_todo }, /* FIXME: Missing in Wine */
+    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { WM_CTLCOLORSTATIC, sent|parent|optional }, /* FIXME: Missing in Wine */
+    { WM_CTLCOLORSTATIC, sent|parent|optional }, /* FIXME: Missing in Wine */
     { 0 }
 };
 static const struct message WmSetTextInvisibleSeq[] =
 {
     { WM_SETTEXT, sent },
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmSetStyleButtonSeq[] =
 {
     { BM_SETSTYLE, sent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { WM_PAINT, sent },
+    { WM_NCPAINT, sent|defwinproc|optional }, /* FIXME: Wine sends it */
     { WM_ERASEBKGND, sent|defwinproc|optional }, /* Win9x doesn't send it */
     { WM_CTLCOLORBTN, sent|parent },
     { 0 }
@@ -6742,9 +6632,10 @@ static const struct message WmSetStyleButtonSeq[] =
 static const struct message WmSetStyleStaticSeq[] =
 {
     { BM_SETSTYLE, sent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { WM_PAINT, sent },
+    { WM_NCPAINT, sent|defwinproc|optional }, /* FIXME: Wine sends it */
     { WM_ERASEBKGND, sent|defwinproc|optional }, /* Win9x doesn't send it */
     { WM_CTLCOLORSTATIC, sent|parent },
     { 0 }
@@ -6752,10 +6643,10 @@ static const struct message WmSetStyleStaticSeq[] =
 static const struct message WmSetStyleUserSeq[] =
 {
     { BM_SETSTYLE, sent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { WM_PAINT, sent },
-    { WM_NCPAINT, sent|defwinproc|wine_only }, /* FIXME: Wine sends it */
+    { WM_NCPAINT, sent|defwinproc|optional }, /* FIXME: Wine sends it */
     { WM_ERASEBKGND, sent|defwinproc|optional }, /* Win9x doesn't send it */
     { WM_CTLCOLORBTN, sent|parent },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_BUTTON, BN_PAINT) },
@@ -6764,9 +6655,10 @@ static const struct message WmSetStyleUserSeq[] =
 static const struct message WmSetStyleOwnerdrawSeq[] =
 {
     { BM_SETSTYLE, sent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { WM_PAINT, sent },
+    { WM_NCPAINT, sent|optional }, /* FIXME: Wine sends it */
     { WM_ERASEBKGND, sent|defwinproc|optional }, /* Win9x doesn't send it */
     { WM_CTLCOLORBTN, sent|parent },
     { WM_CTLCOLORBTN, sent|parent|optional }, /* Win9x doesn't send it */
@@ -6777,7 +6669,7 @@ static const struct message WmSetStateButtonSeq[] =
 {
     { BM_SETSTATE, sent },
     { WM_CTLCOLORBTN, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { 0 }
 };
@@ -6785,7 +6677,7 @@ static const struct message WmSetStateStaticSeq[] =
 {
     { BM_SETSTATE, sent },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { 0 }
 };
@@ -6794,7 +6686,7 @@ static const struct message WmSetStateUserSeq[] =
     { BM_SETSTATE, sent },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_BUTTON, BN_HILITE) },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { 0 }
 };
@@ -6803,7 +6695,7 @@ static const struct message WmSetStateOwnerdrawSeq[] =
     { BM_SETSTATE, sent },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_BUTTON, 0x000120e4 },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { 0 }
 };
@@ -6812,26 +6704,26 @@ static const struct message WmClearStateButtonSeq[] =
     { BM_SETSTATE, sent },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_BUTTON, BN_UNHILITE) },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { 0 }
 };
 static const struct message WmDisableButtonSeq[] =
 {
     { WM_LBUTTONDOWN, sent },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { BM_SETSTATE, sent|defwinproc },
     { WM_CTLCOLORSTATIC, sent|defwinproc|optional },
     { WM_CTLCOLORBTN, sent|optional },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_LBUTTONUP, sent },
     { BM_SETSTATE, sent|defwinproc },
     { WM_CTLCOLORBTN, sent|defwinproc|optional },
     { WM_CTLCOLORSTATIC, sent|defwinproc|optional },
     { BM_SETCHECK, sent|defwinproc|optional },
     { WM_CTLCOLORBTN, sent|optional },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CTLCOLORSTATIC, sent|defwinproc|optional },
     { WM_CAPTURECHANGED, sent|defwinproc },
     { WM_COMMAND, sent },
@@ -6842,7 +6734,7 @@ static const struct message WmClearStateOwnerdrawSeq[] =
     { BM_SETSTATE, sent },
     { WM_CTLCOLORBTN, sent|parent },
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_BUTTON, 0x000020e4 },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_APP, sent|wparam|lparam, 0, 0 },
     { 0 }
 };
@@ -7001,7 +6893,7 @@ static void test_button_messages(void)
         { BS_OWNERDRAW, DLGC_BUTTON,
           WmSetFocusOwnerdrawSeq, WmKillFocusOwnerdrawSeq, WmSetStyleOwnerdrawSeq,
           WmSetStateOwnerdrawSeq, WmClearStateOwnerdrawSeq, WmSetCheckIgnoredSeq,
-          WmLButtonDownSeq, WmLButtonUpSeq, WmSetFontOwnerdrawSeq,
+          WmLButtonDownSeq, WmLButtonUpSeq, WmSetFontButtonSeq,
           WmSetTextButtonSeq },
     };
     LOGFONTA logfont = { 0 };
@@ -7388,31 +7280,31 @@ static const struct message auto_radio_button_BM_CLICK[] =
 {
     { BM_CLICK, sent|wparam|lparam, 0, 0 },
     { WM_LBUTTONDOWN, sent|wparam|lparam|defwinproc, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { BM_SETSTATE, sent|wparam|lparam|defwinproc, BST_CHECKED, ID_RADIO2 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_LBUTTONUP, sent|wparam|lparam|defwinproc, 0, 0 },
     { BM_SETSTATE, sent|wparam|lparam|defwinproc, BST_UNCHECKED, ID_RADIO2 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, ID_RADIO2, 0 },
     { BM_SETCHECK, sent|wparam|lparam|defwinproc, BST_CHECKED, ID_RADIO2 },
     { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, ID_RADIO1, 0 },
     { BM_SETCHECK, sent|wparam|lparam|defwinproc, 0, ID_RADIO1 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, ID_RADIO3, 0 },
     { BM_SETCHECK, sent|wparam|lparam|defwinproc, 0, ID_RADIO3 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, ID_TEXT, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|wparam|lparam|defwinproc, 0, 0 },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_RADIO2, BN_CLICKED) },
-    { WM_NCHITTEST, sent|optional, 0, 0 },
-    { WM_SETCURSOR, sent|optional, 0, 0 },
-    { WM_MOUSEMOVE, sent|optional, 0, 0 },
+    { WM_NCHITTEST, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
+    { WM_SETCURSOR, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
+    { WM_MOUSEMOVE, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
     { 0 }
 };
 
@@ -7489,33 +7381,33 @@ static const struct message auto_radio_button_VK_DOWN_dialog[] =
     { BM_GETCHECK, sent|wparam|lparam, 0, ID_RADIO1 },
     { BM_CLICK, sent|wparam|lparam, 1, 0 },
     { WM_LBUTTONDOWN, sent|wparam|lparam|defwinproc, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { BM_SETSTATE, sent|wparam|lparam|defwinproc, BST_CHECKED, ID_RADIO1 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_LBUTTONUP, sent|wparam|lparam|defwinproc, 0, 0 },
     { BM_SETSTATE, sent|wparam|lparam|defwinproc, BST_UNCHECKED, ID_RADIO1 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, ID_RADIO1, 0 },
     { BM_SETCHECK, sent|wparam|lparam|defwinproc, BST_CHECKED, ID_RADIO1 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, ID_RADIO3, 0 },
     { BM_SETCHECK, sent|wparam|lparam|defwinproc, BST_UNCHECKED, ID_RADIO3 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, ID_TEXT, 0 },
     { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, ID_RADIO2, 0 },
     { BM_SETCHECK, sent|wparam|lparam|defwinproc, BST_UNCHECKED, ID_RADIO2 },
     { WM_CTLCOLORSTATIC, sent|parent },
-    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|wparam|lparam|defwinproc, 0, 0 },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_RADIO1, BN_CLICKED) },
-    { WM_NCHITTEST, sent|optional, 0, 0 },
-    { WM_SETCURSOR, sent|optional, 0, 0 },
-    { WM_MOUSEMOVE, sent|optional, 0, 0 },
+    { WM_NCHITTEST, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
+    { WM_SETCURSOR, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
+    { WM_MOUSEMOVE, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
     { WM_PAINT, sent },
     { WM_CTLCOLORSTATIC, sent|parent },
     { 0 }
@@ -8000,7 +7892,6 @@ static const struct message SetFocusComboBoxSeq[] =
     { WM_CTLCOLORBTN, sent|parent },
     { WM_SETFOCUS, sent },
     { WM_KILLFOCUS, sent|defwinproc },
-    { EM_GETPASSWORDCHAR, sent|optional }, /* Sent on some Win10 machines */
     { WM_SETFOCUS, sent },
     { WM_COMMAND, sent|defwinproc|wparam, MAKEWPARAM(1001, EN_SETFOCUS) },
     { EM_SETSEL, sent|defwinproc|wparam|lparam, 0, INT_MAX },
@@ -9406,9 +9297,6 @@ static void subtest_swp_paint_regions_( int line, int wrap_toplevel, LPCSTR pare
     ok( hauxchild != 0, "Creating child window (%s) returned error %lu\n",
         debugstr_a( child_class ), GetLastError() );
 
-    SetWindowPos( htoplevel ? htoplevel : hparent, NULL, 0, 0, 0, 0,
-                  SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_SHOWWINDOW );
-
     for (i = 0; i < ARRAY_SIZE(exposure_tests); i++)
     {
         const struct exposure_test *extest = &exposure_tests[i];
@@ -9502,7 +9390,7 @@ static void subtest_swp_paint_regions_( int line, int wrap_toplevel, LPCSTR pare
                 ok( !!rgn_ok, "Parent update region shall match expected region\n" );
             }
 
-            if (!rgn_ok)
+            if (!rgn_ok && winetest_debug > 1)
             {
                 trace( "Expected parent update region: " );
                 dump_region( hrgn_expect );
@@ -9563,7 +9451,7 @@ static void subtest_swp_paint_regions_( int line, int wrap_toplevel, LPCSTR pare
                 ok( !!rgn_ok, "Child update region shall match expected region\n" );
             }
 
-            if (!rgn_ok)
+            if (!rgn_ok && winetest_debug > 1)
             {
                 trace( "Expected child update region: " );
                 dump_region( hrgn_expect_child );
@@ -9977,6 +9865,7 @@ static DWORD WINAPI run_in_temp_desktop_thread_func(LPVOID param)
                                         curr_desktop_name, sizeof(curr_desktop_name), &length );
     ok_(file, line)( result, "GetUserObjectInformationA(post_inp_desktop=%p) error %lu [rl = %lu]\n",
                      post_inp_desktop, GetLastError(), length );
+    todo_wine
     ok_(file, line)( strcmp( curr_desktop_name, temp_desktop_name ) == 0,
                      "different desktop name: %s != %s (no switch or concurrent WineTest run?)\n",
                      debugstr_a( curr_desktop_name ), debugstr_a( temp_desktop_name ) );
@@ -10394,17 +10283,16 @@ static const struct message WmAltVkN[] = {
     { WM_SYSCOMMAND, sent|defwinproc|wparam|lparam, SC_KEYMENU, 'n' },
     { HCBT_SYSCOMMAND, hook },
     { WM_ENTERMENULOOP, sent|defwinproc|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0x00AE, sent|defwinproc|optional }, /* XP */
     { WM_GETTEXT, sent|defwinproc|optional }, /* XP */
     { WM_INITMENU, sent|defwinproc },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
     { WM_MENUCHAR, sent|defwinproc|wparam, MAKEWPARAM('n',MF_SYSMENU) },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|wine_only, 0, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|defwinproc },
     { WM_MENUSELECT, sent|defwinproc|wparam, MAKEWPARAM(0,0xffff) },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
     { WM_EXITMENULOOP, sent|defwinproc },
     { WM_MENUSELECT, sent|defwinproc|wparam|optional, MAKEWPARAM(0,0xffff) }, /* Win95 bug */
     { WM_EXITMENULOOP, sent|defwinproc|optional }, /* Win95 bug */
@@ -10512,19 +10400,19 @@ static const struct message WmAltPressRelease[] = {
     { WM_SYSCOMMAND, sent|defwinproc|wparam|lparam, SC_KEYMENU, 0 },
     { HCBT_SYSCOMMAND, hook },
     { WM_ENTERMENULOOP, sent|defwinproc|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENU, sent|defwinproc },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
     { WM_MENUSELECT, sent|defwinproc|wparam, MAKEWPARAM(0,MF_SYSMENU|MF_POPUP|MF_HILITE), 0, MAKEWPARAM(0,MF_RIGHTJUSTIFY) },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 1 },
 
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_MENU, 0x30000001 }, /* XP */
 
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0, },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0, },
     { WM_CAPTURECHANGED, sent|defwinproc },
     { WM_MENUSELECT, sent|defwinproc|wparam|optional, MAKEWPARAM(0,0xffff) },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
     { WM_EXITMENULOOP, sent|defwinproc },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_MENU, 0xc0000001 }, /* XP */
     { WM_SYSKEYUP, wparam|lparam, VK_MENU, 0xc0000001 },
@@ -10581,20 +10469,20 @@ static const struct message WmVkF10Seq[] = {
     { WM_SYSCOMMAND, sent|defwinproc|wparam, SC_KEYMENU },
     { HCBT_SYSCOMMAND, hook },
     { WM_ENTERMENULOOP, sent|defwinproc|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENU, sent|defwinproc },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
     { WM_MENUSELECT, sent|defwinproc|wparam, MAKEWPARAM(0,MF_SYSMENU|MF_POPUP|MF_HILITE), 0, MAKEWPARAM(0,MF_RIGHTJUSTIFY) },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 1 },
 
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_F10, 0x10000001 }, /* XP */
 
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_F10, 1 }, /* XP */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0, },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0, },
     { WM_CAPTURECHANGED, sent|defwinproc },
     { WM_MENUSELECT, sent|defwinproc|wparam|optional, MAKEWPARAM(0,0xffff) },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
     { WM_EXITMENULOOP, sent|defwinproc },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_F10, 0xc0000001 }, /* XP */
     { WM_SYSKEYUP, wparam|lparam, VK_F10, 0xc0000001 },
@@ -10615,18 +10503,18 @@ static const struct message WmShiftF10Seq[] = {
     { WM_SYSCOMMAND, sent|defwinproc|wparam, SC_KEYMENU },
     { HCBT_SYSCOMMAND, hook },
     { WM_ENTERMENULOOP, sent|defwinproc|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_INITMENU, sent|defwinproc },
-    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_MENUSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
     { WM_MENUSELECT, sent|defwinproc|wparam, MAKEWPARAM(0,MF_SYSMENU|MF_POPUP|MF_HILITE), 0, MAKEWPARAM(0,MF_RIGHTJUSTIFY) },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 1 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_SHIFT, 0xd0000001 }, /* XP */
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_ESCAPE, 0x10000001 }, /* XP */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|defwinproc|wparam|lparam, 0, 0 },
     { WM_MENUSELECT, sent|defwinproc|wparam|lparam, 0xffff0000, 0 },
-    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|msg_todo, OBJID_SYSMENU, 0 },
+    { EVENT_SYSTEM_MENUEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_SYSMENU, 0 },
     { WM_EXITMENULOOP, sent|defwinproc|wparam|lparam, 0, 0 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_ESCAPE, 0xc0000001 }, /* XP */
     { WM_KEYUP, wparam|lparam, VK_ESCAPE, 0xc0000001 },
@@ -11253,48 +11141,6 @@ static LRESULT WINAPI ShowWindowProcA(HWND hwnd, UINT message, WPARAM wParam, LP
     return ret;
 }
 
-static LRESULT WINAPI recursive_activation_wndprocA(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    static LONG defwndproc_counter = 0;
-    struct recvd_message msg;
-    LRESULT ret;
-
-    switch (message)
-    {
-    /* log only specific messages we are interested in */
-    case WM_NCACTIVATE:
-    case WM_ACTIVATE:
-    case WM_SETFOCUS:
-    case WM_KILLFOCUS:
-        break;
-    default:
-        return DefWindowProcA(hwnd, message, wParam, lParam);
-    }
-
-    msg.hwnd = hwnd;
-    msg.message = message;
-    msg.flags = sent|wparam|lparam;
-    if (defwndproc_counter) msg.flags |= defwinproc;
-    msg.wParam = wParam;
-    msg.lParam = lParam;
-    msg.descr = "recursive_activation";
-    add_message(&msg);
-
-    /* recursively activate ourselves by first losing activation and changing it back */
-    if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE)
-    {
-        SetActiveWindow((HWND)lParam);
-        SetActiveWindow(hwnd);
-        return 0;
-    }
-
-    defwndproc_counter++;
-    ret = DefWindowProcA(hwnd, message, wParam, lParam);
-    defwndproc_counter--;
-
-    return ret;
-}
-
 static LRESULT WINAPI PaintLoopProcA(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -11367,51 +11213,6 @@ static LRESULT WINAPI HotkeyMsgCheckProcA(HWND hwnd, UINT message, WPARAM wParam
     return ret;
 }
 
-static LRESULT WINAPI WmCopyDataProcA(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
-{
-    switch (msg)
-    {
-        case WM_COPYDATA:
-        {
-            static const DWORD expected_data_sizes[3] = {0, 64, 64 * 1024 * 1024};
-            static ULONG_PTR expected_dwdata = 0;
-            COPYDATASTRUCT *cds = (COPYDATASTRUCT *)lp;
-            unsigned char *ptr;
-            unsigned int i;
-            BOOL matched;
-
-            if (cds->dwData > 2)
-                return FALSE;
-
-            ok(!wm_copydata_done, "Got unexpected wm_copydata_done.\n");
-            ok(wp == (WPARAM)GetDesktopWindow(), "Got unexpected wp.\n");
-            ok(cds->dwData == expected_dwdata, "Got unexpected dwData %Id.\n", cds->dwData);
-            expected_dwdata++;
-            ok(cds->cbData == expected_data_sizes[cds->dwData], "Got unexpected cbData %#lx.\n", cds->cbData);
-
-            if (cds->dwData)
-                ok(!!cds->lpData, "Got unexpected lpData %p.\n", cds->lpData);
-            else
-                ok(!cds->lpData, "Got unexpected lpData %p.\n", cds->lpData);
-
-            matched = TRUE;
-            for (i = 0, ptr = cds->lpData; i < cds->cbData; i++, ptr++)
-            {
-                if (*ptr != i % 0xff)
-                {
-                    matched = FALSE;
-                    break;
-                }
-            }
-            ok(matched, "Got unexpected content.\n");
-            if (cds->dwData == 2)
-                wm_copydata_done = TRUE;
-            return TRUE;
-        }
-    }
-    return DefWindowProcA(hwnd,msg,wp,lp);
-}
-
 static void register_classes(void)
 {
     WNDCLASSA cls;
@@ -11437,10 +11238,6 @@ static void register_classes(void)
     cls.lpszClassName = "ShowWindowClass";
     register_class(&cls);
 
-    cls.lpfnWndProc = recursive_activation_wndprocA;
-    cls.lpszClassName = "RecursiveActivationClass";
-    register_class(&cls);
-
     cls.lpfnWndProc = PopupMsgCheckProcA;
     cls.lpszClassName = "TestPopupClass";
     register_class(&cls);
@@ -11459,10 +11256,6 @@ static void register_classes(void)
 
     cls.lpfnWndProc = PaintLoopProcA;
     cls.lpszClassName = "PaintLoopWindowClass";
-    register_class(&cls);
-
-    cls.lpfnWndProc = WmCopyDataProcA;
-    cls.lpszClassName = "WmCopyDataWindowClass";
     register_class(&cls);
 
     cls.style = CS_NOCLOSE;
@@ -11503,7 +11296,6 @@ static BOOL is_our_logged_class(HWND hwnd)
     {
 	if (!lstrcmpiA(buf, "TestWindowClass") ||
 	    !lstrcmpiA(buf, "ShowWindowClass") ||
-	    !lstrcmpiA(buf, "RecursiveActivationClass") ||
 	    !lstrcmpiA(buf, "TestParentClass") ||
 	    !lstrcmpiA(buf, "TestPopupClass") ||
 	    !lstrcmpiA(buf, "SimpleWindowClass") ||
@@ -12138,11 +11930,6 @@ static const struct message WmMouseLLHookSeq[] = {
     { 0 }
 };
 
-static const struct message WmSetText[] = {
-    { EVENT_OBJECT_NAMECHANGE, winevent_hook|wparam|lparam, OBJID_WINDOW, CHILDID_SELF },
-    { 0 }
-};
-
 static void CALLBACK win_event_global_hook_proc(HWINEVENTHOOK hevent,
 					 DWORD event,
 					 HWND hwnd,
@@ -12344,10 +12131,6 @@ static void test_winevents(void)
 			   CW_USEDEFAULT, CW_USEDEFAULT, 300, 300, 0,
 			   NULL, NULL, 0);
     ok(!!hwnd, "Failed to create window, error %lu.\n", GetLastError());
-
-    flush_sequence();
-    DefWindowProcA(hwnd, WM_SETTEXT, 0, (LPARAM)"test");
-    ok_sequence(WmSetText, "SetText on a simple window", FALSE);
 
     /****** start of global hook test *************/
     hCBT_global_hook = SetWindowsHookExA(WH_CBT, cbt_global_hook_proc, GetModuleHandleA(0), 0);
@@ -12708,29 +12491,6 @@ todo_wine {
 static HWND hook_hwnd;
 static HHOOK recursive_hook;
 static int hook_depth, max_hook_depth;
-static BOOL skip_WH_KEYBOARD_hook, skip_WH_MOUSE_hook;
-
-static void simulate_click(BOOL left, int x, int y)
-{
-    POINT old_pt;
-    INPUT input[2];
-    UINT events_no;
-
-    GetCursorPos(&old_pt);
-    SetCursorPos(x, y);
-    memset(input, 0, sizeof(input));
-    input[0].type = INPUT_MOUSE;
-    input[0].mi.dx = x;
-    input[0].mi.dy = y;
-    input[0].mi.dwFlags = left ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_RIGHTDOWN;
-    input[1].type = INPUT_MOUSE;
-    input[1].mi.dx = x;
-    input[1].mi.dy = y;
-    input[1].mi.dwFlags = left ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_RIGHTUP;
-    events_no = SendInput(2, input, sizeof(input[0]));
-    ok(events_no == 2, "SendInput returned %d\n", events_no);
-    SetCursorPos(old_pt.x, old_pt.y);
-}
 
 static LRESULT WINAPI rec_get_message_hook(int code, WPARAM w, LPARAM l)
 {
@@ -12751,85 +12511,12 @@ static LRESULT WINAPI rec_get_message_hook(int code, WPARAM w, LPARAM l)
     return res;
 }
 
-static LRESULT CALLBACK keyboard_recursive_hook_proc(int code, WPARAM wp, LPARAM lp)
-{
-    MSG msg;
-
-    if (code < 0)
-        return CallNextHookEx(0, code, wp, lp);
-
-    if (skip_WH_KEYBOARD_hook)
-        return 1;
-
-    hook_depth++;
-    max_hook_depth = max(max_hook_depth, hook_depth);
-    PeekMessageW(&msg, NULL, WM_KEYFIRST, WM_KEYLAST, PM_REMOVE);
-    hook_depth--;
-    return CallNextHookEx(0, code, wp, lp);
-}
-
-static LRESULT CALLBACK mouse_recursive_hook_proc(int code, WPARAM wp, LPARAM lp)
-{
-    MSG msg;
-
-    if (code < 0)
-        return CallNextHookEx(0, code, wp, lp);
-
-    if (skip_WH_MOUSE_hook)
-        return 1;
-
-    hook_depth++;
-    max_hook_depth = max(max_hook_depth, hook_depth);
-    PeekMessageW(&msg, NULL, WM_MOUSEFIRST, WM_MOUSELAST, PM_REMOVE);
-    hook_depth--;
-    return CallNextHookEx(0, code, wp, lp);
-}
-
-static LRESULT CALLBACK keyboard_recursive_cbt_hook_proc(int code, WPARAM wp, LPARAM lp)
-{
-    MSG msg;
-
-    if (code < 0)
-        return CallNextHookEx(0, code, wp, lp);
-
-    if (code == HCBT_KEYSKIPPED)
-    {
-        hook_depth++;
-        max_hook_depth = max(max_hook_depth, hook_depth);
-        PeekMessageW(&msg, NULL, WM_KEYFIRST, WM_KEYLAST, PM_REMOVE);
-        hook_depth--;
-    }
-
-    return CallNextHookEx(0, code, wp, lp);
-}
-
-static LRESULT CALLBACK mouse_recursive_cbt_hook_proc(int code, WPARAM wp, LPARAM lp)
-{
-    MSG msg;
-
-    if (code < 0)
-        return CallNextHookEx(0, code, wp, lp);
-
-    if (code == HCBT_CLICKSKIPPED)
-    {
-        hook_depth++;
-        max_hook_depth = max(max_hook_depth, hook_depth);
-        PeekMessageW(&msg, NULL, WM_MOUSEFIRST, WM_MOUSELAST, PM_REMOVE);
-        hook_depth--;
-    }
-
-    return CallNextHookEx(0, code, wp, lp);
-}
-
 static void test_recursive_hook(void)
 {
-    HHOOK hook, cbt_hook;
-    INPUT input = {0};
     MSG msg;
     BOOL b;
 
-    hook_hwnd = CreateWindowExA(WS_EX_TOPMOST, "Static", NULL, WS_POPUP | WS_VISIBLE, 0, 0, 200, 60,
-                                NULL, NULL, NULL, NULL);
+    hook_hwnd = CreateWindowA("Static", NULL, WS_POPUP, 0, 0, 200, 60, NULL, NULL, NULL, NULL);
     ok(hook_hwnd != NULL, "CreateWindow failed\n");
 
     recursive_hook = SetWindowsHookExW(WH_GETMESSAGE, rec_get_message_hook, NULL, GetCurrentThreadId());
@@ -12846,119 +12533,7 @@ static void test_recursive_hook(void)
     b = UnhookWindowsHookEx(recursive_hook);
     ok(b, "UnhokWindowsHookEx failed\n");
 
-    /* Test possible recursive hook conditions */
-    b = SetForegroundWindow(hook_hwnd);
-    ok(b, "SetForegroundWindow failed, error %ld.\n", GetLastError());
-
-    /* Test a possible recursive WH_KEYBOARD hook condition */
-    max_hook_depth = 0;
-    hook = SetWindowsHookExA(WH_KEYBOARD, keyboard_recursive_hook_proc, NULL, GetCurrentThreadId());
-    ok(!!hook, "SetWindowsHookExA failed, error %ld.\n", GetLastError());
-
-    flush_events();
-    input.type = INPUT_KEYBOARD;
-    input.ki.wVk = VK_F3;
-    SendInput(1, &input, sizeof(INPUT));
-    flush_events();
-
-    /* Expect the WH_KEYBOARD hook not gets called recursively */
-    ok(max_hook_depth == 1, "Got expected %d.\n", max_hook_depth);
-
-    /* Test a possible recursive WH_CBT HCBT_KEYSKIPPED hook condition */
-    max_hook_depth = 0;
-    skip_WH_KEYBOARD_hook = 1;
-    cbt_hook = SetWindowsHookExA(WH_CBT, keyboard_recursive_cbt_hook_proc, NULL, GetCurrentThreadId());
-    ok(!!cbt_hook, "SetWindowsHookExA failed, error %ld.\n", GetLastError());
-
-    flush_events();
-    input.type = INPUT_KEYBOARD;
-    input.ki.wVk = VK_F3;
-    SendInput(1, &input, sizeof(INPUT));
-    while (PeekMessageA(&msg, hook_hwnd, WM_KEYFIRST, WM_KEYLAST, 0)) DispatchMessageA(&msg);
-
-    /* Expect the WH_CBT HCBT_KEYSKIPPED hook not gets called recursively */
-    ok(max_hook_depth == 1, "Got expected %d.\n", max_hook_depth);
-
-    UnhookWindowsHookEx(cbt_hook);
-    UnhookWindowsHookEx(hook);
-
-    /* Test a recursive WH_MOUSE hook condition */
-    SetCapture(hook_hwnd);
-
-    max_hook_depth = 0;
-    hook = SetWindowsHookExA(WH_MOUSE, mouse_recursive_hook_proc, NULL, GetCurrentThreadId());
-    ok(!!hook, "SetWindowsHookExA failed, error %ld.\n", GetLastError());
-
-    flush_events();
-    simulate_click(FALSE, 50, 50);
-    flush_events();
-
-    /* Expect the WH_MOUSE hook gets called recursively */
-    ok(max_hook_depth > 10, "Got expected %d.\n", max_hook_depth);
-
-    /* Test a possible recursive WH_CBT HCBT_CLICKSKIPPED hook condition */
-    max_hook_depth = 0;
-    skip_WH_MOUSE_hook = 1;
-    cbt_hook = SetWindowsHookExA(WH_CBT, mouse_recursive_cbt_hook_proc, NULL, GetCurrentThreadId());
-    ok(!!cbt_hook, "SetWindowsHookExA failed, error %ld.\n", GetLastError());
-
-    flush_events();
-    simulate_click(FALSE, 50, 50);
-    flush_events();
-
-    /* Expect the WH_CBT HCBT_CLICKSKIPPED hook not gets called recursively */
-    ok(max_hook_depth <= 10, "Got expected %d.\n", max_hook_depth);
-
-    UnhookWindowsHookEx(cbt_hook);
-    UnhookWindowsHookEx(hook);
-    ReleaseCapture();
     DestroyWindow(hook_hwnd);
-}
-
-static int max_msg_depth;
-
-static LRESULT WINAPI recursive_messages_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
-{
-    static int msg_depth;
-    MSG msg;
-
-    if (message == WM_SETCURSOR && max_msg_depth < 15)
-    {
-        msg_depth++;
-        max_msg_depth = max(max_msg_depth, msg_depth);
-        PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE);
-        msg_depth--;
-    }
-    return DefWindowProcA(hwnd, message, wp, lp);
-}
-
-static void test_recursive_messages(void)
-{
-    WNDCLASSA cls = {0};
-    HWND hwnd;
-
-    cls.lpfnWndProc = recursive_messages_proc;
-    cls.hInstance = GetModuleHandleA(0);
-    cls.hCursor = LoadCursorA(0, (LPCSTR)IDC_ARROW);
-    cls.hbrBackground = GetStockObject(WHITE_BRUSH);
-    cls.lpszClassName = "TestRecursiveMsgClass";
-    register_class(&cls);
-
-    hwnd = CreateWindowExA(WS_EX_TOPMOST, "TestRecursiveMsgClass", NULL, WS_POPUP | WS_DISABLED | WS_VISIBLE, 0, 0,
-                           100, 100, NULL, NULL, NULL, NULL);
-    ok(hwnd != NULL, "CreateWindowExA failed, error %ld.\n", GetLastError());
-    SetForegroundWindow(hwnd);
-    flush_events();
-
-    max_msg_depth = 0;
-    simulate_click(FALSE, 50, 50);
-    flush_events();
-
-    /* Expect recursive_messages_proc() gets called recursively for WM_SETCURSOR */
-    ok(max_msg_depth == 15, "Got expected %d.\n", max_msg_depth);
-
-    DestroyWindow(hwnd);
-    UnregisterClassA(cls.lpszClassName, cls.hInstance);
 }
 
 static const struct message ScrollWindowPaint1[] = {
@@ -12980,16 +12555,10 @@ static const struct message ScrollWindowPaint2[] = {
     { 0 }
 };
 
-static const struct message ScrollWindowExSeq[] = {
-    { WM_MOVE, sent },
-    { 0 }
-};
-
 static void test_scrollwindowex(void)
 {
     HWND hwnd, hchild;
     RECT rect={0,0,130,130};
-    int ret;
 
     hwnd = CreateWindowExA(0, "TestWindowClass", "Test Scroll",
             WS_VISIBLE|WS_OVERLAPPEDWINDOW,
@@ -13005,10 +12574,8 @@ static void test_scrollwindowex(void)
 
     /* scroll without the child window */
     if (winetest_debug > 1) trace("start scroll\n");
-    ret = ScrollWindowEx( hwnd, 10, 10, &rect, NULL, NULL, NULL,
+    ScrollWindowEx( hwnd, 10, 10, &rect, NULL, NULL, NULL,
             SW_ERASE|SW_INVALIDATE);
-    todo_wine
-    ok(ret == COMPLEXREGION, "got %d\n", ret);
     ok_sequence(WmEmptySeq, "ScrollWindowEx", FALSE);
     if (winetest_debug > 1) trace("end scroll\n");
     flush_sequence();
@@ -13019,9 +12586,7 @@ static void test_scrollwindowex(void)
 
     /* Now without the SW_ERASE flag */
     if (winetest_debug > 1) trace("start scroll\n");
-    ret = ScrollWindowEx( hwnd, 10, 10, &rect, NULL, NULL, NULL, SW_INVALIDATE);
-    todo_wine
-    ok(ret == COMPLEXREGION, "got %d\n", ret);
+    ScrollWindowEx( hwnd, 10, 10, &rect, NULL, NULL, NULL, SW_INVALIDATE);
     ok_sequence(WmEmptySeq, "ScrollWindowEx", FALSE);
     if (winetest_debug > 1) trace("end scroll\n");
     flush_sequence();
@@ -13032,10 +12597,8 @@ static void test_scrollwindowex(void)
 
     /* now scroll the child window as well */
     if (winetest_debug > 1) trace("start scroll\n");
-    ret = ScrollWindowEx( hwnd, 10, 10, &rect, NULL, NULL, NULL,
+    ScrollWindowEx( hwnd, 10, 10, &rect, NULL, NULL, NULL,
             SW_SCROLLCHILDREN|SW_ERASE|SW_INVALIDATE);
-    todo_wine
-    ok(ret == COMPLEXREGION, "got %d\n", ret);
     /* wine sends WM_POSCHANGING, WM_POSCHANGED messages */
     /* windows sometimes a WM_MOVE */
     ok_sequence(WmEmptySeq, "ScrollWindowEx", TRUE);
@@ -13046,43 +12609,13 @@ static void test_scrollwindowex(void)
     flush_events();
     flush_sequence();
 
-    ret = ScrollWindowEx(hwnd, 10, 10, NULL, NULL, NULL, NULL,
-            SW_SCROLLCHILDREN|SW_ERASE|SW_INVALIDATE);
-    todo_wine
-    ok(ret == COMPLEXREGION, "got %d\n", ret);
-    ok_sequence(ScrollWindowExSeq, "ScrollWindowEx", TRUE);
-    flush_events();
-    flush_sequence();
-    ok_sequence(WmEmptySeq, "ScrollWindowEx", FALSE);
-    flush_events();
-    flush_sequence();
-
     /* now scroll with ScrollWindow() */
     if (winetest_debug > 1) trace("start scroll with ScrollWindow\n");
-    ret = ScrollWindow( hwnd, 5, 5, NULL, NULL);
-    ok(ret, "got %d\n", ret);
+    ScrollWindow( hwnd, 5, 5, NULL, NULL);
     if (winetest_debug > 1) trace("end scroll\n");
     flush_sequence();
     flush_events();
     ok_sequence(ScrollWindowPaint1, "ScrollWindow", FALSE);
-
-    ShowWindow(hwnd, SW_HIDE);
-    flush_sequence();
-    flush_events();
-
-    ret = ScrollWindowEx(hwnd, 10, 10, &rect, NULL, NULL, NULL,
-            SW_SCROLLCHILDREN|SW_ERASE|SW_INVALIDATE);
-    ok(ret == NULLREGION, "got %d\n", ret);
-    ok_sequence(WmEmptySeq, "ScrollWindowEx", TRUE);
-    flush_events();
-    flush_sequence();
-
-    ret = ScrollWindowEx(hwnd, 10, 10, NULL, NULL, NULL, NULL,
-            SW_SCROLLCHILDREN|SW_ERASE|SW_INVALIDATE);
-    ok(ret == NULLREGION, "got %d\n", ret);
-    ok_sequence(ScrollWindowExSeq, "ScrollWindowEx", TRUE);
-    flush_events();
-    flush_sequence();
 
     ok(DestroyWindow(hchild), "failed to destroy window\n");
     ok(DestroyWindow(hwnd), "failed to destroy window\n");
@@ -13090,14 +12623,13 @@ static void test_scrollwindowex(void)
 }
 
 static const struct message destroy_window_with_children[] = {
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 }, /* popup */
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* popup */
     { HCBT_DESTROYWND, hook|lparam, 0, WND_PARENT_ID }, /* parent */
     { 0x0090, sent|optional },
     { HCBT_DESTROYWND, hook|lparam, 0, WND_POPUP_ID }, /* popup */
     { 0x0090, sent|optional },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, 0, 0 }, /* popup */
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 }, /* popup */
     { WM_DESTROY, sent|wparam|lparam, 0, WND_POPUP_ID }, /* popup */
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|wine_only, 0, 0 }, /* popup */
     { WM_CAPTURECHANGED, sent|wparam|lparam, 0, WND_POPUP_ID }, /* popup */
     { WM_NCDESTROY, sent|wparam|lparam, 0, WND_POPUP_ID }, /* popup */
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 }, /* parent */
@@ -13450,15 +12982,14 @@ static const struct message sl_edit_setfocus[] =
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EM_GETPASSWORDCHAR, sent|optional }, /* Sent on some Win10 machines */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam, 0 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 10 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 15 },
     { WM_CTLCOLOREDIT, sent|parent },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 11 },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_EDIT, EN_SETFOCUS) },
     { 0 }
 };
@@ -13469,11 +13000,10 @@ static const struct message sl_edit_invisible[] =
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 }, /* Sent for IME. */
     { WM_KILLFOCUS, sent|parent },
-    { EM_GETPASSWORDCHAR, sent|optional }, /* Sent on some Win10 machines */
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_EDIT, EN_SETFOCUS) },
     { 0 }
 };
@@ -13482,13 +13012,12 @@ static const struct message ml_edit_setfocus[] =
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EM_GETPASSWORDCHAR, sent|optional }, /* Sent on some Win10 machines */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam, 0 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 10 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 11 },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, OBJID_CARET, 0 },
     { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_EDIT, EN_SETFOCUS) },
     { 0 }
@@ -13496,10 +13025,10 @@ static const struct message ml_edit_setfocus[] =
 static const struct message sl_edit_killfocus[] =
 {
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_KILLFOCUS, sent|wparam, 0 },
-    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_EDIT, EN_KILLFOCUS) },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 0 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 1 },
@@ -13508,64 +13037,61 @@ static const struct message sl_edit_killfocus[] =
 static const struct message sl_edit_lbutton_dblclk[] =
 {
     { WM_LBUTTONDBLCLK, sent },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message sl_edit_lbutton_down[] =
 {
     { WM_LBUTTONDOWN, sent|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EM_GETPASSWORDCHAR, sent|defwinproc|optional }, /* Sent on some Win10 machines */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 10 },
     { WM_CTLCOLOREDIT, sent|parent },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 11 },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, OBJID_CARET, 0 },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_EDIT, EN_SETFOCUS) },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
-    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { WM_CTLCOLOREDIT, sent|parent|optional },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 11 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, OBJID_CARET, 0 },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { 0 }
 };
 static const struct message ml_edit_lbutton_down[] =
 {
     { WM_LBUTTONDOWN, sent|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EM_GETPASSWORDCHAR, sent|defwinproc|optional }, /* Sent on some Win10 machines */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam|defwinproc, 0 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 10 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 11 },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_EDIT, EN_SETFOCUS) },
     { 0 }
 };
 static const struct message sl_edit_lbutton_up[] =
 {
     { WM_LBUTTONUP, sent|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|defwinproc },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { 0 }
 };
 static const struct message ml_edit_lbutton_up[] =
 {
     { WM_LBUTTONUP, sent|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|defwinproc },
     { 0 }
 };
@@ -14648,10 +14174,13 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = PeekMessageA(&msg, hwnd, 0, 0, PM_NOREMOVE);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -14661,8 +14190,10 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, PM_REMOVE);
+    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -14674,11 +14205,10 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
-    ret = GetMessageA(&msg, NULL, 0, 0);
-    ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
-    ret = GetMessageA(&msg, NULL, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -14706,30 +14236,12 @@ static void test_PeekMessage3(void)
     ret = GetMessageA(&msg, hwnd, 0, 0);
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, hwnd, 0, 0);
+    todo_wine
     ok(ret && msg.message == WM_USER + 1, "msg.message = %u instead of WM_USER + 1\n", msg.message);
     ret = PeekMessageA(&msg, hwnd, 0, 0, 0);
-    ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
-
-    /* Newer messages are still returned when specifying a message range. */
-
-    SetTimer(hwnd, 1, 0, NULL);
-    while (!PeekMessageA(&msg, NULL, WM_TIMER, WM_TIMER, PM_NOREMOVE));
-    ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
-    PostMessageA(hwnd, WM_USER + 1, 0, 0);
-    PostMessageA(hwnd, WM_USER, 0, 0);
-    ret = PeekMessageA(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
-    ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, WM_USER, WM_USER + 1, PM_NOREMOVE);
-    ok(ret && msg.message == WM_USER + 1, "msg.message = %u instead of WM_USER + 1\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
-    ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
-    ok(ret && msg.message == WM_USER + 1, "msg.message = %u instead of WM_USER + 1\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
-    ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
-    ret = PeekMessageA(&msg, NULL, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
 
     /* Also works for posted messages, but the situation is a bit different,
@@ -14799,7 +14311,7 @@ static const struct message WmQuitDialogSeq[] = {
     { WM_SETFONT, sent },
     { WM_INITDIALOG, sent },
     { WM_CHANGEUISTATE, sent|optional },
-    { EVENT_SYSTEM_DIALOGEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_DIALOGEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_DESTROYWND, hook },
     { 0x0090, sent|optional }, /* Vista */
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 },
@@ -14980,12 +14492,6 @@ static const struct message WmMouseHoverSeq[] = {
     { 0 }
 };
 
-static const struct message WmMouseLeaveSeq[] =
-{
-    { WM_MOUSELEAVE, sent | wparam | lparam, 0, 0 },
-    { 0 }
-};
-
 static void pump_msg_loop_timeout(DWORD timeout, BOOL inject_mouse_move)
 {
     MSG msg;
@@ -15034,10 +14540,9 @@ static void test_TrackMouseEvent(void)
 {
     TRACKMOUSEEVENT tme;
     BOOL ret;
-    HWND hwnd, hwnd2, hchild;
+    HWND hwnd, hchild;
     RECT rc_parent, rc_child;
     UINT default_hover_time, hover_width = 0, hover_height = 0;
-    POINT old_pt;
 
 #define track_hover(track_hwnd, track_hover_time) \
     tme.cbSize = sizeof(tme); \
@@ -15210,83 +14715,6 @@ static void test_TrackMouseEvent(void)
 
     DestroyWindow(hwnd);
 
-    /* Test that tracking a new window with TME_LEAVE and when the cursor is not in the new window,
-     * WM_MOUSELEAVE is immediately posted to the window */
-    hwnd = CreateWindowA("static", NULL, WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 100,
-                         100, 0, NULL, NULL, 0);
-    ok(!!hwnd, "Failed to create window, error %lu.\n", GetLastError());
-    hwnd2 = CreateWindowA("TestWindowClass", NULL, WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, 50, 50,
-                          0, NULL, NULL, 0);
-    ok(!!hwnd2, "Failed to create window, error %lu.\n", GetLastError());
-
-    GetCursorPos(&old_pt);
-    SetCursorPos(150, 150);
-
-    flush_events();
-    flush_sequence();
-
-    tme.cbSize = sizeof(tme);
-    tme.dwFlags = TME_LEAVE;
-    tme.hwndTrack = hwnd;
-    tme.dwHoverTime = HOVER_DEFAULT;
-    SetLastError(0xdeadbeef);
-    ret = pTrackMouseEvent(&tme);
-    ok(ret, "TrackMouseEvent(TME_LEAVE) failed, error %ld\n", GetLastError());
-
-    tme.cbSize = sizeof(tme);
-    tme.dwFlags = TME_LEAVE;
-    tme.hwndTrack = hwnd2;
-    tme.dwHoverTime = HOVER_DEFAULT;
-    SetLastError(0xdeadbeef);
-    ret = pTrackMouseEvent(&tme);
-    ok(ret, "TrackMouseEvent(TME_LEAVE) failed, error %ld\n", GetLastError());
-    flush_events();
-    ok_sequence(WmMouseLeaveSeq, "WmMouseLeaveSeq", FALSE);
-
-    DestroyWindow(hwnd2);
-    DestroyWindow(hwnd);
-    SetCursorPos(old_pt.x, old_pt.y);
-
-    /* Test that tracking a new window with TME_LEAVE and when the cursor is not in the new window,
-     * the original tracking window is not changed */
-    hwnd = CreateWindowA("TestWindowClass", NULL, WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 100,
-                         100, 0, NULL, NULL, 0);
-    ok(!!hwnd, "Failed to create window, error %lu.\n", GetLastError());
-    hwnd2 = CreateWindowA("static", NULL, WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, 50, 50, 0, NULL,
-                          NULL, 0);
-    ok(!!hwnd2, "Failed to create window, error %lu.\n", GetLastError());
-
-    GetCursorPos(&old_pt);
-    SetCursorPos(150, 150);
-
-    flush_events();
-    flush_sequence();
-
-    tme.cbSize = sizeof(tme);
-    tme.dwFlags = TME_LEAVE;
-    tme.hwndTrack = hwnd;
-    tme.dwHoverTime = HOVER_DEFAULT;
-    SetLastError(0xdeadbeef);
-    ret = pTrackMouseEvent(&tme);
-    ok(ret, "TrackMouseEvent(TME_LEAVE) failed, error %ld\n", GetLastError());
-
-    tme.cbSize = sizeof(tme);
-    tme.dwFlags = TME_LEAVE;
-    tme.hwndTrack = hwnd2;
-    tme.dwHoverTime = HOVER_DEFAULT;
-    SetLastError(0xdeadbeef);
-    ret = pTrackMouseEvent(&tme);
-    ok(ret, "TrackMouseEvent(TME_LEAVE) failed, error %ld\n", GetLastError());
-
-    SetCursorPos(500, 500);
-    Sleep(default_hover_time);
-    flush_events();
-    ok_sequence(WmMouseLeaveSeq, "WmMouseLeaveSeq", FALSE);
-
-    DestroyWindow(hwnd2);
-    DestroyWindow(hwnd);
-    SetCursorPos(old_pt.x, old_pt.y);
-
 #undef track_hover
 #undef track_query
 #undef track_hover_cancel
@@ -15301,7 +14729,7 @@ static const struct message WmSetWindowRgn[] = {
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOSIZE|SWP_NOMOVE },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 
@@ -15310,7 +14738,7 @@ static const struct message WmSetWindowRgn_no_redraw[] = {
             |SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOSIZE|SWP_NOMOVE|SWP_NOREDRAW, 0 },
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOSIZE|SWP_NOMOVE|SWP_NOREDRAW },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 
@@ -15321,14 +14749,14 @@ static const struct message WmSetWindowRgn_clear[] = {
     { WM_NCCALCSIZE, sent|wparam, 1 },
     { WM_NCPAINT, sent|optional },
     { WM_GETTEXT, sent|defwinproc|optional },
-    { WM_ERASEBKGND, sent },
+    { WM_ERASEBKGND, sent|optional }, /* FIXME: remove optional once Wine is fixed */
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOSIZE|SWP_NOMOVE },
     { WM_NCCALCSIZE, sent|wparam|optional, 1 },
     { WM_NCPAINT, sent|optional },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_NCCALCSIZE, sent|optional|wparam, 1 },
     { WM_NCPAINT, sent|optional },
@@ -15339,7 +14767,7 @@ static const struct message WmSetWindowRgn_clear[] = {
     { WM_NCPAINT, sent|optional },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Not always sent. */
     { 0 }
 };
@@ -15381,10 +14809,10 @@ static const struct message WmShowNormal[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* win2003 doesn't send it */
     { HCBT_SETFOCUS, hook },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 sends it, but Win8+ doesn't. */
     { 0 }
@@ -15394,10 +14822,8 @@ static const struct message WmShow[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook|optional }, /* win2000 doesn't send it */
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* win2000 doesn't send it */
     { HCBT_SETFOCUS, hook|optional }, /* win2000 doesn't send it */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|wine_only, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { 0 }
 };
@@ -15408,14 +14834,14 @@ static const struct message WmShowNoActivate_1[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_STATECHANGED, 0, SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_MOVE, sent|defwinproc|optional },
     { WM_SIZE, sent|wparam|defwinproc, SIZE_RESTORED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
     { 0 }
 };
 static const struct message WmShowNoActivate_2[] = {
     { HCBT_MINMAX, hook|lparam, 0, SW_SHOWNOACTIVATE },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED, 0, SWP_NOACTIVATE },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook|optional },
     { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 sends this. */
@@ -15427,18 +14853,14 @@ static const struct message WmShowNoActivate_2[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED, 0, SWP_NOACTIVATE },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|defwinproc, SIZE_RESTORED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|wine_only, 0, 0 },
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { HCBT_SETFOCUS, hook|optional },
     { HCBT_ACTIVATE, hook|optional }, /* win2003 doesn't send it */
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* win2003 doesn't send it */
     { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { HCBT_SETFOCUS, hook|optional }, /* win2003 doesn't send it */
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|wine_only, OBJID_CLIENT, 0 },
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmShowNA_1[] = {
@@ -15457,19 +14879,17 @@ static const struct message WmShowNA_2[] = {
 static const struct message WmRestore_1[] = {
     { HCBT_MINMAX, hook|lparam, 0, SW_RESTORE },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook|optional }, /* win2000 doesn't send it */
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* win2000 doesn't send it */
     { HCBT_SETFOCUS, hook|optional }, /* win2000 doesn't send it */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|wine_only, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|defwinproc, SIZE_RESTORED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook|optional }, /* win2000 sends it */
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 },
     { 0 }
@@ -15479,10 +14899,8 @@ static const struct message WmRestore_2[] = {
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook|optional }, /* win2000 doesn't send it */
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* win2000 doesn't send it */
     { HCBT_SETFOCUS, hook|optional }, /* win2000 doesn't send it */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|wine_only, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { 0 }
 };
@@ -15490,21 +14908,20 @@ static const struct message WmRestore_3[] = {
     { HCBT_MINMAX, hook|lparam, 0, SW_RESTORE },
     { WM_GETMINMAXINFO, sent },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_ACTIVATE, hook|optional }, /* win2003 doesn't send it */
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* win2003 doesn't send it */
     { WM_WINDOWPOSCHANGED, sent|optional }, /* Win8+ sometimes sends this. */
     { HCBT_SETFOCUS, hook|optional }, /* win2003 doesn't send it */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGED, sent|optional },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|defwinproc, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_SETFOCUS, hook|optional }, /* win2003 sends it */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|wine_only, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmRestore_4[] = {
@@ -15513,7 +14930,7 @@ static const struct message WmRestore_4[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_FRAMECHANGED|SWP_STATECHANGED, 0, SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_MOVE, sent|defwinproc|optional },
     { WM_SIZE, sent|wparam|defwinproc|optional, SIZE_RESTORED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
     { 0 }
 };
@@ -15559,16 +14976,16 @@ static const struct message WmHide_3[] = {
 static const struct message WmShowMinimized_1[] = {
     { HCBT_MINMAX, hook|lparam, 0, SW_SHOWMINIMIZED },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook|optional }, /* win2000 doesn't send it */
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* win2000 doesn't send it */
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|lparam|defwinproc, SIZE_MINIMIZED, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmMinimize_1[] = {
@@ -15576,32 +14993,32 @@ static const struct message WmMinimize_1[] = {
     { HCBT_SETFOCUS, hook|optional }, /* win2000 doesn't send it */
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|lparam|defwinproc, SIZE_MINIMIZED, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmMinimize_2[] = {
     { HCBT_MINMAX, hook|lparam, 0, SW_MINIMIZE },
     { HCBT_SETFOCUS, hook|optional },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED, 0, SWP_NOACTIVATE },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED, 0, SWP_NOACTIVATE },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|lparam|defwinproc, SIZE_MINIMIZED, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmMinimize_3[] = {
     { HCBT_MINMAX, hook|lparam, 0, SW_MINIMIZE },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOACTIVATE|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED, 0, SWP_NOACTIVATE },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook|optional },
     { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Sometimes sent on Win8/10. */
@@ -15611,9 +15028,9 @@ static const struct message WmMinimize_3[] = {
     { WM_WINDOWPOSCHANGED, sent|optional },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|lparam|defwinproc, SIZE_MINIMIZED, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 static const struct message WmShowMinNoActivate[] = {
@@ -15659,19 +15076,17 @@ static const struct message WmShowMaximized_1[] = {
     { HCBT_MINMAX, hook|lparam, 0, SW_SHOWMAXIMIZED },
     { WM_GETMINMAXINFO, sent },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
     { HCBT_ACTIVATE, hook|optional }, /* win2000 doesn't send it */
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|wine_only, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE }, /* win2000 doesn't send it */
     { HCBT_SETFOCUS, hook|optional }, /* win2000 doesn't send it */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|wine_only, OBJID_CLIENT, 0 },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_SHOWWINDOW|SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|defwinproc, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook|optional }, /* win2003 sends it */
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 },
     { 0 }
@@ -15692,9 +15107,9 @@ static const struct message WmShowMaximized_2[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam|optional, SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|wparam|defwinproc, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook|optional },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|optional, OBJID_CLIENT, 0 },
     { 0 }
@@ -15709,7 +15124,7 @@ static const struct message WmShowMaximized_3[] = {
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_FRAMECHANGED|SWP_STATECHANGED, 0, SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE|SWP_NOSIZE|SWP_NOMOVE },
     { WM_MOVE, sent|defwinproc|optional },
     { WM_SIZE, sent|wparam|defwinproc, SIZE_MAXIMIZED },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
     { 0 }
 };
@@ -16057,15 +15472,14 @@ static const struct message WmDefDlgSetFocus_1[] = {
     { HCBT_SETFOCUS, hook },
     { WM_IME_SETCONTEXT, sent|wparam|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EM_GETPASSWORDCHAR, sent|optional }, /* Sent on some Win10 machines */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|wparam, 0 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 10 },
     { WM_CTLCOLOREDIT, sent },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 11 },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { WM_COMMAND, sent|wparam, MAKEWPARAM(1, EN_SETFOCUS) },
     { 0 }
 };
@@ -16075,9 +15489,9 @@ static const struct message WmDefDlgSetFocus_2[] = {
     { WM_GETTEXT, sent|wparam|optional, 6 }, /* XP */
     { WM_GETTEXT, sent|wparam|optional, 12 }, /* XP */
     { EM_SETSEL, sent|wparam, 0 }, /* XP sets lparam to text length, Win9x to -2 */
-    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { WM_CTLCOLOREDIT, sent|optional }, /* XP */
-    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|msg_todo, OBJID_CARET, 0 },
+    { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CARET, 0 },
     { 0 }
 };
 /* Creation of a dialog */
@@ -16105,10 +15519,10 @@ static const struct message WmCreateDialogParamSeq_1[] = {
     { WM_MOVE, sent },
     { WM_SETFONT, sent },
     { WM_INITDIALOG, sent },
-    { WM_GETDLGCODE, sent|wparam|lparam|msg_todo, 0, 0 }, /* FIXME: Wine doesn't send it */
+    { WM_GETDLGCODE, sent|wparam|lparam|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
     { HCBT_SETFOCUS, hook },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|optional },
     { WM_PALETTEISCHANGING, sent|optional },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
@@ -16119,7 +15533,7 @@ static const struct message WmCreateDialogParamSeq_1[] = {
     { WM_ACTIVATEAPP, sent|wparam, 1 },
     { WM_NCACTIVATE, sent },
     { WM_ACTIVATE, sent|wparam, 1 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent },
     { WM_CHANGEUISTATE, sent|optional },
     { 0 }
@@ -16139,7 +15553,7 @@ static const struct message WmCreateDialogParamSeq_2[] = {
 
 static const struct message WmCreateDialogParamSeq_3[] = {
     { HCBT_CREATEWND, hook },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SETFONT, sent|parent },
     { WM_INITDIALOG, sent|parent },
     { WM_GETDLGCODE, sent|wparam|lparam, 0, 0 },
@@ -16148,7 +15562,7 @@ static const struct message WmCreateDialogParamSeq_3[] = {
     { EM_SETSEL, sent|wparam|lparam|optional, 0, INT_MAX },
     { EM_SETSEL, sent|wparam|lparam|optional, 0, INT_MAX },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|parent|optional }, /* TODO: this message should not be sent */
     { WM_WINDOWPOSCHANGING, sent|parent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_WINDOWPOSCHANGING, sent|parent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
@@ -16161,7 +15575,6 @@ static const struct message WmCreateDialogParamSeq_3[] = {
     { WM_ACTIVATEAPP, sent|parent|wparam, 1 },
     { WM_NCACTIVATE, sent|parent },
     { WM_ACTIVATE, sent|parent|wparam, 1 },
-    { EM_GETPASSWORDCHAR, sent|optional }, /* Sent on some Win10 machines */
     { WM_SETFOCUS, sent },
     { WM_COMMAND, sent|parent|wparam, MAKELONG(200, EN_SETFOCUS) },
     { WM_GETDLGCODE, sent|wparam|lparam, 0, 0 },
@@ -16175,7 +15588,7 @@ static const struct message WmCreateDialogParamSeq_4[] = {
     { WM_NCCREATE, sent|parent },
     { WM_NCCALCSIZE, sent|parent|wparam, 0 },
     { WM_CREATE, sent|parent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SIZE, sent|parent|wparam, SIZE_RESTORED },
     { WM_MOVE, sent|parent },
     { WM_SETFONT, sent|parent },
@@ -16186,7 +15599,7 @@ static const struct message WmCreateDialogParamSeq_4[] = {
     { EM_SETSEL, sent|wparam|lparam|optional, 0, INT_MAX },
     { EM_SETSEL, sent|wparam|lparam|optional, 0, INT_MAX },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|parent|optional }, /* TODO: this message should not be sent */
     { WM_WINDOWPOSCHANGING, sent|parent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_WINDOWPOSCHANGING, sent|parent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
@@ -16200,7 +15613,6 @@ static const struct message WmCreateDialogParamSeq_4[] = {
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|parent },
     { WM_KILLFOCUS, sent|parent },
-    { EM_GETPASSWORDCHAR, sent|optional }, /* Sent on some Win10 machines */
     { WM_SETFOCUS, sent },
     { WM_COMMAND, sent|parent|wparam, MAKELONG(200, EN_SETFOCUS) },
     { WM_GETDLGCODE, sent|wparam|lparam, 0, 0 },
@@ -16377,13 +15789,6 @@ static void test_dialog_messages(void)
     DestroyWindow(child);
     DestroyWindow(parent);
     flush_sequence();
-
-    hdlg = CreateDialogParamA(0, "TEST_DIALOG", 0, test_dlg_proc, 0);
-    ok(IsWindow(hdlg), "CreateDialogParam failed\n");
-    ok_sequence(create_visible_dialog_seq, "create visible dialog", TRUE);
-    EndDialog(hdlg, 0);
-    DestroyWindow(hdlg);
-    flush_sequence();
 }
 
 static void test_enddialog_seq(HWND dialog, HWND owner)
@@ -16395,7 +15800,7 @@ static void test_enddialog_seq(HWND dialog, HWND owner)
         { HCBT_ACTIVATE, hook|wparam, (WPARAM)owner },
         { WM_NCACTIVATE, sent|wparam|lparam, WA_INACTIVE, (LPARAM)owner },
         { WM_ACTIVATE, sent|wparam|lparam, WA_INACTIVE, (LPARAM)owner },
-        { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+        { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
         /* FIXME: Following two are optional because Wine sends WM_QUERYNEWPALETTE instead of WM_WINDOWPOSCHANGING */
         { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
         { WM_QUERYNEWPALETTE, sent|optional },
@@ -16423,7 +15828,7 @@ static void test_enddialog_seq2(HWND dialog, HWND owner)
         { HCBT_ACTIVATE, hook|wparam, (WPARAM)owner },
         { WM_NCACTIVATE, sent|wparam|lparam, WA_INACTIVE, (LPARAM)owner },
         { WM_ACTIVATE, sent|wparam|lparam, WA_INACTIVE, (LPARAM)owner },
-        { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+        { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
         { WM_WINDOWPOSCHANGING, sent|optional|wparam, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
         { WM_WINDOWPOSCHANGING, sent|optional|wparam, SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE },
         { HCBT_SETFOCUS, hook|wparam, (WPARAM)owner },
@@ -16572,7 +15977,7 @@ static const struct message SetActiveWindowSeq0[] =
     { WM_NCACTIVATE, sent|wparam, 0 },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ACTIVATE, sent|wparam, 0 },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ACTIVATEAPP, sent|wparam|optional, 0 },
     { WM_ACTIVATEAPP, sent|wparam|optional, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
@@ -16590,7 +15995,7 @@ static const struct message SetActiveWindowSeq0[] =
     { WM_IME_SETCONTEXT, sent|optional },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 1 },
     { WM_IME_NOTIFY, sent|wparam|defwinproc|optional, 2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent|defwinproc|optional },
     { WM_GETTEXT, sent|optional },
     { 0 }
@@ -16608,7 +16013,7 @@ static const struct message SetActiveWindowSeq2[] =
     { WM_NCACTIVATE, sent|wparam, 0 },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ACTIVATE, sent|wparam, 0 },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE },
@@ -16635,7 +16040,7 @@ static const struct message SetActiveWindowSeq2[] =
 static const struct message SetActiveWindowSeq3[] =
 {
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE|SWP_NOMOVE },
@@ -16659,7 +16064,7 @@ static const struct message SetActiveWindowSeq4[] =
     { WM_NCACTIVATE, sent|wparam, 0 },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ACTIVATE, sent|wparam, 0 },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE|SWP_NOMOVE },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE },
@@ -17200,8 +16605,8 @@ static const struct message wm_lb_setcursel_0[] =
     { LB_SETCURSEL, sent|wparam|lparam, 0, 0 },
     { WM_CTLCOLORLISTBOX, sent|parent },
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x000120f2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
-    { EVENT_OBJECT_SELECTION, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_SELECTION, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { 0 }
 };
 static const struct message wm_lb_setcursel_1[] =
@@ -17211,8 +16616,8 @@ static const struct message wm_lb_setcursel_1[] =
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x000020f2 },
     { WM_CTLCOLORLISTBOX, sent|parent },
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x000121f2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 2 },
-    { EVENT_OBJECT_SELECTION, winevent_hook|wparam|lparam, OBJID_CLIENT, 2 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 2 },
+    { EVENT_OBJECT_SELECTION, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 2 },
     { 0 }
 };
 static const struct message wm_lb_setcursel_2[] =
@@ -17222,8 +16627,8 @@ static const struct message wm_lb_setcursel_2[] =
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x000021f2 },
     { WM_CTLCOLORLISTBOX, sent|parent },
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x000122f2 },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
-    { EVENT_OBJECT_SELECTION, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 3 },
+    { EVENT_OBJECT_SELECTION, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 3 },
     { 0 }
 };
 static const struct message wm_lb_click_0[] =
@@ -17238,9 +16643,9 @@ static const struct message wm_lb_click_0[] =
 
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x001142f2 },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_LISTBOX, LBN_SETFOCUS) },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 3 },
     { WM_LBTRACKPOINT, sent|wparam|lparam|parent, 0, MAKELPARAM(1,1) },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
 
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x000142f2 },
     { WM_CTLCOLORLISTBOX, sent|parent },
@@ -17249,11 +16654,11 @@ static const struct message wm_lb_click_0[] =
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x000120f2 },
     { WM_DRAWITEM, sent|wparam|lparam|parent, ID_LISTBOX, 0x001140f2 },
 
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
-    { EVENT_OBJECT_SELECTION, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_SELECTION, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
 
     { WM_LBUTTONUP, sent|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent|wparam|lparam|defwinproc, 0, 0 },
     { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_LISTBOX, LBN_SELCHANGE) },
     { 0 }
@@ -17261,7 +16666,7 @@ static const struct message wm_lb_click_0[] =
 static const struct message wm_lb_deletestring[] =
 {
     { LB_DELETESTRING, sent|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { WM_DELETEITEM, sent|wparam|parent|optional, ID_LISTBOX, 0 },
     { WM_DRAWITEM, sent|wparam|parent|optional, ID_LISTBOX },
     { WM_DRAWITEM, sent|wparam|parent|optional, ID_LISTBOX },
@@ -17270,7 +16675,7 @@ static const struct message wm_lb_deletestring[] =
 static const struct message wm_lb_deletestring_reset[] =
 {
     { LB_DELETESTRING, sent|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { LB_RESETCONTENT, sent|wparam|lparam|defwinproc|optional, 0, 0 },
     { WM_DELETEITEM, sent|wparam|parent|optional, ID_LISTBOX, 0 },
     { WM_DRAWITEM, sent|wparam|parent|optional, ID_LISTBOX },
@@ -17280,41 +16685,41 @@ static const struct message wm_lb_deletestring_reset[] =
 static const struct message wm_lb_addstring[] =
 {
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ef },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ed },
     /* Child ID changes each test, don't test lparam. */
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ee },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { 0 }
 };
 static const struct message wm_lb_addstring_ownerdraw[] =
 {
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ed },
     { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf0f2, 0xf30604ed },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ee },
     { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf1f2, 0xf30604ee },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 2 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 2 },
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ef },
     { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf2f2, 0xf30604ef },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 3 },
     { 0 }
 };
 static const struct message wm_lb_addstring_sort_ownerdraw[] =
 {
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ed },
     { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf0f2, 0xf30604ed },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ee },
     { WM_COMPAREITEM, sent|wparam|lparam|parent, 0xf30604ed, 0xf30604ee },
     { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf1f2, 0xf30604ee },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 2 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 2 },
     { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ef },
     { WM_COMPAREITEM, sent|wparam|lparam|parent, 0xf30604ed, 0xf30604ef },
     { WM_COMPAREITEM, sent|wparam|lparam|parent, 0xf30604ee, 0xf30604ef },
     { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf2f2, 0xf30604ef },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
+    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 3 },
     { 0 }
 };
 static const struct message wm_lb_dblclick_0[] =
@@ -17630,17 +17035,17 @@ static const struct message wm_popup_menu_1[] =
     { WM_INITMENUPOPUP, sent|lparam, 0, 1 },
     { HCBT_CREATEWND, hook|optional }, /* Win9x doesn't create a window */
     { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_MENUSELECT, sent|wparam, MAKEWPARAM(200,MF_HILITE) },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, 'E', 0xf0000001 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_MENU, 0xd0000001 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_RETURN, 0x10000001, 0, 0x40000000 },
-    { EVENT_OBJECT_INVOKED, winevent_hook|wparam|lparam|msg_todo, OBJID_MENU, 0 },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_INVOKED, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_MENU, 0 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook|optional }, /* Win9x doesn't create a window */
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 },
@@ -17668,34 +17073,34 @@ static const struct message wm_popup_menu_2[] =
     { WM_INITMENUPOPUP, sent|lparam|optional, 0, 0 }, /* Win9x */
     { HCBT_CREATEWND, hook },
     { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_MENUSELECT, sent }, /*|wparam, MAKEWPARAM(0,MF_HILITE|MF_POPUP) - XP
                                |wparam, MAKEWPARAM(100,MF_HILITE) - Win9x */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, 'F', 0xf0000001 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_MENU, 0xd0000001 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_RIGHT, 0x10000001 },
     { WM_INITMENUPOPUP, sent|lparam|optional, 0, 0 }, /* Win9x doesn't send it */
     { HCBT_CREATEWND, hook|optional }, /* Win9x doesn't send it */
     { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_MENUSELECT, sent|wparam|optional, MAKEWPARAM(100,MF_HILITE) },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_RIGHT, 0xd0000001 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_RETURN, 0x10000001 },
-    { EVENT_OBJECT_INVOKED, winevent_hook|wparam|lparam|msg_todo, OBJID_MENU, 0 },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_INVOKED, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_MENU, 0 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook },
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 },
     { WM_UNINITMENUPOPUP, sent|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook|optional }, /* Win9x doesn't send it */
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 },
@@ -17723,34 +17128,34 @@ static const struct message wm_popup_menu_3[] =
     { WM_INITMENUPOPUP, sent|lparam|optional, 0, 0 }, /* Win9x */
     { HCBT_CREATEWND, hook },
     { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_MENUSELECT, sent }, /*|wparam, MAKEWPARAM(0,MF_HILITE|MF_POPUP) - XP
                                |wparam, MAKEWPARAM(100,MF_HILITE) - Win9x */
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, 'F', 0xf0000001 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_MENU, 0xd0000001 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_RIGHT, 0x10000001 },
     { WM_INITMENUPOPUP, sent|lparam|optional, 0, 0 }, /* Win9x doesn't send it */
     { HCBT_CREATEWND, hook|optional }, /* Win9x doesn't send it */
     { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MENUPOPUPSTART, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { WM_MENUSELECT, sent|wparam|optional, MAKEWPARAM(100,MF_HILITE) },
-    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 1 },
+    { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 1 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_RIGHT, 0xd0000001 },
     { HCBT_KEYSKIPPED, hook|wparam|lparam|optional, VK_RETURN, 0x10000001 },
-    { EVENT_OBJECT_INVOKED, winevent_hook|wparam|lparam|msg_todo, OBJID_MENU, 100 },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_OBJECT_INVOKED, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_MENU, 100 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook },
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 },
     { WM_UNINITMENUPOPUP, sent|lparam, 0, 0 },
-    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|msg_todo, OBJID_CLIENT, 0 },
+    { EVENT_SYSTEM_MENUPOPUPEND, winevent_hook|wparam|lparam|winevent_hook_todo, OBJID_CLIENT, 0 },
     { HCBT_DESTROYWND, hook|optional }, /* Win9x doesn't send it */
     { EVENT_OBJECT_HIDE, winevent_hook|wparam|lparam, 0, 0 },
     { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, 0, 0 },
@@ -18031,8 +17436,8 @@ static void test_paintingloop(void)
 
 static const struct message NCRBUTTONDOWNSeq[] =
 {
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent },
     { WM_CONTEXTMENU, sent, /*hwnd*/0, -1 },
     { 0 }
@@ -18063,13 +17468,13 @@ static const struct message WmRestoreMinimizedOverlappedSeq[] =
     { WM_WINDOWPOSCHANGING, sent|optional },
     { WM_GETMINMAXINFO, sent|defwinproc },
     { WM_NCCALCSIZE, sent|optional },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NCPAINT, sent|optional },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|optional },
     { WM_WINDOWPOSCHANGED, sent|optional },
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE|SWP_NOMOVE },
     { WM_ACTIVATEAPP, sent|wparam, TRUE },
     { WM_NCACTIVATE, sent|wparam, TRUE },
@@ -18087,9 +17492,9 @@ static const struct message WmRestoreMinimizedOverlappedSeq[] =
     { WM_NCCALCSIZE, sent|optional },
     { WM_NCPAINT, sent|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_ACTIVATE, sent|wparam, TRUE },
     { WM_SYNCPAINT, sent|optional },
     { WM_PAINT, sent },
@@ -18125,9 +17530,9 @@ static const struct message WmRestoreActiveMinimizedOverlappedSeq[] =
     { WM_NCCALCSIZE, sent|optional },
     { WM_NCPAINT, sent|optional },
     { WM_ERASEBKGND, sent|optional },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|optional, 0, 0 }, /* Win7 seems to send this twice. */
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { HCBT_SETFOCUS, hook },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_SETFOCUS, sent },
@@ -19060,7 +18465,7 @@ static void test_WaitForInputIdle( char *argv0 )
     {
         ResetEvent( start_event );
         ResetEvent( end_event );
-        sprintf( path, "%s msg do_wait_idle_child %u", argv0, i );
+        sprintf( path, "%s msg %u", argv0, i );
         ret = CreateProcessA( NULL, path, NULL, NULL, TRUE, 0, NULL, NULL, &startup, &pi );
         ok( ret, "CreateProcess '%s' failed err %lu.\n", path, GetLastError() );
         if (ret)
@@ -19100,12 +18505,12 @@ static void test_WaitForInputIdle( char *argv0 )
 
 static const struct message WmSetParentSeq_1[] = {
     { WM_SHOWWINDOW, sent|wparam, 0 },
-    { EVENT_OBJECT_PARENTCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_PARENTCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE },
     { WM_CHILDACTIVATE, sent },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOSIZE|SWP_NOREDRAW|SWP_NOCLIENTSIZE },
     { WM_MOVE, sent|defwinproc|wparam, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SHOWWINDOW, sent|wparam, 1 },
     { 0 }
 };
@@ -19121,12 +18526,11 @@ static const struct message WmSetParentSeq_2[] = {
     { WM_ACTIVATEAPP, sent|wparam|optional, 0 },
     { EVENT_OBJECT_FOCUS, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { WM_KILLFOCUS, sent|wparam, 0 },
-    { EVENT_OBJECT_PARENTCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_PARENTCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE },
     { HCBT_ACTIVATE, hook|optional },
     { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam|optional, SWP_NOSIZE|SWP_NOMOVE },
-    { WM_QUERYNEWPALETTE, sent|optional },
     { WM_NCACTIVATE, sent|wparam|optional, 1 },
     { WM_ACTIVATE, sent|wparam|optional, 1 },
     { HCBT_SETFOCUS, hook|optional },
@@ -19134,7 +18538,7 @@ static const struct message WmSetParentSeq_2[] = {
     { WM_SETFOCUS, sent|optional|defwinproc },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOREDRAW|SWP_NOSIZE|SWP_NOCLIENTSIZE },
     { WM_MOVE, sent|defwinproc|wparam, 0 },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_SHOWWINDOW, sent|wparam, 1 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_SHOWWINDOW|SWP_NOSIZE|SWP_NOMOVE },
     { EVENT_OBJECT_SHOW, winevent_hook|wparam|lparam, 0, 0 },
@@ -19197,7 +18601,7 @@ static void test_SetParent(void)
 
     SetParent(popup, child);
     flush_events();
-    ok_sequence(WmSetParentSeq_2, "SetParent() visible WS_POPUP", FALSE);
+    ok_sequence(WmSetParentSeq_2, "SetParent() visible WS_POPUP", TRUE);
 
     ok(GetWindowLongA(popup, GWL_STYLE) & WS_VISIBLE, "WS_VISIBLE should be set\n");
     ok(!IsWindowVisible(popup), "IsWindowVisible() should return FALSE\n");
@@ -19782,7 +19186,7 @@ end:
 static const struct message WmSetFocus_1[] = {
     { HCBT_SETFOCUS, hook }, /* child */
     { HCBT_ACTIVATE, hook }, /* parent */
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_QUERYNEWPALETTE, sent|wparam|lparam|parent|optional, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|parent, 0, SWP_NOSIZE|SWP_NOMOVE },
     { WM_ACTIVATEAPP, sent|wparam|parent, 1 },
@@ -20028,7 +19432,7 @@ static const struct message WmSetLayeredStyle2[] = {
 };
 
 static const struct message WmLayeredWinEmptySeq[] = {
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { 0 }
 };
 
@@ -20621,9 +20025,9 @@ static void test_InSendMessage(void)
 
 static const struct message DoubleSetCaptureSeq[] =
 {
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
-    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_CAPTURECHANGED, sent },
     { 0 }
 };
@@ -20652,7 +20056,7 @@ static void test_DoubleSetCapture(void)
 static const struct message WmRestoreMinimizedSeq[] =
 {
     { HCBT_ACTIVATE, hook },
-    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_SYSTEM_FOREGROUND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_WINDOWPOSCHANGING, sent|wparam, SWP_NOSIZE|SWP_NOMOVE },
     { WM_WINDOWPOSCHANGED, sent|wparam, SWP_NOSIZE|SWP_NOMOVE|SWP_NOCLIENTSIZE|SWP_NOCLIENTMOVE },
     { WM_ACTIVATEAPP, sent|wparam, 1 },
@@ -20672,15 +20076,15 @@ static const struct message WmRestoreMinimizedSeq[] =
     { WM_WINDOWPOSCHANGING, sent|wparam|defwinproc, SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_GETMINMAXINFO, sent|defwinproc },
     { WM_NCCALCSIZE, sent|wparam|defwinproc, 1 },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NCPAINT, sent|wparam|defwinproc|optional, 1 },
     { WM_GETTEXT, sent|defwinproc|optional },
     { WM_ERASEBKGND, sent|defwinproc },
     { WM_WINDOWPOSCHANGED, sent|wparam|defwinproc, SWP_FRAMECHANGED|SWP_NOCOPYBITS|SWP_STATECHANGED },
     { WM_MOVE, sent|defwinproc },
     { WM_SIZE, sent|defwinproc },
-    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
-    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|msg_todo, 0, 0 },
+    { EVENT_OBJECT_LOCATIONCHANGE, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
+    { EVENT_SYSTEM_MINIMIZEEND, winevent_hook|wparam|lparam|winevent_hook_todo, 0, 0 },
     { WM_NCCALCSIZE, sent|wparam|defwinproc|optional, 1 },
     { WM_NCPAINT, sent|wparam|defwinproc|optional, 1 },
     { WM_ERASEBKGND, sent|defwinproc|optional },
@@ -20873,263 +20277,6 @@ static void test_hook_changing_window_proc(void)
     DestroyWindow( hwnd );
 }
 
-static void test_radiobutton_focus(void)
-{
-    HWND hwnd, button;
-    DWORD style;
-    int i;
-    DWORD types[] = { BS_RADIOBUTTON, BS_AUTORADIOBUTTON };
-
-    static const struct message set_focus_default_seq[] =
-    {
-        { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_BUTTON, BN_SETFOCUS) },
-        { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_BUTTON, BN_CLICKED) },
-        { 0 }
-    };
-
-    static const struct message set_focus_checked_seq[] =
-    {
-        { WM_COMMAND, sent|parent|wparam, MAKEWPARAM(ID_BUTTON, BN_SETFOCUS) },
-        { 0 }
-    };
-
-    static const struct message WM_LBUTTONDOWN_seq[] =
-    {
-        { WM_KILLFOCUS, sent|parent },
-        { WM_IME_SETCONTEXT, sent|optional|parent },
-        { WM_IME_SETCONTEXT, sent|optional|defwinproc },
-        { WM_COMMAND, sent|parent },
-        { 0 }
-    };
-
-    static const struct message set_focus_without_notify_seq[] =
-    {
-        { WM_COMMAND, sent|parent|wparam, ID_BUTTON },
-        { 0 }
-    };
-
-    hwnd = CreateWindowExA(0, "TestParentClass", "Test parent", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                           100, 100, 200, 200, 0, 0, 0, NULL);
-    ok(hwnd != 0, "Failed to create parent window\n");
-
-    for (i = 0; i < ARRAY_SIZE(types); i++)
-    {
-        /* Test default button */
-        style = types[i] | WS_CHILD | WS_VISIBLE | BS_NOTIFY;
-        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
-        ok(button != NULL, "failed to create a button, 0x%08lx, %p\n", style, hwnd);
-        flush_events();
-        flush_sequence();
-        SendMessageA(button, WM_SETFOCUS, 0, 0);
-        flush_events();
-        ok_sequence(set_focus_default_seq, "WM_SETFOCUS on default radiobutton", FALSE);
-        DestroyWindow(button);
-
-        /* Test already checked button */
-        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
-        SendMessageA(button, BM_SETCHECK, BST_CHECKED, 0);
-        flush_events();
-        flush_sequence();
-        SendMessageA(button, WM_SETFOCUS, 0, 0);
-        flush_events();
-        ok_sequence(set_focus_checked_seq, "WM_SETFOCUS on checked radiobutton", FALSE);
-        DestroyWindow(button);
-
-        /* Test already focused button */
-        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
-        SendMessageA(button, WM_SETFOCUS, 0, 0);
-        SendMessageA(button, BM_SETCHECK, BST_UNCHECKED, 0);
-        flush_events();
-        flush_sequence();
-        SendMessageA(button, WM_SETFOCUS, 0, 0);
-        flush_events();
-        ok_sequence(set_focus_default_seq, "WM_SETFOCUS on focused radiobutton", FALSE);
-        DestroyWindow(button);
-
-        /* Test WM_LBUTTONDOWN */
-        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
-        flush_events();
-        flush_sequence();
-        SendMessageA(button, WM_LBUTTONDOWN, 0, MAKELPARAM(7, 7));
-        flush_events();
-        ok_sequence(WM_LBUTTONDOWN_seq, "WM_LBUTTONDOWN on radiobutton", FALSE);
-        DestroyWindow(button);
-
-        /* Test without BS_NOTIFY */
-        style = types[i] | WS_CHILD | WS_VISIBLE;
-        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
-        flush_events();
-        flush_sequence();
-        SendMessageA(button, WM_SETFOCUS, 0, 0);
-        flush_events();
-        ok_sequence(set_focus_without_notify_seq, "WM_SETFOCUS on radiobutton without BS_NOTIFY", FALSE);
-        DestroyWindow(button);
-
-        /* Test disabled button */
-        style = types[i] | WS_CHILD | WS_VISIBLE | BS_NOTIFY;
-        button = CreateWindowExA(0, WC_BUTTONA, "test", style, 0, 0, 50, 14, hwnd, (HMENU)ID_BUTTON, 0, NULL);
-        EnableWindow(button, FALSE);
-        flush_events();
-        flush_sequence();
-        SendMessageA(button, WM_SETFOCUS, 0, 0);
-        flush_events();
-        ok_sequence(set_focus_default_seq, "WM_SETFOCUS on disabled radiobutton", FALSE);
-        DestroyWindow(button);
-    }
-
-    DestroyWindow(hwnd);
-}
-
-static LONG test_hook_cleanup_hook_proc_child_id;
-static DWORD test_hook_cleanup_hook_proc_thread_id, test_hook_cleanup_hook_proc_call_thread_id;
-
-static void CALLBACK test_hook_cleanup_hook_proc( HWINEVENTHOOK hook, DWORD event_id, HWND hwnd, LONG obj_id,
-                                                  LONG child_id, DWORD thread_id, DWORD event_time )
-{
-    test_hook_cleanup_hook_proc_child_id = child_id;
-    test_hook_cleanup_hook_proc_call_thread_id = GetCurrentThreadId();
-    test_hook_cleanup_hook_proc_thread_id = thread_id;
-}
-
-struct test_hook_cleanup_data
-{
-    HWND hwnd;
-    HANDLE hook_installed_event;
-    HANDLE done_event;
-    DWORD main_thread_id;
-};
-
-static DWORD WINAPI test_hook_cleanup_thread_proc( void *context )
-{
-    struct test_hook_cleanup_data *d = context;
-    HWINEVENTHOOK hook;
-
-    hook = SetWinEventHook( EVENT_MIN, EVENT_MAX, GetModuleHandleW( NULL ), test_hook_cleanup_hook_proc,
-                            GetCurrentProcessId(), 0, WINEVENT_INCONTEXT );
-    ok( !!hook, "got error %ld.\n", GetLastError() );
-
-    test_hook_cleanup_hook_proc_child_id = -1;
-    NotifyWinEvent( EVENT_MIN, d->hwnd, 1, 1 );
-    ok( test_hook_cleanup_hook_proc_child_id == 1, "got %ld.\n", test_hook_cleanup_hook_proc_child_id );
-    todo_wine ok( test_hook_cleanup_hook_proc_thread_id == d->main_thread_id, "got %#lx.\n",
-        test_hook_cleanup_hook_proc_thread_id );
-    ok( test_hook_cleanup_hook_proc_call_thread_id == GetCurrentThreadId(), "got %#lx.\n",
-        test_hook_cleanup_hook_proc_call_thread_id );
-
-    SetEvent( d->hook_installed_event );
-    WaitForSingleObject( d->done_event, INFINITE );
-    return 0;
-}
-
-static void test_hook_cleanup(void)
-{
-    struct test_hook_cleanup_data d;
-    HANDLE thread;
-
-    d.main_thread_id = GetCurrentThreadId();
-    d.hwnd = CreateWindowA ("static", "window", WS_OVERLAPPEDWINDOW, 0, 0, 100, 100, 0, 0, 0, 0 );
-    d.hook_installed_event = CreateEventW( NULL, FALSE, FALSE, NULL );
-    d.done_event = CreateEventW( NULL, FALSE, FALSE, NULL );
-
-    thread = CreateThread( NULL, 0, test_hook_cleanup_thread_proc, &d, 0, NULL );
-    WaitForSingleObject( d.hook_installed_event, INFINITE );
-
-    test_hook_cleanup_hook_proc_child_id = -1;
-    NotifyWinEvent( EVENT_MIN, d.hwnd, 1, 2 );
-    ok( test_hook_cleanup_hook_proc_child_id == 2, "got %ld.\n", test_hook_cleanup_hook_proc_child_id );
-    ok( test_hook_cleanup_hook_proc_thread_id == GetCurrentThreadId(), "got %#lx.\n",
-        test_hook_cleanup_hook_proc_thread_id );
-    ok( test_hook_cleanup_hook_proc_call_thread_id == GetCurrentThreadId(), "got %#lx.\n",
-        test_hook_cleanup_hook_proc_call_thread_id );
-
-    SetEvent( d.done_event );
-    WaitForSingleObject( thread, INFINITE );
-
-    /* Hook is removed when thread which created it is terminated. */
-    test_hook_cleanup_hook_proc_child_id = -1;
-    NotifyWinEvent( EVENT_MIN, d.hwnd, 1, 3 );
-    ok( test_hook_cleanup_hook_proc_child_id == -1, "got %ld.\n", test_hook_cleanup_hook_proc_child_id );
-
-    DestroyWindow( d.hwnd );
-}
-
-static void test_WM_COPYDATA_child(void)
-{
-    HWND hwnd;
-    MSG msg;
-
-    wm_copydata_done = FALSE;
-    hwnd = CreateWindowA("WmCopyDataWindowClass", "WmCopyDataWindow",
-                         WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 100, 100, 0, 0, 0, NULL);
-    ok(!!hwnd, "CreateWindowA failed, error %lu\n", GetLastError());
-    while (!wm_copydata_done)
-    {
-        if (PeekMessageA(&msg, 0, 0, 0, 1))
-        {
-            TranslateMessage(&msg);
-            DispatchMessageA(&msg);
-        }
-    }
-    DestroyWindow(hwnd);
-}
-
-static void test_WM_COPYDATA(char **argv)
-{
-    static const int LARGE_DATA_SIZE = 64 * 1024 * 1024;
-    unsigned char *ptr, *buffer;
-    unsigned int timeout = 0, i;
-    PROCESS_INFORMATION pi;
-    char cmdline[MAX_PATH];
-    STARTUPINFOA si = {0};
-    COPYDATASTRUCT cds;
-    HWND hwnd = NULL;
-    BOOL ret;
-
-    sprintf(cmdline, "%s %s test_WM_COPYDATA_child", argv[0], argv[1]);
-    ret = CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
-    ok(ret, "CreateProcessA failed, error %lu\n", GetLastError());
-
-    do
-    {
-        hwnd = FindWindowA("WmCopyDataWindowClass", "WmCopyDataWindow");
-        Sleep(100);
-        timeout += 100;
-    } while (!hwnd && timeout < 1000);
-    ok(!!hwnd, "Failed to find test window.\n");
-
-    buffer = malloc(LARGE_DATA_SIZE);
-    ok(!!buffer, "Failed to allocate memory.\n");
-    for (i = 0, ptr = buffer; i < LARGE_DATA_SIZE; i++, ptr++)
-        *ptr = i % 0xff;
-
-    /* Test a WM_COPYDATA message with no data */
-    cds.dwData = 0;
-    cds.cbData = 0;
-    cds.lpData = NULL;
-    ret = SendMessageA(hwnd, WM_COPYDATA, (WPARAM)GetDesktopWindow(), (LPARAM)&cds);
-    ok(ret, "WM_COPYDATA failed.\n");
-
-    /* Test a WM_COPYDATA message with a small amount of data */
-    cds.dwData = 1;
-    cds.cbData = 64;
-    cds.lpData = buffer;
-    ret = SendMessageA(hwnd, WM_COPYDATA, (WPARAM)GetDesktopWindow(), (LPARAM)&cds);
-    ok(ret, "WM_COPYDATA failed.\n");
-
-    /* Test a WM_COPYDATA message with a large amount of data */
-    cds.dwData = 2;
-    cds.cbData = LARGE_DATA_SIZE;
-    cds.lpData = buffer;
-    ret = SendMessageA(hwnd, WM_COPYDATA, (WPARAM)GetDesktopWindow(), (LPARAM)&cds);
-    ok(ret, "WM_COPYDATA failed.\n");
-
-    free(buffer);
-    ret = WaitForSingleObject(pi.hProcess, 1000);
-    ok(!ret, "WaitForSingleObject failed, error %ld.\n", GetLastError());
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-}
-
 START_TEST(msg)
 {
     char **test_argv;
@@ -21137,19 +20284,12 @@ START_TEST(msg)
     BOOL (WINAPI *pIsWinEventHookInstalled)(DWORD)= 0;/*GetProcAddress(user32, "IsWinEventHookInstalled");*/
     int argc;
 
-    register_classes();
-
-    argc = winetest_get_mainargs(&test_argv);
-    if (argc == 3 && !strcmp(test_argv[2], "test_WM_COPYDATA_child"))
-    {
-        test_WM_COPYDATA_child();
-        return;
-    }
-    else if (argc >= 4 && !strcmp(test_argv[2], "do_wait_idle_child"))
+    argc = winetest_get_mainargs( &test_argv );
+    if (argc >= 3)
     {
         unsigned int arg;
         /* Child process. */
-        sscanf (test_argv[3], "%d", (unsigned int *) &arg);
+        sscanf (test_argv[2], "%d", (unsigned int *) &arg);
         do_wait_idle_child( arg );
         return;
     }
@@ -21157,6 +20297,8 @@ START_TEST(msg)
     InitializeCriticalSection( &sequence_cs );
     init_procs();
     ImmDisableIME(0);
+
+    register_classes();
 
     if (pSetWinEventHook)
     {
@@ -21182,7 +20324,6 @@ START_TEST(msg)
     test_setparent_status();
     test_InSendMessage();
     test_SetFocus();
-    test_radiobutton_focus();
     test_SetParent();
     test_PostMessage();
     test_broadcast();
@@ -21195,7 +20336,6 @@ START_TEST(msg)
     test_messages();
     test_setwindowpos();
     test_showwindow();
-    test_recursive_activation();
     invisible_parent_tests();
     test_mdi_messages();
     test_button_messages();
@@ -21223,7 +20363,6 @@ START_TEST(msg)
         test_set_hook();
         test_recursive_hook();
     }
-    test_recursive_messages();
     test_DestroyWindow();
     test_DispatchMessage();
     test_SendMessageTimeout();
@@ -21259,12 +20398,10 @@ START_TEST(msg)
     test_DoubleSetCapture();
     test_create_name();
     test_hook_changing_window_proc();
-    test_hook_cleanup();
     /* keep it the last test, under Windows it tends to break the tests
      * which rely on active/foreground windows being correct.
      */
     test_SetForegroundWindow();
-    test_WM_COPYDATA(test_argv);
 
     UnhookWindowsHookEx(hCBT_hook);
     if (pUnhookWinEvent && hEvent_hook)

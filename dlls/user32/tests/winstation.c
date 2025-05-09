@@ -172,6 +172,10 @@ static void test_handles(void)
     else if (le == ERROR_ACCESS_DENIED)
         win_skip( "Not enough privileges for CreateWindowStation\n" );
 
+    w2 = OpenWindowStationA("winsta0", TRUE, 0 );
+    ok( !w2, "got non-NULL.\n" );
+    ok( GetLastError() == ERROR_ACCESS_DENIED, "got %ld.\n", GetLastError() );
+
     w2 = OpenWindowStationA("winsta0", TRUE, WINSTA_ALL_ACCESS );
     ok( w2 != 0, "OpenWindowStation failed\n" );
     ok( w2 != w1, "OpenWindowStation returned default handle\n" );
@@ -652,8 +656,9 @@ static void test_inputdesktop(void)
         win_skip("Skip tests on NT4\n");
         return;
     }
+    todo_wine
     ok(GetLastError() == ERROR_ACCESS_DENIED, "unexpected last error %08lx\n", GetLastError());
-    ok(ret == 0 || broken(ret == 1) /* Win32 */, "unexpected return count %ld\n", ret);
+    ok(ret == 1 || broken(ret == 0) /* Win64 */, "unexpected return count %ld\n", ret);
 
     /* Set thread desktop back to the old thread desktop, SendInput should success. */
     ret = SetThreadDesktop(old_thread_desk);
@@ -692,14 +697,16 @@ static void test_inputdesktop(void)
     memset(name, 0, sizeof(name));
     ret = GetUserObjectInformationA(input_desk, UOI_NAME, name, 1024, NULL);
     ok(ret, "GetUserObjectInformation failed!\n");
+    todo_wine
     ok(!strcmp(name, "new_desk"), "unexpected desktop %s\n", name);
     ret = CloseDesktop(input_desk);
     ok(ret, "CloseDesktop failed!\n");
 
     SetLastError(0xdeadbeef);
     ret = SendInput(1, inputs, sizeof(INPUT));
+    todo_wine
     ok(GetLastError() == ERROR_ACCESS_DENIED, "unexpected last error %08lx\n", GetLastError());
-    ok(ret == 0 || broken(ret == 1) /* Win32 */, "unexpected return count %ld\n", ret);
+    ok(ret == 1 || broken(ret == 0) /* Win64 */, "unexpected return count %ld\n", ret);
 
     /* Set thread desktop to the new desktop, SendInput should success. */
     ret = SetThreadDesktop(new_desk);
@@ -795,6 +802,7 @@ static void test_inputdesktop2(void)
     ok(hdesk != NULL, "OpenDesktop failed!\n");
     SetLastError(0xdeadbeef);
     ret = SwitchDesktop(hdesk);
+    todo_wine
     ok(!ret, "Switch to desktop belong to non default winstation should fail!\n");
     todo_wine
     ok(GetLastError() == ERROR_ACCESS_DENIED || broken(GetLastError() == 0xdeadbeef), "last error %08lx\n", GetLastError());

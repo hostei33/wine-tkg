@@ -200,14 +200,19 @@ static int FUNC_NAME(pf_handle_string_format)( FUNC_NAME(pf_output) *out, const 
      if (str == NULL)  /* catch NULL pointer */
          return FUNC_NAME(pf_output_format)( out, APISTR("(null)"), -1, flags );
 
-#ifdef PRINTF_WIDE
-    if (flags->IntegerLength == LEN_SHORT || (inverted && !flags->WideString))
-        return FUNC_NAME(pf_output_format_str)( out, str, len, flags );
-    return FUNC_NAME(pf_output_format_wstr)( out, str, len, flags );
-#else
-    if (flags->WideString || (inverted && flags->IntegerLength != LEN_SHORT))
+     /* prefixes take priority over %c,%s vs. %C,%S, so we handle them first */
+    if (flags->WideString || flags->IntegerLength == LEN_LONG)
         return FUNC_NAME(pf_output_format_wstr)( out, str, len, flags );
+    if (flags->IntegerLength == LEN_SHORT)
+        return FUNC_NAME(pf_output_format_str)( out, str, len, flags );
+
+    /* %s,%c ->  chars in ansi functions & wchars in unicode
+     * %S,%C -> wchars in ansi functions &  chars in unicode */
+    if (!inverted) return FUNC_NAME(pf_output_format)( out, str, len, flags);
+#ifdef PRINTF_WIDE
     return FUNC_NAME(pf_output_format_str)( out, str, len, flags );
+#else
+    return FUNC_NAME(pf_output_format_wstr)( out, str, len, flags );
 #endif
 }
 
@@ -372,12 +377,7 @@ static int FUNC_NAME(pf_vsnprintf)( FUNC_NAME(pf_output) *out, const APICHAR *fo
             }
             else if( *p == 'l' )
             {
-                if (flags.IntegerLength != LEN_SHORT)
-                {
-                    flags.IntegerLength = LEN_LONG;
-                    flags.WideString = TRUE;
-                }
-                flags.WideString = TRUE;
+                flags.IntegerLength = LEN_LONG;
                 p++;
             }
             else if( *p == 'L' )
@@ -446,7 +446,7 @@ static int FUNC_NAME(pf_vsnprintf)( FUNC_NAME(pf_output) *out, const APICHAR *fo
         /* output a single character */
         else if( flags.Format == 'c' || flags.Format == 'C' )
         {
-            wchar_t ch = (wchar_t)va_arg( valist, int );
+            APICHAR ch = (APICHAR)va_arg( valist, int );
             r = FUNC_NAME(pf_handle_string_format)( out, &ch, 1, &flags, (flags.Format == 'C') );
         }
 
@@ -498,8 +498,8 @@ static int FUNC_NAME(pf_vsnprintf)( FUNC_NAME(pf_output) *out, const APICHAR *fo
             if( x != number )
                 RtlFreeHeap( GetProcessHeap(), 0, x );
         }
-        else if (*p) r = FUNC_NAME(pf_output_string)( out, p, 1 );
-        else break;
+        else
+            continue;
 
         if( r<0 )
             return r;

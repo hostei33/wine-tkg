@@ -277,30 +277,27 @@ static TW_UINT16 SANE_CAPXferCount (pTW_CAPABILITY pCapability, TW_UINT16 action
     return twCC;
 }
 
-static TW_UINT16 set_option_value(const char* option_name, char* option_value)
+static BOOL pixeltype_to_sane_mode(TW_UINT16 pixeltype, char *mode, int len)
 {
-    TW_UINT16 twCC = TWCC_BADVALUE;
-    BOOL reload = FALSE;
-    if (*option_value)
+    const char *m = NULL;
+    switch (pixeltype)
     {
-        twCC = sane_option_set_str(option_name, option_value, &reload);
-        if (twCC == TWCC_SUCCESS) {
-            if (reload) get_sane_params(&activeDS.frame_params);
-        }
+        case TWPT_GRAY:
+            m = "Gray";
+            break;
+        case TWPT_RGB:
+            m = "Color";
+            break;
+        case TWPT_BW:
+            m = "Lineart";
+            break;
     }
-    return twCC;
-}
-
-static TW_UINT16 find_value_pos(const char* value, const char* values, TW_UINT16 buf_len, TW_UINT16 buf_count)
-{
-    TW_UINT16 index;
-    for (index=0; index<buf_count; ++index)
-    {
-        if (!strncmp(value, values, buf_len))
-            return index;
-        values += buf_len;
-    }
-    return buf_count;
+    if (! m)
+        return FALSE;
+    if (strlen(m) >= len)
+        return FALSE;
+    strcpy(mode, m);
+    return TRUE;
 }
 
 /* ICAP_PIXELTYPE */
@@ -310,42 +307,19 @@ static TW_UINT16 SANE_ICAPPixelType (pTW_CAPABILITY pCapability, TW_UINT16 actio
     TW_UINT32 possible_values[3];
     int possible_value_count;
     TW_UINT32 val;
+    BOOL reload = FALSE;
     TW_UINT16 current_pixeltype = TWPT_BW;
-    enum { buf_len = 64, buf_count = 3 };
-    char color_modes[buf_len * buf_count] = {'\0'}, current_mode[buf_len];
-    /* most of the values are taken from https://gitlab.gnome.org/GNOME/simple-scan/-/blob/master/src/scanner.vala */
-    static const WCHAR* bw[] = {L"Lineart", L"LineArt", L"Black & White", L"Binary", L"Thresholded",
-        L"1-bit Black & White", L"Black and White - Line Art", L"Black and White - Halftone", L"Monochrome", L"bw", 0};
-    static const WCHAR* gray[] = {L"Gray", L"Grayscale", L"True Gray", L"8-bit Grayscale", L"Grayscale - 256 Levels",
-        L"gray", 0};
-    static const WCHAR* rgb[] = {L"Color", L"24bit Color[Fast]", L"24bit Color", L"24 bit Color",
-        L"Color - 16 Million Colors", L"color", 0};
-    /* TWPT_BW = 0, TWPT_GRAY = 1, TWPT_RGB = 2 */
-    static const WCHAR* const* filter[] = {bw, gray, rgb, 0};
+    char mode[64];
 
     TRACE("ICAP_PIXELTYPE\n");
-    twCC = sane_option_probe_str("mode", filter, color_modes, buf_len);
+
+    twCC = sane_option_probe_mode(&current_pixeltype, possible_values, &possible_value_count);
     if (twCC != TWCC_SUCCESS)
     {
-        ERR("Unable to retrieve modes from sane, ICAP_PIXELTYPE unsupported\n");
+        ERR("Unable to retrieve mode from sane, ICAP_PIXELTYPE unsupported\n");
         return twCC;
     }
 
-    twCC = sane_option_get_str("mode", current_mode, sizeof(current_mode));
-    if (twCC != TWCC_SUCCESS)
-    {
-        ERR("Unable to retrieve current mode from sane, ICAP_PIXELTYPE unsupported\n");
-        return twCC;
-    }
-
-    /* Map current mode name to TWPT_BW (0), TWPT_GRAY (1) or TWPT_RGB (2) */
-    current_pixeltype = find_value_pos(current_mode, color_modes, buf_len, buf_count);
-    if (current_pixeltype == buf_count)
-    {
-        ERR("Wrong current mode value, ICAP_PIXELTYPE unsupported\n");
-        twCC = TWCC_BADVALUE;
-        return twCC;
-    }
     /* Sane does not support a concept of a default mode, so we simply cache
      *   the first mode we find */
     if (! activeDS.PixelTypeSet)
@@ -362,28 +336,27 @@ static TW_UINT16 SANE_ICAPPixelType (pTW_CAPABILITY pCapability, TW_UINT16 actio
             break;
 
         case MSG_GET:
-            possible_value_count = 0;
-            for (val=TWPT_BW; val<=TWPT_RGB; ++val)
-            {
-                if (*(color_modes + val * buf_len))
-                    possible_values[possible_value_count++] = val;
-            }
             twCC = msg_get_enum(pCapability, possible_values, possible_value_count,
                     TWTY_UINT16, current_pixeltype, activeDS.defaultPixelType);
             break;
 
         case MSG_SET:
             twCC = msg_set(pCapability, &val);
-            if ((twCC == TWCC_SUCCESS) && (val < buf_count))
+            if (twCC == TWCC_SUCCESS)
             {
-                char *output = color_modes + val * buf_len;
-                TRACE("Setting pixeltype to %lu: %s\n", val, output);
-                twCC = set_option_value("mode", output);
-                if (twCC != TWCC_SUCCESS)
-                    ERR("Unable to set pixeltype to %lu: %s\n", val, output);
+                TRACE("Setting pixeltype to %ld\n", val);
+                if (! pixeltype_to_sane_mode(val, mode, sizeof(mode)))
+                    return TWCC_BADVALUE;
+
+                twCC = sane_option_set_str("mode", mode, &reload);
+                /* Some SANE devices use 'Grayscale' instead of the standard 'Gray' */
+                if (twCC != TWCC_SUCCESS && strcmp(mode, "Gray") == 0)
+                {
+                    strcpy(mode, "Grayscale");
+                    twCC = sane_option_set_str("mode", mode, &reload);
+                }
+                if (reload) get_sane_params( &activeDS.frame_params );
             }
-            else
-                twCC = TWCC_BADVALUE;
             break;
 
         case MSG_GETDEFAULT:
@@ -391,11 +364,19 @@ static TW_UINT16 SANE_ICAPPixelType (pTW_CAPABILITY pCapability, TW_UINT16 actio
             break;
 
         case MSG_RESET:
-            twCC = set_option_value("mode", color_modes + activeDS.defaultPixelType * buf_len);
-            if (twCC == TWCC_SUCCESS)
-                current_pixeltype = activeDS.defaultPixelType;
-            else
-                ERR("Unable to reset color mode\n");
+            current_pixeltype = activeDS.defaultPixelType;
+            if (! pixeltype_to_sane_mode(current_pixeltype, mode, sizeof(mode)))
+                return TWCC_BADVALUE;
+
+            twCC = sane_option_set_str("mode", mode, &reload);
+            /* Some SANE devices use 'Grayscale' instead of the standard 'Gray' */
+            if (twCC != TWCC_SUCCESS && strcmp(mode, "Gray") == 0)
+            {
+                strcpy(mode, "Grayscale");
+                twCC = sane_option_set_str("mode", mode, &reload);
+            }
+            if (twCC != TWCC_SUCCESS) break;
+            if (reload) get_sane_params( &activeDS.frame_params );
 
             /* .. fall through intentional .. */
 
@@ -954,39 +935,17 @@ static TW_UINT16 SANE_CAPFeederEnabled (pTW_CAPABILITY pCapability, TW_UINT16 ac
     TW_UINT16 twCC = TWCC_BADCAP;
     TW_UINT32 val;
     TW_BOOL enabled;
-    enum { buf_len = 64, buf_count = 2 };
-    char paper_sources[buf_len * buf_count] = {'\0'}, current_source[buf_len], *output;
-    /* most of the values are taken from https://gitlab.gnome.org/GNOME/simple-scan/-/blob/master/src/scanner.vala */
-    static const WCHAR* flatbed[] = {L"Flatbed", L"FlatBed", L"Platen", L"Normal", L"Document Table", 0};
-    static const WCHAR* autofeeder[] = {L"Auto", L"ADF", L"ADF Front", L"ADF Back", L"adf",
-        L"Automatic Document Feeder", L"Automatic Document Feeder(centrally aligned)",
-        L"Automatic Document Feeder(center aligned)", L"Automatic Document Feeder(left aligned)",
-        L"ADF Simplex" L"DP", 0};
-    static const WCHAR* const* filter[] = {flatbed, autofeeder, 0};
+    char source[64];
 
     TRACE("CAP_FEEDERENABLED\n");
-    twCC = sane_option_probe_str("source", filter, paper_sources, buf_len);
-    if (twCC != TWCC_SUCCESS)
-    {
-        ERR("Unable to retrieve paper sources from sane, CAP_FEEDERENABLED unsupported\n");
-        return twCC;
-    }
 
-    twCC = sane_option_get_str("source", current_source, sizeof(current_source));
-    if (twCC != TWCC_SUCCESS)
-    {
-        ERR("Unable to retrieve current paper source from sane, CAP_FEEDERENABLED unsupported\n");
-        return twCC;
-    }
+    if (sane_option_get_str("source", source, sizeof(source)) != TWCC_SUCCESS)
+        return TWCC_BADCAP;
 
-    val = find_value_pos(current_source, paper_sources, buf_len, buf_count);
-    if (val == buf_count)
-    {
-        ERR("Wrong current paper source value, CAP_FEEDERENABLED unsupported\n");
-        twCC = TWCC_BADVALUE;
-        return twCC;
-    }
-    enabled = val > 0;
+    if (strcmp(source, "Auto") == 0 || strcmp(source, "ADF") == 0)
+        enabled = TRUE;
+    else
+        enabled = FALSE;
 
     switch (action)
     {
@@ -1001,16 +960,16 @@ static TW_UINT16 SANE_CAPFeederEnabled (pTW_CAPABILITY pCapability, TW_UINT16 ac
 
         case MSG_SET:
             twCC = msg_set(pCapability, &val);
-            if ((twCC == TWCC_SUCCESS) && (val < buf_count))
+            if (twCC == TWCC_SUCCESS)
             {
-                output = paper_sources + val * buf_len;
-                TRACE("Setting paper source to %lu: %s\n", val, output);
-                twCC = set_option_value("source", output);
+                strcpy(source, "ADF");
+                twCC = sane_option_set_str("source", source, NULL);
                 if (twCC != TWCC_SUCCESS)
-                    ERR("Unable to set paper source to %lu: %s\n", val, output);
+                {
+                    strcpy(source, "Auto");
+                    twCC = sane_option_set_str("source", source, NULL);
+                }
             }
-            else
-                twCC = TWCC_BADVALUE;
             break;
 
         case MSG_GETDEFAULT:
@@ -1018,14 +977,9 @@ static TW_UINT16 SANE_CAPFeederEnabled (pTW_CAPABILITY pCapability, TW_UINT16 ac
             break;
 
         case MSG_RESET:
-            val = *(paper_sources + buf_len) ? 1 : 0; // set to Auto/ADF if it's supported
-            output = paper_sources + val * buf_len;
-            TRACE("Resetting paper source to %lu: %s\n", val, output);
-            twCC = set_option_value("source", output);
-            if (twCC != TWCC_SUCCESS)
-                ERR("Unable to reset paper source to %lu: %s\n", val, output);
-            else
-                enabled = val > 0;
+            strcpy(source, "Auto");
+            if (sane_option_set_str("source", source, NULL) == TWCC_SUCCESS)
+                enabled = TRUE;
             /* .. fall through intentional .. */
 
         case MSG_GETCURRENT:

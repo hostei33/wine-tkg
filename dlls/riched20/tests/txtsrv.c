@@ -103,8 +103,6 @@ static ITextServicesVtbl itextServicesStdcallVtbl;
 /* ITextHost implementation for conformance testing. */
 
 DEFINE_EXPECT(ITextHostImpl_TxViewChange);
-DEFINE_EXPECT(ITextHostImpl_TxScrollWindowEx);
-DEFINE_EXPECT(ITextHostImpl_TxGetClientRect);
 
 typedef struct ITextHostTestImpl
 {
@@ -270,7 +268,6 @@ static void __thiscall ITextHostImpl_TxScrollWindowEx(ITextHost *iface, INT dx, 
     ITextHostTestImpl *This = impl_from_ITextHost(iface);
     TRACECALL("Call to TxScrollWindowEx(%p, %d, %d, %p, %p, %p, %p, %d)\n",
               This, dx, dy, lprcScroll, lprcClip, hRgnUpdate, lprcUpdate, fuScroll);
-    INCREASE_CALL_COUNTER(ITextHostImpl_TxScrollWindowEx);
 }
 
 static void __thiscall ITextHostImpl_TxSetCapture(ITextHost *iface, BOOL fCapture)
@@ -324,7 +321,6 @@ static HRESULT __thiscall ITextHostImpl_TxGetClientRect(ITextHost *iface, LPRECT
 {
     ITextHostTestImpl *This = impl_from_ITextHost(iface);
     TRACECALL("Call to TxGetClientRect(%p, prc=%p)\n", This, prc);
-    INCREASE_CALL_COUNTER(ITextHostImpl_TxGetClientRect);
     *prc = This->client_rect;
     return S_OK;
 }
@@ -529,7 +525,7 @@ static ITextHostVtbl itextHostVtbl = {
 
 static void *wrapperCodeMem = NULL;
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 
 /* Code structure for x86 byte code */
 typedef struct
@@ -551,7 +547,7 @@ typedef struct
     int  vtablefunc_offset;
 } STDCALL_TO_THISCALL_THUNK;
 
-#pragma pack(pop)
+#include "poppack.h"
 
 static void setup_thiscall_wrappers(void)
 {
@@ -1400,60 +1396,6 @@ static void test_scrollcaret( void )
     ITextHost_Release( host );
 }
 
-static void test_inplace_active( BOOL active )
-{
-    ITextServices *txtserv;
-    ITextHost *host;
-    LRESULT result;
-    HRESULT hr;
-
-    ITextHostTestImpl *host_impl;
-    if (!init_texthost(&txtserv, &host))
-        return;
-
-    host_impl = impl_from_ITextHost( host );
-    host_impl->window = CreateWindowExA( 0, "static", NULL, WS_POPUP|WS_VISIBLE, 0, 0, 100, 100, 0, 0, 0, NULL );
-    host_impl->client_rect = (RECT) { 0, 0, 150, 150 };
-    host_impl->scrollbars = WS_VSCROLL | ES_AUTOVSCROLL;
-    host_impl->props = TXTBIT_MULTILINE | TXTBIT_RICHTEXT | TXTBIT_WORDWRAP;
-    ITextServices_OnTxPropertyBitsChange( txtserv, TXTBIT_SCROLLBARCHANGE | TXTBIT_MULTILINE | TXTBIT_RICHTEXT | TXTBIT_WORDWRAP, host_impl->props );
-
-    CLEAR_COUNTER(ITextHostImpl_TxScrollWindowEx);
-    CLEAR_COUNTER(ITextHostImpl_TxGetClientRect);
-
-    if (active) {
-        hr = ITextServices_OnTxInPlaceActivate( txtserv, &host_impl->client_rect );
-        ok( hr == S_OK, "got %08lx\n", hr );
-    }
-
-    hr = ITextServices_TxSendMessage(txtserv, EM_SETEVENTMASK, 0, ENM_REQUESTRESIZE, &result);
-    ok( hr == S_OK, "got %08lx\n", hr );
-
-    hr = ITextServices_TxDraw( txtserv, DVASPECT_CONTENT, 0, NULL, NULL, GetDC(host_impl->window), NULL, (RECTL *)&host_impl->client_rect, NULL, NULL, NULL, 0, TXTVIEW_INACTIVE );
-    ok( hr == S_OK, "got %08lx\n", hr );
-
-    hr = ITextServices_TxSendMessage(txtserv, EM_SETSEL, 0, -1, &result);
-    ok( hr == S_OK, "got %08lx\n", hr );
-
-    hr = ITextServices_TxSendMessage(txtserv, EM_REPLACESEL, TRUE, (LPARAM) lorem, &result);
-    ok( hr == S_OK, "got %08lx\n", hr );
-
-    hr = ITextServices_TxDraw( txtserv, DVASPECT_CONTENT, 0, NULL, NULL, GetDC(host_impl->window), NULL, (RECTL *)&host_impl->client_rect, NULL, NULL, NULL, 0, TXTVIEW_INACTIVE );
-    ok( hr == S_OK, "got %08lx\n", hr );
-
-    if (active) {
-        CHECK_CALLED(ITextHostImpl_TxScrollWindowEx);
-        CHECK_CALLED(ITextHostImpl_TxGetClientRect);
-    } else {
-        CHECK_NOT_CALLED(ITextHostImpl_TxScrollWindowEx);
-        CHECK_NOT_CALLED(ITextHostImpl_TxGetClientRect);
-    }
-
-    DestroyWindow( host_impl->window );
-    ITextServices_Release( txtserv );
-    ITextHost_Release( host );
-}
-
 START_TEST( txtsrv )
 {
     ITextServices *txtserv;
@@ -1489,8 +1431,6 @@ START_TEST( txtsrv )
         test_notifications();
         test_set_selection_message();
         test_scrollcaret();
-        test_inplace_active(TRUE);
-        test_inplace_active(FALSE);
     }
     if (wrapperCodeMem) VirtualFree(wrapperCodeMem, 0, MEM_RELEASE);
 }

@@ -16,16 +16,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "windef.h"
-#include "winternl.h"
-#include "rtlsupportapi.h"
 #include "wine/asm.h"
-
-#ifdef __i386__
-#undef RTTI_USE_RVA
-#else
-#define RTTI_USE_RVA 1
-#endif
 
 #ifdef _WIN64
 
@@ -53,7 +44,7 @@
 
 #endif /* _WIN64 */
 
-#ifndef RTTI_USE_RVA
+#ifndef __x86_64__
 
 #define DEFINE_RTTI_BASE(name, base_classes_no, mangled_name) \
     static type_info name ## _type_info = { \
@@ -108,7 +99,7 @@ static const cxx_type_info type ## _cxx_type_info = { \
     & type ##_type_info, \
     { 0, -1, 0 }, \
     sizeof(type), \
-    THISCALL(type ##_copy_ctor) \
+    (cxx_copy_ctor)THISCALL(type ##_copy_ctor) \
 };
 
 #define DEFINE_CXX_DATA(type, base_no, cl1, cl2, cl3, cl4, dtor)  \
@@ -125,9 +116,9 @@ static const cxx_type_info_table type ## _cxx_type_table = { \
     } \
 }; \
 \
-static const cxx_exception_type type ## _exception_type = { \
+static const cxx_exception_type type ## _cxx_type = { \
     0, \
-    THISCALL(dtor), \
+    (cxx_copy_ctor)THISCALL(dtor), \
     NULL, \
     & type ## _cxx_type_table \
 };
@@ -239,7 +230,7 @@ static cxx_type_info_table type ## _cxx_type_table = { \
     } \
 }; \
 \
-static cxx_exception_type type ##_exception_type = { \
+static cxx_exception_type type ##_cxx_type = { \
     0, \
     0xdeadbeef, \
     0, \
@@ -254,8 +245,8 @@ static void init_ ## type ## _cxx(char *base) \
     type ## _cxx_type_table.info[2]   = (char *)cl2 - base; \
     type ## _cxx_type_table.info[3]   = (char *)cl3 - base; \
     type ## _cxx_type_table.info[4]   = (char *)cl4 - base; \
-    type ## _exception_type.destructor      = (char *)dtor - base; \
-    type ## _exception_type.type_info_table = (char *)&type ## _cxx_type_table - base; \
+    type ## _cxx_type.destructor      = (char *)dtor - base; \
+    type ## _cxx_type.type_info_table = (char *)&type ## _cxx_type_table - base; \
 }
 
 #endif
@@ -331,6 +322,8 @@ typedef struct __type_info
     char               mangled[128]; /* Variable length, but we declare it large enough for static RTTI */
 } type_info;
 
+extern const vtable_ptr type_info_vtable;
+
 /* offsets for computing the this pointer */
 typedef struct
 {
@@ -339,7 +332,10 @@ typedef struct
     int         vbase_offset;  /* offset of this pointer offset in virtual base class descriptor */
 } this_ptr_offsets;
 
-#ifndef RTTI_USE_RVA
+/* dlls/msvcrt/cppexcept.h */
+typedef void (*cxx_copy_ctor)(void);
+
+#ifndef __x86_64__
 
 typedef struct _rtti_base_descriptor
 {
@@ -377,7 +373,7 @@ typedef struct
     const type_info *type_info;
     this_ptr_offsets offsets;
     unsigned int size;
-    void *copy_ctor;
+    cxx_copy_ctor copy_ctor;
 } cxx_type_info;
 
 typedef struct
@@ -389,8 +385,8 @@ typedef struct
 typedef struct
 {
     UINT flags;
-    void *destructor;
-    void *custom_handler;
+    void (*destructor)(void);
+    void* /*cxx_exc_custom_handler*/ custom_handler;
     const cxx_type_info_table *type_info_table;
 } cxx_exception_type;
 
@@ -449,35 +445,6 @@ typedef struct
     unsigned int custom_handler;
     unsigned int type_info_table;
 } cxx_exception_type;
-
-#endif
-
-extern const vtable_ptr type_info_vtable;
-
-#ifdef RTTI_USE_RVA
-
-static inline uintptr_t rtti_rva_base( const void *ptr )
-{
-    void *base;
-    return (uintptr_t)RtlPcToFileHeader( (void *)ptr, &base );
-}
-
-static inline void *rtti_rva( unsigned int rva, uintptr_t base )
-{
-    return (void *)(base + rva);
-}
-
-#else
-
-static inline uintptr_t rtti_rva_base( const void *ptr )
-{
-    return 0;
-}
-
-static inline void *rtti_rva( const void *ptr, uintptr_t base )
-{
-    return (void *)ptr;
-}
 
 #endif
 

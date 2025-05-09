@@ -1010,10 +1010,10 @@ xsltEvalVariable(xsltTransformContextPtr ctxt, xsltStackElemPtr variable,
 	    if (result == NULL) {
 		result = xmlXPathNewCString("");
 	    } else {
-                /*
-                 * This stops older libxml2 versions from freeing the nodes
-                 * in the tree.
-                 */
+		/*
+		* Freeing is not handled there anymore.
+		* QUESTION TODO: What does the above comment mean?
+		*/
 	        result->boolval = 0;
 	    }
 #ifdef WITH_XSLT_DEBUG_VARIABLE
@@ -1232,11 +1232,7 @@ xsltEvalGlobalVariable(xsltStackElemPtr elem, xsltTransformContextPtr ctxt)
 	    if (result == NULL) {
 		result = xmlXPathNewCString("");
 	    } else {
-                /*
-                 * This stops older libxml2 versions from freeing the nodes
-                 * in the tree.
-                 */
-	        result->boolval = 0;
+	        result->boolval = 0; /* Freeing is not handled there anymore */
 	    }
 #ifdef WITH_XSLT_DEBUG_VARIABLE
 #ifdef LIBXML_DEBUG_ENABLED
@@ -2379,3 +2375,5 @@ local_variable_found:
 
     return(valueObj);
 }
+
+

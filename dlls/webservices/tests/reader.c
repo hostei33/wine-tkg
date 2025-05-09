@@ -6845,7 +6845,7 @@ static void test_empty_text_field(void)
     } *test2;
     struct test3
     {
-        BOOL boolean;
+        BOOL bool;
     } *test3;
     struct test4
     {
@@ -6911,7 +6911,7 @@ static void test_empty_text_field(void)
     memset( &f, 0, sizeof(f) );
     f.mapping   = WS_TEXT_FIELD_MAPPING;
     f.type      = WS_BOOL_TYPE;
-    f.offset    = FIELD_OFFSET(struct test3, boolean);
+    f.offset    = FIELD_OFFSET(struct test3, bool);
     fields[0] = &f;
 
     memset( &s, 0, sizeof(s) );

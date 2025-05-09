@@ -971,7 +971,7 @@ static void CBDropDown( LPHEADCOMBO lphc )
 
         if (lphc->dwStyle & CBS_NOINTEGRALHEIGHT)
         {
-            nDroppedHeight = min(nItems * nIHeight + COMBO_YBORDERSIZE(), nDroppedHeight - 1);
+            nDroppedHeight -= 1;
         }
         else
         {

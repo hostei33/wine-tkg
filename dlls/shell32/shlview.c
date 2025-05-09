@@ -458,7 +458,7 @@ static void ShellView_InitList(IShellViewImpl *This)
 
         lvColumn.fmt = sd.fmt;
         lvColumn.cx = MulDiv(sd.cxChar, tm.tmAveCharWidth * 3, 2); /* chars->pixel */
-        StrRetToBufW(&sd.str, NULL, nameW, ARRAY_SIZE(nameW));
+        StrRetToStrNW(nameW, ARRAY_SIZE(nameW), &sd.str, NULL);
         SendMessageW(This->hWndList, LVM_INSERTCOLUMNW, This->columns, (LPARAM)&lvColumn);
     }
 
@@ -1039,6 +1039,9 @@ static void ShellView_DoContextMenu(IShellViewImpl * This, WORD x, WORD y, BOOL 
 	      /* let the ContextMenu merge its items in */
 	      if (SUCCEEDED(IContextMenu_QueryContextMenu( pContextMenu, hMenu, 0, FCIDM_SHVIEWFIRST, FCIDM_SHVIEWLAST, wFlags )))
 	      {
+	        if (This->FolderSettings.fFlags & FWF_DESKTOP)
+		  SetMenuDefaultItem(hMenu, FCIDM_SHVIEW_OPEN, MF_BYCOMMAND);
+
 		if( bDefault )
 		{
 		  TRACE("-- get menu default command\n");
@@ -1052,11 +1055,24 @@ static void ShellView_DoContextMenu(IShellViewImpl * This, WORD x, WORD y, BOOL 
 
 		if(uCommand > 0)
 		{
+		  TRACE("-- uCommand=%u\n", uCommand);
+		  if (uCommand==FCIDM_SHVIEW_OPEN && IsInCommDlg(This))
+		  {
+		    TRACE("-- dlg: OnDefaultCommand\n");
+		    if (OnDefaultCommand(This) != S_OK)
+		    {
+		      ShellView_OpenSelectedItems(This);
+		    }
+		  }
+		  else
+		  {
+		    TRACE("-- explore -- invoke command\n");
 		    ZeroMemory(&cmi, sizeof(cmi));
 		    cmi.cbSize = sizeof(cmi);
 		    cmi.hwnd = This->hWndParent; /* this window has to answer CWM_GETISHELLBROWSER */
                     cmi.lpVerb = MAKEINTRESOURCEA(uCommand);
 		    IContextMenu_InvokeCommand(pContextMenu, &cmi);
+		  }
 		}
 		DestroyMenu(hMenu);
 	      }
@@ -1424,14 +1440,14 @@ static LRESULT ShellView_OnNotify(IShellViewImpl * This, UINT CtlID, LPNMHDR lpn
 
               if (lpnmh->code == LVN_GETDISPINFOW)
               {
-                  StrRetToBufW(&sd.str, NULL, lpdi->item.pszText, lpdi->item.cchTextMax);
+                  StrRetToStrNW( lpdi->item.pszText, lpdi->item.cchTextMax, &sd.str, NULL);
                   TRACE("-- text=%s\n", debugstr_w(lpdi->item.pszText));
               }
               else
               {
                   /* LVN_GETDISPINFOA - shouldn't happen */
                   NMLVDISPINFOA *lpdiA = (NMLVDISPINFOA *)lpnmh;
-                  StrRetToBufA(&sd.str, NULL, lpdiA->item.pszText, lpdiA->item.cchTextMax);
+                  StrRetToStrNA( lpdiA->item.pszText, lpdiA->item.cchTextMax, &sd.str, NULL);
                   TRACE("-- text=%s\n", lpdiA->item.pszText);
               }
 	    }

@@ -1,9 +1,9 @@
-@ stdcall NetApiBufferAllocate(long ptr)
-@ stdcall NetApiBufferFree(ptr)
-@ stdcall NetApiBufferReallocate(ptr long ptr)
-@ stdcall NetApiBufferSize(ptr ptr)
+@ stub NetApiBufferAllocate
+@ stub NetApiBufferFree
+@ stub NetApiBufferReallocate
+@ stub NetApiBufferSize
 @ stub NetRemoteComputerSupports
-@ stdcall NetapipBufferAllocate(long ptr) NetApiBufferAllocate
+@ stub NetapipBufferAllocate
 @ stub NetpIsComputerNameValid
 @ stub NetpIsDomainNameValid
 @ stub NetpIsGroupNameValid

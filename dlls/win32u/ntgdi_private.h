@@ -58,9 +58,9 @@ typedef struct tagDC
     DC_ATTR     *attr;             /* DC attributes accessible by client */
     struct tagDC *saved_dc;
     struct dce  *dce;              /* associated dce, if any */
-    UINT         bounds_enabled:1; /* bounds tracking is enabled */
-    UINT         path_open:1;      /* path is currently open (only for saved DCs) */
-    UINT         is_display:1;     /* DC is for display device */
+    BOOL         bounds_enabled:1; /* bounds tracking is enabled */
+    BOOL         path_open:1;      /* path is currently open (only for saved DCs) */
+    BOOL         is_display:1;     /* DC is for display device */
 
     RECT         device_rect;      /* rectangle for the whole device */
     int          pixel_format;     /* pixel format (for memory DCs) */
@@ -219,6 +219,7 @@ extern UINT get_dib_dc_color_table( HDC hdc, UINT startpos, UINT entries,
 extern UINT set_dib_dc_color_table( HDC hdc, UINT startpos, UINT entries,
                                     const RGBQUAD *colors );
 extern void dibdrv_set_window_surface( DC *dc, struct window_surface *surface );
+extern struct opengl_funcs *dibdrv_get_wgl_driver(void);
 
 /* driver.c */
 extern const struct gdi_dc_funcs null_driver;
@@ -226,7 +227,6 @@ extern const struct gdi_dc_funcs dib_driver;
 extern const struct gdi_dc_funcs path_driver;
 extern const struct gdi_dc_funcs font_driver;
 extern const struct gdi_dc_funcs *get_display_driver(void);
-extern void init_display_driver(void);
 
 /* font.c */
 
@@ -280,11 +280,11 @@ struct gdi_font
     UINT                   ntmAvgWidth;
     UINT                   aa_flags;
     ULONG                  ttc_item_offset;    /* 0 if font is not a part of TrueType collection */
-    UINT                   can_use_bitmap : 1;
-    UINT                   fake_italic : 1;
-    UINT                   fake_bold : 1;
-    UINT                   scalable : 1;
-    UINT                   use_logfont_name : 1;
+    BOOL                   can_use_bitmap : 1;
+    BOOL                   fake_italic : 1;
+    BOOL                   fake_bold : 1;
+    BOOL                   scalable : 1;
+    BOOL                   use_logfont_name : 1;
     struct gdi_font       *base_font;
     void                  *gsub_table;
     void                  *vert_feature;
@@ -327,7 +327,7 @@ struct font_backend_funcs
     UINT  (*get_default_glyph)( struct gdi_font *gdi_font );
     UINT  (*get_glyph_outline)( struct gdi_font *font, UINT glyph, UINT format,
                                 GLYPHMETRICS *gm, ABC *abc, UINT buflen, void *buf,
-                                const MAT2 *mat, BOOL tategaki );
+                                const MAT2 *mat, BOOL tategaki, UINT aa_flags );
     UINT  (*get_unicode_ranges)( struct gdi_font *font, GLYPHSET *gs );
     BOOL  (*get_char_width_info)( struct gdi_font *font, struct char_width_info *info );
     BOOL  (*set_outline_text_metrics)( struct gdi_font *font );
@@ -410,6 +410,7 @@ extern POINT *GDI_Bezier( const POINT *Points, INT count, INT *nPtsOut );
 extern HPALETTE PALETTE_Init(void);
 extern UINT get_palette_entries( HPALETTE hpalette, UINT start, UINT count,
                                  PALETTEENTRY *entries );
+extern UINT realize_palette( HDC hdc );
 
 /* pen.c */
 extern HPEN create_pen( INT style, INT width, COLORREF color );

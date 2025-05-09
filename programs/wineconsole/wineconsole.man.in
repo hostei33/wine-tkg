@@ -1,6 +1,6 @@
 .TH WINECONSOLE 1 "November 2010" "@PACKAGE_STRING@" "Wine Programs"
 .SH NAME
-wineconsole \- Wine console manager
+wineconsole \- The Wine console
 .SH SYNOPSIS
 .B wineconsole
 .RI [ command "] "

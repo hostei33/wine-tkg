@@ -27,7 +27,7 @@
 
 struct findstr_string
 {
-    const char *string;
+    const WCHAR *string;
     struct findstr_string *next;
 };
 

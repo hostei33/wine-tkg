@@ -1103,7 +1103,7 @@ static void get_utf8_args(int *argc, char ***argv)
 
 # define CAN_FIXUP_VTABLE 1
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 
 struct vtable_fixup_thunk
 {
@@ -1142,13 +1142,13 @@ static const struct vtable_fixup_thunk thunk_template = {
     NULL
 };
 
-#pragma pack(pop)
+#include "poppack.h"
 
 #elif __x86_64__ /* !__i386__ */
 
 # define CAN_FIXUP_VTABLE 1
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 
 struct vtable_fixup_thunk
 {
@@ -1210,7 +1210,7 @@ static const struct vtable_fixup_thunk thunk_template = {
     {0x48,0x8B,0x00,0xFF,0xE0}
 };
 
-#pragma pack(pop)
+#include "poppack.h"
 
 #else /* !__i386__ && !__x86_64__ */
 
@@ -1596,7 +1596,7 @@ HRESULT RuntimeHost_Construct(CLRRuntimeInfo *runtime_version, RuntimeHost** res
 
     This->ref = 1;
     This->version = runtime_version;
-    InitializeCriticalSectionEx(&This->lock, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&This->lock);
     This->lock.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": RuntimeHost.lock");
 
     *result = This;
@@ -1738,7 +1738,8 @@ HRESULT create_monodata(REFCLSID clsid, LPVOID *ppObj)
     WCHAR codebase[MAX_PATH + 8];
     WCHAR classname[350], subkeyName[256];
     WCHAR filename[MAX_PATH];
-    DWORD dwBufLen;
+
+    DWORD dwBufLen = 350;
 
     lstrcpyW(path, wszCLSIDSlash);
     StringFromGUID2(clsid, path + lstrlenW(wszCLSIDSlash), CHARS_IN_GUID);
@@ -1757,7 +1758,7 @@ HRESULT create_monodata(REFCLSID clsid, LPVOID *ppObj)
             HRESULT (WINAPI *pDllGetClassObject)(REFCLSID,REFIID,LPVOID*);
             IClassFactory *classfactory;
 
-            dwBufLen = sizeof( filename );
+            dwBufLen = ARRAY_SIZE( filename );
             res = RegGetValueW( subkey, NULL, NULL, RRF_RT_REG_SZ, NULL, filename, &dwBufLen );
 
             RegCloseKey( subkey );
@@ -1795,7 +1796,6 @@ HRESULT create_monodata(REFCLSID clsid, LPVOID *ppObj)
             goto cleanup;
         }
 
-        dwBufLen = sizeof( classname );
         res = RegGetValueW( key, NULL, L"Class", RRF_RT_REG_SZ, NULL, classname, &dwBufLen);
         if(res != ERROR_SUCCESS)
         {
@@ -1806,7 +1806,7 @@ HRESULT create_monodata(REFCLSID clsid, LPVOID *ppObj)
 
         TRACE("classname (%s)\n", debugstr_w(classname));
 
-        dwBufLen = sizeof( codebase );
+        dwBufLen = MAX_PATH + 8;
         res = RegGetValueW( key, NULL, L"CodeBase", RRF_RT_REG_SZ, NULL, codebase, &dwBufLen);
         if(res == ERROR_SUCCESS)
         {
@@ -1816,7 +1816,7 @@ HRESULT create_monodata(REFCLSID clsid, LPVOID *ppObj)
 
             lstrcpyW(filename, codebase + offset);
 
-            file = CreateFileW(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, 0);
+            file = CreateFileW(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, 0);
         }
 
         if (file != INVALID_HANDLE_VALUE)
@@ -1841,7 +1841,7 @@ HRESULT create_monodata(REFCLSID clsid, LPVOID *ppObj)
                 res = RegOpenKeyExW(key, subkeyName, 0, KEY_READ, &subkey);
                 if (res != ERROR_SUCCESS)
                     goto cleanup;
-                dwBufLen = sizeof( assemblyname );
+                dwBufLen = MAX_PATH + 8;
                 res = RegGetValueW(subkey, NULL, L"Assembly", RRF_RT_REG_SZ, NULL, assemblyname, &dwBufLen);
                 RegCloseKey(subkey);
                 if (res != ERROR_SUCCESS)
@@ -1849,7 +1849,7 @@ HRESULT create_monodata(REFCLSID clsid, LPVOID *ppObj)
             }
             else
             {
-                dwBufLen = sizeof( assemblyname );
+                dwBufLen = MAX_PATH + 8;
                 res = RegGetValueW(key, NULL, L"Assembly", RRF_RT_REG_SZ, NULL, assemblyname, &dwBufLen);
                 if (res != ERROR_SUCCESS)
                     goto cleanup;

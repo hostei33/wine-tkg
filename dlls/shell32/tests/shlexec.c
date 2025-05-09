@@ -1166,15 +1166,6 @@ static void test_lpFile_parsed(void)
                         NULL, "\"%TMPDIR%\\simple.shlexec\"", NULL, NULL, NULL);
     okShell(rc > 32 || broken(rc == SE_ERR_FNF) /* Win95/NT4 */,
             "failed: rc=%Iu\n", rc);
-    /* test lpfile + trailing space */
-    rc=shell_execute_ex(SEE_MASK_DOENVSUBST | SEE_MASK_FLAG_NO_UI,
-                        NULL, "%TMPDIR%\\simple.shlexec ", NULL, NULL, NULL);
-    okShell(rc > 32, "failed: rc=%Iu\n", rc);
-    /* test lpfile + leading space */
-    rc=shell_execute_ex(SEE_MASK_DOENVSUBST | SEE_MASK_FLAG_NO_UI,
-                        NULL, " %TMPDIR%\\simple.shlexec", NULL, NULL, NULL);
-    okShell(rc == SE_ERR_FNF, "failed: rc=%Iu\n", rc);
-
 }
 
 typedef struct
@@ -1388,6 +1379,7 @@ static BOOL test_one_cmdline(const cmdline_tests_t* test)
 
 static void test_commandline2argv(void)
 {
+    static const WCHAR exeW[] = {'e','x','e',0};
     const cmdline_tests_t* test;
     WCHAR strW[MAX_PATH];
     LPWSTR *args;
@@ -1403,7 +1395,7 @@ static void test_commandline2argv(void)
     }
 
     SetLastError(0xdeadbeef);
-    args = CommandLineToArgvW(L"exe", NULL);
+    args = CommandLineToArgvW(exeW, NULL);
     le = GetLastError();
     ok(args == NULL && le == ERROR_INVALID_PARAMETER, "expected NULL with ERROR_INVALID_PARAMETER got %p with %lu\n", args, le);
 

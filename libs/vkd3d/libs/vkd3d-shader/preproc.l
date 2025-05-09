@@ -30,11 +30,11 @@
 
 #define YY_DECL static int preproc_lexer_lex(YYSTYPE *yylval_param, YYLTYPE *yylloc_param, yyscan_t yyscanner)
 
-static struct preproc_expansion *preproc_get_top_expansion(struct preproc_ctx *ctx)
+static struct preproc_macro *preproc_get_top_macro(struct preproc_ctx *ctx)
 {
     if (!ctx->expansion_count)
         return NULL;
-    return &ctx->expansion_stack[ctx->expansion_count - 1];
+    return ctx->expansion_stack[ctx->expansion_count - 1].macro;
 }
 
 static void update_location(struct preproc_ctx *ctx);
@@ -66,8 +66,8 @@ static void update_location(struct preproc_ctx *ctx);
 %s LINE
 
 NEWLINE         \r?\n
-WS              [ \t\r]
-IDENTIFIER      (::)?[A-Za-z_]((::)?[A-Za-z0-9_]+)*
+WS              [ \t]
+IDENTIFIER      [A-Za-z_][A-Za-z0-9_]*
 INT_SUFFIX      [uUlL]{0,2}
 
 %%
@@ -133,14 +133,14 @@ INT_SUFFIX      [uUlL]{0,2}
 
         if (!ctx->last_was_newline)
         {
-            struct preproc_expansion *exp;
+            struct preproc_macro *macro;
 
             /* Stringification is only done for function-like macro bodies.
              * Anywhere else, we need to parse it as two separate tokens.
              * We could use a state for this, but yyless() is easier and cheap.
              */
 
-            if ((exp = preproc_get_top_expansion(ctx)) && exp->macro && exp->macro->arg_count)
+            if ((macro = preproc_get_top_macro(ctx)) && macro->arg_count)
                 return T_HASHSTRING;
 
             yyless(1);
@@ -259,12 +259,6 @@ static void preproc_pop_buffer(struct preproc_ctx *ctx)
 
         yy_delete_buffer(exp->buffer.lexer_buffer, ctx->scanner);
 
-        if (exp->macro)
-        {
-            for (unsigned int i = 0; i < exp->macro->arg_count; ++i)
-                vkd3d_string_buffer_cleanup(&exp->arg_values[i].text);
-            free(exp->arg_values);
-        }
         --ctx->expansion_count;
         TRACE("Expansion stack size is now %zu.\n", ctx->expansion_count);
     }
@@ -317,15 +311,15 @@ static int return_token(int token, YYSTYPE *lval, const char *text)
 
 static const struct preproc_text *find_arg_expansion(struct preproc_ctx *ctx, const char *s)
 {
-    struct preproc_expansion *exp;
+    struct preproc_macro *macro;
     unsigned int i;
 
-    if ((exp = preproc_get_top_expansion(ctx)) && exp->macro)
+    if ((macro = preproc_get_top_macro(ctx)))
     {
-        for (i = 0; i < exp->macro->arg_count; ++i)
+        for (i = 0; i < macro->arg_count; ++i)
         {
-            if (!strcmp(s, exp->macro->arg_names[i]))
-                return &exp->arg_values[i];
+            if (!strcmp(s, macro->arg_names[i]))
+                return &macro->arg_values[i];
         }
     }
     return NULL;
@@ -337,7 +331,7 @@ static void preproc_text_add(struct preproc_text *text, const char *string)
 }
 
 static bool preproc_push_expansion(struct preproc_ctx *ctx,
-        const struct preproc_text *text, struct preproc_macro *macro, struct preproc_text *arg_values)
+        const struct preproc_text *text, struct preproc_macro *macro)
 {
     struct preproc_expansion *exp;
 
@@ -349,7 +343,6 @@ static bool preproc_push_expansion(struct preproc_ctx *ctx,
     exp->buffer.lexer_buffer = yy_scan_bytes(text->text.buffer, text->text.content_size, ctx->scanner);
     exp->buffer.location = text->location;
     exp->macro = macro;
-    exp->arg_values = arg_values;
     TRACE("Expansion stack size is now %zu.\n", ctx->expansion_count);
     return true;
 }
@@ -416,7 +409,7 @@ int yylex(YYSTYPE *lval, YYLTYPE *lloc, yyscan_t scanner)
             }
             ctx->last_was_eof = false;
 
-            VKD3D_ASSERT(ctx->file_count);
+            assert(ctx->file_count);
             if (!(token = preproc_lexer_lex(lval, lloc, scanner)))
             {
                 ctx->last_was_eof = true;
@@ -550,7 +543,7 @@ int yylex(YYSTYPE *lval, YYLTYPE *lloc, yyscan_t scanner)
 
                     if ((expansion = find_arg_expansion(ctx, text)))
                     {
-                        preproc_push_expansion(ctx, expansion, NULL, NULL);
+                        preproc_push_expansion(ctx, expansion, NULL);
                         continue;
                     }
 
@@ -558,7 +551,7 @@ int yylex(YYSTYPE *lval, YYLTYPE *lloc, yyscan_t scanner)
                     {
                         if (!macro->arg_count)
                         {
-                            preproc_push_expansion(ctx, &macro->body, macro, NULL);
+                            preproc_push_expansion(ctx, &macro->body, macro);
                         }
                         else
                         {
@@ -624,19 +617,16 @@ int yylex(YYSTYPE *lval, YYLTYPE *lloc, yyscan_t scanner)
             case STATE_IDENTIFIER:
                 if (token == '(')
                 {
-                    struct preproc_text *arg_values;
-
-                    if (!(arg_values = calloc(func_state->macro->arg_count, sizeof(*arg_values))))
-                        return 0;
-
-                    for (unsigned int i = 0; i < func_state->macro->arg_count; ++i)
-                        vkd3d_string_buffer_init(&arg_values[i].text);
-                    arg_values[0].location = *lloc;
+                    struct preproc_text *first_arg = &func_state->macro->arg_values[0];
+                    unsigned int i;
 
                     func_state->arg_count = 0;
                     func_state->paren_depth = 1;
                     func_state->state = STATE_ARGS;
-                    func_state->arg_values = arg_values;
+                    for (i = 0; i < func_state->macro->arg_count; ++i)
+                        func_state->macro->arg_values[i].text.content_size = 0;
+
+                    first_arg->location = *lloc;
                 }
                 else
                 {
@@ -657,10 +647,10 @@ int yylex(YYSTYPE *lval, YYLTYPE *lloc, yyscan_t scanner)
             {
                 struct preproc_text *current_arg = NULL;
 
-                VKD3D_ASSERT(func_state->macro->arg_count);
+                assert(func_state->macro->arg_count);
 
                 if (func_state->arg_count < func_state->macro->arg_count)
-                    current_arg = &func_state->arg_values[func_state->arg_count];
+                    current_arg = &func_state->macro->arg_values[func_state->arg_count];
 
                 switch (token)
                 {
@@ -675,7 +665,7 @@ int yylex(YYSTYPE *lval, YYLTYPE *lloc, yyscan_t scanner)
 
                         if ((expansion = find_arg_expansion(ctx, text)))
                         {
-                            preproc_push_expansion(ctx, expansion, NULL, NULL);
+                            preproc_push_expansion(ctx, expansion, NULL);
                             continue;
                         }
 
@@ -711,8 +701,7 @@ int yylex(YYSTYPE *lval, YYLTYPE *lloc, yyscan_t scanner)
                         {
                             if (++func_state->arg_count == func_state->macro->arg_count)
                             {
-                                preproc_push_expansion(ctx, &func_state->macro->body,
-                                        func_state->macro, func_state->arg_values);
+                                preproc_push_expansion(ctx, &func_state->macro->body, func_state->macro);
                             }
                             else
                             {

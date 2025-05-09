@@ -29,9 +29,6 @@
 #ifdef HAVE_SYS_SYSCTL_H
 # include <sys/sysctl.h>
 #endif
-#ifdef __APPLE__
-# include <mach-o/dyld.h>
-#endif
 
 #include "windef.h"
 #include "winternl.h"
@@ -215,19 +212,19 @@ int dump_strW( const WCHAR *str, data_size_t len, FILE *f, const char escape[2] 
         if (*str > 127)  /* hex escape */
         {
             if (len > 1 && str[1] < 128 && isxdigit((char)str[1]))
-                pos += snprintf( pos, sizeof(buffer) - (pos - buffer), "\\x%04x", *str );
+                pos += sprintf( pos, "\\x%04x", *str );
             else
-                pos += snprintf( pos, sizeof(buffer) - (pos - buffer), "\\x%x", *str );
+                pos += sprintf( pos, "\\x%x", *str );
             continue;
         }
         if (*str < 32)  /* octal or C escape */
         {
             if (escapes[*str] != '.')
-                pos += snprintf( pos, sizeof(buffer) - (pos - buffer), "\\%c", escapes[*str] );
+                pos += sprintf( pos, "\\%c", escapes[*str] );
             else if (len > 1 && str[1] >= '0' && str[1] <= '7')
-                pos += snprintf( pos, sizeof(buffer) - (pos - buffer), "\\%03o", *str );
+                pos += sprintf( pos, "\\%03o", *str );
             else
-                pos += snprintf( pos, sizeof(buffer) - (pos - buffer), "\\%o", *str );
+                pos += sprintf( pos, "\\%o", *str );
             continue;
         }
         if (*str == '\\' || *str == escape[0] || *str == escape[1]) *pos++ = '\\';
@@ -238,46 +235,10 @@ int dump_strW( const WCHAR *str, data_size_t len, FILE *f, const char escape[2] 
     return count;
 }
 
-/* build a path with the relative dir from 'from' to 'dest' appended to base */
-static char *build_relative_path( const char *base, const char *from, const char *dest )
-{
-    const char *start;
-    char *ret;
-    unsigned int dotdots = 0;
-
-    for (;;)
-    {
-        while (*from == '/') from++;
-        while (*dest == '/') dest++;
-        start = dest;  /* save start of next path element */
-        if (!*from) break;
-
-        while (*from && *from != '/' && *from == *dest) { from++; dest++; }
-        if ((!*from || *from == '/') && (!*dest || *dest == '/')) continue;
-
-        do  /* count remaining elements in 'from' */
-        {
-            dotdots++;
-            while (*from && *from != '/') from++;
-            while (*from == '/') from++;
-        }
-        while (*from);
-        break;
-    }
-
-    ret = malloc( strlen(base) + 3 * dotdots + strlen(start) + 2 );
-    strcpy( ret, base );
-    while (dotdots--) strcat( ret, "/.." );
-
-    if (!start[0]) return ret;
-    strcat( ret, "/" );
-    strcat( ret, start );
-    return ret;
-}
-
 static char *get_nls_dir(void)
 {
     char *p, *dir, *ret;
+    const char *nlsdir = BIN_TO_NLSDIR;
 
 #if defined(__linux__) || defined(__FreeBSD_kernel__) || defined(__NetBSD__)
     dir = realpath( "/proc/self/exe", NULL );
@@ -293,17 +254,6 @@ static char *get_nls_dir(void)
             dir = NULL;
         }
     }
-#elif defined(__APPLE__)
-    uint32_t dir_size = PATH_MAX;
-    dir = malloc( dir_size );
-    if (dir)
-    {
-        if (_NSGetExecutablePath( dir, &dir_size ))
-        {
-            free( dir );
-            dir = NULL;
-        }
-    }
 #else
     dir = realpath( server_argv0, NULL );
 #endif
@@ -314,12 +264,12 @@ static char *get_nls_dir(void)
         return NULL;
     }
     *(++p) = 0;
-    if (p > dir + 8 && !strcmp( p - 8, "/server/" ))  /* inside build tree */
+    if (p > dir + 8 && !strcmp( p - 8, "/server/" )) nlsdir = "../nls";  /* inside build tree */
+    if ((ret = malloc( strlen(dir) + strlen( nlsdir ) + 1 )))
     {
-        strcpy( p - 8, "/nls" );
-        return dir;
+        strcpy( ret, dir );
+        strcat( ret, nlsdir );
     }
-    ret = build_relative_path( dir, BINDIR, DATADIR "/wine/nls" );
     free( dir );
     return ret;
 }
@@ -327,7 +277,7 @@ static char *get_nls_dir(void)
 /* load the case mapping table */
 struct fd *load_intl_file(void)
 {
-    static const char *nls_dirs[] = { NULL, DATADIR "/wine/nls", "/data/data/com.winlator/files/rootfs/usr/local/share/wine/nls", "/data/data/com.winlator/files/rootfs/usr/share/wine/nls" };
+    static const char *nls_dirs[] = { NULL, NLSDIR, "/data/data/com.winlator/files/rootfs/usr/local/share/wine/nls", "/data/data/com.winlator/files/rootfs/usr/share/wine/nls" };
     static const WCHAR nt_pathW[] = {'C',':','\\','w','i','n','d','o','w','s','\\',
         's','y','s','t','e','m','3','2','\\','l','_','i','n','t','l','.','n','l','s',0};
     static const struct unicode_str nt_name = { nt_pathW, sizeof(nt_pathW) };
@@ -342,7 +292,9 @@ struct fd *load_intl_file(void)
     for (i = 0; i < ARRAY_SIZE( nls_dirs ); i++)
     {
         if (!nls_dirs[i]) continue;
-        if (asprintf( &path, "%s/l_intl.nls", nls_dirs[i] ) == -1) continue;
+        if (!(path = malloc( strlen(nls_dirs[i]) + sizeof("/l_intl.nls" )))) continue;
+        strcpy( path, nls_dirs[i] );
+        strcat( path, "/l_intl.nls" );
         if ((fd = open_fd( NULL, path, nt_name, O_RDONLY, &mode, FILE_READ_DATA,
                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                            FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT ))) break;

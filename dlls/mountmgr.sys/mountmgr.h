@@ -90,11 +90,11 @@ struct scsi_info
 
 extern NTSTATUS add_volume( const char *udi, const char *device, const char *mount_point,
                             enum device_type type, const GUID *guid, const char *disk_serial,
-                            const char *label, const struct scsi_info *info );
+                            const struct scsi_info *info );
 extern NTSTATUS remove_volume( const char *udi );
 extern NTSTATUS add_dos_device( int letter, const char *udi, const char *device,
                                 const char *mount_point, enum device_type type, const GUID *guid,
-                                const char *label, const struct scsi_info *info );
+                                const struct scsi_info *info );
 extern NTSTATUS remove_dos_device( int letter, const char *udi );
 extern NTSTATUS query_unix_drive( void *buff, SIZE_T insize, SIZE_T outsize,
                                   IO_STATUS_BLOCK *iosb );
@@ -108,6 +108,6 @@ extern struct mount_point *add_dosdev_mount_point( DEVICE_OBJECT *device, UNICOD
 extern struct mount_point *add_volume_mount_point( DEVICE_OBJECT *device, UNICODE_STRING *device_name,
                                                    const GUID *guid );
 extern void delete_mount_point( struct mount_point *mount );
-extern void set_mount_point_id( struct mount_point *mount, const void *id, unsigned int id_len, int drive );
+extern void set_mount_point_id( struct mount_point *mount, const void *id, unsigned int id_len );
 
 #endif /* __WINE_MOUNTMGR_H */

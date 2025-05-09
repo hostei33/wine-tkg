@@ -1392,28 +1392,8 @@ static HRESULT WINAPI DocObjOleInPlaceActiveObject_ContextSensitiveHelp(IOleInPl
 static HRESULT WINAPI DocObjOleInPlaceActiveObject_TranslateAccelerator(IOleInPlaceActiveObject *iface, LPMSG lpmsg)
 {
     HTMLDocumentObj *This = HTMLDocumentObj_from_IOleInPlaceActiveObject(iface);
-    HRESULT hres = S_FALSE;
-
-    TRACE("(%p)->(%p)\n", This, lpmsg);
-
-    switch(lpmsg->message)
-    {
-        case WM_KEYDOWN:
-            break;
-        case WM_KEYUP:
-        {
-            TRACE("Processing key %Ix\n", lpmsg->wParam);
-            if (lpmsg->wParam == VK_F5)
-                hres = IOleCommandTarget_Exec(&This->IOleCommandTarget_iface, NULL, OLECMDID_REFRESH, 0, NULL, NULL);
-
-            break;
-        }
-        default:
-            FIXME("Unsupported message %04x\n", lpmsg->message);
-    }
-
-    TRACE("result 0x%08lx\n", hres);
-    return hres;
+    FIXME("(%p)->(%p)\n", This, lpmsg);
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI DocObjOleInPlaceActiveObject_OnFrameWindowActivate(IOleInPlaceActiveObject *iface,
@@ -3461,6 +3441,8 @@ static void set_window_uninitialized(HTMLOuterWindow *window)
         if(SUCCEEDED(hres)) {
             channelbsc->bsc.bindf = 0;  /* synchronous binding */
 
+            if(window->base.inner_window->doc)
+                remove_target_tasks(window->base.inner_window->task_magic);
             abort_window_bindings(window->base.inner_window);
             window->base.inner_window->doc->unload_sent = TRUE;
 
@@ -3553,67 +3535,35 @@ static inline HTMLDocumentObj *impl_from_IDispatchEx(IDispatchEx *iface)
 }
 
 HTMLDOCUMENTOBJ_IUNKNOWN_METHODS(DispatchEx)
-DISPEX_IDISPATCH_NOUNK_IMPL(DocObjDispatchEx, IDispatchEx,
-                            impl_from_IDispatchEx(iface)->doc_node->node.event_target.dispex)
+HTMLDOCUMENTOBJ_FWD_TO_NODE_1(DispatchEx, GetTypeInfoCount, UINT*)
+HTMLDOCUMENTOBJ_FWD_TO_NODE_3(DispatchEx, GetTypeInfo, UINT,LCID,ITypeInfo**)
+HTMLDOCUMENTOBJ_FWD_TO_NODE_5(DispatchEx, GetIDsOfNames, REFIID,LPOLESTR*,UINT,LCID,DISPID*)
 
-static HRESULT WINAPI DocObjDispatchEx_GetDispID(IDispatchEx *iface, BSTR name, DWORD grfdex, DISPID *pid)
+static HRESULT WINAPI DocObjDispatchEx_Invoke(IDispatchEx *iface, DISPID dispIdMember, REFIID riid, LCID lcid,
+        WORD wFlags, DISPPARAMS *pDispParams, VARIANT *pVarResult, EXCEPINFO *pExcepInfo, UINT *puArgErr)
 {
     HTMLDocumentObj *This = impl_from_IDispatchEx(iface);
 
-    return IWineJSDispatchHost_GetDispID(&This->doc_node->node.event_target.dispex.IWineJSDispatchHost_iface, name, grfdex, pid);
+    return IDispatchEx_InvokeEx(&This->doc_node->IDispatchEx_iface, dispIdMember, lcid, wFlags, pDispParams,
+            pVarResult, pExcepInfo, NULL);
 }
+
+HTMLDOCUMENTOBJ_FWD_TO_NODE_3(DispatchEx, GetDispID, BSTR,DWORD,DISPID*)
 
 static HRESULT WINAPI DocObjDispatchEx_InvokeEx(IDispatchEx *iface, DISPID id, LCID lcid, WORD wFlags, DISPPARAMS *pdp,
         VARIANT *pvarRes, EXCEPINFO *pei, IServiceProvider *pspCaller)
 {
     HTMLDocumentObj *This = impl_from_IDispatchEx(iface);
 
-    return IWineJSDispatchHost_InvokeEx(&This->doc_node->node.event_target.dispex.IWineJSDispatchHost_iface, id, lcid,
-                                    wFlags, pdp, pvarRes, pei, pspCaller);
+    return IDispatchEx_InvokeEx(&This->doc_node->IDispatchEx_iface, id, lcid, wFlags, pdp, pvarRes, pei, pspCaller);
 }
 
-static HRESULT WINAPI DocObjDispatchEx_DeleteMemberByName(IDispatchEx *iface, BSTR bstrName, DWORD grfdex)
-{
-    HTMLDocumentObj *This = impl_from_IDispatchEx(iface);
-
-    return IWineJSDispatchHost_DeleteMemberByName(&This->doc_node->node.event_target.dispex.IWineJSDispatchHost_iface, bstrName, grfdex);
-}
-
-static HRESULT WINAPI DocObjDispatchEx_DeleteMemberByDispID(IDispatchEx *iface, DISPID id)
-{
-    HTMLDocumentObj *This = impl_from_IDispatchEx(iface);
-
-    return IWineJSDispatchHost_DeleteMemberByDispID(&This->doc_node->node.event_target.dispex.IWineJSDispatchHost_iface, id);
-}
-
-static HRESULT WINAPI DocObjDispatchEx_GetMemberProperties(IDispatchEx *iface, DISPID id, DWORD grfdexFetch, DWORD *pgrfdex)
-{
-    HTMLDocumentObj *This = impl_from_IDispatchEx(iface);
-
-    return IWineJSDispatchHost_GetMemberProperties(&This->doc_node->node.event_target.dispex.IWineJSDispatchHost_iface, id, grfdexFetch,
-            pgrfdex);
-}
-
-static HRESULT WINAPI DocObjDispatchEx_GetMemberName(IDispatchEx *iface, DISPID id, BSTR *name)
-{
-    HTMLDocumentObj *This = impl_from_IDispatchEx(iface);
-
-    return IWineJSDispatchHost_GetMemberName(&This->doc_node->node.event_target.dispex.IWineJSDispatchHost_iface, id, name);
-}
-
-static HRESULT WINAPI DocObjDispatchEx_GetNextDispID(IDispatchEx *iface, DWORD grfdex, DISPID id, DISPID *pid)
-{
-    HTMLDocumentObj *This = impl_from_IDispatchEx(iface);
-
-    return IWineJSDispatchHost_GetNextDispID(&This->doc_node->node.event_target.dispex.IWineJSDispatchHost_iface, grfdex, id, pid);
-}
-
-static HRESULT WINAPI DocObjDispatchEx_GetNameSpaceParent(IDispatchEx *iface, IUnknown **ppunk)
-{
-    HTMLDocumentObj *This = impl_from_IDispatchEx(iface);
-
-    return IWineJSDispatchHost_GetNameSpaceParent(&This->doc_node->node.event_target.dispex.IWineJSDispatchHost_iface, ppunk);
-}
+HTMLDOCUMENTOBJ_FWD_TO_NODE_2(DispatchEx, DeleteMemberByName, BSTR,DWORD)
+HTMLDOCUMENTOBJ_FWD_TO_NODE_1(DispatchEx, DeleteMemberByDispID, DISPID)
+HTMLDOCUMENTOBJ_FWD_TO_NODE_3(DispatchEx, GetMemberProperties, DISPID,DWORD,DWORD*)
+HTMLDOCUMENTOBJ_FWD_TO_NODE_2(DispatchEx, GetMemberName, DISPID,BSTR*)
+HTMLDOCUMENTOBJ_FWD_TO_NODE_3(DispatchEx, GetNextDispID, DWORD,DISPID,DISPID*)
+HTMLDOCUMENTOBJ_FWD_TO_NODE_1(DispatchEx, GetNameSpaceParent, IUnknown**)
 
 static const IDispatchExVtbl DocObjDispatchExVtbl = {
     DocObjDispatchEx_QueryInterface,
@@ -3719,14 +3669,97 @@ static const cpc_entry_t HTMLDocumentObj_cpc[] = {
     {NULL}
 };
 
+
+
+/* TRUE if we create a dedicated thread for all HTML documents */
+static BOOL gecko_main_thread_config;
+
+static LONG gecko_main_thread;
+static HWND gecko_main_thread_hwnd;
+static HANDLE gecko_main_thread_event;
+
+static DWORD WINAPI gecko_main_thread_proc(void *arg)
+{
+    MSG msg;
+
+    TRACE("\n");
+
+    CoInitialize(NULL);
+
+    gecko_main_thread_hwnd = get_thread_hwnd();
+    if(!gecko_main_thread_hwnd) {
+        ERR("Could not create thread window\n");
+        SetEvent(gecko_main_thread_event);
+        CoUninitialize();
+        return 0;
+    }
+
+    gecko_main_thread = GetCurrentThreadId();
+    SetEvent(gecko_main_thread_event);
+
+    while(GetMessageW(&msg, NULL, 0, 0)) {
+        DispatchMessageW(&msg);
+        TranslateMessage(&msg);
+    }
+
+    CoUninitialize();
+    return 0;
+}
+
+static BOOL WINAPI read_thread_config(INIT_ONCE *once, void *param, void **context)
+{
+    char str[64];
+
+    if((GetEnvironmentVariableA("SteamGameId", str, sizeof(str)) && (!strcmp(str, "491540") || !strcmp(str,"47890")))
+            || (GetEnvironmentVariableA("WINE_GECKO_MAIN_THREAD", str, sizeof(str)) && *str != '0'))
+    {
+        FIXME("HACK: Using separated main thread.\n");
+        gecko_main_thread_config = TRUE;
+    }
+
+    return TRUE;
+}
+
 static HRESULT create_document_object(BOOL is_mhtml, IUnknown *outer, REFIID riid, void **ppv)
 {
     HTMLDocumentObj *doc;
     HRESULT hres;
 
+    static INIT_ONCE init_once = INIT_ONCE_STATIC_INIT;
+
     if(outer && !IsEqualGUID(&IID_IUnknown, riid)) {
         *ppv = NULL;
         return E_INVALIDARG;
+    }
+
+    /* CXHACK 15579 */
+    InitOnceExecuteOnce(&init_once, read_thread_config, NULL, NULL);
+    if(gecko_main_thread_config && !gecko_main_thread) {
+        HANDLE thread, event;
+
+        event = CreateEventW(NULL, TRUE, FALSE, NULL);
+        if(InterlockedCompareExchangePointer(&gecko_main_thread_event, event, NULL))
+            CloseHandle(event);
+
+        thread = CreateThread(NULL, 0, gecko_main_thread_proc, NULL, 0, NULL);
+        if(thread) {
+            WaitForSingleObject(gecko_main_thread_event, INFINITE);
+            CloseHandle(thread);
+        }else {
+            ERR("Could not create a thread\n");
+        }
+    }
+
+    if(!gecko_main_thread) {
+        gecko_main_thread = GetCurrentThreadId();
+        gecko_main_thread_hwnd = get_thread_hwnd();
+    }else if(GetCurrentThreadId() != gecko_main_thread) {
+        FIXME("HACK: Creating HTMLDocument outside Gecko main thread\n");
+        if(!gecko_main_thread_config) {
+            FIXME("HACK: Dedicated main thread not configured\n");
+            FIXME("HACK: Create HKCU\\Software\\Wine\\MSHTML\\MainThreadHack key\n");
+        }
+        return create_marshaled_doc(gecko_main_thread_hwnd, riid, ppv);
     }
 
     /* ensure that security manager is initialized */

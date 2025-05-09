@@ -291,9 +291,6 @@ static HRESULT WINAPI VideoWindow_put_FullScreenMode(IVideoWindow *iface, LONG f
 
     FIXME("filter %p, fullscreen %ld.\n", filter, fullscreen);
 
-    if (fullscreen == filter->FullScreenMode)
-        return S_FALSE;
-
     if (fullscreen)
     {
         filter->saved_style = GetWindowLongW(window, GWL_STYLE);

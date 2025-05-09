@@ -27,6 +27,7 @@ SOURCES = \
 	cocoa_window.m \
 	display.c \
 	dllmain.c \
+	dragdrop.c \
 	event.c \
 	gdi.c \
 	image.c \

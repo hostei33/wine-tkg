@@ -29,7 +29,6 @@
  */
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <limits.h>
 #include <math.h>
 
@@ -106,18 +105,6 @@ static BOOL compare_vec4(const struct vec4 *vec, float x, float y, float z, floa
             && compare_float(vec->y, y, ulps)
             && compare_float(vec->z, z, ulps)
             && compare_float(vec->w, w, ulps);
-}
-
-static uint32_t float_to_int(float f)
-{
-    union
-    {
-        uint32_t u;
-        float f;
-    } u;
-
-    u.f = f;
-    return u.u;
 }
 
 static BOOL adapter_is_warp(const D3DADAPTER_IDENTIFIER9 *identifier)
@@ -233,11 +220,6 @@ static DWORD get_readback_color(struct surface_readback *rb, unsigned int x, uns
 {
     return rb->locked_rect.pBits
             ? ((DWORD *)rb->locked_rect.pBits)[y * rb->locked_rect.Pitch / sizeof(DWORD) + x] : 0xdeadbeef;
-}
-
-static const struct vec4 *get_readback_vec4(struct surface_readback *rb, unsigned int x, unsigned int y)
-{
-    return &((const struct vec4 *)rb->locked_rect.pBits)[y * rb->locked_rect.Pitch / sizeof(struct vec4) + x];
 }
 
 static void release_surface_readback(struct surface_readback *rb)
@@ -1685,17 +1667,16 @@ static void color_fill_test(void)
         {D3DPOOL_MANAGED,    0,                     D3DERR_INVALIDCALL},
         {D3DPOOL_SCRATCH,    0,                     D3DERR_INVALIDCALL},
     };
-    enum format_flags
-    {
-        CHECK_FILL_VALUE = 0x1,
-        BLOCKS           = 0x2,
-        FLOAT_VALUES     = 0x4,
-    };
     static const struct
     {
         D3DFORMAT format;
         const char *name;
-        enum format_flags flags;
+        enum
+        {
+            CHECK_FILL_VALUE = 0x1,
+            BLOCKS           = 0x2,
+            FLOAT_VALUES     = 0x4,
+        } flags;
         unsigned int fill_i[4];
         float fill_f[4];
     }
@@ -3385,7 +3366,7 @@ static void generate_bumpmap_textures(IDirect3DDevice9 *device) {
         for (y = 0; y < 128; ++y)
         {
             if(i)
-            {
+            { /* Set up black texture with 2x2 texel white spot in the middle */
                 DWORD *ptr = (DWORD *)(((BYTE *)locked_rect.pBits) + (y * locked_rect.Pitch));
                 for (x = 0; x < 128; ++x)
                 {
@@ -3529,10 +3510,10 @@ static void texbem_test(void)
 
     generate_bumpmap_textures(device);
 
-    IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT00, float_to_int(bumpenvmat[0]));
-    IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT01, float_to_int(bumpenvmat[1]));
-    IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT10, float_to_int(bumpenvmat[2]));
-    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT11, float_to_int(bumpenvmat[3]));
+    IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT00, *(LPDWORD)&bumpenvmat[0]);
+    IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT01, *(LPDWORD)&bumpenvmat[1]);
+    IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT10, *(LPDWORD)&bumpenvmat[2]);
+    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT11, *(LPDWORD)&bumpenvmat[3]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
 
     hr = IDirect3DDevice9_SetVertexShader(device, NULL);
@@ -3683,24 +3664,24 @@ static void texbem_test(void)
 
     bumpenvmat[0] =-1.0;  bumpenvmat[2] =  2.0;
     bumpenvmat[1] = 0.0;  bumpenvmat[3] =  0.0;
-    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT00, float_to_int(bumpenvmat[0]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT00, *(LPDWORD)&bumpenvmat[0]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT01, float_to_int(bumpenvmat[1]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT01, *(LPDWORD)&bumpenvmat[1]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT10, float_to_int(bumpenvmat[2]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT10, *(LPDWORD)&bumpenvmat[2]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT11, float_to_int(bumpenvmat[3]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 1, D3DTSS_BUMPENVMAT11, *(LPDWORD)&bumpenvmat[3]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
 
     bumpenvmat[0] = 1.5; bumpenvmat[2] =  0.0;
     bumpenvmat[1] = 0.0; bumpenvmat[3] =  0.5;
-    hr = IDirect3DDevice9_SetTextureStageState(device, 3, D3DTSS_BUMPENVMAT00, float_to_int(bumpenvmat[0]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 3, D3DTSS_BUMPENVMAT00, *(LPDWORD)&bumpenvmat[0]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 3, D3DTSS_BUMPENVMAT01, float_to_int(bumpenvmat[1]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 3, D3DTSS_BUMPENVMAT01, *(LPDWORD)&bumpenvmat[1]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 3, D3DTSS_BUMPENVMAT10, float_to_int(bumpenvmat[2]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 3, D3DTSS_BUMPENVMAT10, *(LPDWORD)&bumpenvmat[2]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 3, D3DTSS_BUMPENVMAT11, float_to_int(bumpenvmat[3]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 3, D3DTSS_BUMPENVMAT11, *(LPDWORD)&bumpenvmat[3]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
 
     hr = IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
@@ -4550,13 +4531,6 @@ static void test_multisample_stretch_rect(void)
 
     hr = IDirect3DDevice9_SetRenderTarget(device, 0, rt);
     ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
-
-    /* UpdateSurface does not support multisampled surfaces. */
-    hr = IDirect3DDevice9_UpdateSurface(device, rt, NULL, ms_rt, NULL);
-    ok(hr == D3DERR_INVALIDCALL, "Got unexpected hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice9_UpdateSurface(device, ms_rt, NULL, rt, NULL);
-    ok(hr == D3DERR_INVALIDCALL, "Got unexpected hr %#lx.\n", hr);
 
     for (i = 0; i < ARRAY_SIZE(filters); ++i)
     {
@@ -11053,13 +11027,13 @@ static void fixed_function_bumpmap_test(void)
     /* Generate the textures */
     generate_bumpmap_textures(device);
 
-    hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_BUMPENVMAT00, float_to_int(bumpenvmat[0]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_BUMPENVMAT00, *(LPDWORD)&bumpenvmat[0]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_BUMPENVMAT01, float_to_int(bumpenvmat[1]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_BUMPENVMAT01, *(LPDWORD)&bumpenvmat[1]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_BUMPENVMAT10, float_to_int(bumpenvmat[2]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_BUMPENVMAT10, *(LPDWORD)&bumpenvmat[2]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_BUMPENVMAT11, float_to_int(bumpenvmat[3]));
+    hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_BUMPENVMAT11, *(LPDWORD)&bumpenvmat[3]);
     ok(hr == S_OK, "Got hr %#lx.\n", hr);
 
     hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_COLOROP, D3DTOP_BUMPENVMAP);
@@ -11723,7 +11697,6 @@ static void test_pointsize(void)
     static const float a = 1.0f, b = 1.0f, c = 1.0f;
     float ptsize, ptsizemax_orig, ptsizemin_orig;
     IDirect3DSurface9 *rt, *backbuffer;
-    D3DADAPTER_IDENTIFIER9 identifier;
     IDirect3DTexture9 *tex1, *tex2;
     IDirect3DDevice9 *device;
     IDirect3DVertexShader9 *vs;
@@ -11896,27 +11869,6 @@ static void test_pointsize(void)
     ps2_zw = {D3DPS_VERSION(2, 0), pshader2_zw_code},
     ps3 = {D3DPS_VERSION(3, 0), pshader3_code},
     ps3_zw = {D3DPS_VERSION(3, 0), pshader3_zw_code};
-
-    static const D3DVERTEXELEMENT9 decl_elements_psize[] =
-    {
-        {0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {0, 12, D3DDECLTYPE_FLOAT1, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_PSIZE,    0},
-        D3DDECL_END()
-    };
-
-    static const D3DVERTEXELEMENT9 decl_elements_no_psize[] =
-    {
-        {0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        D3DDECL_END()
-    };
-
-    static const D3DVERTEXELEMENT9 decl_elements_missing_psize[] =
-    {
-        {0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {1, 0,  D3DDECLTYPE_FLOAT1, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_PSIZE,    0},
-        D3DDECL_END()
-    };
-
     static const struct
     {
         const struct test_shader *vs;
@@ -11924,7 +11876,7 @@ static void test_pointsize(void)
         DWORD accepted_fvf;
         unsigned int nonscaled_size, scaled_size;
         BOOL gives_0_0_texcoord;
-        BOOL broken_texcoord_u;
+        BOOL allow_broken;
     }
     test_setups[] =
     {
@@ -11942,33 +11894,26 @@ static void test_pointsize(void)
         {&vs1_psize, &ps1, D3DFVF_XYZ | D3DFVF_PSIZE, 48, 24, FALSE, FALSE},
         {&vs3_psize, &ps3, D3DFVF_XYZ | D3DFVF_PSIZE, 48, 24, FALSE, TRUE},
     };
-
     static const struct
     {
         BOOL zero_size;
         BOOL scale;
         BOOL override_min;
-        const D3DVERTEXELEMENT9 *decl_elements;
         DWORD fvf;
         const void *vertex_data;
         unsigned int vertex_size;
     }
     tests[] =
     {
-        {FALSE, FALSE, FALSE, NULL, D3DFVF_XYZ, vertices, sizeof(float) * 3},
-        {FALSE, TRUE,  FALSE, NULL, D3DFVF_XYZ, vertices, sizeof(float) * 3},
-        {FALSE, FALSE, TRUE,  NULL, D3DFVF_XYZ, vertices, sizeof(float) * 3},
-        {TRUE,  FALSE, FALSE, NULL, D3DFVF_XYZ, vertices, sizeof(float) * 3},
-        {FALSE, FALSE, FALSE, NULL, D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize, sizeof(vertex_pointsize)},
-        {FALSE, TRUE,  FALSE, NULL, D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize_scaled, sizeof(vertex_pointsize_scaled)},
-        {FALSE, FALSE, TRUE,  NULL, D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize, sizeof(vertex_pointsize)},
-        {TRUE,  FALSE, FALSE, NULL, D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize_zero, sizeof(vertex_pointsize_zero)},
-        {FALSE, FALSE, FALSE, decl_elements_no_psize, D3DFVF_XYZ, vertices, sizeof(float) * 3},
-        {FALSE, FALSE, FALSE, decl_elements_psize, D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize, sizeof(vertex_pointsize)},
-        {FALSE, FALSE, FALSE, decl_elements_missing_psize, D3DFVF_XYZ, vertices, sizeof(float) * 3},
-        {FALSE, FALSE, FALSE, decl_elements_missing_psize, D3DFVF_XYZ | D3DFVF_PSIZE, vertices, sizeof(float) * 3},
+        {FALSE, FALSE, FALSE, D3DFVF_XYZ, vertices, sizeof(float) * 3},
+        {FALSE, TRUE,  FALSE, D3DFVF_XYZ, vertices, sizeof(float) * 3},
+        {FALSE, FALSE, TRUE,  D3DFVF_XYZ, vertices, sizeof(float) * 3},
+        {TRUE,  FALSE, FALSE, D3DFVF_XYZ, vertices, sizeof(float) * 3},
+        {FALSE, FALSE, FALSE, D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize, sizeof(vertex_pointsize)},
+        {FALSE, TRUE,  FALSE, D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize_scaled, sizeof(vertex_pointsize_scaled)},
+        {FALSE, FALSE, TRUE,  D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize, sizeof(vertex_pointsize)},
+        {TRUE,  FALSE, FALSE, D3DFVF_XYZ | D3DFVF_PSIZE, &vertex_pointsize_zero, sizeof(vertex_pointsize_zero)},
     };
-
     /* Transforms the coordinate system [-1.0;1.0]x[1.0;-1.0] to
      * [0.0;0.0]x[640.0;480.0]. Z is untouched. */
     D3DMATRIX matrix =
@@ -11987,9 +11932,6 @@ static void test_pointsize(void)
         skip("Failed to create a D3D device, skipping tests.\n");
         goto done;
     }
-
-    hr = IDirect3D9_GetAdapterIdentifier(d3d, D3DADAPTER_DEFAULT, 0, &identifier);
-    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
 
     memset(&caps, 0, sizeof(caps));
     hr = IDirect3DDevice9_GetDeviceCaps(device, &caps);
@@ -12211,13 +12153,10 @@ static void test_pointsize(void)
 
     for (i = 0; i < ARRAY_SIZE(test_setups); ++i)
     {
-        winetest_push_context("Setup %u", i);
-
         if (caps.VertexShaderVersion < test_setups[i].vs->version
                 || caps.PixelShaderVersion < test_setups[i].ps->version)
         {
             skip("Vertex / pixel shader version not supported, skipping test.\n");
-            winetest_pop_context();
             continue;
         }
         if (test_setups[i].vs->code)
@@ -12246,26 +12185,12 @@ static void test_pointsize(void)
 
         for (j = 0; j < ARRAY_SIZE(tests); ++j)
         {
-            bool broken_texcoord_u = test_setups[i].broken_texcoord_u;
+            BOOL allow_broken = test_setups[i].allow_broken;
             unsigned int size = tests[j].override_min ? 63 : tests[j].zero_size ? 0 : tests[j].scale
                     ? test_setups[i].scaled_size : test_setups[i].nonscaled_size;
-            struct surface_readback rb;
 
             if (test_setups[i].accepted_fvf != tests[j].fvf)
                 continue;
-
-            if (tests[j].decl_elements == decl_elements_missing_psize)
-            {
-                /* If PSIZE is referenced in the vertex declaration but the
-                 * corresponding buffer is not bound, the point size is
-                 * effectively either zero (NVidia) or one (AMD, WARP). */
-                if (!vs || (test_setups[i].accepted_fvf & D3DFVF_PSIZE))
-                    size = 1;
-                else
-                    size = 32;
-            }
-
-            winetest_push_context("test %u (expected size %u)", j, size);
 
             ptsize = tests[j].zero_size ? 0.0f : 32.0f;
             hr = IDirect3DDevice9_SetRenderState(device, D3DRS_POINTSIZE, *(DWORD *)&ptsize);
@@ -12278,21 +12203,8 @@ static void test_pointsize(void)
             hr = IDirect3DDevice9_SetRenderState(device, D3DRS_POINTSCALEENABLE, tests[j].scale);
             ok(SUCCEEDED(hr), "Failed setting point scale state, hr %#lx.\n", hr);
 
-            if (tests[j].decl_elements)
-            {
-                IDirect3DVertexDeclaration9 *vertex_declaration;
-
-                hr = IDirect3DDevice9_CreateVertexDeclaration(device, tests[j].decl_elements, &vertex_declaration);
-                ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                hr = IDirect3DDevice9_SetVertexDeclaration(device, vertex_declaration);
-                ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                IDirect3DVertexDeclaration9_Release(vertex_declaration);
-            }
-            else
-            {
-                hr = IDirect3DDevice9_SetFVF(device, tests[j].fvf);
-                ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            }
+            hr = IDirect3DDevice9_SetFVF(device, tests[j].fvf);
+            ok(SUCCEEDED(hr), "Failed setting FVF, hr %#lx.\n", hr);
 
             hr = IDirect3DDevice9_SetRenderTarget(device, 0, rt);
             ok(SUCCEEDED(hr), "Failed to set render target, hr %#lx.\n", hr);
@@ -12312,113 +12224,40 @@ static void test_pointsize(void)
             hr = IDirect3DDevice9_SetRenderTarget(device, 0, backbuffer);
             ok(SUCCEEDED(hr), "Failed to set render target, hr %#lx.\n", hr);
 
-            get_rt_readback(backbuffer, &rb);
-
-            if (size <= 1)
+            if (tests[j].zero_size)
             {
-                unsigned int warp_colour = 0x0000ff00;
-
-                if (test_setups[i].broken_texcoord_u)
-                    warp_colour = 0x00000000;
-                else if (test_setups[i].gives_0_0_texcoord)
-                    warp_colour = 0x00ff0000;
-
-                color = get_readback_color(&rb, 64, 64);
-                if (size == 0)
-                {
-                    /* Windows on real hardware draws nothing. WARP draws one
-                     * pixel as if the point size was 1.
-                     *
-                     * Technically 0 pointsize is undefined in OpenGL but in
-                     * practice it seems like it does the "useful" thing on all
-                     * the drivers I tried. */
-                    todo_wine_if(!color_match(color, 0xff00ffff, 0))
-                        ok(color == 0xff00ffff
-                                || broken(adapter_is_warp(&identifier) && color == warp_colour),
-                                "Got unexpected color 0x%08x at (64, 64).\n", color);
-                }
-                else
-                {
-                    /* Exact colour varies based on texcoord, but we should get
-                     * a pixel drawn here. */
-                    ok(color != 0xff00ffff, "Got unexpected color 0x%08x at (64, 64).\n", color);
-                }
-
-                color = get_readback_color(&rb, 63, 64);
-                ok(color == 0xff00ffff, "Got unexpected color 0x%08x at (63, 64).\n", color);
-                color = get_readback_color(&rb, 65, 64);
-                ok(color == 0xff00ffff, "Got unexpected color 0x%08x at (65, 64).\n", color);
-                color = get_readback_color(&rb, 64, 63);
-                ok(color == 0xff00ffff, "Got unexpected color 0x%08x at (64, 63).\n", color);
-                color = get_readback_color(&rb, 64, 65);
-                ok(color == 0xff00ffff, "Got unexpected color 0x%08x at (64, 65).\n", color);
+                /* Technically 0 pointsize is undefined in OpenGL but in practice it seems like
+                 * it does the "useful" thing on all the drivers I tried. */
+                /* On WARP it does draw some pixels, most of the time. */
+                color = getPixelColor(device, 64, 64);
+                todo_wine_if(!color_match(color, 0x0000ffff, 0))
+                ok(color_match(color, 0x0000ffff, 0)
+                        || broken(color_match(color, 0x00ff0000, 0))
+                        || broken(color_match(color, 0x00ffff00, 0))
+                        || broken(color_match(color, 0x00000000, 0))
+                        || broken(color_match(color, 0x0000ff00, 0)),
+                        "Got unexpected color 0x%08x (case %u, %u, size %u).\n", color, i, j, size);
             }
             else
             {
-                /* On AMD and WARP, apparently only the first texcoord is
-                 * modified by the point coordinates when using SM2/3 pixel
-                 * shaders. */
+                struct surface_readback rb;
 
-                for (unsigned int y = 0; y < 128; ++y)
-                {
-                    /* Skip the edges; coordinates are not pixel-exact. */
-                    if (y == 64 - size / 2 || y == 64 + size / 2 || y == 64)
-                        continue;
-
-                    for (unsigned int x = 0; x < 128; ++x)
-                    {
-                        unsigned int expect = 0xff00ffff, broken_u = 0xff00ffff;
-
-                        /* Skip the edges; coordinates are not pixel-exact. */
-                        if (x == 64 - size / 2 || x == 64 + size / 2 || x == 64)
-                            continue;
-
-                        color = get_readback_color(&rb, x, y);
-
-                        if (x > 64 - size / 2 && x < 64 + size / 2
-                                && y > 64 - size / 2 && y < 64 + size / 2)
-                        {
-
-                            if (test_setups[i].gives_0_0_texcoord)
-                                expect = broken_u = 0x00ff0000;
-                            else if (y < 64 && x < 64)
-                                expect = broken_u = 0x00ff0000;
-                            else if (y >= 64 && x < 64)
-                                expect = broken_u = 0x00000000;
-                            else if (y < 64 && x >= 64)
-                            {
-                                expect = 0x00ffff00;
-                                broken_u = 0x00ff0000;
-                            }
-                            else if (y >= 64 && x >= 64)
-                            {
-                                expect = 0x0000ff00;
-                                broken_u = 0x00000000;
-                            }
-                        }
-
-                        if (!(color == expect || broken(test_setups[i].broken_texcoord_u && color == broken_u)))
-                        {
-                            ok(0, "Expected 0x%08x, got 0x%08x at (%u, %u).\n", expect, color, x, y);
-                            goto stop;
-                        }
-                    }
-                }
-stop:
-
+                get_rt_readback(backbuffer, &rb);
+                /* On AMD apparently only the first texcoord is modified by the point coordinates
+                 * when using SM2/3 pixel shaders. */
                 color = get_readback_color(&rb, 64 - size / 2 + 1, 64 - size / 2 + 1);
                 ok(color_match(color, 0x00ff0000, 0),
                         "Got unexpected color 0x%08x (case %u, %u, size %u).\n", color, i, j, size);
                 color = get_readback_color(&rb, 64 + size / 2 - 1, 64 - size / 2 + 1);
                 ok(color_match(color, test_setups[i].gives_0_0_texcoord ? 0x00ff0000 : 0x00ffff00, 0)
-                        || (broken_texcoord_u && broken(color_match(color, 0x00ff0000, 0))),
+                        || (allow_broken && broken(color_match(color, 0x00ff0000, 0))),
                         "Got unexpected color 0x%08x (case %u, %u, size %u).\n", color, i, j, size);
                 color = get_readback_color(&rb, 64 - size / 2 + 1, 64 + size / 2 - 1);
                 ok(color_match(color, test_setups[i].gives_0_0_texcoord ? 0x00ff0000 : 0x00000000, 0),
                         "Got unexpected color 0x%08x (case %u, %u, size %u).\n", color, i, j, size);
                 color = get_readback_color(&rb, 64 + size / 2 - 1, 64 + size / 2 - 1);
                 ok(color_match(color, test_setups[i].gives_0_0_texcoord ? 0x00ff0000 : 0x0000ff00, 0)
-                        || (broken_texcoord_u && broken(color_match(color, 0x00000000, 0))),
+                        || (allow_broken && broken(color_match(color, 0x00000000, 0))),
                         "Got unexpected color 0x%08x (case %u, %u, size %u).\n", color, i, j, size);
 
                 color = get_readback_color(&rb, 64 - size / 2 - 1, 64 - size / 2 - 1);
@@ -12433,11 +12272,9 @@ stop:
                 color = get_readback_color(&rb, 64 + size / 2 + 1, 64 + size / 2 + 1);
                 ok(color_match(color, 0xff00ffff, 0),
                         "Got unexpected color 0x%08x (case %u, %u, size %u).\n", color, i, j, size);
+
+                release_surface_readback(&rb);
             }
-
-            release_surface_readback(&rb);
-
-            winetest_pop_context();
         }
         IDirect3DDevice9_SetVertexShader(device, NULL);
         IDirect3DDevice9_SetPixelShader(device, NULL);
@@ -12445,8 +12282,6 @@ stop:
             IDirect3DVertexShader9_Release(vs);
         if (ps)
             IDirect3DVertexShader9_Release(ps);
-
-        winetest_pop_context();
     }
 
 cleanup:
@@ -13746,7 +13581,7 @@ done:
 
 static void yuv_layout_test(void)
 {
-    unsigned int color, fmt, i, x, y;
+    unsigned int color, ref_color, fmt, i, x, y;
     HRESULT hr;
     IDirect3DSurface9 *surface, *target;
     D3DFORMAT format;
@@ -13763,27 +13598,19 @@ static void yuv_layout_test(void)
 
     static const struct
     {
-        uint8_t y, u, v;
-        uint32_t rgb_full, rgb_reduced;
+        DWORD color1, color2;
+        DWORD rgb1, rgb2;
     }
-    tests[] =
+    test_data[] =
     {
-        {0x10, 0x80, 0x80, 0x000000, 0x101010},
-        {0xeb, 0x80, 0x80, 0xffffff, 0xebebeb},
-        {0x51, 0x5a, 0xf0, 0xff0000, 0xee0e0e},
-        {0x91, 0x36, 0x22, 0x00ff01, 0x0dee0e},
-        {0x29, 0xf0, 0x6e, 0x0000ff, 0x100fef},
-        {0x7e, 0x80, 0x80, 0x808080, 0x7e7e7e},
-        {0x00, 0x80, 0x80, 0x000000, 0x000000},
-        {0xff, 0x80, 0x80, 0xffffff, 0xffffff},
-        {0x00, 0x00, 0x00, 0x008800, 0x008800},
-        {0xff, 0x00, 0x00, 0x4aff14, 0x4cff1c},
-        {0x00, 0xff, 0x00, 0x0024ee, 0x0030e1},
-        {0x00, 0x00, 0xff, 0xb80000, 0xb20000},
-        {0xff, 0xff, 0x00, 0x4affff, 0x4cffff},
-        {0xff, 0x00, 0xff, 0xffe114, 0xffd01c},
-        {0x00, 0xff, 0xff, 0xb800ee, 0xb200e1},
-        {0xff, 0xff, 0xff, 0xff7dff, 0xff78ff},
+        { 0x000000, 0xffffff, 0x00008800, 0x00ff7dff },
+        { 0xff0000, 0x00ffff, 0x004aff14, 0x00b800ee },
+        { 0x00ff00, 0xff00ff, 0x000024ee, 0x00ffe114 },
+        { 0x0000ff, 0xffff00, 0x00b80000, 0x004affff },
+        { 0xffff00, 0x0000ff, 0x004affff, 0x00b80000 },
+        { 0xff00ff, 0x00ff00, 0x00ffe114, 0x000024ee },
+        { 0x00ffff, 0xff0000, 0x00b800ee, 0x004aff14 },
+        { 0xffffff, 0x000000, 0x00ff7dff, 0x00008800 },
     };
 
     static const struct
@@ -13844,15 +13671,11 @@ static void yuv_layout_test(void)
             continue;
         }
 
-        winetest_push_context("format %s", formats[fmt].str);
-
         hr = IDirect3DDevice9_CreateOffscreenPlainSurface(device, width, height, format, D3DPOOL_DEFAULT, &surface, NULL);
         ok(hr == D3D_OK, "Got hr %#lx.\n", hr);
 
-        for (i = 0; i < ARRAY_SIZE(tests); i++)
+        for (i = 0; i < ARRAY_SIZE(test_data); i++)
         {
-            winetest_push_context("value (%#x,%#x,%#x)", tests[i].y, tests[i].u, tests[i].v);
-
             hr = IDirect3DSurface9_LockRect(surface, &lr, NULL, 0);
             ok(hr == D3D_OK, "Got hr %#lx.\n", hr);
             buf = lr.pBits;
@@ -13862,14 +13685,15 @@ static void yuv_layout_test(void)
                 v_buf = chroma_buf;
                 u_buf = chroma_buf + height / 2 * lr.Pitch/2;
             }
+            /* Draw the top left quarter of the screen with color1, the rest with color2 */
             for (y = 0; y < height; y++)
             {
                 for (x = 0; x < width; x += 2)
                 {
-                    uint8_t Y = tests[i].y, U = tests[i].u, V = tests[i].v;
-                    if (x < width / 2 && y < height / 2)
-                        Y = U = V = 0x40;
-
+                    DWORD color = (x < width / 2 && y < height / 2) ? test_data[i].color1 : test_data[i].color2;
+                    BYTE Y = (color >> 16) & 0xff;
+                    BYTE U = (color >>  8) & 0xff;
+                    BYTE V = (color >>  0) & 0xff;
                     if (format == D3DFMT_UYVY)
                     {
                         buf[y * lr.Pitch + 2 * x + 0] = U;
@@ -13908,39 +13732,29 @@ static void yuv_layout_test(void)
             hr = IDirect3DDevice9_StretchRect(device, surface, NULL, target, NULL, D3DTEXF_POINT);
             ok(hr == D3D_OK, "Got hr %#lx.\n", hr);
 
+            /* Some Windows drivers (mostly Nvidia, but also some VM drivers) insist on doing linear filtering
+             * although we asked for point filtering. To prevent running into precision problems, read at points
+             * with some margin within each quadrant.
+             *
+             * Unfortunately different implementations(Windows-Nvidia and Mac-AMD tested) interpret some colors
+             * vastly differently, so we need a max diff of 18. */
             for (y = 0; y < 4; y++)
             {
                 for (x = 0; x < 4; x++)
                 {
                     UINT xcoord = (1 + 2 * x) * 640 / 8;
                     UINT ycoord = (1 + 2 * y) * 480 / 8;
-
+                    ref_color = (y < 2 && x < 2) ? test_data[i].rgb1 : test_data[i].rgb2;
                     color = getPixelColor(device, xcoord, ycoord);
-                    if (x < 2 && y < 2)
-                        ok(color_match(color, 0x008400, 1),
-                                "Got color %#x at (%u, %u).\n", color, xcoord, ycoord);
-                    else
-                        ok(color_match(color, tests[i].rgb_full, 1)
-                                || color_match(color, tests[i].rgb_reduced, 1),
-                                "Got color %#x at (%u, %u), expected %#x.\n", color, xcoord, ycoord, tests[i].rgb_full);
+                    ok(color_match(color, ref_color, 18),
+                            "Format %s: Got color %#x for pixel (%d/%d)/(%d/%d), pixel %d %d, expected %#x.\n",
+                            fmt_string, color, x, 4, y, 4, xcoord, ycoord, ref_color);
                 }
             }
             hr = IDirect3DDevice9_Present(device, NULL, NULL, NULL, NULL);
             ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-            winetest_pop_context();
         }
-
-        for (i = 0; i < ARRAY_SIZE(tests); i++)
-        {
-            hr = IDirect3DDevice9_ColorFill(device, surface, NULL,
-                    ((uint32_t)tests[i].y << 16) | ((uint32_t)tests[i].u << 8) | tests[i].v);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        }
-
         IDirect3DSurface9_Release(surface);
-
-        winetest_pop_context();
     }
 
     IDirect3DSurface9_Release(target);
@@ -23435,17 +23249,16 @@ static void test_texture_blending(void)
         DWORD value;
     };
 
-    enum texture_stage_texture
-    {
-        TEXTURE_INVALID,
-        TEXTURE_NONE,
-        TEXTURE_BUMPMAP,
-        TEXTURE_RED,
-    };
-
     struct texture_stage
     {
-        enum texture_stage_texture texture;
+        enum
+        {
+            TEXTURE_INVALID,
+            TEXTURE_NONE,
+            TEXTURE_BUMPMAP,
+            TEXTURE_RED,
+        }
+        texture;
         struct texture_stage_state state[20];
     };
 
@@ -25977,30 +25790,6 @@ static void test_color_vertex(void)
     HWND window;
     HRESULT hr;
 
-    static const D3DVERTEXELEMENT9 decl_elements_missing_diffuse[] =
-    {
-        {0,  0, D3DDECLTYPE_FLOAT3,   D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {0, 12, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    1},
-        {1,  0, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    0},
-        D3DDECL_END()
-    };
-
-    static const D3DVERTEXELEMENT9 decl_elements_missing_specular[] =
-    {
-        {0,  0, D3DDECLTYPE_FLOAT3,   D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {0, 12, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    0},
-        {2,  0, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    1},
-        D3DDECL_END()
-    };
-
-    static const D3DVERTEXELEMENT9 decl_elements_missing_both[] =
-    {
-        {0,  0, D3DDECLTYPE_FLOAT3,   D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {1,  0, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    0},
-        {2,  0, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    1},
-        D3DDECL_END()
-    };
-
     /* The idea here is to set up ambient light parameters in a way that the
      * ambient colour from the material is just passed through. The emissive
      * colour is just passed through anyway. The sum of ambient + emissive
@@ -26010,36 +25799,27 @@ static void test_color_vertex(void)
      * in the struct will be fed into the specular vertex colour slot. */
     static const struct
     {
-        const D3DVERTEXELEMENT9 *decl_elements;
         DWORD fvf, color_vertex, ambient, emissive;
         unsigned int result;
     }
     tests[] =
     {
-        {NULL, D3DFVF_DIFFUSE | D3DFVF_SPECULAR, FALSE, D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x000000c0},
+        {D3DFVF_DIFFUSE | D3DFVF_SPECULAR, FALSE, D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x000000c0},
 
-        {NULL, D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00ffff00},
-        {NULL, D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_MATERIAL, D3DMCS_COLOR2,   0x0000ff80},
-        {NULL, D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_COLOR1,   D3DMCS_MATERIAL, 0x00ff0040},
-        {NULL, D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR1,   0x00ff0000},
-        {NULL, D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_COLOR2,   D3DMCS_COLOR2,   0x0000ff00},
+        {D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00ffff00},
+        {D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_MATERIAL, D3DMCS_COLOR2,   0x0000ff80},
+        {D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_COLOR1,   D3DMCS_MATERIAL, 0x00ff0040},
+        {D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR1,   0x00ff0000},
+        {D3DFVF_DIFFUSE | D3DFVF_SPECULAR, TRUE,  D3DMCS_COLOR2,   D3DMCS_COLOR2,   0x0000ff00},
 
-        {NULL, D3DFVF_SPECULAR,                  TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00ff0080},
-        {NULL, D3DFVF_SPECULAR,                  TRUE,  D3DMCS_COLOR1,   D3DMCS_MATERIAL, 0x000000c0},
-        {NULL, D3DFVF_SPECULAR,                  TRUE,  D3DMCS_MATERIAL, D3DMCS_COLOR2,   0x00ff0080},
-        {NULL, D3DFVF_DIFFUSE,                   TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00ff0040},
-        {NULL, D3DFVF_DIFFUSE,                   TRUE,  D3DMCS_COLOR1,   D3DMCS_MATERIAL, 0x00ff0040},
-        {NULL, D3DFVF_DIFFUSE,                   TRUE,  D3DMCS_COLOR2,   D3DMCS_MATERIAL, 0x000000c0},
+        {D3DFVF_SPECULAR,                  TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00ff0080},
+        {D3DFVF_SPECULAR,                  TRUE,  D3DMCS_COLOR1,   D3DMCS_MATERIAL, 0x000000c0},
+        {D3DFVF_SPECULAR,                  TRUE,  D3DMCS_MATERIAL, D3DMCS_COLOR2,   0x00ff0080},
+        {D3DFVF_DIFFUSE,                   TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00ff0040},
+        {D3DFVF_DIFFUSE,                   TRUE,  D3DMCS_COLOR1,   D3DMCS_MATERIAL, 0x00ff0040},
+        {D3DFVF_DIFFUSE,                   TRUE,  D3DMCS_COLOR2,   D3DMCS_MATERIAL, 0x000000c0},
 
-        {NULL, 0,                                TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x000000c0},
-
-        {decl_elements_missing_diffuse, 0,       TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00ff0000},
-        {decl_elements_missing_diffuse, 0,       TRUE,  D3DMCS_COLOR1,   D3DMCS_MATERIAL, 0x00000040},
-        {decl_elements_missing_diffuse, 0,       TRUE,  D3DMCS_MATERIAL, D3DMCS_COLOR2,   0x00ff0080},
-        {decl_elements_missing_specular, 0,      TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00ff0000},
-        {decl_elements_missing_specular, 0,      TRUE,  D3DMCS_COLOR1,   D3DMCS_MATERIAL, 0x00ff0040},
-        {decl_elements_missing_specular, 0,      TRUE,  D3DMCS_MATERIAL, D3DMCS_COLOR2,   0x00000080},
-        {decl_elements_missing_both, 0,          TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x00000000},
+        {0,                                TRUE,  D3DMCS_COLOR1,   D3DMCS_COLOR2,   0x000000c0},
     };
 
     static const struct
@@ -26088,22 +25868,8 @@ static void test_color_vertex(void)
         ok(SUCCEEDED(hr), "Failed to set render state, hr %#lx.\n", hr);
         hr = IDirect3DDevice9_SetRenderState(device, D3DRS_EMISSIVEMATERIALSOURCE, tests[i].emissive);
         ok(SUCCEEDED(hr), "Failed to set render state, hr %#lx.\n", hr);
-
-        if (tests[i].decl_elements)
-        {
-            IDirect3DVertexDeclaration9 *vertex_declaration;
-
-            hr = IDirect3DDevice9_CreateVertexDeclaration(device, tests[i].decl_elements, &vertex_declaration);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_SetVertexDeclaration(device, vertex_declaration);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            IDirect3DVertexDeclaration9_Release(vertex_declaration);
-        }
-        else
-        {
-            hr = IDirect3DDevice9_SetFVF(device, D3DFVF_XYZ | tests[i].fvf);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        }
+        hr = IDirect3DDevice9_SetFVF(device, D3DFVF_XYZ | tests[i].fvf);
+        ok(SUCCEEDED(hr), "Failed to set render state, hr %#lx.\n", hr);
 
         hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0x77777777, 0.0f, 0);
         ok(SUCCEEDED(hr), "Failed to clear depth/stencil, hr %#lx.\n", hr);
@@ -26638,12 +26404,10 @@ static void test_nrm_instruction(void)
 static void test_desktop_window(void)
 {
     IDirect3DVertexShader9 *shader;
-    IDirect3DTexture9 *texture;
     IDirect3DDevice9 *device;
     unsigned int color;
     IDirect3D9 *d3d;
     ULONG refcount;
-    D3DCAPS9 caps;
     HWND window;
     HRESULT hr;
 
@@ -26674,44 +26438,24 @@ static void test_desktop_window(void)
     device = create_device(d3d, GetDesktopWindow(), GetDesktopWindow(), TRUE);
     ok(!!device, "Failed to create a D3D device.\n");
 
-    if (device)
-    {
-        hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xffff0000, 1.0f, 0);
-        ok(SUCCEEDED(hr), "Failed to clear, hr %#lx.\n", hr);
-        color = getPixelColor(device, 1, 1);
-        ok(color == 0x00ff0000, "Got unexpected color 0x%08x.\n", color);
+    hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xffff0000, 1.0f, 0);
+    ok(SUCCEEDED(hr), "Failed to clear, hr %#lx.\n", hr);
+    color = getPixelColor(device, 1, 1);
+    ok(color == 0x00ff0000, "Got unexpected color 0x%08x.\n", color);
 
-        hr = IDirect3DDevice9_Present(device, NULL, NULL, NULL, NULL);
-        ok(SUCCEEDED(hr), "Failed to present, hr %#lx.\n", hr);
+    hr = IDirect3DDevice9_Present(device, NULL, NULL, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to present, hr %#lx.\n", hr);
 
-        refcount = IDirect3DDevice9_Release(device);
-        ok(!refcount, "Device has %lu references left.\n", refcount);
-    }
-    else
-    {
-        skip("Failed to create a D3D device for the desktop window, skipping tests.\n");
-    }
+    refcount = IDirect3DDevice9_Release(device);
+    ok(!refcount, "Device has %lu references left.\n", refcount);
 
     /* test device with NULL HWND */
     device = create_device(d3d, NULL, NULL, TRUE);
     ok(device != NULL, "Failed to create a D3D device\n");
 
-    hr = IDirect3DDevice9_CreateTexture(device, 1, 1, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM, &texture, NULL);
-    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
-    IDirect3DTexture9_Release(texture);
-
-    hr = IDirect3DDevice9_GetDeviceCaps(device, &caps);
-    ok(SUCCEEDED(hr), "Failed to get device caps, hr %#lx.\n", hr);
-    if (caps.VertexShaderVersion >= D3DVS_VERSION(1, 1))
-    {
-        hr = IDirect3DDevice9_CreateVertexShader(device, simple_vs, &shader);
-        ok(SUCCEEDED(hr), "Failed to create vertex shader, hr %#lx.\n", hr);
-        IDirect3DVertexShader9_Release(shader);
-    }
-    else
-    {
-        skip("Vertex shaders not supported.\n");
-    }
+    hr = IDirect3DDevice9_CreateVertexShader(device, simple_vs, &shader);
+    ok(SUCCEEDED(hr), "Failed to create vertex shader, hr %#lx.\n", hr);
+    IDirect3DVertexShader9_Release(shader);
 
     IDirect3DDevice9_Release(device);
 
@@ -27111,7 +26855,6 @@ static void test_sample_attached_rendertarget(void)
     unsigned int color, i;
     IDirect3D9 *d3d;
     ULONG refcount;
-    D3DCAPS9 caps;
     BOOL is_warp;
     HWND window;
     HRESULT hr;
@@ -27156,17 +26899,6 @@ static void test_sample_attached_rendertarget(void)
     if (!(device = create_device(d3d, window, window, TRUE)))
     {
         skip("Failed to create a D3D device, skipping tests.\n");
-        IDirect3D9_Release(d3d);
-        DestroyWindow(window);
-        return;
-    }
-
-    hr = IDirect3DDevice9_GetDeviceCaps(device, &caps);
-    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
-    if (caps.PixelShaderVersion < D3DPS_VERSION(2, 0))
-    {
-        skip("No shader model 2 support, skipping tests.\n");
-        IDirect3DDevice9_Release(device);
         IDirect3D9_Release(d3d);
         DestroyWindow(window);
         return;
@@ -28362,948 +28094,6 @@ static void test_mipmap_upload(void)
     release_test_context(&context);
 }
 
-static void test_default_diffuse(void)
-{
-    IDirect3DVertexDeclaration9 *vertex_declaration;
-    struct d3d9_test_context context;
-    IDirect3DVertexBuffer9 *vb;
-    IDirect3DDevice9 *device;
-    HRESULT hr;
-    void *data;
-
-    static const D3DVERTEXELEMENT9 decl_elements_with_diffuse[] =
-    {
-        {0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {0, 12, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0},
-        D3DDECL_END()
-    };
-
-    static const D3DVERTEXELEMENT9 decl_elements_no_diffuse[] =
-    {
-        {0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        D3DDECL_END()
-    };
-
-    static const D3DVERTEXELEMENT9 decl_elements_missing_diffuse[] =
-    {
-        {0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {1, 0,  D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0},
-        D3DDECL_END()
-    };
-
-    static const DWORD vs_code[] =
-    {
-        0xfffe0200,                                         /* vs_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
-        0x0200001f, 0x8000000a, 0x900f0001,                 /* dcl_color0 v1        */
-        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
-        0x02000001, 0xd00f0000, 0x90e40001,                 /* mov oD0, v1          */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const DWORD vs_no_diffuse_code[] =
-    {
-        0xfffe0200,                                         /* vs_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
-        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const DWORD ps_code[] =
-    {
-        0xffff0200,                                         /* ps_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl v0               */
-        0x02000001, 0x800f0800, 0x90e40000,                 /* mov oC0, v0          */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const struct
-    {
-        struct vec3 position;
-        unsigned int diffuse;
-    }
-    quad[] =
-    {
-        {{-1.0f, -1.0f, 0.1f}, 0xff0000ff},
-        {{-1.0f,  1.0f, 0.1f}, 0xff0000ff},
-        {{ 1.0f, -1.0f, 0.1f}, 0xff0000ff},
-        {{ 1.0f,  1.0f, 0.1f}, 0xff0000ff},
-    };
-
-    static const struct
-    {
-        const DWORD *ps;
-        DWORD texture_source;
-    }
-    ps_tests[] =
-    {
-        {ps_code, 0},
-        {NULL, D3DTA_CURRENT},
-        {NULL, D3DTA_DIFFUSE},
-    };
-
-    static const struct
-    {
-        const DWORD *vs;
-        const D3DVERTEXELEMENT9 *decl_elements;
-        unsigned int expect_colour;
-    }
-    vs_tests[] =
-    {
-        {NULL,               decl_elements_with_diffuse,    0x000000ff},
-        {NULL,               decl_elements_no_diffuse,      0x00ffffff},
-        {NULL,               decl_elements_missing_diffuse, 0x00000000},
-        {vs_code,            decl_elements_with_diffuse,    0x000000ff},
-        {vs_code,            decl_elements_no_diffuse,      0x00000000},
-        {vs_code,            decl_elements_missing_diffuse, 0x00000000},
-        {vs_no_diffuse_code, decl_elements_with_diffuse,    0x00ffffff},
-        {vs_no_diffuse_code, decl_elements_no_diffuse,      0x00ffffff},
-        {vs_no_diffuse_code, decl_elements_missing_diffuse, 0x00ffffff},
-    };
-
-    if (!init_test_context(&context))
-        return;
-    device = context.device;
-
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, FALSE);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice9_CreateVertexBuffer(device, sizeof(quad),
-            D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &vb, NULL);
-    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
-    hr = IDirect3DVertexBuffer9_Lock(vb, 0, 0, &data, D3DLOCK_DISCARD);
-    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
-    memcpy(data, quad, sizeof(quad));
-    hr = IDirect3DVertexBuffer9_Unlock(vb);
-    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetStreamSource(device, 0, vb, 0, sizeof(quad[0]));
-    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
-
-    for (unsigned int i = 0; i < ARRAY_SIZE(ps_tests); ++i)
-    {
-        winetest_push_context("PS test %u", i);
-
-        if (ps_tests[i].ps)
-        {
-            IDirect3DPixelShader9 *ps;
-
-            hr = IDirect3DDevice9_CreatePixelShader(device, ps_tests[i].ps, &ps);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_SetPixelShader(device, ps);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            IDirect3DPixelShader9_Release(ps);
-        }
-        else
-        {
-            hr = IDirect3DDevice9_SetPixelShader(device, NULL);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_COLORARG1, ps_tests[i].texture_source);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_SetTextureStageState(device, 0, D3DTSS_ALPHAARG1, ps_tests[i].texture_source);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        }
-
-        for (unsigned int j = 0; j < ARRAY_SIZE(vs_tests); ++j)
-        {
-            unsigned int colour;
-
-            winetest_push_context("VS test %u", j);
-
-            if (vs_tests[j].vs)
-            {
-                IDirect3DVertexShader9 *vs;
-
-                hr = IDirect3DDevice9_CreateVertexShader(device, vs_tests[j].vs, &vs);
-                ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                hr = IDirect3DDevice9_SetVertexShader(device, vs);
-                ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                IDirect3DVertexShader9_Release(vs);
-            }
-            else
-            {
-                hr = IDirect3DDevice9_SetVertexShader(device, NULL);
-                ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            }
-
-            hr = IDirect3DDevice9_CreateVertexDeclaration(device, vs_tests[j].decl_elements, &vertex_declaration);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_SetVertexDeclaration(device, vertex_declaration);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            IDirect3DVertexDeclaration9_Release(vertex_declaration);
-
-            hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xffff0000, 0.0, 0);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-            hr = IDirect3DDevice9_BeginScene(device);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_DrawPrimitive(device, D3DPT_TRIANGLESTRIP, 0, 2);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            hr = IDirect3DDevice9_EndScene(device);
-            ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-            colour = getPixelColor(device, 320, 240);
-            ok(colour == vs_tests[j].expect_colour, "Got unexpected colour %08x.\n", colour);
-
-            winetest_pop_context();
-        }
-
-        winetest_pop_context();
-    }
-
-    IDirect3DVertexShader9_Release(vb);
-    release_test_context(&context);
-}
-
-/* Test the default values of attribute components when the vertex declaration
- * includes less than all 4 components. */
-static void test_default_attribute_components(void)
-{
-    IDirect3DVertexDeclaration9 *vertex_declaration;
-    struct d3d9_test_context context;
-    IDirect3DVertexShader9 *vs;
-    IDirect3DDevice9 *device;
-    HRESULT hr;
-
-    static const DWORD vs_texcoord1_code[] =
-    {
-        0xfffe0200,                                         /* vs_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
-        0x0200001f, 0x80010005, 0x900f0001,                 /* dcl_texcoord1 v1     */
-        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
-        0x02000001, 0xd00f0000, 0x90390001,                 /* mov oD0, v1.yzwx     */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const DWORD vs_texcoord2_code[] =
-    {
-        0xfffe0200,                                         /* vs_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
-        0x0200001f, 0x80020005, 0x900f0001,                 /* dcl_texcoord2 v1     */
-        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
-        0x02000001, 0xd00f0000, 0x90390001,                 /* mov oD0, v1.yzwx     */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const DWORD vs_texcoord3_code[] =
-    {
-        0xfffe0200,                                         /* vs_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
-        0x0200001f, 0x80030005, 0x900f0001,                 /* dcl_texcoord3 v1     */
-        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
-        0x02000001, 0xd00f0000, 0x90390001,                 /* mov oD0, v1.yzwx     */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const DWORD vs_color1_code[] =
-    {
-        0xfffe0200,                                         /* vs_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
-        0x0200001f, 0x8001000a, 0x900f0001,                 /* dcl_color1 v1        */
-        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
-        0x02000001, 0xd00f0000, 0x90390001,                 /* mov oD0, v1.yzwx     */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const DWORD vs_color2_code[] =
-    {
-        0xfffe0200,                                         /* vs_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
-        0x0200001f, 0x8002000a, 0x900f0001,                 /* dcl_color2 v1        */
-        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
-        0x02000001, 0xd00f0000, 0x90390001,                 /* mov oD0, v1.yzwx     */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const DWORD vs_color3_code[] =
-    {
-        0xfffe0200,                                         /* vs_2_0               */
-        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
-        0x0200001f, 0x8003000a, 0x900f0001,                 /* dcl_color3 v1        */
-        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
-        0x02000001, 0xd00f0000, 0x90390001,                 /* mov oD0, v1.yzwx     */
-        0x0000ffff                                          /* end                  */
-    };
-
-    static const D3DVERTEXELEMENT9 decl_elements[] =
-    {
-        {0,   0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {0,  12,  D3DDECLTYPE_FLOAT1, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 1},
-        {0,  16,  D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 2},
-        {0,  24,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 3},
-        {0,  36,  D3DDECLTYPE_FLOAT1, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 1},
-        {0,  40,  D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 2},
-        {0,  48,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 3},
-        D3DDECL_END()
-    };
-
-    static const struct
-    {
-        struct vec3 position;
-        float texcoord1;
-        struct vec2 texcoord2;
-        struct vec3 texcoord3;
-        float color1;
-        struct vec2 color2;
-        struct vec3 color3;
-    }
-    quad[] =
-    {
-        {{-1.0f, -1.0f, 0.1f}, 0.1f, {0.2f, 0.2f}, {0.3f, 0.3f, 0.3f}, 0.1f, {0.2f, 0.2f}, {0.3f, 0.3f, 0.3f}},
-        {{-1.0f,  1.0f, 0.1f}, 0.1f, {0.2f, 0.2f}, {0.3f, 0.3f, 0.3f}, 0.1f, {0.2f, 0.2f}, {0.3f, 0.3f, 0.3f}},
-        {{ 1.0f, -1.0f, 0.1f}, 0.1f, {0.2f, 0.2f}, {0.3f, 0.3f, 0.3f}, 0.1f, {0.2f, 0.2f}, {0.3f, 0.3f, 0.3f}},
-        {{ 1.0f,  1.0f, 0.1f}, 0.1f, {0.2f, 0.2f}, {0.3f, 0.3f, 0.3f}, 0.1f, {0.2f, 0.2f}, {0.3f, 0.3f, 0.3f}},
-    };
-
-    static const struct
-    {
-        const DWORD *vs_code;
-        D3DCOLOR color;
-    }
-    tests[] =
-    {
-        {vs_texcoord1_code, 0x0000ff},
-        {vs_texcoord2_code, 0x3300ff},
-        {vs_texcoord3_code, 0x4c4cff},
-        {vs_color1_code,    0x0000ff},
-        {vs_color2_code,    0x3300ff},
-        {vs_color3_code,    0x4c4cff},
-    };
-
-    if (!init_test_context(&context))
-        return;
-    device = context.device;
-
-    hr = IDirect3DDevice9_CreateVertexDeclaration(device, decl_elements, &vertex_declaration);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetVertexDeclaration(device, vertex_declaration);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    for (unsigned int j = 0; j < ARRAY_SIZE(tests); ++j)
-    {
-        winetest_push_context("test %u", j);
-
-        hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xffff0000, 0.0, 0);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        hr = IDirect3DDevice9_CreateVertexShader(device, tests[j].vs_code, &vs);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_SetVertexShader(device, vs);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        hr = IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, FALSE);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_BeginScene(device);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_DrawPrimitiveUP(device, D3DPT_TRIANGLESTRIP, 2, &quad, sizeof(*quad));
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_EndScene(device);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        check_rt_color(context.backbuffer, tests[j].color);
-
-        IDirect3DVertexShader9_Release(vs);
-        winetest_pop_context();
-    }
-
-    IDirect3DVertexDeclaration9_Release(vertex_declaration);
-    release_test_context(&context);
-}
-
-static void test_format_conversion(void)
-{
-    D3DADAPTER_IDENTIFIER9 identifier;
-    struct d3d9_test_context context;
-    HRESULT hr;
-
-    static const struct
-    {
-        D3DFORMAT src_format;
-        D3DFORMAT dst_format;
-        HRESULT expect_hr;
-        bool broken_warp;
-    }
-    tests[] =
-    {
-        {D3DFMT_X8R8G8B8, D3DFMT_A8R8G8B8, S_OK},
-        {D3DFMT_A8R8G8B8, D3DFMT_X8R8G8B8, S_OK},
-        {D3DFMT_R5G6B5, D3DFMT_X8R8G8B8, S_OK},
-        {D3DFMT_YUY2, D3DFMT_X8R8G8B8, S_OK, .broken_warp = true},
-        {D3DFMT_YUY2, D3DFMT_R5G6B5, S_OK, .broken_warp = true},
-        {D3DFMT_R32F, D3DFMT_R16F, D3DERR_NOTAVAILABLE},
-
-        {D3DFMT_L8, D3DFMT_L8, S_OK},
-        {D3DFMT_X8R8G8B8, D3DFMT_L8, D3DERR_NOTAVAILABLE},
-        {D3DFMT_A8, D3DFMT_L8, D3DERR_NOTAVAILABLE},
-        {D3DFMT_A8L8, D3DFMT_L8, D3DERR_NOTAVAILABLE},
-        {D3DFMT_L16, D3DFMT_L8, D3DERR_NOTAVAILABLE},
-        {D3DFMT_L8, D3DFMT_A8, D3DERR_NOTAVAILABLE},
-        {D3DFMT_L8, D3DFMT_L16, D3DERR_NOTAVAILABLE},
-        {D3DFMT_L8, D3DFMT_A8L8, D3DERR_NOTAVAILABLE},
-    };
-
-    static const D3DFORMAT all_formats[] =
-    {
-        D3DFMT_R8G8B8,
-        D3DFMT_A8R8G8B8,
-        D3DFMT_X8R8G8B8,
-        D3DFMT_R5G6B5,
-        D3DFMT_X1R5G5B5,
-        D3DFMT_A1R5G5B5,
-        D3DFMT_A4R4G4B4,
-        D3DFMT_R3G3B2,
-        D3DFMT_A8,
-        D3DFMT_A8R3G3B2,
-        D3DFMT_X4R4G4B4,
-        D3DFMT_A2B10G10R10,
-        D3DFMT_A8B8G8R8,
-        D3DFMT_X8B8G8R8,
-        D3DFMT_G16R16,
-        D3DFMT_A2R10G10B10,
-        D3DFMT_A16B16G16R16,
-        D3DFMT_A8P8,
-        D3DFMT_P8,
-        D3DFMT_L8,
-        D3DFMT_A8L8,
-        D3DFMT_A4L4,
-        D3DFMT_V8U8,
-        D3DFMT_L6V5U5,
-        D3DFMT_X8L8V8U8,
-        D3DFMT_Q8W8V8U8,
-        D3DFMT_V16U16,
-        D3DFMT_A2W10V10U10,
-        D3DFMT_UYVY,
-        D3DFMT_YUY2,
-        D3DFMT_DXT1,
-        D3DFMT_DXT2,
-        D3DFMT_DXT3,
-        D3DFMT_DXT4,
-        D3DFMT_DXT5,
-        D3DFMT_MULTI2_ARGB8,
-        D3DFMT_G8R8_G8B8,
-        D3DFMT_R8G8_B8G8,
-        D3DFMT_D16_LOCKABLE,
-        D3DFMT_D32,
-        D3DFMT_D15S1,
-        D3DFMT_D24S8,
-        D3DFMT_D24X8,
-        D3DFMT_D24X4S4,
-        D3DFMT_D16,
-        D3DFMT_L16,
-        D3DFMT_D32F_LOCKABLE,
-        D3DFMT_D24FS8,
-        D3DFMT_D32_LOCKABLE,
-        D3DFMT_S8_LOCKABLE,
-        D3DFMT_VERTEXDATA,
-        D3DFMT_INDEX16,
-        D3DFMT_INDEX32,
-        D3DFMT_Q16W16V16U16,
-        D3DFMT_R16F,
-        D3DFMT_G16R16F,
-        D3DFMT_A16B16G16R16F,
-        D3DFMT_R32F,
-        D3DFMT_G32R32F,
-        D3DFMT_A32B32G32R32F,
-        D3DFMT_CxV8U8,
-        D3DFMT_A1,
-        D3DFMT_A2B10G10R10_XR_BIAS,
-        D3DFMT_BINARYBUFFER,
-        200,
-    };
-
-    if (!init_test_context(&context))
-        return;
-
-    hr = IDirect3D9_GetAdapterIdentifier(context.d3d, D3DADAPTER_DEFAULT, 0, &identifier);
-    ok(hr == S_OK, "Failed to get adapter identifier, hr %#lx.\n", hr);
-
-    for (unsigned int i = 0; i < ARRAY_SIZE(tests); ++i)
-    {
-        hr = IDirect3D9_CheckDeviceFormatConversion(context.d3d, D3DADAPTER_DEFAULT,
-                D3DDEVTYPE_HAL, tests[i].src_format, tests[i].dst_format);
-        todo_wine_if (i == 5)
-            ok(hr == tests[i].expect_hr
-                    || broken(tests[i].broken_warp && adapter_is_warp(&identifier) && hr == D3DERR_NOTAVAILABLE),
-                    "Got hr %#lx for %u to %u.\n", hr, tests[i].src_format, tests[i].dst_format);
-    }
-
-    for (unsigned int src_format = 0; src_format < ARRAY_SIZE(all_formats); ++src_format)
-    {
-        for (unsigned int dst_format = 0; dst_format < ARRAY_SIZE(all_formats); ++dst_format)
-        {
-            hr = IDirect3D9_CheckDeviceFormatConversion(context.d3d, D3DADAPTER_DEFAULT,
-                    D3DDEVTYPE_HAL, all_formats[src_format], all_formats[dst_format]);
-            if (src_format == dst_format)
-                ok(hr == S_OK, "Got hr %#lx for %u to %u.\n",
-                        hr, all_formats[src_format], all_formats[dst_format]);
-            else
-                ok(hr == S_OK || hr == D3DERR_NOTAVAILABLE, "Got hr %#lx for %u to %u.\n",
-                        hr, all_formats[src_format], all_formats[dst_format]);
-        }
-    }
-
-    release_test_context(&context);
-}
-
-static void test_ffp_w(void)
-{
-    IDirect3DVertexDeclaration9 *vdecl;
-    struct d3d9_test_context context;
-    struct surface_readback rb;
-    D3DMATRIX identity, matrix;
-    IDirect3DDevice9 *device;
-    uint32_t colour;
-    HRESULT hr;
-
-    static const D3DVERTEXELEMENT9 decl_elements[] =
-    {
-        {0,  0, D3DDECLTYPE_FLOAT4,   D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},
-        {0, 16, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0},
-        D3DDECL_END()
-    };
-
-    static const struct
-    {
-        struct vec4 position;
-        unsigned int diffuse;
-    }
-    quad[] =
-    {
-        {{-0.5f, -0.5f, 0.5f, 0.5f}, 0xff0000ff},
-        {{-0.5f,  0.5f, 0.5f, 0.5f}, 0xff0000ff},
-        {{ 0.5f, -0.5f, 0.5f, 0.5f}, 0xff0000ff},
-        {{ 0.5f,  0.5f, 0.5f, 0.5f}, 0xff0000ff},
-    };
-
-    if (!init_test_context(&context))
-        return;
-    device = context.device;
-
-    hr = IDirect3DDevice9_CreateVertexDeclaration(device, decl_elements, &vdecl);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    memset(&identity, 0, sizeof(identity));
-    identity._11 = identity._22 = identity._33 = identity._44 = 1.0f;
-
-    for (unsigned int decl_test = 0; decl_test < 2; ++decl_test)
-    {
-        winetest_push_context(decl_test ? "FVF" : "Vertex declaration");
-
-        if (!decl_test)
-            hr = IDirect3DDevice9_SetFVF(device, D3DFVF_XYZW | D3DFVF_DIFFUSE);
-        else
-            hr = IDirect3DDevice9_SetVertexDeclaration(device, vdecl);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        hr = IDirect3DDevice9_BeginScene(device);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0xffff0000, 1.0f, 0);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_DrawPrimitiveUP(device, D3DPT_TRIANGLESTRIP, 2, quad, sizeof(*quad));
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_EndScene(device);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        get_rt_readback(context.backbuffer, &rb);
-        colour = get_readback_color(&rb, 161, 240) & 0x00ffffff;
-        ok(colour == 0x000000ff, "Got colour 0x%08x.\n", colour);
-        colour = get_readback_color(&rb, 159, 240) & 0x00ffffff;
-        ok(colour == 0x00ff0000, "Got colour 0x%08x.\n", colour);
-        release_surface_readback(&rb);
-
-        /* Translate X by one unit using the world matrix.
-         * This transposes the geometry by 1 unit, proving that the input W is 1.0,
-         * not 0.5 (from the input attribute). */
-        matrix = identity;
-        matrix._41 = 1.0f;
-        hr = IDirect3DDevice9_SetTransform(device, D3DTS_WORLD, &matrix);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        hr = IDirect3DDevice9_BeginScene(device);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0xffff0000, 1.0f, 0);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_DrawPrimitiveUP(device, D3DPT_TRIANGLESTRIP, 2, quad, sizeof(*quad));
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-        hr = IDirect3DDevice9_EndScene(device);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        get_rt_readback(context.backbuffer, &rb);
-        colour = get_readback_color(&rb, 481, 240) & 0x00ffffff;
-        ok(colour == 0x000000ff, "Got colour 0x%08x.\n", colour);
-        colour = get_readback_color(&rb, 479, 240) & 0x00ffffff;
-        ok(colour == 0x00ff0000, "Got colour 0x%08x.\n", colour);
-        release_surface_readback(&rb);
-
-        hr = IDirect3DDevice9_SetTransform(device, D3DTS_WORLD, &identity);
-        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-        winetest_pop_context();
-    }
-
-    IDirect3DVertexDeclaration9_Release(vdecl);
-    release_test_context(&context);
-}
-
-static void test_fog(void)
-{
-    IDirect3DVertexShader9 *vs_no_fog, *vs_fog;
-    struct d3d9_test_context context;
-    struct surface_readback rb;
-    const struct vec4 *colour;
-    IDirect3DDevice9 *device;
-    IDirect3DSurface9 *rt;
-    D3DMATRIX matrix;
-    HRESULT hr;
-
-    static const DWORD vs_no_fog_code[] =
-    {
-        0xfffe0101,                         /* vs_1_1          */
-        0x00000051, 0xa00f0000, 0x3e4ccccd, 0x00000000, 0x00000000, 0x3d23d70a,
-                                            /* def c0, 0.2, 0.0, 0.0, 0.04   */
-        0x0000001f, 0x80000000, 0x900f0000, /* dcl_position v0 */
-        0x0000001f, 0x8000000a, 0x900f0001, /* dcl_color0 v1   */
-        0x00000001, 0xc00f0000, 0x90e40000, /* mov oPos, v0    */
-        0x00000001, 0xd00f0000, 0x90e40001, /* mov oD0, v1     */
-        0x00000001, 0xd00f0001, 0xa0ff0000, /* mov oD1, c0.w   */
-        0x0000ffff                          /* end             */
-    };
-
-    static const DWORD vs_fog_code[] =
-    {
-        0xfffe0101,                         /* vs_1_1          */
-        0x00000051, 0xa00f0000, 0x3e4ccccd, 0x00000000, 0x00000000, 0x3d23d70a,
-                                            /* def c0, 0.2, 0.0, 0.0, 0.04   */
-        0x0000001f, 0x80000000, 0x900f0000, /* dcl_position v0 */
-        0x0000001f, 0x8000000a, 0x900f0001, /* dcl_color0 v1   */
-        0x00000001, 0xc00f0000, 0x90e40000, /* mov oPos, v0    */
-        0x00000001, 0xd00f0000, 0x90e40001, /* mov oD0, v1     */
-        0x00000001, 0xd00f0001, 0xa0ff0000, /* mov oD1, c0.w   */
-        0x00000001, 0xc00f0001, 0xa0000000, /* mov oFog, c0.x  */
-        0x0000ffff                          /* end             */
-    };
-
-    static const struct
-    {
-        struct vec4 position;
-        unsigned int diffuse;
-        unsigned int specular;
-    }
-    vertices[] =
-    {
-        /* We'd like to test how fog varies based on Z and W, but interpolation
-         * combined with perspective division makes some of the math more
-         * difficult. Instead use several flat triangles that all have
-         * different Z and W values. */
-
-        {{-2.0f,  0.0f, 0.2f, 0.5f}, 0xff0000ff, 0xc0000000},
-        {{ 0.0f,  2.0f, 0.2f, 0.5f}, 0xff0000ff, 0xc0000000},
-        {{ 0.0f,  0.0f, 0.2f, 0.5f}, 0xff0000ff, 0xc0000000},
-
-        {{ 0.0f,  0.0f, 0.2f, 0.9f}, 0xff0000ff, 0x40000000},
-        {{ 0.0f,  2.0f, 0.2f, 0.9f}, 0xff0000ff, 0x40000000},
-        {{ 2.0f,  0.0f, 0.2f, 0.9f}, 0xff0000ff, 0x40000000},
-
-        {{ 0.0f, -2.0f, 0.5f, 0.5f}, 0xff0000ff, 0x40000000},
-        {{-2.0f,  0.0f, 0.5f, 0.5f}, 0xff0000ff, 0x40000000},
-        {{ 0.0f,  0.0f, 0.5f, 0.5f}, 0xff0000ff, 0x40000000},
-
-        {{ 0.0f, -2.0f, 0.5f, 0.9f}, 0xff0000ff, 0x40000000},
-        {{ 0.0f,  0.0f, 0.5f, 0.9f}, 0xff0000ff, 0x40000000},
-        {{ 2.0f,  0.0f, 0.5f, 0.9f}, 0xff0000ff, 0x40000000},
-    },
-    rhw_vertices[] =
-    {
-        {{ 320.0f, -240.0f, 0.2f, 0.5f}, 0xff0000ff, 0xc0000000},
-        {{ 320.0f,  240.0f, 0.2f, 0.5f}, 0xff0000ff, 0xc0000000},
-        {{-320.0f,  240.0f, 0.2f, 0.5f}, 0xff0000ff, 0xc0000000},
-
-        {{ 320.0f,  240.0f, 0.2f, 0.9f}, 0xff0000ff, 0x40000000},
-        {{ 320.0f, -240.0f, 0.2f, 0.9f}, 0xff0000ff, 0x40000000},
-        {{ 960.0f,  240.0f, 0.2f, 0.9f}, 0xff0000ff, 0x40000000},
-
-        {{ 320.0f,  720.0f, 0.5f, 0.5f}, 0xff0000ff, 0x40000000},
-        {{-320.0f,  240.0f, 0.5f, 0.5f}, 0xff0000ff, 0x40000000},
-        {{ 320.0f,  240.0f, 0.5f, 0.5f}, 0xff0000ff, 0x40000000},
-
-        {{ 320.0f,  720.0f, 0.5f, 0.9f}, 0xff0000ff, 0x40000000},
-        {{ 320.0f,  240.0f, 0.5f, 0.9f}, 0xff0000ff, 0x40000000},
-        {{ 960.0f,  240.0f, 0.5f, 0.9f}, 0xff0000ff, 0x40000000},
-    };
-
-    static const D3DFOGMODE fog_mode_tests[] = {D3DFOG_NONE, D3DFOG_LINEAR, D3DFOG_EXP, D3DFOG_EXP2};
-
-    static const struct {unsigned int x, y;} points[] =
-    {
-        {300, 220},
-        {340, 220},
-        {300, 260},
-        {340, 260},
-    };
-
-    enum vs_mode
-    {
-        VS_MODE_RHW,
-        VS_MODE_FFP,
-        VS_MODE_VS_NO_FOG,
-        VS_MODE_VS_FOG,
-    };
-
-    if (!init_test_context(&context))
-        return;
-    device = context.device;
-
-    hr = IDirect3DDevice9_CreateRenderTarget(device, 640, 480, D3DFMT_A32B32G32R32F,
-            D3DMULTISAMPLE_NONE, 0, FALSE, &rt, NULL);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetRenderTarget(device, 0, rt);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice9_CreateVertexShader(device, vs_no_fog_code, &vs_no_fog);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_CreateVertexShader(device, vs_fog_code, &vs_fog);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_FOGENABLE, TRUE);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_FOGCOLOR, 0xff00ffff);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_FOGSTART, float_to_int(0.0f));
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_FOGEND, float_to_int(10.0f));
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_DEPTHBIAS, float_to_int(0.1f));
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    for (unsigned int pixel_mode = 0; pixel_mode < ARRAY_SIZE(fog_mode_tests); ++pixel_mode)
-    {
-        for (unsigned int vertex_mode = 0; vertex_mode < ARRAY_SIZE(fog_mode_tests); ++vertex_mode)
-        {
-            for (enum vs_mode vs_mode = 0; vs_mode < 4; ++vs_mode)
-            {
-                for (unsigned int ortho_fog = 0; ortho_fog <= 1; ++ortho_fog)
-                {
-                    float expect_fog[4], nv_expect_fog[4];
-                    float fog_src[4], nv_fog_src[4];
-                    D3DFOGMODE mode;
-
-                    winetest_push_context("pixel mode %#x, vertex mode %#x, vs_mode %u, ortho_fog %u",
-                            fog_mode_tests[pixel_mode], fog_mode_tests[vertex_mode], vs_mode, ortho_fog);
-
-                    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_FOGVERTEXMODE, fog_mode_tests[vertex_mode]);
-                    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_FOGTABLEMODE, fog_mode_tests[pixel_mode]);
-                    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-                    memset(&matrix, 0, sizeof(matrix));
-                    matrix._11 = matrix._22 = matrix._33 = matrix._44 = 1.0f;
-                    if (!ortho_fog)
-                        matrix._44 = 1.01f;
-                    hr = IDirect3DDevice9_SetTransform(device, D3DTS_PROJECTION, &matrix);
-                    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-                    matrix._33 = 3.0f;
-                    matrix._44 = 2.0f;
-                    hr = IDirect3DDevice9_SetTransform(device, D3DTS_VIEW, &matrix);
-                    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-                    if (vs_mode == VS_MODE_FFP)
-                        hr = IDirect3DDevice9_SetVertexShader(device, NULL);
-                    else if (vs_mode == VS_MODE_VS_NO_FOG)
-                        hr = IDirect3DDevice9_SetVertexShader(device, vs_no_fog);
-                    else if (vs_mode == VS_MODE_VS_FOG)
-                        hr = IDirect3DDevice9_SetVertexShader(device, vs_fog);
-                    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-                    hr = IDirect3DDevice9_BeginScene(device);
-                    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                    hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0xffff0000, 1.0f, 0);
-                    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                    if (vs_mode == VS_MODE_RHW)
-                    {
-                        hr = IDirect3DDevice9_SetFVF(device, D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_SPECULAR);
-                        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                        hr = IDirect3DDevice9_DrawPrimitiveUP(device,
-                                D3DPT_TRIANGLELIST, 4, rhw_vertices, sizeof(*rhw_vertices));
-                        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                    }
-                    else
-                    {
-                        hr = IDirect3DDevice9_SetFVF(device, D3DFVF_XYZW | D3DFVF_DIFFUSE | D3DFVF_SPECULAR);
-                        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                        hr = IDirect3DDevice9_DrawPrimitiveUP(device,
-                                D3DPT_TRIANGLELIST, 4, vertices, sizeof(*vertices));
-                        ok(hr == S_OK, "Got hr %#lx.\n", hr);
-                    }
-                    hr = IDirect3DDevice9_EndScene(device);
-                    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-                    if (fog_mode_tests[pixel_mode] == D3DFOG_NONE)
-                    {
-                        /* Fog source is Z.
-                         * This only matters for FFP VS; in all other cases
-                         * the fog comes directly from oFog or specular alpha,
-                         * and the fog start, end, and vertex mode is ignored. */
-                        for (unsigned int i = 0; i < 4; ++i)
-                            fog_src[i] = vertices[i * 3].position.z * 3.0f;
-                    }
-                    else if (!ortho_fog)
-                    {
-                        if (vs_mode == VS_MODE_RHW)
-                        {
-                            /* Fog source is W, so it's the reciprocal of
-                             * the input attribute's reciprocal W. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                fog_src[i] = 1.0f / rhw_vertices[i * 3].position.w;
-                        }
-                        else if (vs_mode == VS_MODE_FFP)
-                        {
-                            /* Fog source is W. However, as test_ffp_w()
-                             * shows, the input W is ignored, and 1.0 is
-                             * used instead. W is still affected by
-                             * matrices, though. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                fog_src[i] = 1.01f * 2.0f;
-                        }
-                        else
-                        {
-                            /* Fog source is W, which our VS passes through. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                fog_src[i] = vertices[i * 3].position.w;
-                        }
-                    }
-                    else
-                    {
-                        if (vs_mode == VS_MODE_RHW)
-                        {
-                            /* Fog source is Z. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                nv_fog_src[i] = fog_src[i] = rhw_vertices[i * 3].position.z;
-                        }
-                        else if (vs_mode == VS_MODE_FFP)
-                        {
-                            /* Fog source is Z/W (i.e. pixel Z).
-                             * As above, input W is always 1.0,
-                             * but is still affected by matrices. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                fog_src[i] = vertices[i * 3].position.z * 3.0f / 2.0f;
-
-                            /* NVidia uses vertex output Z instead. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                nv_fog_src[i] = vertices[i * 3].position.z * 3.0f;
-                        }
-                        else
-                        {
-                            /* Fog source is Z/W. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                fog_src[i] = vertices[i * 3].position.z / vertices[i * 3].position.w;
-
-                            /* NVidia uses vertex output Z instead. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                nv_fog_src[i] = vertices[i * 3].position.z;
-                        }
-
-                        /* Depth bias. NVidia uses vertex output Z, so it's
-                         * not affected by depth bias. */
-                        for (unsigned int i = 0; i < 4; ++i)
-                            fog_src[i] += 0.1f;
-                    }
-
-                    if (fog_mode_tests[pixel_mode] != D3DFOG_NONE)
-                        mode = fog_mode_tests[pixel_mode];
-                    else
-                        mode = fog_mode_tests[vertex_mode];
-
-                    for (unsigned int i = 0; i < 4; ++i)
-                    {
-                        if (fog_mode_tests[pixel_mode] == D3DFOG_NONE && vs_mode == VS_MODE_VS_FOG)
-                        {
-                            /* Fog is taken from oFog if the VS writes it. */
-                            expect_fog[i] = 1.0f - 0.2f;
-                        }
-                        else if (fog_mode_tests[pixel_mode] == D3DFOG_NONE && vs_mode == VS_MODE_VS_NO_FOG)
-                        {
-                            /* Otherwise, it's the output specular alpha. */
-                            expect_fog[i] = 1.0f - 0.04f;
-                        }
-                        else if (fog_mode_tests[pixel_mode] == D3DFOG_NONE
-                                && (fog_mode_tests[vertex_mode] == D3DFOG_NONE || vs_mode == VS_MODE_RHW))
-                        {
-                            /* FFP uses Z as a source and FOGVERTEXMODE
-                             * interpolation if the latter isn't NONE.
-                             *
-                             * If FOGVERTEXMODE is none, or always in the case
-                             * of RHW, the specular alpha is used.
-                             *
-                             * TODO: Test if it should be the input or output
-                             * specular alpha. Lighting would greatly
-                             * complicate this test, unfortunately. */
-                            for (unsigned int i = 0; i < 4; ++i)
-                                expect_fog[i] = 1.0f - ((vertices[i * 3].specular >> 24) / 255.0f);
-                        }
-                        else if (mode == D3DFOG_LINEAR)
-                        {
-                            expect_fog[i] = fog_src[i] / 10.0f;
-                            nv_expect_fog[i] = nv_fog_src[i] / 10.0f;
-                        }
-                        else if (mode == D3DFOG_EXP)
-                        {
-                            expect_fog[i] = 1.0f - expf(-fog_src[i]);
-                            nv_expect_fog[i] = 1.0f - expf(-nv_fog_src[i]);
-                        }
-                        else if (mode == D3DFOG_EXP2)
-                        {
-                            expect_fog[i] = 1.0f - expf(-fog_src[i] * fog_src[i]);
-                            nv_expect_fog[i] = 1.0f - expf(-nv_fog_src[i] * nv_fog_src[i]);
-                        }
-                    }
-
-                    get_rt_readback(rt, &rb);
-
-                    for (unsigned int i = 0; i < 4; ++i)
-                    {
-                        colour = get_readback_vec4(&rb, points[i].x, points[i].y);
-
-todo_wine_if ((fog_mode_tests[pixel_mode] != D3DFOG_NONE && !ortho_fog && (vs_mode == VS_MODE_FFP || vs_mode == VS_MODE_RHW))
-        || (fog_mode_tests[pixel_mode] == D3DFOG_NONE && fog_mode_tests[vertex_mode] != D3DFOG_NONE && vs_mode == VS_MODE_FFP))
-{
-                        if (fog_mode_tests[pixel_mode] != D3DFOG_NONE && ortho_fog)
-                            ok(compare_vec4(colour, 0.0f, expect_fog[i], 1.0f, 1.0f, 48)
-                                    || compare_vec4(colour, 0.0f, nv_expect_fog[i], 1.0f, 1.0f, 48),
-                                    "(%u, %u): Expected fog %.8e or %.8e; got colour {%.8e, %.8e, %.8e, %.8e}.\n",
-                                    points[i].x, points[i].y, expect_fog[i], nv_expect_fog[i],
-                                    colour->x, colour->y, colour->z, colour->w);
-                        else
-                            ok(compare_vec4(colour, 0.0f, expect_fog[i], 1.0f, 1.0f, 48),
-                                    "(%u, %u): Expected fog %.8e; got colour {%.8e, %.8e, %.8e, %.8e}.\n",
-                                    points[i].x, points[i].y, expect_fog[i],
-                                    colour->x, colour->y, colour->z, colour->w);
-}
-                    }
-                    release_surface_readback(&rb);
-
-                    winetest_pop_context();
-                }
-            }
-        }
-    }
-
-    IDirect3DVertexShader9_Release(vs_fog);
-    IDirect3DVertexShader9_Release(vs_no_fog);
-    IDirect3DSurface9_Release(rt);
-    release_test_context(&context);
-}
-
 START_TEST(visual)
 {
     D3DADAPTER_IDENTIFIER9 identifier;
@@ -29458,9 +28248,4 @@ START_TEST(visual)
     test_managed_reset();
     test_managed_generate_mipmap();
     test_mipmap_upload();
-    test_default_diffuse();
-    test_default_attribute_components();
-    test_format_conversion();
-    test_ffp_w();
-    test_fog();
 }

@@ -28,7 +28,7 @@
 #include "windef.h"
 #include "winbase.h"
 #include "winerror.h"
-#include "rtlsupportapi.h"
+#include "winternl.h"
 #include "wownt16.h"
 #include "wownt32.h"
 #include "wine/winbase16.h"
@@ -1545,7 +1545,7 @@ void WINAPI C16ThkSL01(CONTEXT *context)
  * 16<->32 Thunklet/Callback API:
  */
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 typedef struct _THUNKLET
 {
     BYTE        prefix_target;
@@ -1563,7 +1563,7 @@ typedef struct _THUNKLET
     HINSTANCE16 owner;
     struct _THUNKLET *next;
 } THUNKLET;
-#pragma pack(pop)
+#include "poppack.h"
 
 #define THUNKLET_TYPE_LS  1
 #define THUNKLET_TYPE_SL  2

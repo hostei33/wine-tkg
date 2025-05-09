@@ -36,6 +36,8 @@
 #include "winternl.h"
 #include "winerror.h"
 #include "ntgdi_private.h"
+#include "wine/wgl.h"
+#include "wine/wgl_driver.h"
 
 #include "wine/debug.h"
 
@@ -273,7 +275,13 @@ void free_dc_ptr( DC *dc )
     GDI_dec_ref_count( dc->hPen );
     GDI_dec_ref_count( dc->hBrush );
     GDI_dec_ref_count( dc->hFont );
-    if (dc->hBitmap && !dc->is_display) GDI_dec_ref_count( dc->hBitmap );
+    if (dc->hBitmap)
+    {
+        if (dc->is_display)
+            NtGdiDeleteObjectApp( dc->hBitmap );
+        else
+            GDI_dec_ref_count( dc->hBitmap );
+    }
     free_gdi_handle( dc->hSelf );
     free_dc_state( dc );
 }
@@ -502,7 +510,7 @@ static BOOL DC_DeleteObject( HGDIOBJ handle )
     if (!(dc = get_dc_ptr( handle ))) return FALSE;
     if (dc->refcount != 1)
     {
-        FIXME( "not deleting busy DC %p refcount %u\n", dc->hSelf, dc->refcount );
+        FIXME( "not deleting busy DC %p refcount %u\n", dc->hSelf, (int)dc->refcount );
         release_dc_ptr( dc );
         return FALSE;
     }
@@ -710,7 +718,7 @@ HDC WINAPI NtGdiOpenDCW( UNICODE_STRING *device, const DEVMODEW *devmode, UNICOD
     if (is_display)
         funcs = get_display_driver();
     else if (type != WINE_GDI_DRIVER_VERSION)
-        ERR( "version mismatch: %u\n", type );
+        ERR( "version mismatch: %u\n", (unsigned int)type );
     else
         funcs = hspool;
     if (!funcs)
@@ -721,8 +729,9 @@ HDC WINAPI NtGdiOpenDCW( UNICODE_STRING *device, const DEVMODEW *devmode, UNICOD
 
     if (!(dc = alloc_dc_ptr( NTGDI_OBJ_DC ))) return 0;
     hdc = dc->hSelf;
+
     if (is_display)
-        dc->hBitmap = get_display_bitmap();
+        dc->hBitmap = NtGdiCreateCompatibleBitmap( hdc, 1, 1 );
     else
         dc->hBitmap = GDI_inc_ref_count( GetStockObject( DEFAULT_BITMAP ));
 
@@ -756,6 +765,12 @@ HDC WINAPI NtGdiOpenDCW( UNICODE_STRING *device, const DEVMODEW *devmode, UNICOD
     DC_InitDC( dc );
     release_dc_ptr( dc );
 
+    if (driver_info && driver_info->cVersion == NTGDI_WIN16_DIB &&
+        !create_dib_surface( hdc, pdev ))
+    {
+        NtGdiDeleteObjectApp( hdc );
+        return 0;
+    }
     return hdc;
 }
 
@@ -1143,7 +1158,7 @@ BOOL WINAPI NtGdiGetTransform( HDC hdc, DWORD which, XFORM *xform )
         break;
 
     default:
-        FIXME("Unknown code %x\n", which);
+        FIXME("Unknown code %x\n", (int)which);
         ret = FALSE;
     }
 
@@ -1450,7 +1465,7 @@ DWORD WINAPI NtGdiSetLayout( HDC hdc, LONG wox, DWORD layout )
         release_dc_ptr( dc );
     }
 
-    TRACE("hdc : %p, old layout : %08x, new layout : %08x\n", hdc, old_layout, layout);
+    TRACE("hdc : %p, old layout : %08x, new layout : %08x\n", hdc, old_layout, (int)layout);
 
     return old_layout;
 }
@@ -1470,4 +1485,34 @@ BOOL WINAPI __wine_get_icm_profile( HDC hdc, BOOL allow_default, DWORD *size, WC
     ret = physdev->funcs->pGetICMProfile( physdev, allow_default, size, filename );
     release_dc_ptr(dc);
     return ret;
+}
+
+/***********************************************************************
+ *      __wine_get_wgl_driver  (win32u.@)
+ */
+const struct opengl_funcs *__wine_get_wgl_driver( HDC hdc, UINT version )
+{
+    BOOL is_display, is_memdc;
+    DC *dc;
+
+    if (version != WINE_WGL_DRIVER_VERSION)
+    {
+        ERR( "version mismatch, opengl32 wants %u but dibdrv has %u\n",
+             version, WINE_WGL_DRIVER_VERSION );
+        return NULL;
+    }
+
+    if (!(dc = get_dc_obj( hdc ))) return NULL;
+    if (dc->attr->disabled)
+    {
+        GDI_ReleaseObj( hdc );
+        return NULL;
+    }
+    is_display = dc->is_display;
+    is_memdc = get_gdi_object_type( hdc ) == NTGDI_OBJ_MEMDC;
+    GDI_ReleaseObj( hdc );
+
+    if (is_display) return user_driver->pwine_get_wgl_driver( version );
+    if (is_memdc) return dibdrv_get_wgl_driver();
+    return (void *)-1;
 }

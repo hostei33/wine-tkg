@@ -31,7 +31,6 @@
 #include "mshtmdid.h"
 #include "mshtmhst.h"
 #include "docobj.h"
-#include "docobjectservice.h"
 #include "hlink.h"
 #include "wininet.h"
 #include "shdeprecated.h"
@@ -134,7 +133,6 @@ static IOleDocumentView *view;
 static BOOL is_ie9plus;
 static int document_mode;
 static unsigned in_fire_event;
-static DWORD main_thread_id;
 
 typedef struct {
     LONG x;
@@ -3427,7 +3425,7 @@ static void test_message_event(IHTMLDocument2 *doc)
 
             hres = IDOMMessageEvent_get_origin(msg_event, &bstr);
             ok(hres == S_OK, "get_origin failed: %08lx\n", hres);
-            ok(broken(!bstr) /* win10-21h2 */ || !wcscmp(bstr, L"foobar"), "origin = %s\n", wine_dbgstr_w(bstr));
+            ok(!wcscmp(bstr, L"foobar"), "origin = %s\n", wine_dbgstr_w(bstr));
             SysFreeString(bstr);
         }else {
             bstr = SysAllocString(L"data");
@@ -3478,7 +3476,7 @@ static void test_message_event(IHTMLDocument2 *doc)
 
             hres = IDOMMessageEvent_get_origin(msg_event, &bstr);
             ok(hres == S_OK, "get_origin failed: %08lx\n", hres);
-            ok(broken(!bstr) /* win10-21h2 */ || !wcscmp(bstr, L"foobar"), "origin = %s\n", wine_dbgstr_w(bstr));
+            ok(!wcscmp(bstr, L"foobar"), "origin = %s\n", wine_dbgstr_w(bstr));
             SysFreeString(bstr);
         }
 
@@ -4138,6 +4136,7 @@ static void test_window_refs(IHTMLDocument2 *doc)
 
     hres = IOmHistory_get_length(history, &length);
     ok(hres == S_OK, "get_length failed: %08lx\n", hres);
+    todo_wine
     ok(length == 42, "length = %d\n", length);
     IOmHistory_Release(history);
 }
@@ -4149,6 +4148,7 @@ static void test_doc_obj(IHTMLDocument2 *doc)
     IHTMLOptionElementFactory *option, *option2;
     IHTMLImageElementFactory *image, *image2;
     IHTMLXMLHttpRequestFactory *xhr, *xhr2;
+    IHTMLXDomainRequestFactory *xdr, *xdr2;
     IHTMLDocument2 *doc_node, *doc_node2;
     IOmNavigator *navigator, *navigator2;
     IHTMLLocation *location, *location2;
@@ -4269,6 +4269,23 @@ static void test_doc_obj(IHTMLDocument2 *doc)
         ok(V_VT(&res) == VT_BOOL, "VT = %d\n", V_VT(&res));
         ok(V_BOOL(&res) == VARIANT_TRUE, "hasOwnProperty(\"prop\") = %d\n", V_BOOL(&res));
         SysFreeString(V_BSTR(&arg));
+
+        V_BSTR(&arg) = SysAllocString(L"proto_prop");
+        hres = IHTMLDocument2_Invoke(doc, has_own_prop_id, &IID_NULL, 0, DISPATCH_METHOD, &dp, &res, NULL, NULL);
+        ok(hres == S_OK, "Invoke(hasOwnProperty(\"proto_prop\")) failed: %08lx\n", hres);
+        ok(V_VT(&res) == VT_BOOL, "VT = %d\n", V_VT(&res));
+        ok(V_BOOL(&res) == VARIANT_FALSE, "hasOwnProperty(\"proto_prop\") = %d\n", V_BOOL(&res));
+
+        hres = IHTMLDocument2_GetIDsOfNames(doc, &IID_NULL, &V_BSTR(&arg), 1, 0, &dispid);
+        ok(hres == S_OK, "GetIDsOfNames(proto_prop) returned: %08lx\n", hres);
+        SysFreeString(V_BSTR(&arg));
+
+        dp.cArgs = 0;
+        dp.rgvarg = NULL;
+        hres = IHTMLDocument2_Invoke(doc, dispid, &IID_NULL, 0, DISPATCH_PROPERTYGET, &dp, &res, NULL, NULL);
+        ok(hres == S_OK, "Invoke(proto_prop) failed: %08lx\n", hres);
+        ok(V_VT(&res) == VT_BOOL, "VT(proto_prop) = %d\n", V_VT(&res));
+        ok(V_BOOL(&res) == VARIANT_TRUE, "proto_prop = %d\n", V_BOOL(&res));
     }
 
     /* test window props during navigation */
@@ -4307,7 +4324,14 @@ static void test_doc_obj(IHTMLDocument2 *doc)
     ok(hres == S_OK, "Could not get IHTMLWindow6: %08lx\n", hres);
     hres = IHTMLWindow6_get_sessionStorage(window6, &storage);
     ok(hres == S_OK, "get_sessionStorage failed: %08lx\n", hres);
+
+    hres = IHTMLWindow6_get_XDomainRequest(window6, &res);
+    ok(hres == S_OK, "get_XDomainRequest failed: %08lx\n", hres);
+    ok(V_VT(&res) == VT_DISPATCH, "V_VT(XDomainRequest) = %d\n", V_VT(&res));
+    hres = IDispatch_QueryInterface(V_DISPATCH(&res), &IID_IHTMLXDomainRequestFactory, (void**)&xdr);
+    ok(hres == S_OK, "Could not get IHTMLXDomainRequestFactory: %08lx\n", hres);
     IHTMLWindow6_Release(window6);
+    VariantClear(&res);
 
     hres = IHTMLWindow2_QueryInterface(window, &IID_IHTMLWindow7, (void**)&window7);
     ok(hres == S_OK, "Could not get IHTMLWindow7: %08lx\n", hres);
@@ -4402,7 +4426,9 @@ static void test_doc_obj(IHTMLDocument2 *doc)
     ok(doc_node != doc_node2, "doc_node == doc_node2\n");
 
     hres = IHTMLDocument2_get_parentWindow(doc_node, &window2);
+    todo_wine
     ok(hres == S_OK, "get_parentWindow failed: %08lx\n", hres);
+    todo_wine
     ok(window == window2, "window != window2\n");
     if(hres == S_OK) IHTMLWindow2_Release(window2);
 
@@ -4491,7 +4517,18 @@ static void test_doc_obj(IHTMLDocument2 *doc)
     ok(storage != storage2, "storage == storage2\n");
     IHTMLStorage_Release(storage2);
     IHTMLStorage_Release(storage);
+
+    ok(hres == S_OK, "Could not get IHTMLWindow6: %08lx\n", hres);
+    hres = IHTMLWindow6_get_XDomainRequest(window6, &res);
+    ok(hres == S_OK, "get_XDomainRequest failed: %08lx\n", hres);
+    ok(V_VT(&res) == VT_DISPATCH, "V_VT(XDomainRequest) = %d\n", V_VT(&res));
+    hres = IDispatch_QueryInterface(V_DISPATCH(&res), &IID_IHTMLXDomainRequestFactory, (void**)&xdr2);
+    ok(hres == S_OK, "Could not get IHTMLXDomainRequestFactory: %08lx\n", hres);
+    ok(xdr != xdr2, "xdr == xdr2\n");
+    IHTMLXDomainRequestFactory_Release(xdr2);
+    IHTMLXDomainRequestFactory_Release(xdr);
     IHTMLWindow6_Release(window6);
+    VariantClear(&res);
 
     hres = IHTMLWindow2_QueryInterface(window, &IID_IHTMLWindow7, (void**)&window7);
     ok(hres == S_OK, "Could not get IHTMLWindow7: %08lx\n", hres);
@@ -4882,44 +4919,6 @@ static HRESULT WINAPI sync_xhr(IDispatchEx *iface, DISPID id, LCID lcid, WORD wF
 
 EVENT_HANDLER_FUNC_OBJ(sync_xhr);
 
-static IHTMLDocument2 *notif_doc;
-static unsigned in_nav_notif_test, nav_notif_test_depth;
-static BOOL doc_complete;
-
-static void nav_notif_test(void)
-{
-    IHTMLPrivateWindow *priv_window;
-    IHTMLWindow2 *window;
-    BSTR bstr, bstr2;
-    HRESULT hres;
-    VARIANT v;
-
-    in_nav_notif_test++;
-    nav_notif_test_depth++;
-
-    hres = IHTMLDocument2_get_parentWindow(notif_doc, &window);
-    ok(hres == S_OK, "get_parentWindow failed: %08lx\n", hres);
-    ok(window != NULL, "window == NULL\n");
-
-    V_VT(&v) = VT_EMPTY;
-    bstr = SysAllocString(L"about:blank");
-    bstr2 = SysAllocString(L"");
-    hres = IHTMLWindow2_QueryInterface(window, &IID_IHTMLPrivateWindow, (void**)&priv_window);
-    ok(hres == S_OK, "Could not get IHTMLPrivateWindow) interface: %08lx\n", hres);
-    hres = IHTMLPrivateWindow_SuperNavigate(priv_window, bstr, bstr2, NULL, NULL, &v, &v, 0);
-    ok(hres == S_OK, "SuperNavigate failed: %08lx\n", hres);
-    IHTMLPrivateWindow_Release(priv_window);
-    IHTMLWindow2_Release(window);
-    SysFreeString(bstr2);
-    SysFreeString(bstr);
-
-    ok(nav_notif_test_depth == 1, "nav_notif_test_depth = %u\n", nav_notif_test_depth);
-    pump_msgs(NULL);
-    ok(nav_notif_test_depth == 1, "nav_notif_test_depth = %u\n", nav_notif_test_depth);
-    ok(!doc_complete, "doc_complete = TRUE\n");
-    nav_notif_test_depth--;
-}
-
 static HRESULT QueryInterface(REFIID,void**);
 static HRESULT browserservice_qi(REFIID,void**);
 static HRESULT wb_qi(REFIID,void**);
@@ -5277,59 +5276,6 @@ static const IOleDocumentSiteVtbl DocumentSiteVtbl = {
 };
 
 static IOleDocumentSite DocumentSite = { &DocumentSiteVtbl };
-
-static HRESULT WINAPI OleCommandTarget_QueryInterface(IOleCommandTarget *iface, REFIID riid, void **ppv)
-{
-    return QueryInterface(riid, ppv);
-}
-
-static ULONG WINAPI OleCommandTarget_AddRef(IOleCommandTarget *iface)
-{
-    return 2;
-}
-
-static ULONG WINAPI OleCommandTarget_Release(IOleCommandTarget *iface)
-{
-    return 1;
-}
-
-static HRESULT WINAPI OleCommandTarget_QueryStatus(IOleCommandTarget *iface, const GUID *pguidCmdGroup,
-        ULONG cCmds, OLECMD prgCmds[], OLECMDTEXT *pCmdText)
-{
-    ok(!pguidCmdGroup, "pguidCmdGroup != MULL\n");
-    ok(cCmds == 1, "cCmds=%ld, expected 1\n", cCmds);
-    ok(!pCmdText, "pCmdText != NULL\n");
-
-    switch(prgCmds[0].cmdID) {
-    case OLECMDID_SETPROGRESSTEXT:
-        prgCmds[0].cmdf = OLECMDF_ENABLED;
-        return S_OK;
-    case OLECMDID_OPEN:
-    case OLECMDID_NEW:
-        prgCmds[0].cmdf = 0;
-        return S_OK;
-    default:
-        ok(0, "unexpected command %ld\n", prgCmds[0].cmdID);
-    };
-
-    return E_FAIL;
-}
-
-static HRESULT WINAPI OleCommandTarget_Exec(IOleCommandTarget *iface, const GUID *pguidCmdGroup, DWORD nCmdID,
-        DWORD nCmdexecopt, VARIANT *pvaIn, VARIANT *pvaOut)
-{
-    return E_FAIL;
-}
-
-static IOleCommandTargetVtbl OleCommandTargetVtbl = {
-    OleCommandTarget_QueryInterface,
-    OleCommandTarget_AddRef,
-    OleCommandTarget_Release,
-    OleCommandTarget_QueryStatus,
-    OleCommandTarget_Exec
-};
-
-static IOleCommandTarget OleCommandTarget = { &OleCommandTargetVtbl };
 
 static HRESULT WINAPI TravelLog_QueryInterface(ITravelLog *iface, REFIID riid, void **ppv)
 {
@@ -5743,104 +5689,12 @@ static const IShellBrowserVtbl ShellBrowserVtbl = {
 
 static IShellBrowser ShellBrowser = { &ShellBrowserVtbl };
 
-static HRESULT WINAPI DocObjectService_QueryInterface(IDocObjectService *iface, REFIID riid, void **ppv)
-{
-    return browserservice_qi(riid, ppv);
-}
-
-static ULONG WINAPI DocObjectService_AddRef(IDocObjectService *iface)
-{
-    return 2;
-}
-
-static ULONG WINAPI DocObjectService_Release(IDocObjectService *iface)
-{
-    return 1;
-}
-
-static HRESULT  WINAPI DocObjectService_FireBeforeNavigate2(IDocObjectService *iface, IDispatch *pDispatch, LPCWSTR lpszUrl, DWORD dwFlags,
-        LPCWSTR lpszFrameName, BYTE *pPostData, DWORD cbPostData, LPCWSTR lpszHeaders, BOOL fPlayNavSound, BOOL *pfCancel)
-{
-    return S_OK;
-}
-
-static HRESULT  WINAPI DocObjectService_FireNavigateComplete2(IDocObjectService *iface, IHTMLWindow2 *pHTMLWindow2, DWORD dwFlags)
-{
-    return S_OK;
-}
-
-static HRESULT  WINAPI DocObjectService_FireDownloadBegin(IDocObjectService *iface)
-{
-    return S_OK;
-}
-
-static HRESULT  WINAPI DocObjectService_FireDownloadComplete(IDocObjectService *iface)
-{
-    return S_OK;
-}
-
-static HRESULT  WINAPI DocObjectService_FireDocumentComplete(IDocObjectService *iface, IHTMLWindow2 *pHTMLWindow, DWORD dwFlags)
-{
-    ok(!nav_notif_test_depth, "nav_notif_test_depth = %u\n", nav_notif_test_depth);
-    if(in_nav_notif_test == 21)
-        nav_notif_test();
-    return S_OK;
-}
-
-static HRESULT  WINAPI DocObjectService_UpdateDesktopComponent(IDocObjectService *iface, IHTMLWindow2 *pHTMLWindow)
-{
-    ok(0, "unexpected call\n");
-    return E_NOTIMPL;
-}
-
-static HRESULT  WINAPI DocObjectService_GetPendingUrl(IDocObjectService *iface, BSTR *pbstrPendingUrl)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT  WINAPI DocObjectService_ActiveElementChanged(IDocObjectService *iface, IHTMLElement *pHTMLElement)
-{
-    return E_NOTIMPL;
-}
-
-static HRESULT  WINAPI DocObjectService_GetUrlSearchComponent(IDocObjectService *iface, BSTR *pbstrSearch)
-{
-    ok(0, "unexpected call\n");
-    return E_NOTIMPL;
-}
-
-static HRESULT  WINAPI DocObjectService_IsErrorUrl(IDocObjectService *iface, LPCWSTR lpszUrl, BOOL *pfIsError)
-{
-    *pfIsError = FALSE;
-    return S_OK;
-}
-
-static IDocObjectServiceVtbl DocObjectServiceVtbl = {
-    DocObjectService_QueryInterface,
-    DocObjectService_AddRef,
-    DocObjectService_Release,
-    DocObjectService_FireBeforeNavigate2,
-    DocObjectService_FireNavigateComplete2,
-    DocObjectService_FireDownloadBegin,
-    DocObjectService_FireDownloadComplete,
-    DocObjectService_FireDocumentComplete,
-    DocObjectService_UpdateDesktopComponent,
-    DocObjectService_GetPendingUrl,
-    DocObjectService_ActiveElementChanged,
-    DocObjectService_GetUrlSearchComponent,
-    DocObjectService_IsErrorUrl
-};
-
-static IDocObjectService DocObjectService = { &DocObjectServiceVtbl };
-
 static HRESULT browserservice_qi(REFIID riid, void **ppv)
 {
     if(IsEqualGUID(&IID_IShellBrowser, riid))
         *ppv = &ShellBrowser;
     else if(IsEqualGUID(&IID_IBrowserService, riid))
         *ppv = &BrowserService;
-    else if(IsEqualGUID(&IID_IDocObjectService, riid))
-        *ppv = &DocObjectService;
     else {
         *ppv = NULL;
         return E_NOINTERFACE;
@@ -6391,13 +6245,14 @@ static HRESULT QueryInterface(REFIID riid, void **ppv)
         *ppv = &DocumentSite;
     else if(IsEqualGUID(&IID_IOleWindow, riid) || IsEqualGUID(&IID_IOleInPlaceSite, riid))
         *ppv = &InPlaceSite;
-    else if(IsEqualGUID(&IID_IOleCommandTarget , riid))
-        *ppv = &OleCommandTarget;
     else if(IsEqualGUID(&IID_IServiceProvider, riid))
         *ppv = &ServiceProvider;
 
     return *ppv ? S_OK : E_NOINTERFACE;
 }
+
+static IHTMLDocument2 *notif_doc;
+static BOOL doc_complete;
 
 static HRESULT WINAPI PropertyNotifySink_QueryInterface(IPropertyNotifySink *iface,
         REFIID riid, void**ppv)
@@ -6423,18 +6278,9 @@ static ULONG WINAPI PropertyNotifySink_Release(IPropertyNotifySink *iface)
 
 static HRESULT WINAPI PropertyNotifySink_OnChanged(IPropertyNotifySink *iface, DISPID dispID)
 {
-    ok(GetCurrentThreadId() == main_thread_id, "OnChanged called on different thread\n");
-
-    if(dispID == DISPID_READYSTATE) {
-        HRESULT hres;
+    if(dispID == DISPID_READYSTATE){
         BSTR state;
-
-        if(in_nav_notif_test == 11)
-            nav_notif_test();
-        else if(in_nav_notif_test == 21)
-            return S_OK;
-
-        ok(nav_notif_test_depth < 2, "nav_notif_test_depth = %u\n", nav_notif_test_depth);
+        HRESULT hres;
 
         hres = IHTMLDocument2_get_readyState(notif_doc, &state);
         ok(hres == S_OK, "get_readyState failed: %08lx\n", hres);
@@ -6443,13 +6289,6 @@ static HRESULT WINAPI PropertyNotifySink_OnChanged(IPropertyNotifySink *iface, D
             doc_complete = TRUE;
 
         SysFreeString(state);
-    }
-
-    if(dispID == 1005) {
-        ok(!nav_notif_test_depth, "nav_notif_test_depth = %u\n", nav_notif_test_depth);
-
-        if(in_nav_notif_test == 1)
-            nav_notif_test();
     }
 
     return S_OK;
@@ -7662,51 +7501,6 @@ static void test_sync_xhr_events(const char *doc_str)
     IHTMLDocument2_Release(doc[1]);
 }
 
-static void test_navigation_during_notif(void)
-{
-    IPersistMoniker *persist;
-    IHTMLDocument2 *doc;
-    IMoniker *mon;
-    HRESULT hres;
-    unsigned i;
-    BSTR url;
-    MSG msg;
-
-    for(i = 0; i < 3; i++) {
-        if(!(doc = create_document()))
-            return;
-
-        notif_doc = doc;
-        doc_complete = FALSE;
-        set_client_site(doc, TRUE);
-        do_advise((IUnknown*)doc, &IID_IPropertyNotifySink, (IUnknown*)&PropertyNotifySink);
-
-        url = SysAllocString(L"about:setting");
-        hres = CreateURLMoniker(NULL, url, &mon);
-        SysFreeString(url);
-        ok(hres == S_OK, "CreateUrlMoniker failed: %08lx\n", hres);
-
-        hres = IHTMLDocument2_QueryInterface(doc, &IID_IPersistMoniker, (void**)&persist);
-        ok(hres == S_OK, "Could not get IPersistMoniker iface: %08lx\n", hres);
-
-        hres = IPersistMoniker_Load(persist, FALSE, mon, NULL, 0);
-        ok(hres == S_OK, "Load failed: %08lx\n", hres);
-        IPersistMoniker_Release(persist);
-        IMoniker_Release(mon);
-
-        in_nav_notif_test = i*10 + 1;
-        while(in_nav_notif_test != i*10 + 2 && !doc_complete && GetMessageA(&msg, NULL, 0, 0)) {
-            TranslateMessage(&msg);
-            DispatchMessageA(&msg);
-        }
-        ok(!nav_notif_test_depth, "nav_notif_test_depth = %u\n", nav_notif_test_depth);
-        in_nav_notif_test = 0;
-
-        set_client_site(doc, FALSE);
-        IHTMLDocument2_Release(doc);
-    }
-}
-
 static BOOL check_ie(void)
 {
     IHTMLDocument2 *doc;
@@ -7737,7 +7531,6 @@ static BOOL check_ie(void)
 START_TEST(events)
 {
     CoInitialize(NULL);
-    main_thread_id = GetCurrentThreadId();
 
     if(check_ie()) {
         container_hwnd = create_container_window();
@@ -7779,7 +7572,6 @@ START_TEST(events)
             test_storage_events(empty_doc_ie9_str);
             test_sync_xhr_events(empty_doc_ie9_str);
         }
-        test_navigation_during_notif();
 
         /* Test this last since it doesn't close the view properly. */
         test_document_close();

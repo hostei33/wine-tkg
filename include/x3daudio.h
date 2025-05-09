@@ -68,8 +68,8 @@ typedef struct X3DAUDIO_EMITTER {
     X3DAUDIO_DISTANCE_CURVE *pLPFDirectCurve;
     X3DAUDIO_DISTANCE_CURVE *pLPFReverbCurve;
     X3DAUDIO_DISTANCE_CURVE *pReverbCurve;
-    float CurveDistanceScaler;
-    float DopplerScaler;
+    float CurveDistanceScalar;
+    float DopplerScalar;
 } X3DAUDIO_EMITTER;
 
 typedef struct X3DAUDIO_DSP_SETTINGS {

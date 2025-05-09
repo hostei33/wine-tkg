@@ -674,6 +674,66 @@ static HRESULT WINAPI iterable_hstring_create_static( struct iterable_hstring *i
     return S_OK;
 }
 
+#define check_comparable_presence(a, b) _check_comparable_presence( __LINE__, (a), (b))
+static void _check_comparable_presence( unsigned line, IVectorView_VoiceInformation *voices, IVoiceInformation *voice)
+{
+    HSTRING in_display, in_id, in_language;
+    HSTRING vc_display, vc_id, vc_language;
+    IVoiceInformation *vc_voice;
+    enum VoiceGender in_gender, vc_gender;
+    UINT32 size, idx, found_count = 0;
+    HRESULT hr;
+    INT32 cmp;
+
+    hr = IVoiceInformation_get_DisplayName(voice, &in_display);
+    ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    hr = IVoiceInformation_get_Id(voice, &in_id);
+    ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    hr = IVoiceInformation_get_Language(voice, &in_language);
+    ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    hr = IVoiceInformation_get_Gender(voice, &in_gender);
+    ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    hr = IVectorView_VoiceInformation_get_Size(voices, &size);
+    ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    for (idx = 0; SUCCEEDED(hr = IVectorView_VoiceInformation_GetAt(voices, idx, &vc_voice)); idx++)
+    {
+        hr = IVoiceInformation_get_DisplayName(vc_voice, &vc_display);
+        ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        hr = IVoiceInformation_get_Id(vc_voice, &vc_id);
+        ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        hr = IVoiceInformation_get_Language(vc_voice, &vc_language);
+        ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        hr = IVoiceInformation_get_Gender(vc_voice, &vc_gender);
+        ok_(__FILE__, line)(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        trace("%u] %s/%s/%s/%u\n",
+              idx - 1, debugstr_hstring(vc_display), debugstr_hstring(vc_id), debugstr_hstring(vc_language), vc_gender);
+
+        if (SUCCEEDED(WindowsCompareStringOrdinal(in_display, vc_display, &cmp)) && !cmp &&
+            SUCCEEDED(WindowsCompareStringOrdinal(in_id, vc_id, &cmp)) && !cmp &&
+            SUCCEEDED(WindowsCompareStringOrdinal(in_language, vc_language, &cmp)) && !cmp &&
+            in_gender == vc_gender)
+        {
+            found_count++;
+        }
+        WindowsDeleteString(vc_display);
+        WindowsDeleteString(vc_id);
+        WindowsDeleteString(vc_language);
+        IVoiceInformation_Release(vc_voice);
+    }
+    ok(hr == E_BOUNDS, "Got unexpected hr %#lx.\n", hr);
+    ok(idx != 0, "Vector view shouldn't be empty!\n");
+    ok(idx == size, "Incoherent index/size %u/%u!\n", idx, size);
+
+    ok_(__FILE__, line)(found_count == 1, "Found several (%u) instances of %s/%s/%s/%u\n",
+                        found_count,
+                        debugstr_hstring(in_display), debugstr_hstring(in_id), debugstr_hstring(in_language), in_gender);
+
+    WindowsDeleteString(in_display);
+    WindowsDeleteString(in_id);
+    WindowsDeleteString(in_language);
+}
+
 static void test_ActivationFactory(void)
 {
     static const WCHAR *synthesizer_name = L"Windows.Media.SpeechSynthesis.SpeechSynthesizer";
@@ -796,10 +856,12 @@ static void test_SpeechSynthesizer(void)
     IClosable *closable;
     struct async_inspectable_handler async_inspectable_handler;
     HMODULE hdll;
-    HSTRING str, str2;
+    HSTRING str, str2, default_voice_id;
     HRESULT hr;
-    UINT32 size;
+    UINT32 size, idx;
+    BOOLEAN found;
     ULONG ref;
+    INT32 cmp;
 
     hr = RoInitialize(RO_INIT_MULTITHREADED);
     ok(hr == S_OK, "RoInitialize failed, hr %#lx\n", hr);
@@ -881,7 +943,7 @@ static void test_SpeechSynthesizer(void)
     size = 0xdeadbeef;
     hr = IVectorView_VoiceInformation_get_Size(voices, &size);
     ok(hr == S_OK, "IVectorView_VoiceInformation_get_Size voices failed, hr %#lx\n", hr);
-    todo_wine ok(size != 0 && size != 0xdeadbeef, "IVectorView_VoiceInformation_get_Size returned %u\n", size);
+    ok(size != 0 && size != 0xdeadbeef, "IVectorView_VoiceInformation_get_Size returned %u\n", size);
 
     voice = (IVoiceInformation *)0xdeadbeef;
     hr = IVectorView_VoiceInformation_GetAt(voices, size, &voice);
@@ -892,20 +954,27 @@ static void test_SpeechSynthesizer(void)
     ok(hr == S_OK, "IVectorView_VoiceInformation_GetMany failed, hr %#lx\n", hr);
     ok(size == 0, "IVectorView_VoiceInformation_GetMany returned count %u\n", size);
 
-    IVectorView_VoiceInformation_Release(voices);
-
     hr = IInstalledVoicesStatic_get_DefaultVoice(voices_static, &voice);
-    todo_wine ok(hr == S_OK, "IInstalledVoicesStatic_get_DefaultVoice failed, hr %#lx\n", hr);
+    ok(hr == S_OK, "IInstalledVoicesStatic_get_DefaultVoice failed, hr %#lx\n", hr);
 
-    if (hr == S_OK)
-    {
-        IVoiceInformation_get_Description(voice, &str2);
-        trace("SpeechSynthesizer default voice %s.\n", debugstr_hstring(str2));
+    /* check that VoiceInformation in static vector voice are not shared when exposed to user */
+    idx = size;
+    hr = IVectorView_VoiceInformation_IndexOf(voices, voice, &idx, &found);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    ok(!found, "Shouldn't find default element\n");
 
-        WindowsDeleteString(str2);
-        ref = IVoiceInformation_Release(voice);
-        ok(ref == 0, "Got unexpected ref %lu.\n", ref);
-    }
+    check_comparable_presence(voices, voice);
+
+    hr = IVoiceInformation_get_Description(voice, &str2);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    trace("SpeechSynthesizer default voice %s.\n", debugstr_hstring(str2));
+    WindowsDeleteString(str2);
+
+    hr = IVoiceInformation_get_Id(voice, &default_voice_id);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    ref = IVoiceInformation_Release(voice);
+    ok(ref == 0, "Got unexpected ref %lu.\n", ref);
 
     IInstalledVoicesStatic_Release(voices_static);
     IAgileObject_Release(agile_object);
@@ -920,6 +989,23 @@ static void test_SpeechSynthesizer(void)
     WindowsDeleteString(str);
 
     hr = IInspectable_QueryInterface(inspectable, &IID_ISpeechSynthesizer, (void **)&synthesizer);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    hr = ISpeechSynthesizer_get_Voice(synthesizer, &voice);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    hr = IVoiceInformation_get_Id(voice, &str);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    hr = WindowsCompareStringOrdinal(str, default_voice_id, &cmp);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    hr = WindowsDeleteString(str);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    IVoiceInformation_Release(voice);
+
+    hr = WindowsDeleteString(default_voice_id);
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
 
     /* Test SynthesizeTextToStreamAsync */
@@ -1020,20 +1106,58 @@ static void test_SpeechSynthesizer(void)
         ISpeechSynthesizerOptions *options;
 
         hr = ISpeechSynthesizer2_get_Options(synthesizer2, &options);
-        todo_wine ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
 
         if (hr == S_OK)
         {
+            ISpeechSynthesizerOptions2 *options2;
             ISpeechSynthesizerOptions3 *options3;
+            boolean bool_value;
+            DOUBLE double_value;
+            enum SpeechAppendedSilence silence_value;
+            enum SpeechPunctuationSilence punctuation_value;
 
             check_interface(options, &IID_IAgileObject, TRUE);
+            bool_value = 0xff;
+            hr = ISpeechSynthesizerOptions_get_IncludeSentenceBoundaryMetadata(options, &bool_value);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+            ok(! bool_value, "Got unepected option %u\n",  bool_value);
+            bool_value = 0xff;
+            hr = ISpeechSynthesizerOptions_get_IncludeWordBoundaryMetadata(options, &bool_value);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+            ok(!bool_value, "Got unepected option %u\n", bool_value);
+
             check_optional_interface(options, &IID_ISpeechSynthesizerOptions2, TRUE); /* Requires Win10 >= 1709 */
+            hr = ISpeechSynthesizerOptions_QueryInterface(options, &IID_ISpeechSynthesizerOptions2, (void **)&options2);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+            hr = ISpeechSynthesizerOptions2_get_AudioPitch(options2, &double_value);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+            ok(double_value == 1.0f, "Got unepected option %f\n", double_value);
+
+            hr = ISpeechSynthesizerOptions2_get_AudioVolume(options2, &double_value);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+            ok(double_value == 1.0f, "Got unepected option %f\n", double_value);
+
+            hr = ISpeechSynthesizerOptions2_get_SpeakingRate(options2, &double_value);
+            ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+            ok(double_value == 1.0f, "Got unepected option %f\n", double_value);
+
+            ISpeechSynthesizerOptions2_Release(options2);
 
             hr = ISpeechSynthesizerOptions_QueryInterface(options, &IID_ISpeechSynthesizerOptions3, (void **)&options3);
             ok(hr == S_OK || broken(hr == E_NOINTERFACE), "Got unexpected hr %#lx.\n", hr); /* Requires Win10 >= 1803 */
 
             if (hr == S_OK)
             {
+                hr = ISpeechSynthesizerOptions3_get_AppendedSilence(options3, &silence_value);
+                ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+                ok(silence_value == SpeechAppendedSilence_Default, "Got unepected option %u\n", silence_value);
+
+                hr = ISpeechSynthesizerOptions3_get_PunctuationSilence(options3, &punctuation_value);
+                ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+                ok(punctuation_value == SpeechPunctuationSilence_Default, "Got unepected option %u\n", punctuation_value);
+
                 ref = ISpeechSynthesizerOptions3_Release(options3);
                 ok(ref == 2, "Got unexpected ref %lu.\n", ref);
             }

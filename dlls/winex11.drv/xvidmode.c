@@ -91,10 +91,10 @@ static BOOL xf86vm_get_id(const WCHAR *device_name, BOOL is_primary, x11drv_sett
     return TRUE;
 }
 
-static void add_xf86vm_mode( DEVMODEW *mode, DWORD depth, const XF86VidModeModeInfo *mode_info, BOOL full )
+static void add_xf86vm_mode(DEVMODEW *mode, DWORD depth, const XF86VidModeModeInfo *mode_info)
 {
     mode->dmSize = sizeof(*mode);
-    mode->dmDriverExtra = full ? sizeof(mode_info) : 0;
+    mode->dmDriverExtra = sizeof(mode_info);
     mode->dmFields = DM_DISPLAYORIENTATION | DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFLAGS;
     if (mode_info->htotal && mode_info->vtotal)
     {
@@ -106,10 +106,10 @@ static void add_xf86vm_mode( DEVMODEW *mode, DWORD depth, const XF86VidModeModeI
     mode->dmPelsWidth = mode_info->hdisplay;
     mode->dmPelsHeight = mode_info->vdisplay;
     mode->dmDisplayFlags = 0;
-    if (full) memcpy( mode + 1, &mode_info, sizeof(mode_info) );
+    memcpy((BYTE *)mode + sizeof(*mode), &mode_info, sizeof(mode_info));
 }
 
-static BOOL xf86vm_get_modes( x11drv_settings_id id, DWORD flags, DEVMODEW **new_modes, UINT *mode_count, BOOL full )
+static BOOL xf86vm_get_modes(x11drv_settings_id id, DWORD flags, DEVMODEW **new_modes, UINT *mode_count)
 {
     INT xf86vm_mode_idx, xf86vm_mode_count;
     XF86VidModeModeInfo **xf86vm_modes;
@@ -139,13 +139,12 @@ static BOOL xf86vm_get_modes( x11drv_settings_id id, DWORD flags, DEVMODEW **new
     memcpy(ptr, &xf86vm_modes, sizeof(xf86vm_modes));
     modes = (DEVMODEW *)(ptr + sizeof(xf86vm_modes));
 
-    for (depth_idx = 0, mode = modes; depth_idx < DEPTH_COUNT; ++depth_idx)
+    for (depth_idx = 0; depth_idx < DEPTH_COUNT; ++depth_idx)
     {
         for (xf86vm_mode_idx = 0; xf86vm_mode_idx < xf86vm_mode_count; ++xf86vm_mode_idx)
         {
-            add_xf86vm_mode( mode, depths[depth_idx], xf86vm_modes[xf86vm_mode_idx], full );
-            mode = NEXT_DEVMODEW( mode );
-            mode_idx++;
+            mode = (DEVMODEW *)((BYTE *)modes + (sizeof(DEVMODEW) + sizeof(XF86VidModeModeInfo *)) * mode_idx++);
+            add_xf86vm_mode(mode, depths[depth_idx], xf86vm_modes[xf86vm_mode_idx]);
         }
     }
 
@@ -228,7 +227,7 @@ static LONG xf86vm_set_current_mode(x11drv_settings_id id, const DEVMODEW *mode)
 
     if (mode->dmFields & DM_BITSPERPEL && mode->dmBitsPerPel != screen_bpp)
         WARN("Cannot change screen bit depth from %dbits to %dbits!\n",
-             screen_bpp, mode->dmBitsPerPel);
+             screen_bpp, (int)mode->dmBitsPerPel);
 
     assert(mode->dmDriverExtra == sizeof(XF86VidModeModeInfo *));
     memcpy(&xf86vm_mode, (BYTE *)mode + sizeof(*mode), sizeof(xf86vm_mode));
@@ -551,6 +550,25 @@ void X11DRV_XF86VM_Init(void)
 
 #endif /* SONAME_LIBXXF86VM */
 
+static BOOL CALLBACK gammahack_UpdateWindowGamma( HWND hwnd, LPARAM lparam )
+{
+    /* XXX: Technically, the ramp should only apply to windows on the given
+     * device, but I can't think of a situation in which that would matter. */
+
+    sync_gl_drawable( hwnd, FALSE );
+
+    return TRUE;
+}
+
+static BOOL gamma_hack_SetGammaRamp( PHYSDEV dev, const WORD *ramp )
+{
+    fs_hack_set_gamma_ramp( ramp );
+
+    NtUserEnumChildWindows( NtUserGetDesktopWindow(), gammahack_UpdateWindowGamma, 0 );
+
+    return TRUE;
+}
+
 /***********************************************************************
  *		GetDeviceGammaRamp
  */
@@ -569,7 +587,8 @@ BOOL X11DRV_GetDeviceGammaRamp(PHYSDEV dev, LPVOID ramp)
 BOOL X11DRV_SetDeviceGammaRamp(PHYSDEV dev, LPVOID ramp)
 {
 #ifdef SONAME_LIBXXF86VM
-  return X11DRV_XF86VM_SetGammaRamp(ramp);
+  if (!X11DRV_XF86VM_SetGammaRamp(ramp)) return gamma_hack_SetGammaRamp(dev, ramp);
+  return TRUE;
 #else
   return FALSE;
 #endif

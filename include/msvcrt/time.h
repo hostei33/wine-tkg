@@ -22,7 +22,7 @@
 
 #include <corecrt_wtime.h>
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 #ifndef _CLOCK_T_DEFINED
 typedef __msvcrt_long clock_t;
@@ -36,24 +36,6 @@ typedef __msvcrt_long clock_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-struct _timespec32
-{
-    __time32_t tv_sec;
-    __msvcrt_long tv_nsec;
-};
-
-struct _timespec64
-{
-    __time64_t tv_sec;
-    __msvcrt_long tv_nsec;
-};
-
-struct timespec
-{
-    time_t tv_sec;
-    __msvcrt_long tv_nsec;
-};
 
 #ifdef __i386__
 #define _daylight (*__p__daylight())
@@ -72,7 +54,7 @@ extern __msvcrt_long _timezone;
 extern char *_tzname;
 #endif
 
-#if _MSVCR_VER < 120 && defined(_USE_32BIT_TIME_T)
+#if !defined(_UCRT) && defined(_USE_32BIT_TIME_T)
 #define _ctime32     ctime
 #define _difftime32  difftime
 #define _gmtime32    gmtime
@@ -98,10 +80,7 @@ _ACRTIMP errno_t     __cdecl _ctime64_s(char*,size_t,const __time64_t*);
 _ACRTIMP double      __cdecl _difftime32(__time32_t,__time32_t);
 _ACRTIMP double      __cdecl _difftime64(__time64_t,__time64_t);
 _ACRTIMP struct tm*  __cdecl _gmtime32(const __time32_t*);
-_ACRTIMP int         __cdecl _gmtime32_s(struct tm *res, const __time32_t *secs);
 _ACRTIMP struct tm*  __cdecl _gmtime64(const __time64_t*);
-_ACRTIMP int         __cdecl _gmtime64_s(struct tm *res, const __time64_t *secs);
-
 _ACRTIMP struct tm*  __cdecl _localtime32(const __time32_t*);
 _ACRTIMP errno_t     __cdecl _localtime32_s(struct tm*, const __time32_t*);
 _ACRTIMP struct tm*  __cdecl _localtime64(const __time64_t*);
@@ -109,7 +88,6 @@ _ACRTIMP errno_t     __cdecl _localtime64_s(struct tm*, const __time64_t*);
 _ACRTIMP __time32_t  __cdecl _mktime32(struct tm*);
 _ACRTIMP __time64_t  __cdecl _mktime64(struct tm*);
 _ACRTIMP size_t      __cdecl strftime(char*,size_t,const char*,const struct tm*);
-_ACRTIMP size_t      __cdecl _strftime_l(char*,size_t,const char*,const struct tm*,_locale_t);
 _ACRTIMP __time32_t  __cdecl _time32(__time32_t*);
 _ACRTIMP __time64_t  __cdecl _time64(__time64_t*);
 
@@ -137,6 +115,6 @@ static inline time_t time(time_t *t) { return _time32(t); }
 }
 #endif
 
-#pragma pack(pop)
+#include <poppack.h>
 
 #endif /* __WINE_TIME_H */

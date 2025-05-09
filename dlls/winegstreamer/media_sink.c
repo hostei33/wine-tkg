@@ -240,7 +240,8 @@ static ULONG WINAPI stream_sink_Release(IMFStreamSink *iface)
     {
         IMFMediaEventQueue_Release(stream_sink->event_queue);
         IMFFinalizableMediaSink_Release(stream_sink->media_sink);
-        IMFMediaType_Release(stream_sink->type);
+        if (stream_sink->type)
+            IMFMediaType_Release(stream_sink->type);
         free(stream_sink);
     }
 
@@ -421,30 +422,17 @@ static HRESULT WINAPI stream_sink_type_handler_IsMediaTypeSupported(IMFMediaType
 
 static HRESULT WINAPI stream_sink_type_handler_GetMediaTypeCount(IMFMediaTypeHandler *iface, DWORD *count)
 {
-    TRACE("iface %p, count %p.\n", iface, count);
+    FIXME("iface %p, count %p.\n", iface, count);
 
-    if (!count)
-        return E_POINTER;
-
-    *count = 1;
-    return S_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI stream_sink_type_handler_GetMediaTypeByIndex(IMFMediaTypeHandler *iface, DWORD index,
         IMFMediaType **type)
 {
-    struct stream_sink *stream_sink = impl_from_IMFMediaTypeHandler(iface);
+    FIXME("iface %p, index %lu, type %p.\n", iface, index, type);
 
-    TRACE("iface %p, index %lu, type %p.\n", iface, index, type);
-
-    if (!type)
-        return E_POINTER;
-    if (index > 0)
-        return MF_E_NO_MORE_TYPES;
-
-    IMFMediaType_AddRef((*type = stream_sink->type));
-
-    return S_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI stream_sink_type_handler_SetCurrentMediaType(IMFMediaTypeHandler *iface, IMFMediaType *type)
@@ -462,6 +450,8 @@ static HRESULT WINAPI stream_sink_type_handler_GetCurrentMediaType(IMFMediaTypeH
 
     if (!type)
         return E_POINTER;
+    if (!stream_sink->type)
+        return MF_E_NOT_INITIALIZED;
 
     IMFMediaType_AddRef((*type = stream_sink->type));
 
@@ -470,14 +460,9 @@ static HRESULT WINAPI stream_sink_type_handler_GetCurrentMediaType(IMFMediaTypeH
 
 static HRESULT WINAPI stream_sink_type_handler_GetMajorType(IMFMediaTypeHandler *iface, GUID *type)
 {
-    struct stream_sink *stream_sink = impl_from_IMFMediaTypeHandler(iface);
+    FIXME("iface %p, type %p.\n", iface, type);
 
-    TRACE("iface %p, type %p.\n", iface, type);
-
-    if (!type)
-        return E_POINTER;
-
-    return IMFMediaType_GetMajorType(stream_sink->type, type);
+    return E_NOTIMPL;
 }
 
 static const IMFMediaTypeHandlerVtbl stream_sink_type_handler_vtbl =
@@ -515,7 +500,8 @@ static HRESULT stream_sink_create(DWORD stream_sink_id, IMFMediaType *media_type
     stream_sink->IMFMediaTypeHandler_iface.lpVtbl = &stream_sink_type_handler_vtbl;
     stream_sink->refcount = 1;
     stream_sink->id = stream_sink_id;
-    IMFMediaType_AddRef((stream_sink->type = media_type));
+    if (media_type)
+        IMFMediaType_AddRef((stream_sink->type = media_type));
     IMFFinalizableMediaSink_AddRef((stream_sink->media_sink = &media_sink->IMFFinalizableMediaSink_iface));
 
     TRACE("Created stream sink %p.\n", stream_sink);
@@ -1257,7 +1243,7 @@ static HRESULT media_sink_create(IMFByteStream *bytestream, const char *format, 
     media_sink->async_callback.lpVtbl = &media_sink_callback_vtbl;
     media_sink->refcount = 1;
     media_sink->state = STATE_OPENED;
-    InitializeCriticalSectionEx(&media_sink->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&media_sink->cs);
     media_sink->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": cs");
     IMFByteStream_AddRef((media_sink->bytestream = bytestream));
     list_init(&media_sink->stream_sinks);

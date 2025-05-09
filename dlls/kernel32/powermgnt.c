@@ -146,7 +146,8 @@ HANDLE WINAPI PowerCreateRequest(REASON_CONTEXT *context)
 {
     FIXME("(%p): stub\n", context);
 
-    return CreateEventW(NULL, TRUE, FALSE, NULL);
+    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+    return INVALID_HANDLE_VALUE;
 }
 
 /***********************************************************************
@@ -156,7 +157,8 @@ BOOL WINAPI PowerSetRequest(HANDLE request, POWER_REQUEST_TYPE type)
 {
     FIXME("(%p, %u): stub\n", request, type);
 
-    return TRUE;
+    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+    return FALSE;
 }
 
 /***********************************************************************
@@ -166,5 +168,6 @@ BOOL WINAPI PowerClearRequest(HANDLE request, POWER_REQUEST_TYPE type)
 {
     FIXME("(%p, %u): stub\n", request, type);
 
-    return TRUE;
+    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+    return FALSE;
 }

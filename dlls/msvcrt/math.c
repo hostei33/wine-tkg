@@ -40,7 +40,6 @@
 #include <stdio.h>
 #include <fenv.h>
 #include <fpieee.h>
-#include <inttypes.h>
 #include <limits.h>
 #include <locale.h>
 #include <math.h>
@@ -73,17 +72,29 @@ void msvcrt_init_math( void *module )
     sse2_supported = IsProcessorFeaturePresent( PF_XMMI64_INSTRUCTIONS_AVAILABLE );
 #if _MSVCR_VER <=71
     sse2_enabled = FALSE;
+    {
+        char sgi[64];
+
+        if (GetEnvironmentVariableA("SteamGameId", sgi, sizeof(sgi))
+                && (!strcmp(sgi, "560430") || !strcmp(sgi, "12330")))
+        {
+            sse2_supported = FALSE;
+            FIXME("HACK: disabling sse2 support in msvcrt.\n");
+        }
+    }
 #else
     sse2_enabled = sse2_supported;
 #endif
 }
 
+#if defined(__i386__) || defined(__x86_64__)
 static inline double ret_nan( BOOL update_sw )
 {
     double x = 1.0;
     if (!update_sw) return -NAN;
     return (x - x) / (x - x);
 }
+#endif
 
 #define SET_X87_CW(MASK) \
     "subl $4, %esp\n\t" \
@@ -259,7 +270,7 @@ float CDECL MSVCRT_atanf( float x )
 }
 #endif
 
-#ifndef __i386__
+#ifdef __x86_64__
 extern short CDECL _fdclass(float x);
 
 static BOOL sqrtf_validate( float *x )
@@ -277,21 +288,10 @@ static BOOL sqrtf_validate( float *x )
     return TRUE;
 }
 
-#ifdef __arm64ec__
-static float __attribute__((naked)) CDECL asm_sqrtf(float x)
-{
-    asm( "fsqrt s0,s0; ret" );
-}
-#elif defined __aarch64__
-float CDECL asm_sqrtf(float);
-__ASM_GLOBAL_FUNC( asm_sqrtf, "fsqrt s0,s0; ret" )
-#elif defined __arm__
-float CDECL asm_sqrtf(float);
-__ASM_GLOBAL_FUNC( asm_sqrtf, "vsqrt s0,s0; bx lr" )
-#elif defined __x86_64__
-float CDECL asm_sqrtf(float);
-__ASM_GLOBAL_FUNC( asm_sqrtf, "sqrtss %xmm0, %xmm0; ret" )
-#endif
+float CDECL sse2_sqrtf(float);
+__ASM_GLOBAL_FUNC( sse2_sqrtf,
+        "sqrtss %xmm0, %xmm0\n\t"
+        "ret" )
 #endif
 
 /*********************************************************************
@@ -299,11 +299,11 @@ __ASM_GLOBAL_FUNC( asm_sqrtf, "sqrtss %xmm0, %xmm0; ret" )
  */
 float CDECL MSVCRT_sqrtf( float x )
 {
-#ifndef __i386__
+#ifdef __x86_64__
     if (!sqrtf_validate(&x))
         return x;
 
-    return asm_sqrtf(x);
+    return sse2_sqrtf(x);
 #else
     return sqrtf( x );
 #endif
@@ -392,6 +392,7 @@ double CDECL MSVCRT_exp( double x )
 }
 #endif
 
+#if defined(__x86_64__) || defined(__i386__)
 extern short CDECL _dclass(double x);
 
 static BOOL sqrt_validate( double *x, BOOL update_sw )
@@ -419,23 +420,15 @@ static BOOL sqrt_validate( double *x, BOOL update_sw )
     return TRUE;
 }
 
-#ifdef __arm64ec__
-static double __attribute__((naked)) CDECL asm_sqrt(double x)
-{
-    asm( "fsqrt d0,d0; ret" );
-}
-#elif defined __aarch64__
-double CDECL asm_sqrt(double);
-__ASM_GLOBAL_FUNC( asm_sqrt, "fsqrt d0,d0; ret" )
-#elif defined __arm__
-double CDECL asm_sqrt(double);
-__ASM_GLOBAL_FUNC( asm_sqrt, "vsqrt d0,d0; bx lr" )
-#elif defined __x86_64__
-double CDECL asm_sqrt(double);
-__ASM_GLOBAL_FUNC( asm_sqrt, "sqrtsd %xmm0, %xmm0; ret" )
-#elif defined __i386__
-double CDECL asm_sqrt(double);
-__ASM_GLOBAL_FUNC( asm_sqrt,
+double CDECL sse2_sqrt(double);
+__ASM_GLOBAL_FUNC( sse2_sqrt,
+        "sqrtsd %xmm0, %xmm0\n\t"
+        "ret" )
+#endif
+
+#ifdef __i386__
+double CDECL x87_sqrt(double);
+__ASM_GLOBAL_FUNC( x87_sqrt,
         "fldl 4(%esp)\n\t"
         SET_X87_CW(0xc00)
         "fsqrt\n\t"
@@ -448,10 +441,19 @@ __ASM_GLOBAL_FUNC( asm_sqrt,
  */
 double CDECL MSVCRT_sqrt( double x )
 {
+#ifdef __x86_64__
     if (!sqrt_validate(&x, TRUE))
         return x;
 
-    return asm_sqrt(x);
+    return sse2_sqrt(x);
+#elif defined( __i386__ )
+    if (!sqrt_validate(&x, TRUE))
+        return x;
+
+    return x87_sqrt(x);
+#else
+    return sqrt( x );
+#endif
 }
 
 /*********************************************************************
@@ -706,36 +708,14 @@ __int64 CDECL _abs64( __int64 n )
 }
 
 #if defined(__i386__) || defined(__x86_64__)
-
-static unsigned int get_mxcsr(void)
-{
-    unsigned int ret;
-#ifdef __arm64ec__
-    extern NTSTATUS (*__os_arm64x_get_x64_information)(ULONG,void*,void*);
-    __os_arm64x_get_x64_information( 0, &ret, NULL );
-#else
-    __asm__ __volatile__( "stmxcsr %0" : "=m" (ret) );
-#endif
-    return ret;
-}
-
-static void set_mxcsr( unsigned int val )
-{
-#ifdef __arm64ec__
-    extern NTSTATUS (*__os_arm64x_set_x64_information)(ULONG,ULONG_PTR,void*);
-    __os_arm64x_set_x64_information( 0, val, NULL );
-#else
-    __asm__ __volatile__( "ldmxcsr %0" : : "m" (val) );
-#endif
-}
-
 static void _setfp_sse( unsigned int *cw, unsigned int cw_mask,
         unsigned int *sw, unsigned int sw_mask )
 {
 #if defined(__GNUC__) || defined(__clang__)
-    unsigned int old_fpword, fpword = get_mxcsr();
+    unsigned long old_fpword, fpword;
     unsigned int flags;
 
+    __asm__ __volatile__( "stmxcsr %0" : "=m" (fpword) );
     old_fpword = fpword;
 
     cw_mask &= _MCW_EM | _MCW_RC | _MCW_DN;
@@ -815,7 +795,8 @@ static void _setfp_sse( unsigned int *cw, unsigned int cw_mask,
         }
     }
 
-    if (fpword != old_fpword) set_mxcsr( fpword );
+    if (fpword != old_fpword)
+        __asm__ __volatile__( "ldmxcsr %0" : : "m" (fpword) );
 #else
     FIXME("not implemented\n");
     if (cw) *cw = 0;
@@ -1022,7 +1003,7 @@ static void _setfp( unsigned int *cw, unsigned int cw_mask,
         __asm__ __volatile__( "msr fpsr, %0" :: "r" (fpsr) );
     if (old_fpcr != fpcr)
         __asm__ __volatile__( "msr fpcr, %0" :: "r" (fpcr) );
-#elif defined(__arm__)
+#elif defined(__arm__) && !defined(__SOFTFP__)
     DWORD old_fpscr, fpscr;
     unsigned int flags;
 
@@ -1415,25 +1396,15 @@ int CDECL fegetenv(fenv_t *env)
 }
 
 /*********************************************************************
- *      feraiseexcept (MSVCR120.@)
- */
-int CDECL feraiseexcept(int flags)
-{
-    fenv_t env;
-
-    flags &= FE_ALL_EXCEPT;
-    fegetenv(&env);
-    env._Fe_stat |= fenv_encode(flags, flags);
-    return fesetenv(&env);
-}
-
-/*********************************************************************
  *		feupdateenv (MSVCR120.@)
  */
 int CDECL feupdateenv(const fenv_t *env)
 {
-    int except = fetestexcept(FE_ALL_EXCEPT);
-    return fesetenv(env) || feraiseexcept(except);
+    fenv_t set;
+    fegetenv(&set);
+    set._Fe_ctl = env->_Fe_ctl;
+    set._Fe_stat |= env->_Fe_stat;
+    return fesetenv(&set);
 }
 
 /*********************************************************************
@@ -1458,6 +1429,19 @@ int CDECL fesetexceptflag(const fexcept_t *status, int excepts)
     fegetenv(&env);
     env._Fe_stat &= ~fenv_encode(excepts, excepts);
     env._Fe_stat |= *status & fenv_encode(excepts, excepts);
+    return fesetenv(&env);
+}
+
+/*********************************************************************
+ *      feraiseexcept (MSVCR120.@)
+ */
+int CDECL feraiseexcept(int flags)
+{
+    fenv_t env;
+
+    flags &= FE_ALL_EXCEPT;
+    fegetenv(&env);
+    env._Fe_stat |= fenv_encode(flags, flags);
     return fesetenv(&env);
 }
 
@@ -1561,16 +1545,6 @@ void CDECL _fpreset(void)
 }
 
 #if _MSVCR_VER>=120
-/*********************************************************************
- *              feholdexcept (MSVCR120.@)
- */
-int CDECL feholdexcept(fenv_t *env)
-{
-    TRACE( "(%p)\n", env );
-    fegetenv(env);
-    return feclearexcept(FE_ALL_EXCEPT);
-}
-
 /*********************************************************************
  *              fesetenv (MSVCR120.@)
  */
@@ -2092,20 +2066,6 @@ lldiv_t CDECL lldiv(__int64 num, __int64 denom)
 }
 #endif
 
-#if _MSVCR_VER>=120
-/*********************************************************************
- *              imaxdiv (MSVCR100.@)
- */
-imaxdiv_t CDECL imaxdiv(intmax_t num, intmax_t denom)
-{
-  imaxdiv_t ret;
-
-  ret.quot = num / denom;
-  ret.rem = num % denom;
-  return ret;
-}
-#endif
-
 #ifdef __i386__
 
 /*********************************************************************
@@ -2590,7 +2550,7 @@ void __cdecl __libm_sse2_sqrt_precise(void)
         __asm__ __volatile__( "movq %0,%%xmm0" : : "m" (d) );
         return;
     }
-    __asm__ __volatile__( "sqrtsd %xmm0, %xmm0" );
+    __asm__ __volatile__( "call " __ASM_NAME( "sse2_sqrt" ) );
 }
 #endif  /* __i386__ */
 
@@ -2970,58 +2930,16 @@ double CDECL _except1(DWORD fpe, _FP_OPERATION_CODE op, double arg, double res, 
     return res;
 }
 
-_Dcomplex CDECL _Cbuild(double r, double i)
+_Dcomplex* CDECL _Cbuild(_Dcomplex *ret, double r, double i)
 {
-    _Dcomplex ret;
-    ret._Val[0] = r;
-    ret._Val[1] = i;
+    ret->_Val[0] = r;
+    ret->_Val[1] = i;
     return ret;
 }
 
-double CDECL creal(_Dcomplex z)
+double CDECL MSVCR120_creal(_Dcomplex z)
 {
     return z._Val[0];
-}
-
-double CDECL cimag(_Dcomplex z)
-{
-    return z._Val[1];
-}
-
-#if !defined(__i386__) || defined(__MINGW32__) || defined(_MSC_VER)
-_Fcomplex CDECL _FCbuild(float r, float i)
-{
-    _Fcomplex ret;
-    ret._Val[0] = r;
-    ret._Val[1] = i;
-    return ret;
-}
-#else
-#undef _FCbuild
-ULONGLONG CDECL _FCbuild(float r, float i)
-{
-    union
-    {
-        _Fcomplex c;
-        ULONGLONG ull;
-    } ret;
-
-    C_ASSERT(sizeof(_Fcomplex) == sizeof(ULONGLONG));
-
-    ret.c._Val[0] = r;
-    ret.c._Val[1] = i;
-    return ret.ull;
-}
-#endif
-
-float CDECL crealf(_Fcomplex z)
-{
-    return z._Val[0];
-}
-
-float CDECL cimagf(_Fcomplex z)
-{
-    return z._Val[1];
 }
 
 #endif /* _MSVCR_VER>=120 */

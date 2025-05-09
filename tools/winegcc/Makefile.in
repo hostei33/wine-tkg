@@ -1,6 +1,7 @@
 PROGRAMS = winegcc
 
 SOURCES = \
+	utils.c \
 	winegcc.c \
 	winegcc.man.in
 
@@ -8,8 +9,9 @@ winegcc_SYMLINKS = winecpp wineg++
 
 winegcc_EXTRADEFS = \
 	-DINCLUDEDIR="\"${includedir}\"" \
-	-DBINDIR="\"${bindir}\"" \
 	-DLIBDIR="\"${libdir}\"" \
+	-DBIN_TO_INCLUDEDIR=\"`${MAKEDEP} -R ${bindir} ${includedir}`\" \
+	-DBIN_TO_LIBDIR=\"`${MAKEDEP} -R ${bindir} ${libdir}`\" \
 	-DCC="\"$(CC)\"" \
 	-DCPP="\"$(CPPBIN)\"" \
 	-DCXX="\"$(CXX)\"" \

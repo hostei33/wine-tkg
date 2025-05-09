@@ -258,6 +258,15 @@ POBJECT_TYPE WINAPI ObGetObjectType( void *object )
     return header->type;
 }
 
+static const WCHAR section_type_name[] = {'S','e','c','t','i','o','n',0};
+
+static struct _OBJECT_TYPE section_type =
+{
+    section_type_name
+};
+
+static POBJECT_TYPE p_section_type = &section_type;
+
 static const POBJECT_TYPE *known_types[] =
 {
     &ExEventObjectType,
@@ -267,7 +276,8 @@ static const POBJECT_TYPE *known_types[] =
     &IoFileObjectType,
     &PsProcessType,
     &PsThreadType,
-    &SeTokenObjectType
+    &SeTokenObjectType,
+    &p_section_type,
 };
 
 DECLARE_CRITICAL_SECTION(handle_map_cs);
@@ -506,7 +516,7 @@ static NTSTATUS WINAPI dispatch_irp_completion( DEVICE_OBJECT *device, IRP *irp,
 
 struct dispatch_context
 {
-    union irp_params params;
+    irp_params_t params;
     HANDLE handle;
     struct irp_data *irp_data;
     ULONG  in_size;
@@ -2122,7 +2132,7 @@ BOOLEAN WINAPI IoCancelIrp( IRP *irp )
     irp->Cancel = TRUE;
     if (!(cancel_routine = IoSetCancelRoutine( irp, NULL )))
     {
-        IoReleaseCancelSpinLock( irql );
+        IoReleaseCancelSpinLock( irp->CancelIrql );
         return FALSE;
     }
 
@@ -2213,82 +2223,43 @@ __ASM_FASTCALL_FUNC(RtlUlonglongByteSwap, 8,
 #endif  /* __i386__ */
 
 /***********************************************************************
- *           ExAllocatePool2   (NTOSKRNL.EXE.@)
- */
-void * WINAPI ExAllocatePool2( POOL_FLAGS flags, SIZE_T size, ULONG tag )
-{
-    /* FIXME: handle page alignment constraints */
-    void *ret = HeapAlloc( ntoskrnl_heap, 0, size );
-    TRACE( "(0x%I64x, %Iu, %s) -> %p\n", flags, size, debugstr_fourcc(tag), ret );
-    return ret;
-}
-
-static POOL_FLAGS pool_type_to_flags( POOL_TYPE type )
-{
-    switch (type & 7)
-    {
-    case NonPagedPool:
-    case NonPagedPoolMustSucceed:
-        return POOL_FLAG_NON_PAGED;
-    case PagedPool:
-        return POOL_FLAG_PAGED;
-    case NonPagedPoolCacheAligned:
-    case NonPagedPoolCacheAlignedMustS:
-        return POOL_FLAG_NON_PAGED|POOL_FLAG_CACHE_ALIGNED;
-    case PagedPoolCacheAligned:
-        return POOL_FLAG_PAGED|POOL_FLAG_CACHE_ALIGNED;
-    default:
-        return 0;
-    }
-}
-
-/***********************************************************************
  *           ExAllocatePool   (NTOSKRNL.EXE.@)
  */
 PVOID WINAPI ExAllocatePool( POOL_TYPE type, SIZE_T size )
 {
-    POOL_FLAGS flags = pool_type_to_flags( type );
-    if (type & POOL_RAISE_IF_ALLOCATION_FAILURE)
-        flags |= POOL_FLAG_RAISE_ON_FAILURE;
-
-    return ExAllocatePool2( flags, size, 0 );
+    return ExAllocatePoolWithTag( type, size, 0 );
 }
+
 
 /***********************************************************************
  *           ExAllocatePoolWithQuota   (NTOSKRNL.EXE.@)
  */
 PVOID WINAPI ExAllocatePoolWithQuota( POOL_TYPE type, SIZE_T size )
 {
-    POOL_FLAGS flags = pool_type_to_flags( type ) | POOL_FLAG_USE_QUOTA;
-    if (!(type & POOL_QUOTA_FAIL_INSTEAD_OF_RAISE))
-        flags |= POOL_FLAG_RAISE_ON_FAILURE;
-
-    return ExAllocatePool2( flags, size, 0 );
+    return ExAllocatePoolWithTag( type, size, 0 );
 }
+
 
 /***********************************************************************
  *           ExAllocatePoolWithTag   (NTOSKRNL.EXE.@)
  */
 PVOID WINAPI ExAllocatePoolWithTag( POOL_TYPE type, SIZE_T size, ULONG tag )
 {
-    POOL_FLAGS flags = pool_type_to_flags( type );
-    if (type & POOL_RAISE_IF_ALLOCATION_FAILURE)
-        flags |= POOL_FLAG_RAISE_ON_FAILURE;
-
-    return ExAllocatePool2( flags, size, tag );
+    /* FIXME: handle page alignment constraints */
+    void *ret = HeapAlloc( ntoskrnl_heap, 0, size );
+    TRACE( "%Iu pool %u -> %p\n", size, type, ret );
+    return ret;
 }
+
 
 /***********************************************************************
  *           ExAllocatePoolWithQuotaTag   (NTOSKRNL.EXE.@)
  */
 PVOID WINAPI ExAllocatePoolWithQuotaTag( POOL_TYPE type, SIZE_T size, ULONG tag )
 {
-    POOL_FLAGS flags = pool_type_to_flags( type ) | POOL_FLAG_USE_QUOTA;
-    if (!(type & POOL_QUOTA_FAIL_INSTEAD_OF_RAISE))
-        flags |= POOL_FLAG_RAISE_ON_FAILURE;
-
-    return ExAllocatePool2( flags, size, tag );
+    return ExAllocatePoolWithTag( type, size, tag );
 }
+
 
 /***********************************************************************
  *           ExCreateCallback   (NTOSKRNL.EXE.@)
@@ -2954,18 +2925,6 @@ VOID WINAPI MmLockPagableSectionByHandle(PVOID ImageSectionHandle)
 }
 
 /***********************************************************************
- *           MmMapLockedPages   (NTOSKRNL.EXE.@)
- */
-PVOID WINAPI MmMapLockedPages( MDL *mdl, KPROCESSOR_MODE mode )
-{
-    TRACE( "%p %u\n", mdl, mode );
-
-    mdl->MdlFlags |= MDL_MAPPED_TO_SYSTEM_VA;
-    mdl->MappedSystemVa = (char *)mdl->StartVa + mdl->ByteOffset;
-    return mdl->MappedSystemVa;
-}
-
-/***********************************************************************
  *           MmMapLockedPagesSpecifyCache  (NTOSKRNL.EXE.@)
  */
 PVOID WINAPI  MmMapLockedPagesSpecifyCache(PMDLX MemoryDescriptorList, KPROCESSOR_MODE AccessMode, MEMORY_CACHING_TYPE CacheType,
@@ -3502,15 +3461,6 @@ ULONG WINAPI KeGetCurrentProcessorNumberEx(PPROCESSOR_NUMBER process_number)
 }
 
 /***********************************************************************
- *          KeQueryGroupAffinity   (NTOSKRNL.EXE.@)
- */
-KAFFINITY WINAPI KeQueryGroupAffinity(USHORT group_number)
-{
-    FIXME("%u stub\n", group_number);
-    return 0;
-}
-
-/***********************************************************************
  *          KeQueryMaximumProcessorCountEx   (NTOSKRNL.EXE.@)
  */
 ULONG WINAPI KeQueryMaximumProcessorCountEx(USHORT group_number)
@@ -3927,16 +3877,6 @@ static void WINAPI ldr_notify_callback(ULONG reason, LDR_DLL_NOTIFICATION_DATA *
     }
 }
 
-static WCHAR *get_windir_path( const WCHAR *path )
-{
-    WCHAR buffer[MAX_PATH];
-    int len = GetWindowsDirectoryW( buffer, MAX_PATH );
-    int len2 = wcslen( path );
-    WCHAR *ret = HeapAlloc( GetProcessHeap(), 0, (len + len2 + 2) * sizeof(WCHAR) );
-    swprintf( ret, len + len2 + 2, L"%s\\%s", buffer, path );
-    return ret;
-}
-
 /* load the .sys module for a device driver */
 static HMODULE load_driver( const WCHAR *driver_name, const UNICODE_STRING *keyname )
 {
@@ -3976,13 +3916,14 @@ static HMODULE load_driver( const WCHAR *driver_name, const UNICODE_STRING *keyn
 
         if (!wcsnicmp( path, systemrootW, 12 ))
         {
-            str = get_windir_path( path + 12 );
-            HeapFree( GetProcessHeap(), 0, path );
-            path = str;
-        }
-        else if (RtlDetermineDosPathNameType_U( path ) == RtlPathTypeRelative)
-        {
-            str = get_windir_path( path );
+            WCHAR buffer[MAX_PATH];
+
+            GetWindowsDirectoryW(buffer, MAX_PATH);
+
+            str = HeapAlloc(GetProcessHeap(), 0, (size -11 + lstrlenW(buffer))
+                                                        * sizeof(WCHAR));
+            lstrcpyW(str, buffer);
+            lstrcatW(str, path + 11);
             HeapFree( GetProcessHeap(), 0, path );
             path = str;
         }

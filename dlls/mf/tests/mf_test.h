@@ -33,9 +33,6 @@
 extern HRESULT (WINAPI *pMFCreateSampleCopierMFT)(IMFTransform **copier);
 extern HRESULT (WINAPI *pMFGetTopoNodeCurrentType)(IMFTopologyNode *node, DWORD stream, BOOL output, IMFMediaType **type);
 extern HRESULT (WINAPI *pMFCreateDXGIDeviceManager)(UINT *token, IMFDXGIDeviceManager **manager);
-extern HRESULT (WINAPI *pMFCreateVideoSampleAllocatorEx)(REFIID riid, void **obj);
-extern HRESULT (WINAPI *pMFCreateMediaBufferFromMediaType)(IMFMediaType *media_type, LONGLONG duration, DWORD min_length,
-        DWORD min_alignment, IMFMediaBuffer **buffer);
 
 extern BOOL has_video_processor;
 void init_functions(void);
@@ -60,7 +57,6 @@ struct attribute_desc
     PROPVARIANT value;
     BOOL ratio;
     BOOL required;
-    BOOL required_set;
     BOOL todo;
     BOOL todo_value;
 };
@@ -78,30 +74,28 @@ extern void check_attributes_(const char *file, int line, IMFAttributes *attribu
         const struct attribute_desc *desc, ULONG limit);
 extern void init_media_type(IMFMediaType *mediatype, const struct attribute_desc *desc, ULONG limit);
 
-typedef DWORD (*compare_cb)(const BYTE *data, DWORD *length, const SIZE *size, const RECT *rect, const BYTE *expect);
-extern DWORD compare_nv12(const BYTE *data, DWORD *length, const SIZE *size, const RECT *rect, const BYTE *expect);
-extern DWORD compare_i420(const BYTE *data, DWORD *length, const SIZE *size, const RECT *rect, const BYTE *expect);
-extern DWORD compare_rgb32(const BYTE *data, DWORD *length, const SIZE *size, const RECT *rect, const BYTE *expect);
-extern DWORD compare_rgb24(const BYTE *data, DWORD *length, const SIZE *size, const RECT *rect, const BYTE *expect);
-extern DWORD compare_rgb16(const BYTE *data, DWORD *length, const SIZE *size, const RECT *rect, const BYTE *expect);
-extern DWORD compare_pcm16(const BYTE *data, DWORD *length, const SIZE *size, const RECT *rect, const BYTE *expect);
+typedef DWORD (*compare_cb)(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);
+extern DWORD compare_nv12(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);
+extern DWORD compare_i420(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);
+extern DWORD compare_rgb32(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);
+extern DWORD compare_rgb24(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);
+extern DWORD compare_rgb16(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);
+extern DWORD compare_pcm16(const BYTE *data, DWORD *length, const RECT *rect, const BYTE *expect);
 
-typedef void (*dump_cb)(const BYTE *data, DWORD length, const SIZE *size, HANDLE output);
-extern void dump_rgb32(const BYTE *data, DWORD length, const SIZE *size, HANDLE output);
-extern void dump_rgb24(const BYTE *data, DWORD length, const SIZE *size, HANDLE output);
-extern void dump_rgb16(const BYTE *data, DWORD length, const SIZE *size, HANDLE output);
-extern void dump_nv12(const BYTE *data, DWORD length, const SIZE *size, HANDLE output);
-extern void dump_i420(const BYTE *data, DWORD length, const SIZE *size, HANDLE output);
+typedef void (*dump_cb)(const BYTE *data, DWORD length, const RECT *rect, HANDLE output);
+extern void dump_rgb32(const BYTE *data, DWORD length, const RECT *rect, HANDLE output);
+extern void dump_rgb24(const BYTE *data, DWORD length, const RECT *rect, HANDLE output);
+extern void dump_rgb16(const BYTE *data, DWORD length, const RECT *rect, HANDLE output);
+extern void dump_nv12(const BYTE *data, DWORD length, const RECT *rect, HANDLE output);
+extern void dump_i420(const BYTE *data, DWORD length, const RECT *rect, HANDLE output);
 
 struct buffer_desc
 {
     DWORD length;
     BOOL todo_length;
     compare_cb compare;
-    RECT compare_rect;
     dump_cb dump;
-    SIZE size;
-    BOOL todo_data;
+    RECT rect;
 };
 
 struct sample_desc
@@ -110,15 +104,13 @@ struct sample_desc
     LONGLONG sample_time;
     LONGLONG sample_duration;
     DWORD buffer_count;
-    DWORD total_length;
     const struct buffer_desc *buffers;
     DWORD repeat_count;
     BOOL todo_length;
     BOOL todo_duration;
     BOOL todo_time;
-    BOOL todo_data;
 };
 
-#define check_mf_sample_collection(a, b, c) check_mf_sample_collection_(__FILE__, __LINE__, a, b, c, FALSE)
+#define check_mf_sample_collection(a, b, c) check_mf_sample_collection_(__FILE__, __LINE__, a, b, c)
 extern DWORD check_mf_sample_collection_(const char *file, int line, IMFCollection *samples,
-        const struct sample_desc *expect_samples, const WCHAR *expect_data_filename, BOOL use_2d_buffer);
+        const struct sample_desc *expect_samples, const WCHAR *expect_data_filename);

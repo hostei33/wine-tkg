@@ -60,8 +60,6 @@ enum HistogramFormat
     HistogramFormatA,
 };
 
-typedef BYTE ColorChannelLUT[256];
-
 #ifndef __cplusplus
 
 typedef enum ColorAdjustType ColorAdjustType;

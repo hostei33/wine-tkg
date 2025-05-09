@@ -2229,8 +2229,8 @@ static int WINAPI hmf_proc(HDC hdc, HANDLETABLE *htable,
     {
         const EMRSETPIXELV *p = (const EMRSETPIXELV *)rec;
 
-        PSDRV_SetPixel(data->ctx, p->ptlPixel.x, p->ptlPixel.y, p->crColor);
-        return 1;
+        return PSDRV_SetPixel(data->ctx, p->ptlPixel.x,
+                p->ptlPixel.y, p->crColor);
     }
     case EMR_SETTEXTCOLOR:
     {
@@ -3110,8 +3110,6 @@ BOOL WINAPI PrintDocumentOnPrintProcessor(HANDLE pp, WCHAR *doc_name)
 
             if (ret)
                 ret = PSDRV_ResetDC(data->ctx, devmode);
-            if (ret && devmode && (devmode->dmFields & DM_PAPERSIZE))
-                ret = PSDRV_WritePageSize(data->ctx);
             free(devmode);
             if (!ret)
                 goto cleanup;

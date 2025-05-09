@@ -16,7 +16,6 @@
 #include <libxml/parser.h>
 #include <libxml/HTMLparser.h>
 #include <libxml/chvalid.h>
-#include <libxml/SAX2.h>
 
 #ifdef __cplusplus
 extern "C" {

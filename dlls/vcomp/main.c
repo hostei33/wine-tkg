@@ -120,8 +120,6 @@ struct vcomp_task_data
     unsigned int            dynamic_chunksize;
 };
 
-extern void CDECL _vcomp_fork_call_wrapper(void *wrapper, int nargs, void **args);
-
 static void **ptr_from_va_list(va_list valist)
 {
     return *(void ***)&valist;
@@ -134,6 +132,162 @@ static void copy_va_list_data(void **args, va_list valist, int args_count)
     for (i = 0; i < args_count; ++i)
         args[i] = va_arg(valist, void *);
 }
+
+#if defined(__i386__)
+
+extern void CDECL _vcomp_fork_call_wrapper(void *wrapper, int nargs, void **args);
+__ASM_GLOBAL_FUNC( _vcomp_fork_call_wrapper,
+                   "pushl %ebp\n\t"
+                   __ASM_CFI(".cfi_adjust_cfa_offset 4\n\t")
+                   __ASM_CFI(".cfi_rel_offset %ebp,0\n\t")
+                   "movl %esp,%ebp\n\t"
+                   __ASM_CFI(".cfi_def_cfa_register %ebp\n\t")
+                   "pushl %esi\n\t"
+                   __ASM_CFI(".cfi_rel_offset %esi,-4\n\t")
+                   "pushl %edi\n\t"
+                   __ASM_CFI(".cfi_rel_offset %edi,-8\n\t")
+                   "movl 12(%ebp),%edx\n\t"
+                   "movl %esp,%edi\n\t"
+                   "shll $2,%edx\n\t"
+                   "jz 1f\n\t"
+                   "subl %edx,%edi\n\t"
+                   "andl $~15,%edi\n\t"
+                   "movl %edi,%esp\n\t"
+                   "movl 12(%ebp),%ecx\n\t"
+                   "movl 16(%ebp),%esi\n\t"
+                   "cld\n\t"
+                   "rep; movsl\n"
+                   "1:\tcall *8(%ebp)\n\t"
+                   "leal -8(%ebp),%esp\n\t"
+                   "popl %edi\n\t"
+                   __ASM_CFI(".cfi_same_value %edi\n\t")
+                   "popl %esi\n\t"
+                   __ASM_CFI(".cfi_same_value %esi\n\t")
+                   "popl %ebp\n\t"
+                   __ASM_CFI(".cfi_def_cfa %esp,4\n\t")
+                   __ASM_CFI(".cfi_same_value %ebp\n\t")
+                   "ret" )
+
+#elif defined(__x86_64__)
+
+extern void CDECL _vcomp_fork_call_wrapper(void *wrapper, int nargs, void **args);
+__ASM_GLOBAL_FUNC( _vcomp_fork_call_wrapper,
+                   "pushq %rbp\n\t"
+                   __ASM_SEH(".seh_pushreg %rbp\n\t")
+                   __ASM_CFI(".cfi_adjust_cfa_offset 8\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rbp,0\n\t")
+                   "movq %rsp,%rbp\n\t"
+                   __ASM_SEH(".seh_setframe %rbp,0\n\t")
+                   __ASM_CFI(".cfi_def_cfa_register %rbp\n\t")
+                   "pushq %rsi\n\t"
+                   __ASM_SEH(".seh_pushreg %rsi\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rsi,-8\n\t")
+                   "pushq %rdi\n\t"
+                   __ASM_SEH(".seh_pushreg %rdi\n\t")
+                   __ASM_SEH(".seh_endprologue\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rdi,-16\n\t")
+                   "movq %rcx,%rax\n\t"
+                   "movq $4,%rcx\n\t"
+                   "cmp %rcx,%rdx\n\t"
+                   "cmovgq %rdx,%rcx\n\t"
+                   "leaq 0(,%rcx,8),%rdx\n\t"
+                   "subq %rdx,%rsp\n\t"
+                   "andq $~15,%rsp\n\t"
+                   "movq %rsp,%rdi\n\t"
+                   "movq %r8,%rsi\n\t"
+                   "rep; movsq\n\t"
+                   "movq 0(%rsp),%rcx\n\t"
+                   "movq 8(%rsp),%rdx\n\t"
+                   "movq 16(%rsp),%r8\n\t"
+                   "movq 24(%rsp),%r9\n\t"
+                   "callq *%rax\n\t"
+                   "leaq -16(%rbp),%rsp\n\t"
+                   "popq %rdi\n\t"
+                   __ASM_CFI(".cfi_same_value %rdi\n\t")
+                   "popq %rsi\n\t"
+                   __ASM_CFI(".cfi_same_value %rsi\n\t")
+                   __ASM_CFI(".cfi_def_cfa_register %rsp\n\t")
+                   "popq %rbp\n\t"
+                   __ASM_CFI(".cfi_adjust_cfa_offset -8\n\t")
+                   __ASM_CFI(".cfi_same_value %rbp\n\t")
+                   "ret")
+
+#elif defined(__arm__)
+
+extern void CDECL _vcomp_fork_call_wrapper(void *wrapper, int nargs, void **args);
+__ASM_GLOBAL_FUNC( _vcomp_fork_call_wrapper,
+                   "push {r4, r5, LR}\n\t"
+                   "mov r4, r0\n\t"
+                   "mov r5, SP\n\t"
+                   "lsl r3, r1, #2\n\t"
+                   "cmp r3, #0\n\t"
+                   "beq 5f\n\t"
+                   "sub SP, SP, r3\n\t"
+                   "tst r1, #1\n\t"
+                   "it eq\n\t"
+                   "subeq SP, SP, #4\n\t"
+                   "1:\tsub r3, r3, #4\n\t"
+                   "ldr r0, [r2, r3]\n\t"
+                   "str r0, [SP, r3]\n\t"
+                   "cmp r3, #0\n\t"
+                   "bgt 1b\n\t"
+                   "cmp r1, #1\n\t"
+                   "bgt 2f\n\t"
+                   "pop {r0}\n\t"
+                   "b 5f\n\t"
+                   "2:\tcmp r1, #2\n\t"
+                   "bgt 3f\n\t"
+                   "pop {r0-r1}\n\t"
+                   "b 5f\n\t"
+                   "3:\tcmp r1, #3\n\t"
+                   "bgt 4f\n\t"
+                   "pop {r0-r2}\n\t"
+                   "b 5f\n\t"
+                   "4:\tpop {r0-r3}\n\t"
+                   "5:\tblx r4\n\t"
+                   "mov SP, r5\n\t"
+                   "pop {r4, r5, PC}" )
+
+#elif defined(__aarch64__)
+
+extern void CDECL _vcomp_fork_call_wrapper(void *wrapper, int nargs, void **args);
+__ASM_GLOBAL_FUNC( _vcomp_fork_call_wrapper,
+                   "stp x29, x30, [SP,#-16]!\n\t"
+                   __ASM_SEH(".seh_save_fplr_x 16\n\t")
+                   "mov x29, SP\n\t"
+                   __ASM_SEH(".seh_set_fp\n\t")
+                   __ASM_SEH(".seh_endprologue\n\t")
+                   "mov x9, x0\n\t"
+                   "cbz w1, 4f\n\t"
+                   "lsl w8, w1, #3\n\t"
+                   "cmp w8, #64\n\t"
+                   "b.ge 1f\n\t"
+                   "mov w8, #64\n"
+                   "1:\ttbz w8, #3, 2f\n\t"
+                   "add w8, w8, #8\n"
+                   "2:\tsub x10, x29, x8\n\t"
+                   "mov sp, x10\n"
+                   "3:\tldr x0, [x2], #8\n\t"
+                   "str x0, [x10], #8\n\t"
+                   "subs w1, w1, #1\n\t"
+                   "b.ne 3b\n\t"
+                   "ldp x0, x1, [sp], #16\n\t"
+                   "ldp x2, x3, [sp], #16\n\t"
+                   "ldp x4, x5, [sp], #16\n\t"
+                   "ldp x6, x7, [sp], #16\n"
+                   "4:\tblr x9\n\t"
+                   "mov SP, x29\n\t"
+                   "ldp x29, x30, [SP], #16\n\t"
+                   "ret\n" )
+
+#else
+
+static void CDECL _vcomp_fork_call_wrapper(void *wrapper, int nargs, void **args)
+{
+    ERR("Not implemented for this architecture\n");
+}
+
+#endif
 
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
 
@@ -880,26 +1034,6 @@ double CDECL omp_get_wtime(void)
     return GetTickCount() / 1000.0;
 }
 
-/*****************************************************
-*      omp_get_wtick - Taken from:
-*      https://gist.github.com/Randl/45bcca59720f661fa033a67d5f44bff0
-*/
-double CDECL omp_get_wtick (void)
-{
-     /*return GetTickCount();*/
-    FILETIME createTime;
-    FILETIME exitTime;
-    FILETIME kernelTime;
-    FILETIME userTime;
-    ULARGE_INTEGER li;
-
-    GetProcessTimes(GetCurrentProcess(), &createTime, &exitTime, &kernelTime, &userTime);
-    li.LowPart = userTime.dwLowDateTime;
-    li.HighPart = userTime.dwHighDateTime;
-
-    return (double)li.QuadPart / 10000000.0;
-}
-
 void CDECL omp_set_dynamic(int val)
 {
     TRACE("(%d): stub\n", val);
@@ -1352,127 +1486,12 @@ void CDECL _vcomp_for_dynamic_init(unsigned int flags, unsigned int first, unsig
     }
 }
 
-void CDECL _vcomp_for_dynamic_init_i8(ULONG64 flags, ULONG64 first, ULONG64 last,
-                                   ULONG64 step, ULONG64 chunksize)
-{
-    ULONG64 iterations, per_thread, remaining;
-    struct vcomp_thread_data *thread_data = vcomp_init_thread_data();
-    struct vcomp_team_data *team_data = thread_data->team;
-    struct vcomp_task_data *task_data = thread_data->task;
-    LONG64 num_threads = team_data ? team_data->num_threads : 1;
-    LONG64 thread_num = thread_data->thread_num;
-    unsigned int type = flags & ~VCOMP_DYNAMIC_FLAGS_INCREMENT;
-
-    TRACE("(%llu, %llu, %llu, %lld, %llu)\n", flags, first, last, step, chunksize);
-
-    if (step <= 0)
-    {
-        thread_data->dynamic_type = 0;
-        return;
-    }
-
-    if (flags & VCOMP_DYNAMIC_FLAGS_INCREMENT)
-        iterations = 1 + (last - first) / step;
-    else
-    {
-        iterations = 1 + (first - last) / step;
-        step *= -1;
-    }
-
-    if (type == VCOMP_DYNAMIC_FLAGS_STATIC)
-    {
-        per_thread = iterations / num_threads;
-        remaining  = iterations - per_thread * num_threads;
-
-        if (thread_num < remaining)
-            per_thread++;
-        else if (per_thread)
-            first += remaining * step;
-        else
-        {
-            thread_data->dynamic_type = 0;
-            return;
-        }
-
-        thread_data->dynamic_type   = VCOMP_DYNAMIC_FLAGS_STATIC;
-        thread_data->dynamic_begin  = first + per_thread * thread_num * step;
-        thread_data->dynamic_end    = thread_data->dynamic_begin + (per_thread - 1) * step;
-    }
-    else
-    {
-        if (type != VCOMP_DYNAMIC_FLAGS_CHUNKED &&
-            type != VCOMP_DYNAMIC_FLAGS_GUIDED)
-        {
-            FIXME("unsupported flags %llu\n", flags);
-            type = VCOMP_DYNAMIC_FLAGS_GUIDED;
-        }
-
-        EnterCriticalSection(&vcomp_section);
-        thread_data->dynamic++;
-        thread_data->dynamic_type = type;
-        if ((LONG64)(thread_data->dynamic - task_data->dynamic) > 0)
-        {
-            task_data->dynamic              = thread_data->dynamic;
-            task_data->dynamic_first        = first;
-            task_data->dynamic_last         = last;
-            task_data->dynamic_iterations   = iterations;
-            task_data->dynamic_step         = step;
-            task_data->dynamic_chunksize    = chunksize;
-        }
-        LeaveCriticalSection(&vcomp_section);
-    }
-}
-
 int CDECL _vcomp_for_dynamic_next(unsigned int *begin, unsigned int *end)
 {
     struct vcomp_thread_data *thread_data = vcomp_init_thread_data();
     struct vcomp_task_data *task_data = thread_data->task;
     struct vcomp_team_data *team_data = thread_data->team;
     int num_threads = team_data ? team_data->num_threads : 1;
-
-    TRACE("(%p, %p)\n", begin, end);
-
-    if (thread_data->dynamic_type == VCOMP_DYNAMIC_FLAGS_STATIC)
-    {
-        *begin = thread_data->dynamic_begin;
-        *end   = thread_data->dynamic_end;
-        thread_data->dynamic_type = 0;
-        return 1;
-    }
-    else if (thread_data->dynamic_type == VCOMP_DYNAMIC_FLAGS_CHUNKED ||
-             thread_data->dynamic_type == VCOMP_DYNAMIC_FLAGS_GUIDED)
-    {
-        unsigned int iterations = 0;
-        EnterCriticalSection(&vcomp_section);
-        if (thread_data->dynamic == task_data->dynamic &&
-            task_data->dynamic_iterations != 0)
-        {
-            iterations = min(task_data->dynamic_iterations, task_data->dynamic_chunksize);
-            if (thread_data->dynamic_type == VCOMP_DYNAMIC_FLAGS_GUIDED &&
-                task_data->dynamic_iterations > num_threads * task_data->dynamic_chunksize)
-            {
-                iterations = (task_data->dynamic_iterations + num_threads - 1) / num_threads;
-            }
-            *begin = task_data->dynamic_first;
-            *end   = task_data->dynamic_first + (iterations - 1) * task_data->dynamic_step;
-            task_data->dynamic_iterations -= iterations;
-            task_data->dynamic_first      += iterations * task_data->dynamic_step;
-            if (!task_data->dynamic_iterations)
-                *end = task_data->dynamic_last;
-        }
-        LeaveCriticalSection(&vcomp_section);
-        return iterations != 0;
-    }
-
-    return 0;
-}
-
-LONG64 CDECL _vcomp_for_dynamic_next_i8(LONG64 *begin, LONG64 *end)
-{
-    struct vcomp_thread_data *thread_data = vcomp_init_thread_data();
-    struct vcomp_task_data *task_data = thread_data->task;
-    struct vcomp_team_data *team_data = thread_data->team;
-    LONG64 num_threads = team_data ? team_data->num_threads : 1;
 
     TRACE("(%p, %p)\n", begin, end);
 
@@ -1693,7 +1712,7 @@ static CRITICAL_SECTION *alloc_critsect(void)
         ExitProcess(1);
     }
 
-    InitializeCriticalSectionEx(critsect, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(critsect);
     critsect->DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": critsect");
     return critsect;
 }

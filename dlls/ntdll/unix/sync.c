@@ -87,7 +87,11 @@ static inline ULONGLONG monotonic_counter(void)
     static mach_timebase_info_data_t timebase;
 
     if (!timebase.denom) mach_timebase_info( &timebase );
-    return mach_continuous_time() * timebase.numer / timebase.denom / 100;
+#ifdef HAVE_MACH_CONTINUOUS_TIME
+    if (&mach_continuous_time != NULL)
+        return mach_continuous_time() * timebase.numer / timebase.denom / 100;
+#endif
+    return mach_absolute_time() * timebase.numer / timebase.denom / 100;
 #elif defined(HAVE_CLOCK_GETTIME)
     struct timespec ts;
 #ifdef CLOCK_MONOTONIC_RAW
@@ -101,11 +105,13 @@ static inline ULONGLONG monotonic_counter(void)
     return ticks_from_time_t( now.tv_sec ) + now.tv_usec * 10 - server_start_time;
 }
 
+
 #ifdef __linux__
 
-#define USE_FUTEX
+#define FUTEX_WAIT 0
+#define FUTEX_WAKE 1
 
-#include <linux/futex.h>
+static int futex_private = 128;
 
 static inline int futex_wait( const LONG *addr, int val, struct timespec *timeout )
 {
@@ -117,82 +123,36 @@ static inline int futex_wait( const LONG *addr, int val, struct timespec *timeou
             long tv_nsec;
         } timeout32 = { timeout->tv_sec, timeout->tv_nsec };
 
-        return syscall( __NR_futex, addr, FUTEX_WAIT_PRIVATE, val, &timeout32, 0, 0 );
+        return syscall( __NR_futex, addr, FUTEX_WAIT | futex_private, val, &timeout32, 0, 0 );
     }
 #endif
-    return syscall( __NR_futex, addr, FUTEX_WAIT_PRIVATE, val, timeout, 0, 0 );
+    return syscall( __NR_futex, addr, FUTEX_WAIT | futex_private, val, timeout, 0, 0 );
 }
 
-static inline int futex_wake_one( const LONG *addr )
+static inline int futex_wake( const LONG *addr, int val )
 {
-    return syscall( __NR_futex, addr, FUTEX_WAKE_PRIVATE, 1, NULL, 0, 0 );
+    return syscall( __NR_futex, addr, FUTEX_WAKE | futex_private, val, NULL, 0, 0 );
 }
 
-#elif defined(__APPLE__)
-
-#define USE_FUTEX
-
-#include <AvailabilityMacros.h>
-
-#ifdef MAC_OS_VERSION_14_4
-#include <os/os_sync_wait_on_address.h>
-#endif
-
-#define UL_COMPARE_AND_WAIT 1
-
-extern int __ulock_wait( uint32_t operation, void *addr, uint64_t value, uint32_t timeout );
-
-extern int __ulock_wake( uint32_t operation, void *addr, uint64_t wake_value );
-
-static inline int futex_wait( const LONG *addr, int val, struct timespec *timeout )
+static inline int use_futexes(void)
 {
-#ifdef MAC_OS_VERSION_14_4
-    if (__builtin_available( macOS 14.4, * ))
+    static LONG supported = -1;
+
+    if (supported == -1)
     {
-        /* 18446744073 seconds could overflow a uint64_t in nanoseconds */
-        if (timeout && timeout->tv_sec < 18446744073)
+        futex_wait( &supported, 10, NULL );
+        if (errno == ENOSYS)
         {
-            uint64_t ns_timeout = (timeout->tv_sec * 1000000000) + timeout->tv_nsec;
-
-            if (!ns_timeout)
-            {
-                errno = ETIMEDOUT;
-                return -1;
-            }
-            return os_sync_wait_on_address_with_timeout( (void *)addr, (uint64_t)val, 4, OS_SYNC_WAIT_ON_ADDRESS_NONE,
-                                                         OS_CLOCK_MACH_ABSOLUTE_TIME, ns_timeout );
+            futex_private = 0;
+            futex_wait( &supported, 10, NULL );
         }
-
-        return os_sync_wait_on_address( (void *)addr, (uint64_t)val, 4, OS_SYNC_WAIT_ON_ADDRESS_NONE );
+        supported = (errno != ENOSYS);
     }
-#endif
-
-    /* 4294 seconds could overflow a uint32_t in microseconds */
-    if (timeout && timeout->tv_sec < 4294)
-    {
-        uint32_t us_timeout = ((uint32_t)timeout->tv_sec * 1000000) + ((uint32_t)timeout->tv_nsec / 1000);
-
-        if (!us_timeout)
-        {
-            errno = ETIMEDOUT;
-            return -1;
-        }
-        return __ulock_wait( UL_COMPARE_AND_WAIT, (void *)addr, (uint64_t)val, us_timeout );
-    }
-
-    return __ulock_wait( UL_COMPARE_AND_WAIT, (void *)addr, (uint64_t)val, 0 );
+    return supported;
 }
 
-static inline int futex_wake_one( const LONG *addr )
-{
-#ifdef MAC_OS_VERSION_14_4
-    if (__builtin_available( macOS 14.4, * ))
-        return os_sync_wake_by_address_any( (void *)addr, 4, OS_SYNC_WAKE_BY_ADDRESS_NONE );
 #endif
-    return __ulock_wake( UL_COMPARE_AND_WAIT, (void *)addr, 0 );
-}
 
-#endif /* __APPLE__ */
 
 /* create a struct security_descriptor and contained information in one contiguous piece of memory */
 unsigned int alloc_object_attributes( const OBJECT_ATTRIBUTES *attr, struct object_attributes **ret,
@@ -315,13 +275,14 @@ NTSTATUS WINAPI NtCreateSemaphore( HANDLE *handle, ACCESS_MASK access, const OBJ
 
     *handle = 0;
     if (max <= 0 || initial < 0 || initial > max) return STATUS_INVALID_PARAMETER;
-    if ((ret = alloc_object_attributes( attr, &objattr, &len ))) return ret;
 
     if (do_fsync())
         return fsync_create_semaphore( handle, access, attr, initial, max );
 
     if (do_esync())
         return esync_create_semaphore( handle, access, attr, initial, max );
+
+    if ((ret = alloc_object_attributes( attr, &objattr, &len ))) return ret;
 
     SERVER_START_REQ( create_semaphore )
     {
@@ -380,11 +341,11 @@ NTSTATUS WINAPI NtQuerySemaphore( HANDLE handle, SEMAPHORE_INFORMATION_CLASS cla
     unsigned int ret;
     SEMAPHORE_BASIC_INFORMATION *out = info;
 
-    TRACE("(%p, %u, %p, %u, %p)\n", handle, class, info, len, ret_len);
+    TRACE("(%p, %u, %p, %u, %p)\n", handle, class, info, (int)len, ret_len);
 
     if (class != SemaphoreBasicInformation)
     {
-        FIXME("(%p,%d,%u) Unknown class\n", handle, class, len);
+        FIXME("(%p,%d,%u) Unknown class\n", handle, class, (int)len);
         return STATUS_INVALID_INFO_CLASS;
     }
 
@@ -603,11 +564,11 @@ NTSTATUS WINAPI NtQueryEvent( HANDLE handle, EVENT_INFORMATION_CLASS class,
     unsigned int ret;
     EVENT_BASIC_INFORMATION *out = info;
 
-    TRACE("(%p, %u, %p, %u, %p)\n", handle, class, info, len, ret_len);
+    TRACE("(%p, %u, %p, %u, %p)\n", handle, class, info, (int)len, ret_len);
 
     if (class != EventBasicInformation)
     {
-        FIXME("(%p, %d, %d) Unknown class\n", handle, class, len);
+        FIXME("(%p, %d, %d) Unknown class\n", handle, class, (int)len);
         return STATUS_INVALID_INFO_CLASS;
     }
 
@@ -733,11 +694,11 @@ NTSTATUS WINAPI NtQueryMutant( HANDLE handle, MUTANT_INFORMATION_CLASS class,
     unsigned int ret;
     MUTANT_BASIC_INFORMATION *out = info;
 
-    TRACE("(%p, %u, %p, %u, %p)\n", handle, class, info, len, ret_len);
+    TRACE("(%p, %u, %p, %u, %p)\n", handle, class, info, (int)len, ret_len);
 
     if (class != MutantBasicInformation)
     {
-        FIXME( "(%p, %d, %d) Unknown class\n", handle, class, len );
+        FIXME( "(%p, %d, %d) Unknown class\n", handle, class, (int)len );
         return STATUS_INVALID_INFO_CLASS;
     }
 
@@ -822,7 +783,7 @@ NTSTATUS WINAPI NtTerminateJobObject( HANDLE handle, NTSTATUS status )
 {
     unsigned int ret;
 
-    TRACE( "(%p, %d)\n", handle, status );
+    TRACE( "(%p, %d)\n", handle, (int)status );
 
     SERVER_START_REQ( terminate_job )
     {
@@ -844,7 +805,7 @@ NTSTATUS WINAPI NtQueryInformationJobObject( HANDLE handle, JOBOBJECTINFOCLASS c
 {
     unsigned int ret;
 
-    TRACE( "semi-stub: %p %u %p %u %p\n", handle, class, info, len, ret_len );
+    TRACE( "semi-stub: %p %u %p %u %p\n", handle, class, info, (int)len, ret_len );
 
     if (class >= MaxJobObjectInfoClass) return STATUS_INVALID_PARAMETER;
 
@@ -941,7 +902,7 @@ NTSTATUS WINAPI NtSetInformationJobObject( HANDLE handle, JOBOBJECTINFOCLASS cla
     ULONG info_size = sizeof(JOBOBJECT_BASIC_LIMIT_INFORMATION);
     DWORD limit_flags = JOB_OBJECT_BASIC_LIMIT_VALID_FLAGS;
 
-    TRACE( "(%p, %u, %p, %u)\n", handle, class, info, len );
+    TRACE( "(%p, %u, %p, %u)\n", handle, class, info, (int)len );
 
     if (class >= MaxJobObjectInfoClass) return STATUS_INVALID_PARAMETER;
 
@@ -980,7 +941,7 @@ NTSTATUS WINAPI NtSetInformationJobObject( HANDLE handle, JOBOBJECTINFOCLASS cla
         status = STATUS_SUCCESS;
         /* fall through */
     default:
-        FIXME( "stub: %p %u %p %u\n", handle, class, info, len );
+        FIXME( "stub: %p %u %p %u\n", handle, class, info, (int)len );
     }
     return status;
 }
@@ -1085,7 +1046,7 @@ NTSTATUS WINAPI NtSetInformationDebugObject( HANDLE handle, DEBUGOBJECTINFOCLASS
 
 
 /* convert the server event data to an NT state change; helper for NtWaitForDebugEvent */
-static NTSTATUS event_data_to_state_change( const union debug_event_data *data, DBGUI_WAIT_STATE_CHANGE *state )
+static NTSTATUS event_data_to_state_change( const debug_event_t *data, DBGUI_WAIT_STATE_CHANGE *state )
 {
     int i;
 
@@ -1190,7 +1151,7 @@ static NTSTATUS get_image_machine( HANDLE handle, USHORT *machine )
 NTSTATUS WINAPI NtWaitForDebugEvent( HANDLE handle, BOOLEAN alertable, LARGE_INTEGER *timeout,
                                      DBGUI_WAIT_STATE_CHANGE *state )
 {
-    union debug_event_data data;
+    debug_event_t data;
     unsigned int ret;
     BOOL wait = TRUE;
 
@@ -1295,94 +1256,53 @@ NTSTATUS WINAPI NtQueryDirectoryObject( HANDLE handle, DIRECTORY_BASIC_INFORMATI
                                         ULONG size, BOOLEAN single_entry, BOOLEAN restart,
                                         ULONG *context, ULONG *ret_size )
 {
-    unsigned int status, i, count, total_len, pos, used_size, used_count, strpool_head;
     ULONG index = restart ? 0 : *context;
-    struct directory_entry *entries;
+    unsigned int ret;
 
-    if (!(entries = malloc( size ))) return STATUS_NO_MEMORY;
-
-    SERVER_START_REQ( get_directory_entries )
+    if (single_entry)
     {
-        req->handle = wine_server_obj_handle( handle );
-        req->index = index;
-        req->max_count = single_entry ? 1 : UINT_MAX;
-        wine_server_set_reply( req, entries, size );
-        status = wine_server_call( req );
-        count = reply->count;
-        total_len = reply->total_len;
-    }
-    SERVER_END_REQ;
-
-    if (status && status != STATUS_MORE_ENTRIES)
-    {
-        free( entries );
-        return status;
-    }
-
-    used_count = 0;
-    used_size = sizeof(*buffer);  /* "null terminator" entry */
-    for (i = pos = 0; i < count; i++)
-    {
-        const struct directory_entry *entry = (const struct directory_entry *)((char *)entries + pos);
-        unsigned int entry_size = sizeof(*buffer) + entry->name_len + entry->type_len + 2 * sizeof(WCHAR);
-
-        if (used_size + entry_size > size)
+        SERVER_START_REQ( get_directory_entry )
         {
-            status = STATUS_MORE_ENTRIES;
-            break;
+            req->handle = wine_server_obj_handle( handle );
+            req->index = index;
+            if (size >= 2 * sizeof(*buffer) + 2 * sizeof(WCHAR))
+                wine_server_set_reply( req, buffer + 2, size - 2 * sizeof(*buffer) - 2 * sizeof(WCHAR) );
+            if (!(ret = wine_server_call( req )))
+            {
+                buffer->ObjectName.Buffer = (WCHAR *)(buffer + 2);
+                buffer->ObjectName.Length = reply->name_len;
+                buffer->ObjectName.MaximumLength = reply->name_len + sizeof(WCHAR);
+                buffer->ObjectTypeName.Buffer = (WCHAR *)(buffer + 2) + reply->name_len/sizeof(WCHAR) + 1;
+                buffer->ObjectTypeName.Length = wine_server_reply_size( reply ) - reply->name_len;
+                buffer->ObjectTypeName.MaximumLength = buffer->ObjectTypeName.Length + sizeof(WCHAR);
+                /* make room for the terminating null */
+                memmove( buffer->ObjectTypeName.Buffer, buffer->ObjectTypeName.Buffer - 1,
+                         buffer->ObjectTypeName.Length );
+                buffer->ObjectName.Buffer[buffer->ObjectName.Length/sizeof(WCHAR)] = 0;
+                buffer->ObjectTypeName.Buffer[buffer->ObjectTypeName.Length/sizeof(WCHAR)] = 0;
+
+                memset( &buffer[1], 0, sizeof(buffer[1]) );
+
+                *context = index + 1;
+            }
+            else if (ret == STATUS_NO_MORE_ENTRIES)
+            {
+                if (size > sizeof(*buffer))
+                    memset( buffer, 0, sizeof(*buffer) );
+                if (ret_size) *ret_size = sizeof(*buffer);
+            }
+
+            if (ret_size && (!ret || ret == STATUS_BUFFER_TOO_SMALL))
+                *ret_size = 2 * sizeof(*buffer) + reply->total_len + 2 * sizeof(WCHAR);
         }
-        used_count++;
-        used_size += entry_size;
-        pos += sizeof(*entry) + ((entry->name_len + entry->type_len + 3) & ~3);
+        SERVER_END_REQ;
     }
-
-    /*
-     * Avoid making strpool_head a pointer, since it can point beyond end
-     * of the buffer.  Out-of-bounds pointers trigger undefined behavior
-     * just by existing, even when they are never dereferenced.
-     */
-    strpool_head = sizeof(*buffer) * (used_count + 1);  /* after the "null terminator" entry */
-    for (i = pos = 0; i < used_count; i++)
+    else
     {
-        const struct directory_entry *entry = (const struct directory_entry *)((char *)entries + pos);
-
-        buffer[i].ObjectName.Buffer = (WCHAR *)((char *)buffer + strpool_head);
-        buffer[i].ObjectName.Length = entry->name_len;
-        buffer[i].ObjectName.MaximumLength = entry->name_len + sizeof(WCHAR);
-        memcpy( buffer[i].ObjectName.Buffer, (entry + 1), entry->name_len );
-        buffer[i].ObjectName.Buffer[entry->name_len / sizeof(WCHAR)] = 0;
-        strpool_head += entry->name_len + sizeof(WCHAR);
-
-        buffer[i].ObjectTypeName.Buffer = (WCHAR *)((char *)buffer + strpool_head);
-        buffer[i].ObjectTypeName.Length = entry->type_len;
-        buffer[i].ObjectTypeName.MaximumLength = entry->type_len + sizeof(WCHAR);
-        memcpy( buffer[i].ObjectTypeName.Buffer, (char *)(entry + 1) + entry->name_len, entry->type_len );
-        buffer[i].ObjectTypeName.Buffer[entry->type_len / sizeof(WCHAR)] = 0;
-        strpool_head += entry->type_len + sizeof(WCHAR);
-
-        pos += sizeof(*entry) + ((entry->name_len + entry->type_len + 3) & ~3);
+        FIXME("multiple entries not implemented\n");
+        ret = STATUS_NOT_IMPLEMENTED;
     }
-
-    if (size >= sizeof(*buffer))
-        memset( &buffer[used_count], 0, sizeof(buffer[used_count]) );
-
-    free( entries );
-
-    if (!count && !status)
-    {
-        if (ret_size) *ret_size = sizeof(*buffer);
-        return STATUS_NO_MORE_ENTRIES;
-    }
-
-    if (single_entry && !used_count)
-    {
-        if (ret_size) *ret_size = 2 * sizeof(*buffer) + 2 * sizeof(WCHAR) + total_len;
-        return STATUS_BUFFER_TOO_SMALL;
-    }
-
-    *context = index + used_count;
-    if (ret_size) *ret_size = strpool_head;
-    return status;
+    return ret;
 }
 
 
@@ -1469,26 +1389,6 @@ NTSTATUS WINAPI NtQuerySymbolicLinkObject( HANDLE handle, UNICODE_STRING *target
 
 
 /**************************************************************************
- *		NtMakePermanentObject (NTDLL.@)
- */
-NTSTATUS WINAPI NtMakePermanentObject( HANDLE handle )
-{
-    unsigned int ret;
-
-    TRACE("%p\n", handle);
-
-    SERVER_START_REQ( set_object_permanence )
-    {
-        req->handle = wine_server_obj_handle( handle );
-        req->permanent = 1;
-        ret = wine_server_call( req );
-    }
-    SERVER_END_REQ;
-    return ret;
-}
-
-
-/**************************************************************************
  *		NtMakeTemporaryObject (NTDLL.@)
  */
 NTSTATUS WINAPI NtMakeTemporaryObject( HANDLE handle )
@@ -1497,10 +1397,9 @@ NTSTATUS WINAPI NtMakeTemporaryObject( HANDLE handle )
 
     TRACE("%p\n", handle);
 
-    SERVER_START_REQ( set_object_permanence )
+    SERVER_START_REQ( make_temporary )
     {
         req->handle = wine_server_obj_handle( handle );
-        req->permanent = 0;
         ret = wine_server_call( req );
     }
     SERVER_END_REQ;
@@ -1571,7 +1470,7 @@ NTSTATUS WINAPI NtSetTimer( HANDLE handle, const LARGE_INTEGER *when, PTIMER_APC
 {
     unsigned int ret = STATUS_SUCCESS;
 
-    TRACE( "(%p,%p,%p,%p,%08x,0x%08x,%p)\n", handle, when, callback, arg, resume, period, state );
+    TRACE( "(%p,%p,%p,%p,%08x,0x%08x,%p)\n", handle, when, callback, arg, resume, (int)period, state );
 
     SERVER_START_REQ( set_timer )
     {
@@ -1619,7 +1518,7 @@ NTSTATUS WINAPI NtQueryTimer( HANDLE handle, TIMER_INFORMATION_CLASS class,
     unsigned int ret;
     LARGE_INTEGER now;
 
-    TRACE( "(%p,%d,%p,0x%08x,%p)\n", handle, class, info, len, ret_len );
+    TRACE( "(%p,%d,%p,0x%08x,%p)\n", handle, class, info, (int)len, ret_len );
 
     switch (class)
     {
@@ -1664,7 +1563,7 @@ NTSTATUS WINAPI NtQueryTimer( HANDLE handle, TIMER_INFORMATION_CLASS class,
 NTSTATUS WINAPI NtWaitForMultipleObjects( DWORD count, const HANDLE *handles, BOOLEAN wait_any,
                                           BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
-    union select_op select_op;
+    select_op_t select_op;
     UINT i, flags = SELECT_INTERRUPTIBLE;
 
     if (!count || count > MAXIMUM_WAIT_OBJECTS) return STATUS_INVALID_PARAMETER_1;
@@ -1686,7 +1585,7 @@ NTSTATUS WINAPI NtWaitForMultipleObjects( DWORD count, const HANDLE *handles, BO
     if (alertable) flags |= SELECT_ALERTABLE;
     select_op.wait.op = wait_any ? SELECT_WAIT : SELECT_WAIT_ALL;
     for (i = 0; i < count; i++) select_op.wait.handles[i] = wine_server_obj_handle( handles[i] );
-    return server_wait( &select_op, offsetof( union select_op, wait.handles[count] ), flags, timeout );
+    return server_wait( &select_op, offsetof( select_op_t, wait.handles[count] ), flags, timeout );
 }
 
 
@@ -1698,6 +1597,16 @@ NTSTATUS WINAPI NtWaitForSingleObject( HANDLE handle, BOOLEAN alertable, const L
     return NtWaitForMultipleObjects( 1, &handle, FALSE, alertable, timeout );
 }
 
+NTSTATUS wait_internal_server( HANDLE handle, BOOLEAN alertable, const LARGE_INTEGER *timeout )
+{
+    select_op_t select_op;
+    UINT flags = SELECT_INTERRUPTIBLE;
+
+    if (alertable) flags |= SELECT_ALERTABLE;
+    select_op.wait.op = SELECT_WAIT;
+    select_op.wait.handles[0] = wine_server_obj_handle( handle );
+    return server_wait( &select_op, offsetof( select_op_t, wait.handles[1] ), flags, timeout );
+}
 
 /******************************************************************
  *		NtSignalAndWaitForSingleObject (NTDLL.@)
@@ -1705,7 +1614,7 @@ NTSTATUS WINAPI NtWaitForSingleObject( HANDLE handle, BOOLEAN alertable, const L
 NTSTATUS WINAPI NtSignalAndWaitForSingleObject( HANDLE signal, HANDLE wait,
                                                 BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
-    union select_op select_op;
+    select_op_t select_op;
     UINT flags = SELECT_INTERRUPTIBLE;
 
     if (do_fsync())
@@ -1753,33 +1662,24 @@ NTSTATUS WINAPI NtYieldExecution(void)
  */
 NTSTATUS WINAPI NtDelayExecution( BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
-    unsigned int status = STATUS_SUCCESS;
-
     /* if alertable, we need to query the server */
     if (alertable)
     {
         if (do_fsync())
         {
-            status = fsync_wait_objects( 0, NULL, TRUE, TRUE, timeout );
-            if (status != STATUS_NOT_IMPLEMENTED)
-                goto alert_waited;
+            NTSTATUS ret = fsync_wait_objects( 0, NULL, TRUE, TRUE, timeout );
+            if (ret != STATUS_NOT_IMPLEMENTED)
+                return ret;
         }
 
         if (do_esync())
         {
-            status = esync_wait_objects( 0, NULL, TRUE, TRUE, timeout );
-            if (status != STATUS_NOT_IMPLEMENTED)
-                goto alert_waited;
+            NTSTATUS ret = esync_wait_objects( 0, NULL, TRUE, TRUE, timeout );
+            if (ret != STATUS_NOT_IMPLEMENTED)
+                return ret;
         }
 
-        /* Since server_wait will result in an unconditional implicit yield,
-           we never return STATUS_NO_YIELD_PERFORMED */
-        status = server_wait( NULL, 0, SELECT_INTERRUPTIBLE | SELECT_ALERTABLE, timeout );
-
-alert_waited:
-        if (status == STATUS_TIMEOUT)
-            status = STATUS_SUCCESS;
-        return status;
+        return server_wait( NULL, 0, SELECT_INTERRUPTIBLE | SELECT_ALERTABLE, timeout );
     }
 
     if (!timeout || timeout->QuadPart == TIMEOUT_INFINITE)  /* sleep forever */
@@ -1797,10 +1697,9 @@ alert_waited:
             when = now.QuadPart - when;
         }
 
-        /* Note that we yield after establishing the desired timeout, but
-           we only care about the result of the yield for zero timeouts */
-        status = NtYieldExecution();
-        if (!when) return status;
+        /* Note that we yield after establishing the desired timeout */
+        NtYieldExecution();
+        if (!when) return STATUS_SUCCESS;
 
         for (;;)
         {
@@ -1902,7 +1801,7 @@ NTSTATUS WINAPI NtSetTimerResolution( ULONG res, BOOLEAN set, ULONG *current_res
 {
     static BOOL has_request = FALSE;
 
-    TRACE( "(%u,%u,%p), semi-stub!\n", res, set, current_res );
+    TRACE( "(%u,%u,%p), semi-stub!\n", (int)res, set, current_res );
 
     /* Wine has no support for anything other that 1 ms and does not keep of
      * track resolution requests anyway.
@@ -1928,7 +1827,7 @@ NTSTATUS WINAPI NtSetTimerResolution( ULONG res, BOOLEAN set, ULONG *current_res
  */
 NTSTATUS WINAPI NtSetIntervalProfile( ULONG interval, KPROFILE_SOURCE source )
 {
-    FIXME( "%u,%d\n", interval, source );
+    FIXME( "%u,%d\n", (int)interval, source );
     return STATUS_SUCCESS;
 }
 
@@ -2022,7 +1921,7 @@ NTSTATUS WINAPI NtOpenKeyedEvent( HANDLE *handle, ACCESS_MASK access, const OBJE
 NTSTATUS WINAPI NtWaitForKeyedEvent( HANDLE handle, const void *key,
                                      BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
-    union select_op select_op;
+    select_op_t select_op;
     UINT flags = SELECT_INTERRUPTIBLE;
 
     if (!handle) handle = keyed_event;
@@ -2041,7 +1940,7 @@ NTSTATUS WINAPI NtWaitForKeyedEvent( HANDLE handle, const void *key,
 NTSTATUS WINAPI NtReleaseKeyedEvent( HANDLE handle, const void *key,
                                      BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
-    union select_op select_op;
+    select_op_t select_op;
     UINT flags = SELECT_INTERRUPTIBLE;
 
     if (!handle) handle = keyed_event;
@@ -2064,7 +1963,7 @@ NTSTATUS WINAPI NtCreateIoCompletion( HANDLE *handle, ACCESS_MASK access, OBJECT
     data_size_t len;
     struct object_attributes *objattr;
 
-    TRACE( "(%p, %x, %p, %d)\n", handle, access, attr, threads );
+    TRACE( "(%p, %x, %p, %d)\n", handle, (int)access, attr, (int)threads );
 
     *handle = 0;
     if ((status = alloc_object_attributes( attr, &objattr, &len ))) return status;
@@ -2074,8 +1973,7 @@ NTSTATUS WINAPI NtCreateIoCompletion( HANDLE *handle, ACCESS_MASK access, OBJECT
         req->access     = access;
         req->concurrent = threads;
         wine_server_add_data( req, objattr, len );
-        status = wine_server_call( req );
-        *handle = wine_server_ptr_handle( reply->handle );
+        if (!(status = wine_server_call( req ))) *handle = wine_server_ptr_handle( reply->handle );
     }
     SERVER_END_REQ;
 
@@ -2117,7 +2015,7 @@ NTSTATUS WINAPI NtSetIoCompletion( HANDLE handle, ULONG_PTR key, ULONG_PTR value
 {
     unsigned int ret;
 
-    TRACE( "(%p, %lx, %lx, %x, %lx)\n", handle, key, value, status, count );
+    TRACE( "(%p, %lx, %lx, %x, %lx)\n", handle, key, value, (int)status, count );
 
     SERVER_START_REQ( add_completion )
     {
@@ -2132,35 +2030,6 @@ NTSTATUS WINAPI NtSetIoCompletion( HANDLE handle, ULONG_PTR key, ULONG_PTR value
     return ret;
 }
 
-/***********************************************************************
- *             NtSetIoCompletionEx (NTDLL.@)
- *
- * completion_reserve_handle is a handle allocated by NtAllocateReserveObject() for pre-allocating
- * memory for completion objects to deal with low-memory situations. It's not in use for now.
- */
-NTSTATUS WINAPI NtSetIoCompletionEx( HANDLE completion_handle, HANDLE completion_reserve_handle,
-                                     ULONG_PTR key, ULONG_PTR value, NTSTATUS status, SIZE_T count )
-{
-    unsigned int ret;
-
-    TRACE( "(%p, %p, %lx, %lx, %x, %lx)\n", completion_handle, completion_reserve_handle,
-           key, value, status, count );
-
-    if (!completion_reserve_handle) return STATUS_INVALID_HANDLE;
-
-    SERVER_START_REQ( add_completion )
-    {
-        req->handle         = wine_server_obj_handle( completion_handle );
-        req->ckey           = key;
-        req->cvalue         = value;
-        req->status         = status;
-        req->information    = count;
-        req->reserve_handle = wine_server_obj_handle( completion_reserve_handle );
-        ret = wine_server_call( req );
-    }
-    SERVER_END_REQ;
-    return ret;
-}
 
 /***********************************************************************
  *             NtRemoveIoCompletion (NTDLL.@)
@@ -2172,6 +2041,12 @@ NTSTATUS WINAPI NtRemoveIoCompletion( HANDLE handle, ULONG_PTR *key, ULONG_PTR *
     unsigned int status;
 
     TRACE( "(%p, %p, %p, %p, %p)\n", handle, key, value, io, timeout );
+
+    if (timeout && !timeout->QuadPart && (do_esync() || do_fsync()))
+    {
+        status = NtWaitForSingleObject( handle, FALSE, timeout );
+        if (status != WAIT_OBJECT_0) return status;
+    }
 
     SERVER_START_REQ( remove_completion )
     {
@@ -2188,7 +2063,7 @@ NTSTATUS WINAPI NtRemoveIoCompletion( HANDLE handle, ULONG_PTR *key, ULONG_PTR *
     }
     SERVER_END_REQ;
     if (status != STATUS_PENDING) return status;
-    if (!timeout || timeout->QuadPart) status = NtWaitForSingleObject( wait_handle, FALSE, timeout );
+    if (!timeout || timeout->QuadPart) status = wait_internal_server( wait_handle, FALSE, timeout );
     else                               status = STATUS_TIMEOUT;
     if (status != WAIT_OBJECT_0) return status;
 
@@ -2218,9 +2093,13 @@ NTSTATUS WINAPI NtRemoveIoCompletionEx( HANDLE handle, FILE_IO_COMPLETION_INFORM
     unsigned int status;
     ULONG i = 0;
 
-    TRACE( "%p %p %u %p %p %u\n", handle, info, count, written, timeout, alertable );
+    TRACE( "%p %p %u %p %p %u\n", handle, info, (int)count, written, timeout, alertable );
 
-    if (!count) return STATUS_INVALID_PARAMETER;
+    if (timeout && !timeout->QuadPart && (do_esync() || do_fsync()))
+    {
+        status = NtWaitForSingleObject( handle, alertable, timeout );
+        if (status != WAIT_OBJECT_0) goto done;
+    }
 
     while (i < count)
     {
@@ -2252,7 +2131,7 @@ NTSTATUS WINAPI NtRemoveIoCompletionEx( HANDLE handle, FILE_IO_COMPLETION_INFORM
         assert( status == STATUS_USER_APC );
         goto done;
     }
-    if (!timeout || timeout->QuadPart) status = NtWaitForSingleObject( wait_handle, alertable, timeout );
+    if (!timeout || timeout->QuadPart) status = wait_internal_server( wait_handle, alertable, timeout );
     else                               status = STATUS_TIMEOUT;
     if (status != WAIT_OBJECT_0) goto done;
 
@@ -2283,7 +2162,7 @@ NTSTATUS WINAPI NtQueryIoCompletion( HANDLE handle, IO_COMPLETION_INFORMATION_CL
 {
     unsigned int status;
 
-    TRACE( "(%p, %d, %p, 0x%x, %p)\n", handle, class, buffer, len, ret_len );
+    TRACE( "(%p, %d, %p, 0x%x, %p)\n", handle, class, buffer, (int)len, ret_len );
 
     if (!buffer) return STATUS_INVALID_PARAMETER;
 
@@ -2368,18 +2247,6 @@ NTSTATUS WINAPI NtCreateSection( HANDLE *handle, ACCESS_MASK access, const OBJEC
 
 
 /***********************************************************************
- *             NtCreateSectionEx (NTDLL.@)
- */
-NTSTATUS WINAPI NtCreateSectionEx( HANDLE *handle, ACCESS_MASK access, const OBJECT_ATTRIBUTES *attr,
-                                   const LARGE_INTEGER *size, ULONG protect, ULONG sec_flags,
-                                   HANDLE file, MEM_EXTENDED_PARAMETER *parameters, ULONG count )
-{
-    if (count) FIXME( "extended params not supported\n" );
-    return NtCreateSection( handle, access, attr, size, protect, sec_flags, file );
-}
-
-
-/***********************************************************************
  *             NtOpenSection (NTDLL.@)
  */
 NTSTATUS WINAPI NtOpenSection( HANDLE *handle, ACCESS_MASK access, const OBJECT_ATTRIBUTES *attr )
@@ -2410,7 +2277,7 @@ NTSTATUS WINAPI NtOpenSection( HANDLE *handle, ACCESS_MASK access, const OBJECT_
 NTSTATUS WINAPI NtCreatePort( HANDLE *handle, OBJECT_ATTRIBUTES *attr, ULONG info_len,
                               ULONG data_len, ULONG *reserved )
 {
-    FIXME( "(%p,%p,%u,%u,%p),stub!\n", handle, attr, info_len, data_len, reserved );
+    FIXME( "(%p,%p,%u,%u,%p),stub!\n", handle, attr, (int)info_len, (int)data_len, reserved );
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -2458,7 +2325,7 @@ NTSTATUS WINAPI NtListenPort( HANDLE handle, LPC_MESSAGE *msg )
 NTSTATUS WINAPI NtAcceptConnectPort( HANDLE *handle, ULONG id, LPC_MESSAGE *msg, BOOLEAN accept,
                                      LPC_SECTION_WRITE *write, LPC_SECTION_READ *read )
 {
-    FIXME("(%p,%u,%p,%d,%p,%p),stub!\n", handle, id, msg, accept, write, read );
+    FIXME("(%p,%u,%p,%d,%p,%p),stub!\n", handle, (int)id, msg, accept, write, read );
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -2689,12 +2556,13 @@ NTSTATUS WINAPI NtQueryInformationAtom( RTL_ATOM atom, ATOM_INFORMATION_CLASS cl
 
 union tid_alert_entry
 {
-#ifdef USE_FUTEX
-    LONG futex;
-#elif defined(HAVE_KQUEUE)
+#ifdef HAVE_KQUEUE
     int kq;
 #else
     HANDLE event;
+#ifdef __linux__
+    LONG futex;
+#endif
 #endif
 };
 
@@ -2730,9 +2598,7 @@ static union tid_alert_entry *get_tid_alert_entry( HANDLE tid )
 
     entry = &tid_alert_blocks[block_idx][idx % TID_ALERT_BLOCK_SIZE];
 
-#ifdef USE_FUTEX
-    return entry;
-#elif defined(HAVE_KQUEUE)
+#ifdef HAVE_KQUEUE
     if (!entry->kq)
     {
         int kq = kqueue();
@@ -2763,6 +2629,11 @@ static union tid_alert_entry *get_tid_alert_entry( HANDLE tid )
             close( kq );
     }
 #else
+#ifdef __linux__
+    if (use_futexes())
+        return entry;
+#endif
+
     if (!entry->event)
     {
         HANDLE event;
@@ -2789,14 +2660,7 @@ NTSTATUS WINAPI NtAlertThreadByThreadId( HANDLE tid )
 
     if (!entry) return STATUS_INVALID_CID;
 
-#ifdef USE_FUTEX
-    {
-        LONG *futex = &entry->futex;
-        if (!InterlockedExchange( futex, 1 ))
-            futex_wake_one( futex );
-        return STATUS_SUCCESS;
-    }
-#elif defined(HAVE_KQUEUE)
+#ifdef HAVE_KQUEUE
     {
         static const struct kevent signal_event =
         {
@@ -2812,12 +2676,22 @@ NTSTATUS WINAPI NtAlertThreadByThreadId( HANDLE tid )
         return STATUS_SUCCESS;
     }
 #else
+#ifdef __linux__
+    if (use_futexes())
+    {
+        LONG *futex = &entry->futex;
+        if (!InterlockedExchange( futex, 1 ))
+            futex_wake( futex, 1 );
+        return STATUS_SUCCESS;
+    }
+#endif
+
     return NtSetEvent( entry->event, NULL );
 #endif
 }
 
 
-#if defined(USE_FUTEX) || defined(HAVE_KQUEUE)
+#if defined(__linux__) || defined(HAVE_KQUEUE)
 static LONGLONG get_absolute_timeout( const LARGE_INTEGER *timeout )
 {
     LARGE_INTEGER now;
@@ -2840,18 +2714,74 @@ static LONGLONG update_timeout( ULONGLONG end )
 #endif
 
 
+#ifdef HAVE_KQUEUE
+
 /***********************************************************************
  *             NtWaitForAlertByThreadId (NTDLL.@)
  */
 NTSTATUS WINAPI NtWaitForAlertByThreadId( const void *address, const LARGE_INTEGER *timeout )
 {
     union tid_alert_entry *entry = get_tid_alert_entry( NtCurrentTeb()->ClientId.UniqueThread );
+    ULONGLONG end;
+    int ret;
+    struct timespec timespec;
+    struct kevent wait_event;
 
     TRACE( "%p %s\n", address, debugstr_timeout( timeout ) );
 
     if (!entry) return STATUS_INVALID_CID;
 
-#ifdef USE_FUTEX
+    if (timeout)
+    {
+        if (timeout->QuadPart == TIMEOUT_INFINITE)
+            timeout = NULL;
+        else
+            end = get_absolute_timeout( timeout );
+    }
+
+    do
+    {
+        if (timeout)
+        {
+            LONGLONG timeleft = update_timeout( end );
+
+            timespec.tv_sec = timeleft / (ULONGLONG)TICKSPERSEC;
+            timespec.tv_nsec = (timeleft % TICKSPERSEC) * 100;
+            if (timespec.tv_sec > 0x7FFFFFFF) timeout = NULL;
+        }
+
+        ret = kevent( entry->kq, NULL, 0, &wait_event, 1, timeout ? &timespec : NULL );
+    } while (ret == -1 && errno == EINTR);
+
+    switch (ret)
+    {
+    case 1:
+        return STATUS_ALERTED;
+    case 0:
+        return STATUS_TIMEOUT;
+    default:
+        ERR( "kevent failed with error: %d (%s)\n", errno, strerror( errno ) );
+        return STATUS_INVALID_HANDLE;
+    }
+}
+
+#else
+
+/***********************************************************************
+ *             NtWaitForAlertByThreadId (NTDLL.@)
+ */
+NTSTATUS WINAPI NtWaitForAlertByThreadId( const void *address, const LARGE_INTEGER *timeout )
+{
+    union tid_alert_entry *entry = get_tid_alert_entry( NtCurrentTeb()->ClientId.UniqueThread );
+    BOOL waited = FALSE;
+    NTSTATUS status;
+
+    TRACE( "%p %s\n", address, debugstr_timeout( timeout ) );
+
+    if (!entry) return STATUS_INVALID_CID;
+
+#ifdef __linux__
+    if (use_futexes())
     {
         LONG *futex = &entry->futex;
         ULONGLONG end;
@@ -2879,59 +2809,53 @@ NTSTATUS WINAPI NtWaitForAlertByThreadId( const void *address, const LARGE_INTEG
             else
                 ret = futex_wait( futex, 0, NULL );
 
+            if (!timeout || timeout->QuadPart)
+                waited = TRUE;
+
             if (ret == -1 && errno == ETIMEDOUT) return STATUS_TIMEOUT;
         }
+
+        if (alert_simulate_sched_quantum && waited)
+            usleep(0);
+
         return STATUS_ALERTED;
     }
-#elif defined(HAVE_KQUEUE)
-    {
-        ULONGLONG end;
-        int ret;
-        struct timespec timespec;
-        struct kevent wait_event;
-
-        if (timeout)
-        {
-            if (timeout->QuadPart == TIMEOUT_INFINITE)
-                timeout = NULL;
-            else
-                end = get_absolute_timeout( timeout );
-        }
-
-        do
-        {
-            if (timeout)
-            {
-                LONGLONG timeleft = update_timeout( end );
-
-                timespec.tv_sec = timeleft / (ULONGLONG)TICKSPERSEC;
-                timespec.tv_nsec = (timeleft % TICKSPERSEC) * 100;
-                if (timespec.tv_sec > 0x7FFFFFFF) timeout = NULL;
-            }
-
-            ret = kevent( entry->kq, NULL, 0, &wait_event, 1, timeout ? &timespec : NULL );
-        } while (ret == -1 && errno == EINTR);
-
-        switch (ret)
-        {
-        case 1:
-            return STATUS_ALERTED;
-        case 0:
-            return STATUS_TIMEOUT;
-        default:
-            ERR( "kevent failed with error: %d (%s)\n", errno, strerror( errno ) );
-            return STATUS_INVALID_HANDLE;
-        }
-    }
-#else
-    {
-        NTSTATUS status = NtWaitForSingleObject( entry->event, FALSE, timeout );
-        if (!status) return STATUS_ALERTED;
-        return status;
-    }
 #endif
+
+    status = NtWaitForSingleObject( entry->event, FALSE, timeout );
+    if (!status) return STATUS_ALERTED;
+    return status;
 }
 
+#endif
+
+/* Notify direct completion of async and close the wait handle if it is no longer needed.
+ * This function is a no-op (returns status as-is) if the supplied handle is NULL.
+ */
+void set_async_direct_result( HANDLE *async_handle, NTSTATUS status, ULONG_PTR information, BOOL mark_pending )
+{
+    unsigned int ret;
+
+    /* if we got STATUS_ALERTED, we must have a valid async handle */
+    assert( *async_handle );
+
+    SERVER_START_REQ( set_async_direct_result )
+    {
+        req->handle       = wine_server_obj_handle( *async_handle );
+        req->status       = status;
+        req->information  = information;
+        req->mark_pending = mark_pending;
+        ret = wine_server_call( req );
+        if (ret == STATUS_SUCCESS)
+            *async_handle = wine_server_ptr_handle( reply->handle );
+    }
+    SERVER_END_REQ;
+
+    if (ret != STATUS_SUCCESS)
+        ERR( "cannot report I/O result back to server: %08x\n", ret );
+
+    return;
+}
 
 /***********************************************************************
  *           NtCreateTransaction (NTDLL.@)
@@ -2939,8 +2863,8 @@ NTSTATUS WINAPI NtWaitForAlertByThreadId( const void *address, const LARGE_INTEG
 NTSTATUS WINAPI NtCreateTransaction( HANDLE *handle, ACCESS_MASK mask, OBJECT_ATTRIBUTES *obj_attr, GUID *guid, HANDLE tm,
         ULONG options, ULONG isol_level, ULONG isol_flags, PLARGE_INTEGER timeout, UNICODE_STRING *description )
 {
-    FIXME( "%p, %#x, %p, %s, %p, 0x%08x, 0x%08x, 0x%08x, %p, %p stub.\n", handle, mask, obj_attr, debugstr_guid(guid), tm,
-            options, isol_level, isol_flags, timeout, description );
+    FIXME( "%p, %#x, %p, %s, %p, 0x%08x, 0x%08x, 0x%08x, %p, %p stub.\n", handle, (int)mask, obj_attr, debugstr_guid(guid), tm,
+            (int)options, (int)isol_level, (int)isol_flags, timeout, description );
 
     *handle = ULongToHandle(1);
 
@@ -2965,16 +2889,4 @@ NTSTATUS WINAPI NtRollbackTransaction( HANDLE transaction, BOOLEAN wait )
     FIXME( "%p, %d stub.\n", transaction, wait );
 
     return STATUS_ACCESS_VIOLATION;
-}
-
-/***********************************************************************
- *           NtConvertBetweenAuxiliaryCounterAndPerformanceCounter (NTDLL.@)
- */
-NTSTATUS WINAPI NtConvertBetweenAuxiliaryCounterAndPerformanceCounter( ULONG flag, ULONGLONG *from, ULONGLONG *to, ULONGLONG *error )
-{
-    FIXME( "%#x, %p, %p, %p.\n",  flag, from, to, error );
-
-    if (!from) return STATUS_ACCESS_VIOLATION;
-
-    return STATUS_NOT_SUPPORTED;
 }

@@ -358,7 +358,7 @@ static void add_xkb_layout(const char *xkb_layout, struct xkb_keymap *xkb_keymap
 
     unsigned int mod, keyc, len, names_len, min_keycode, max_keycode;
     struct xkb_state *xkb_state = xkb_state_new(xkb_keymap);
-    xkb_mod_mask_t shift_mask, control_mask, altgr_mask, capslock_mask, numlock_mask;
+    xkb_mod_mask_t shift_mask, control_mask, altgr_mask, capslock_mask;
     VSC_LPWSTR *names_entry, *names_ext_entry;
     VSC_VK *vsc2vk_e0_entry, *vsc2vk_e1_entry;
     VK_TO_WCHARS8 *vk2wchars_entry;
@@ -493,7 +493,6 @@ static void add_xkb_layout(const char *xkb_layout, struct xkb_keymap *xkb_keymap
     control_mask = 1 << xkb_keymap_mod_get_index(xkb_keymap, XKB_MOD_NAME_CTRL);
     capslock_mask = 1 << xkb_keymap_mod_get_index(xkb_keymap, XKB_MOD_NAME_CAPS);
     altgr_mask = 1 << xkb_keymap_mod_get_index(xkb_keymap, "Mod5");
-    numlock_mask = 1 << xkb_keymap_mod_get_index(xkb_keymap, XKB_MOD_NAME_NUM);
 
     for (keyc = min_keycode; keyc <= max_keycode; keyc++)
     {
@@ -502,19 +501,6 @@ static void add_xkb_layout(const char *xkb_layout, struct xkb_keymap *xkb_keymap
         BOOL found = FALSE, caps_found = FALSE;
         uint32_t caps_ret, shift_ret;
         unsigned int mod;
-
-        if ((vkey & KBDNUMPAD) && (vkey & 0xff) == VK_DELETE)
-        {
-            VK_TO_WCHARS8 num_vkey2wch = {.VirtualKey = VK_DECIMAL};
-
-            xkb_state_update_mask(xkb_state, 0, 0, numlock_mask, 0, 0, xkb_group);
-            if (!(num_vkey2wch.wch[0] = xkb_state_key_get_utf32(xkb_state, keyc)))
-                num_vkey2wch.wch[0] = WCH_NONE;
-            for (mod = 1; mod < 8; ++mod) num_vkey2wch.wch[mod] = WCH_NONE;
-            num_vkey2wch.Attributes = 0;
-            TRACE("vkey %#06x -> %s\n", num_vkey2wch.VirtualKey, debugstr_wn(num_vkey2wch.wch, 8));
-            *vk2wchars_entry++ = num_vkey2wch;
-        }
 
         for (mod = 0; mod < 8; ++mod)
         {
@@ -617,13 +603,29 @@ static BOOL find_xkb_layout_variant(const char *name, const char **layout, const
     return FALSE;
 }
 
+static BOOL get_async_key_state(BYTE state[256])
+{
+    BOOL ret;
+
+    SERVER_START_REQ(get_key_state)
+    {
+        req->async = 1;
+        req->key = -1;
+        wine_server_set_reply(req, state, 256);
+        ret = !wine_server_call(req);
+    }
+    SERVER_END_REQ;
+
+    return ret;
+}
+
 static void release_all_keys(HWND hwnd)
 {
     BYTE state[256];
     int vkey;
     INPUT input = {.type = INPUT_KEYBOARD};
 
-    NtUserGetAsyncKeyboardState(state);
+    get_async_key_state(state);
 
     for (vkey = 1; vkey < 256; vkey++)
     {
@@ -640,7 +642,7 @@ static void release_all_keys(HWND hwnd)
             input.ki.wScan = scan & 0xff;
             input.ki.dwFlags = KEYEVENTF_KEYUP;
             if (scan & ~0xff) input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-            NtUserSendHardwareInput(hwnd, 0, &input, 0);
+            __wine_send_input(hwnd, &input, NULL);
         }
     }
 }
@@ -736,16 +738,13 @@ static void keyboard_handle_keymap(void *data, struct wl_keyboard *wl_keyboard,
     xkb_keymap_unref(xkb_keymap);
 }
 
-static void keyboard_handle_enter(void *private, struct wl_keyboard *wl_keyboard,
+static void keyboard_handle_enter(void *data, struct wl_keyboard *wl_keyboard,
                                   uint32_t serial, struct wl_surface *wl_surface,
                                   struct wl_array *keys)
 {
     struct wayland_keyboard *keyboard = &process_wayland.keyboard;
     struct wayland_surface *surface;
-    struct wayland_win_data *data;
     HWND hwnd;
-
-    InterlockedExchange(&process_wayland.input_serial, serial);
 
     if (!wl_surface) return;
 
@@ -761,9 +760,7 @@ static void keyboard_handle_enter(void *private, struct wl_keyboard *wl_keyboard
     NtUserPostMessage(keyboard->focused_hwnd, WM_INPUTLANGCHANGEREQUEST, 0 /*FIXME*/,
                       (LPARAM)keyboard_hkl);
 
-    if (!(data = wayland_win_data_get(hwnd))) return;
-
-    if ((surface = data->wayland_surface))
+    if ((surface = wayland_surface_lock_hwnd(hwnd)))
     {
         /* TODO: Drop the internal message and call NtUserSetForegroundWindow
          * directly once it's updated to not explicitly deactivate the old
@@ -771,9 +768,8 @@ static void keyboard_handle_enter(void *private, struct wl_keyboard *wl_keyboard
          * are in the same non-current thread. */
         if (surface->window.managed)
             NtUserPostMessage(hwnd, WM_WAYLAND_SET_FOREGROUND, 0, 0);
+        pthread_mutex_unlock(&surface->mutex);
     }
-
-    wayland_win_data_release(data);
 }
 
 static void keyboard_handle_leave(void *data, struct wl_keyboard *wl_keyboard,
@@ -781,8 +777,6 @@ static void keyboard_handle_leave(void *data, struct wl_keyboard *wl_keyboard,
 {
     struct wayland_keyboard *keyboard = &process_wayland.keyboard;
     HWND hwnd;
-
-    InterlockedExchange(&process_wayland.input_serial, serial);
 
     if (!wl_surface) return;
 
@@ -807,10 +801,11 @@ static void send_right_control(HWND hwnd, uint32_t state)
 {
     INPUT input = {0};
     input.type = INPUT_KEYBOARD;
-    input.ki.wScan = 0xe000 | (key2scan(KEY_RIGHTCTRL) & 0xff);
-    input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_EXTENDEDKEY;
+    input.ki.wScan = key2scan(KEY_RIGHTCTRL);
+    input.ki.wVk = VK_RCONTROL;
+    input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
     if (state == WL_KEYBOARD_KEY_STATE_RELEASED) input.ki.dwFlags |= KEYEVENTF_KEYUP;
-    NtUserSendHardwareInput(hwnd, 0, &input, 0);
+    __wine_send_input(hwnd, &input, NULL);
 }
 
 static void keyboard_handle_key(void *data, struct wl_keyboard *wl_keyboard,
@@ -821,8 +816,6 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *wl_keyboard,
     INPUT input = {0};
     HWND hwnd;
 
-    InterlockedExchange(&process_wayland.input_serial, serial);
-
     if (!(hwnd = wayland_keyboard_get_focused_hwnd())) return;
 
     TRACE_(key)("serial=%u hwnd=%p key=%d scan=%#x state=%#x\n", serial, hwnd, key, scan, state);
@@ -831,12 +824,12 @@ static void keyboard_handle_key(void *data, struct wl_keyboard *wl_keyboard,
     if (key == KEY_RIGHTALT) send_right_control(hwnd, state);
 
     input.type = INPUT_KEYBOARD;
-    input.ki.wScan = (scan & 0x300) ? scan + 0xdf00 : scan;
-    input.ki.dwFlags = KEYEVENTF_SCANCODE;
+    input.ki.wScan = scan & 0xff;
+    input.ki.wVk = NtUserMapVirtualKeyEx(scan, MAPVK_VSC_TO_VK_EX, keyboard_hkl);
     if (scan & ~0xff) input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
 
     if (state == WL_KEYBOARD_KEY_STATE_RELEASED) input.ki.dwFlags |= KEYEVENTF_KEYUP;
-    NtUserSendHardwareInput(hwnd, 0, &input, 0);
+    __wine_send_input(hwnd, &input, NULL);
 }
 
 static void keyboard_handle_modifiers(void *data, struct wl_keyboard *wl_keyboard,
@@ -845,8 +838,6 @@ static void keyboard_handle_modifiers(void *data, struct wl_keyboard *wl_keyboar
                                       uint32_t xkb_group)
 {
     struct wayland_keyboard *keyboard = &process_wayland.keyboard;
-
-    InterlockedExchange(&process_wayland.input_serial, serial);
 
     if (!wayland_keyboard_get_focused_hwnd()) return;
 

@@ -15,7 +15,6 @@
 
 #include <string.h>
 #include <libxml/xmlmemory.h>
-#include <libxml/threads.h>
 
 #include "xsltlocale.h"
 #include "xsltutils.h"
@@ -143,7 +142,7 @@ xsltNewLocale(const xmlChar *languageTag, int lowerFirst ATTRIBUTE_UNUSED) {
 	    return(NULL);
 
         memcpy(q, ".UTF-8", 7);
-        locale = newlocale(LC_ALL_MASK, localeName, NULL);
+        locale = newlocale(LC_COLLATE_MASK, localeName, NULL);
         if (locale != NULL)
             return(locale);
 
@@ -155,7 +154,7 @@ xsltNewLocale(const xmlChar *languageTag, int lowerFirst ATTRIBUTE_UNUSED) {
     /* Try locale without territory, e.g. for Esperanto (eo) */
 
     memcpy(q, ".UTF-8", 7);
-    locale = newlocale(LC_ALL_MASK, localeName, NULL);
+    locale = newlocale(LC_COLLATE_MASK, localeName, NULL);
     if (locale != NULL)
         return(locale);
 
@@ -173,7 +172,7 @@ xsltNewLocale(const xmlChar *languageTag, int lowerFirst ATTRIBUTE_UNUSED) {
     *q++ = region[0];
     *q++ = region[1];
     memcpy(q, ".UTF-8", 7);
-    locale = newlocale(LC_ALL_MASK, localeName, NULL);
+    locale = newlocale(LC_COLLATE_MASK, localeName, NULL);
 
     return(locale);
 #endif

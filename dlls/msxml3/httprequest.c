@@ -44,6 +44,8 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(xmlhttp);
 
+static const WCHAR colspaceW[] = {':',' ',0};
+static const WCHAR crlfW[] = {'\r','\n',0};
 static const DWORD safety_supported_options =
     INTERFACESAFE_FOR_UNTRUSTED_CALLER |
     INTERFACESAFE_FOR_UNTRUSTED_DATA   |
@@ -179,7 +181,7 @@ static void free_response_headers(httprequest *This)
         list_remove(&header->entry);
         SysFreeString(header->header);
         SysFreeString(header->value);
-        free(header);
+        heap_free(header);
     }
 
     SysFreeString(This->raw_respheaders);
@@ -195,7 +197,7 @@ static void free_request_headers(httprequest *This)
         list_remove(&header->entry);
         SysFreeString(header->header);
         SysFreeString(header->value);
-        free(header);
+        heap_free(header);
     }
 }
 
@@ -305,7 +307,7 @@ static ULONG WINAPI BindStatusCallback_Release(IBindStatusCallback *iface)
         if (This->binding) IBinding_Release(This->binding);
         if (This->stream) IStream_Release(This->stream);
         if (This->body) GlobalFree(This->body);
-        free(This);
+        heap_free(This);
     }
 
     return ref;
@@ -474,7 +476,9 @@ static ULONG WINAPI BSCHttpNegotiate_Release(IHttpNegotiate *iface)
 static HRESULT WINAPI BSCHttpNegotiate_BeginningTransaction(IHttpNegotiate *iface,
         LPCWSTR url, LPCWSTR headers, DWORD reserved, LPWSTR *add_headers)
 {
-    static const WCHAR content_type_utf8W[] = L"Content-Type: text/plain;charset=utf-8\r\n";
+    static const WCHAR content_type_utf8W[] = {'C','o','n','t','e','n','t','-','T','y','p','e',':',' ',
+        't','e','x','t','/','p','l','a','i','n',';','c','h','a','r','s','e','t','=','u','t','f','-','8','\r','\n',0};
+    static const WCHAR refererW[] = {'R','e','f','e','r','e','r',':',' ',0};
 
     BindStatusCallback *This = impl_from_IHttpNegotiate(iface);
     const struct httpheader *entry;
@@ -495,7 +499,7 @@ static HRESULT WINAPI BSCHttpNegotiate_BeginningTransaction(IHttpNegotiate *ifac
     if (This->request->base_uri)
     {
         IUri_GetRawUri(This->request->base_uri, &base_uri);
-        size += SysStringLen(base_uri)*sizeof(WCHAR) + sizeof(L"Referer: ") + sizeof(L"\r\n");
+        size += SysStringLen(base_uri)*sizeof(WCHAR) + sizeof(refererW) + sizeof(crlfW);
     }
 
     if (!size)
@@ -520,10 +524,10 @@ static HRESULT WINAPI BSCHttpNegotiate_BeginningTransaction(IHttpNegotiate *ifac
 
     if (base_uri)
     {
-        lstrcpyW(ptr, L"Referer: ");
+        lstrcpyW(ptr, refererW);
         lstrcatW(ptr, base_uri);
-        lstrcatW(ptr, L"\r\n");
-        ptr += lstrlenW(L"Referer: ") + SysStringLen(base_uri) + lstrlenW(L"\r\n");
+        lstrcatW(ptr, crlfW);
+        ptr += lstrlenW(refererW) + SysStringLen(base_uri) + lstrlenW(crlfW);
         SysFreeString(base_uri);
     }
 
@@ -533,14 +537,14 @@ static HRESULT WINAPI BSCHttpNegotiate_BeginningTransaction(IHttpNegotiate *ifac
         lstrcpyW(ptr, entry->header);
         ptr += SysStringLen(entry->header);
 
-        lstrcpyW(ptr, L": ");
-        ptr += 2;
+        lstrcpyW(ptr, colspaceW);
+        ptr += ARRAY_SIZE(colspaceW) - 1;
 
         lstrcpyW(ptr, entry->value);
         ptr += SysStringLen(entry->value);
 
-        lstrcpyW(ptr, L"\r\n");
-        ptr += 2;
+        lstrcpyW(ptr, crlfW);
+        ptr += ARRAY_SIZE(crlfW) - 1;
     }
 
     *add_headers = buff;
@@ -573,7 +577,7 @@ static void add_response_header(httprequest *This, const WCHAR *data, int len)
     /* new header */
     TRACE("got header %s:%s\n", debugstr_w(header), debugstr_w(value));
 
-    entry = malloc(sizeof(*entry));
+    entry = heap_alloc(sizeof(*entry));
     entry->header = header;
     entry->value  = value;
     list_add_head(&This->respheaders, &entry->entry);
@@ -697,7 +701,7 @@ static HRESULT BindStatusCallback_create(httprequest* This, BindStatusCallback *
     HRESULT hr;
     LONG size;
 
-    if (!(bsc = malloc(sizeof(*bsc))))
+    if (!(bsc = heap_alloc(sizeof(*bsc))))
         return E_OUTOFMEMORY;
 
     bsc->IBindStatusCallback_iface.lpVtbl = &BindStatusCallbackVtbl;
@@ -739,9 +743,9 @@ static HRESULT BindStatusCallback_create(httprequest* This, BindStatusCallback *
             }
 
             size = WideCharToMultiByte(cp, 0, str, len, NULL, 0, NULL, NULL);
-            if (!(ptr = malloc(size)))
+            if (!(ptr = heap_alloc(size)))
             {
-                free(bsc);
+                heap_free(bsc);
                 return E_OUTOFMEMORY;
             }
             WideCharToMultiByte(cp, 0, str, len, ptr, size, NULL, NULL);
@@ -753,13 +757,13 @@ static HRESULT BindStatusCallback_create(httprequest* This, BindStatusCallback *
             sa = V_ARRAY(body);
             if ((hr = SafeArrayAccessData(sa, &ptr)) != S_OK)
             {
-                free(bsc);
+                heap_free(bsc);
                 return hr;
             }
             if ((hr = SafeArrayGetUBound(sa, 1, &size)) != S_OK)
             {
                 SafeArrayUnaccessData(sa);
-                free(bsc);
+                heap_free(bsc);
                 return hr;
             }
             size++;
@@ -782,11 +786,11 @@ static HRESULT BindStatusCallback_create(httprequest* This, BindStatusCallback *
             if (!bsc->body)
             {
                 if (V_VT(body) == VT_BSTR)
-                    free(ptr);
+                    heap_free(ptr);
                 else if (V_VT(body) == (VT_ARRAY|VT_UI1))
                     SafeArrayUnaccessData(sa);
 
-                free(bsc);
+                heap_free(bsc);
                 return E_OUTOFMEMORY;
             }
 
@@ -796,7 +800,7 @@ static HRESULT BindStatusCallback_create(httprequest* This, BindStatusCallback *
         }
 
         if (V_VT(body) == VT_BSTR)
-            free(ptr);
+            heap_free(ptr);
         else if (V_VT(body) == (VT_ARRAY|VT_UI1))
             SafeArrayUnaccessData(sa);
     }
@@ -882,6 +886,12 @@ static HRESULT verify_uri(httprequest *This, IUri *uri)
 static HRESULT httprequest_open(httprequest *This, BSTR method, BSTR url,
         VARIANT async, VARIANT user, VARIANT password)
 {
+    static const WCHAR MethodHeadW[] = {'H','E','A','D',0};
+    static const WCHAR MethodGetW[] = {'G','E','T',0};
+    static const WCHAR MethodPutW[] = {'P','U','T',0};
+    static const WCHAR MethodPostW[] = {'P','O','S','T',0};
+    static const WCHAR MethodDeleteW[] = {'D','E','L','E','T','E',0};
+    static const WCHAR MethodPropFindW[] = {'P','R','O','P','F','I','N','D',0};
     VARIANT str, is_async;
     IUri *uri;
     HRESULT hr;
@@ -899,21 +909,21 @@ static HRESULT httprequest_open(httprequest *This, BSTR method, BSTR url,
     This->user = This->password = NULL;
     free_request_headers(This);
 
-    if (!wcsicmp(method, L"GET"))
+    if (!wcsicmp(method, MethodGetW))
     {
         This->verb = BINDVERB_GET;
     }
-    else if (!wcsicmp(method, L"PUT"))
+    else if (!wcsicmp(method, MethodPutW))
     {
         This->verb = BINDVERB_PUT;
     }
-    else if (!wcsicmp(method, L"POST"))
+    else if (!wcsicmp(method, MethodPostW))
     {
         This->verb = BINDVERB_POST;
     }
-    else if (!wcsicmp(method, L"DELETE") ||
-             !wcsicmp(method, L"HEAD") ||
-             !wcsicmp(method, L"PROPFIND"))
+    else if (!wcsicmp(method, MethodDeleteW) ||
+             !wcsicmp(method, MethodHeadW) ||
+             !wcsicmp(method, MethodPropFindW))
     {
         This->verb = BINDVERB_CUSTOM;
         SysReAllocString(&This->custom, method);
@@ -1012,7 +1022,7 @@ static HRESULT httprequest_setRequestHeader(httprequest *This, BSTR header, BSTR
         }
     }
 
-    entry = malloc(sizeof(*entry));
+    entry = heap_alloc(sizeof(*entry));
     if (!entry) return E_OUTOFMEMORY;
 
     /* new header */
@@ -1020,8 +1030,8 @@ static HRESULT httprequest_setRequestHeader(httprequest *This, BSTR header, BSTR
     entry->value  = SysAllocString(value);
 
     /* header length including null terminator */
-    This->reqheader_size += SysStringLen(entry->header) + sizeof(": ") - 1 +
-        SysStringLen(entry->value) + sizeof("\r\n");
+    This->reqheader_size += SysStringLen(entry->header) + ARRAY_SIZE(colspaceW) +
+        SysStringLen(entry->value) + ARRAY_SIZE(crlfW) - 1;
 
     list_add_head(&This->reqheaders, &entry->entry);
 
@@ -1411,7 +1421,7 @@ static ULONG WINAPI XMLHTTPRequest_Release(IXMLHTTPRequest *iface)
     if (!ref)
     {
         httprequest_release(request);
-        free(request);
+        heap_free(request);
     }
 
     return ref;
@@ -1838,7 +1848,7 @@ static ULONG WINAPI ServerXMLHTTPRequest_Release(IServerXMLHTTPRequest *iface)
     if (!ref)
     {
         httprequest_release(&request->req);
-        free(request);
+        heap_free(request);
     }
 
     return ref;
@@ -2134,7 +2144,7 @@ static ULONG WINAPI xml_http_request_2_Release(IXMLHTTPRequest3 *iface)
         if (This->request_body) ISequentialStream_Release(This->request_body);
         if (This->callback3) IXMLHTTPRequest3Callback_Release(This->callback3);
         if (This->callback) IXMLHTTPRequest2Callback_Release(This->callback);
-        free(This);
+        heap_free(This);
         RtwqShutdown();
     }
 
@@ -2659,7 +2669,7 @@ HRESULT XMLHTTPRequest_create(void **obj)
 
     TRACE("(%p)\n", obj);
 
-    req = malloc(sizeof(*req));
+    req = heap_alloc( sizeof (*req) );
     if( !req )
         return E_OUTOFMEMORY;
 
@@ -2676,7 +2686,7 @@ HRESULT XMLHTTPRequest2_create(void **obj)
     struct xml_http_request_2 *xhr2;
     TRACE("(%p)\n", obj);
 
-    if (!(xhr2 = malloc(sizeof(*xhr2)))) return E_OUTOFMEMORY;
+    if (!(xhr2 = heap_alloc(sizeof(*xhr2)))) return E_OUTOFMEMORY;
 
     init_httprequest(&xhr2->req);
     xhr2->IXMLHTTPRequest3_iface.lpVtbl = &XMLHTTPRequest3Vtbl;
@@ -2706,7 +2716,7 @@ HRESULT ServerXMLHTTP_create(void **obj)
 
     TRACE("(%p)\n", obj);
 
-    req = malloc(sizeof(*req));
+    req = heap_alloc( sizeof (*req) );
     if( !req )
         return E_OUTOFMEMORY;
 

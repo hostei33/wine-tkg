@@ -1684,7 +1684,7 @@ static NTSTATUS tp_threadpool_alloc( struct threadpool **out )
     pool->objcount              = 0;
     pool->shutdown              = FALSE;
 
-    RtlInitializeCriticalSectionEx( &pool->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO );
+    RtlInitializeCriticalSection( &pool->cs );
     pool->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": threadpool.cs");
 
     for (i = 0; i < ARRAY_SIZE(pool->pools); ++i)
@@ -1848,7 +1848,7 @@ static NTSTATUS tp_group_alloc( struct threadpool_group **out )
     group->refcount     = 1;
     group->shutdown     = FALSE;
 
-    RtlInitializeCriticalSectionEx( &group->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO );
+    RtlInitializeCriticalSection( &group->cs );
     group->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": threadpool_group.cs");
 
     list_init( &group->members );

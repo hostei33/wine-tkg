@@ -33,7 +33,10 @@
 void OnAbout(void)
 {
             WCHAR appname[256];
+            WCHAR copy[] = {'B','r','i','a','n',' ',
+                            'P','a','l','m','e','r',' ',
+                            '<','b','r','i','a','n','p','@','r','e','a','c','t','o','s','.','o','r','g','>',0};
             LoadStringW( hInst, IDC_TASKMGR, appname, ARRAY_SIZE( appname ));
-            ShellAboutW( hMainWnd, appname, L"Brian Palmer <brianp@reactos.org>",
+            ShellAboutW( hMainWnd, appname, copy,
                          LoadImageA( hInst, (LPSTR)IDI_TASKMANAGER, IMAGE_ICON, 48, 48, LR_SHARED ));
 }

@@ -280,7 +280,6 @@ NTSTATUS WINAPI RtlCreateAtomTable( ULONG size, RTL_ATOM_TABLE *ret_table )
 NTSTATUS WINAPI RtlDestroyAtomTable( RTL_ATOM_TABLE table )
 {
     if (!table || table->Signature != TABLE_SIGNATURE) return STATUS_INVALID_PARAMETER;
-    RtlEmptyAtomTable( table, TRUE );
     RtlDestroyHandleTable( &table->HandleTable );
     RtlDeleteCriticalSection( &table->CriticalSection );
     table->Signature = 0;

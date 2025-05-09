@@ -34,5 +34,4 @@ STRINGTABLE
     STRING_SERVER, "Server"
     STRING_ENCRYPTION_TYPE, "KerbTicket Encryption Type"
     STRING_LOGON_ID, "Current LogonId is"
-    STRING_CLIENT, "Client"
 }

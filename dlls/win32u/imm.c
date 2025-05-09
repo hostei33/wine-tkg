@@ -34,17 +34,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(imm);
 
-struct ime_update
-{
-    struct list entry;
-    WORD vkey;
-    WORD scan;
-    BOOL key_consumed;
-    DWORD cursor_pos;
-    WCHAR *comp_str;
-    WCHAR *result_str;
-    WCHAR buffer[];
-};
 
 struct imc
 {
@@ -60,14 +49,10 @@ struct imm_thread_data
     HWND  default_hwnd;
     BOOL  disable_ime;
     UINT  window_cnt;
-    WORD  ime_process_scan;    /* scan code of the key being processed */
-    WORD  ime_process_vkey;    /* vkey of the key being processed */
-    struct ime_update *update; /* result of ImeProcessKey */
 };
 
 static struct list thread_data_list = LIST_INIT( thread_data_list );
 static pthread_mutex_t imm_mutex = PTHREAD_MUTEX_INITIALIZER;
-static struct list ime_updates = LIST_INIT( ime_updates );
 static BOOL disable_ime;
 
 static struct imc *get_imc_ptr( HIMC handle )
@@ -188,7 +173,7 @@ UINT WINAPI NtUserAssociateInputContext( HWND hwnd, HIMC ctx, ULONG flags )
     WND *win;
     UINT ret = AICR_OK;
 
-    TRACE( "%p %p %x\n", hwnd, ctx, flags );
+    TRACE( "%p %p %x\n", hwnd, ctx, (int)flags );
 
     switch (flags)
     {
@@ -198,7 +183,7 @@ UINT WINAPI NtUserAssociateInputContext( HWND hwnd, HIMC ctx, ULONG flags )
         break;
 
     default:
-        FIXME( "unknown flags 0x%x\n", flags );
+        FIXME( "unknown flags 0x%x\n", (int)flags );
         return AICR_FAILED;
     }
 
@@ -436,253 +421,15 @@ NTSTATUS WINAPI NtUserBuildHimcList( UINT thread_id, UINT count, HIMC *buffer, U
     return STATUS_SUCCESS;
 }
 
-static void post_ime_update( HWND hwnd, UINT cursor_pos, WCHAR *comp_str, WCHAR *result_str )
-{
-    static UINT ime_update_count;
-
-    struct imm_thread_data *data = get_imm_thread_data();
-    UINT id = -1, comp_len, result_len, prev_result_len;
-    WCHAR *prev_result_str, *tmp;
-    struct ime_update *update;
-
-    TRACE( "hwnd %p, cursor_pos %u - %u, comp_str %s, result_str %s\n", hwnd, LOWORD(cursor_pos),
-           HIWORD(cursor_pos), debugstr_w(comp_str), debugstr_w(result_str) );
-
-    comp_len = comp_str ? wcslen( comp_str ) + 1 : 0;
-    result_len = result_str ? wcslen( result_str ) + 1 : 0;
-
-    /* prepend or keep the previous result string, if there was any */
-    if (!data->ime_process_vkey || !data->update) prev_result_str = NULL;
-    else prev_result_str = data->update->result_str;
-    prev_result_len = prev_result_str ? wcslen( prev_result_str ) + 1 : 0;
-
-    if (!prev_result_len && !result_len) tmp = NULL;
-    else if (!(tmp = malloc( (prev_result_len + result_len) * sizeof(WCHAR) ))) return;
-
-    if (prev_result_len && result_len) prev_result_len -= 1; /* concat both strings */
-    if (prev_result_len) memcpy( tmp, prev_result_str, prev_result_len * sizeof(WCHAR) );
-    if (result_len) memcpy( tmp + prev_result_len, result_str, result_len * sizeof(WCHAR) );
-    result_len += prev_result_len;
-    result_str = tmp;
-
-    if (!(update = malloc( offsetof(struct ime_update, buffer[comp_len + result_len]) )))
-    {
-        free( tmp );
-        return;
-    }
-    update->cursor_pos = cursor_pos;
-    update->comp_str = comp_str ? memcpy( update->buffer, comp_str, comp_len * sizeof(WCHAR) ) : NULL;
-    update->result_str = result_str ? memcpy( update->buffer + comp_len, result_str, result_len * sizeof(WCHAR) ) : NULL;
-
-    if (!(update->vkey = data->ime_process_vkey))
-    {
-        pthread_mutex_lock( &imm_mutex );
-        id = update->scan = ++ime_update_count;
-        update->vkey = VK_PROCESSKEY;
-        update->key_consumed = TRUE;
-        list_add_tail( &ime_updates, &update->entry );
-        pthread_mutex_unlock( &imm_mutex );
-
-        NtUserPostMessage( hwnd, WM_WINE_IME_NOTIFY, IMN_WINE_SET_COMP_STRING, id );
-    }
-    else
-    {
-        update->scan = data->ime_process_scan;
-        free( data->update );
-        data->update = update;
-    }
-
-    free( tmp );
-}
-
-static UINT get_comp_clause_count( UINT comp_len, UINT cursor_begin, UINT cursor_end )
-{
-    if (cursor_begin == cursor_end || (cursor_begin == 0 && cursor_end == comp_len))
-        return 2;
-    else if (cursor_begin == 0 || cursor_end == comp_len)
-        return 3;
-    else
-        return 4;
-}
-
-static void set_comp_clause( DWORD *comp_clause, UINT comp_clause_count, UINT comp_len,
-                             UINT cursor_begin, UINT cursor_end )
-{
-    comp_clause[0] = 0;
-    switch (comp_clause_count)
-    {
-    case 2:
-        comp_clause[1] = comp_len;
-        break;
-    case 3:
-        comp_clause[1] = cursor_begin == 0 ? cursor_end : cursor_begin;
-        comp_clause[2] = comp_len;
-        break;
-    case 4:
-        comp_clause[1] = cursor_begin;
-        comp_clause[2] = cursor_end;
-        comp_clause[3] = comp_len;
-        break;
-    }
-}
-
-static void set_comp_attr( BYTE *comp_attr, UINT comp_attr_len, UINT cursor_begin, UINT cursor_end )
-{
-    if (cursor_begin == cursor_end)
-        memset( comp_attr, ATTR_INPUT, comp_attr_len );
-    else
-    {
-        memset( comp_attr, ATTR_CONVERTED, comp_attr_len );
-        memset( comp_attr + cursor_begin, ATTR_TARGET_CONVERTED, cursor_end - cursor_begin );
-    }
-}
-
-static struct ime_update *find_ime_update( WORD vkey, WORD scan )
-{
-    struct ime_update *update;
-
-    LIST_FOR_EACH_ENTRY( update, &ime_updates, struct ime_update, entry )
-        if (update->vkey == vkey && update->scan == scan) return update;
-
-    return NULL;
-}
-
-static UINT ime_to_tascii_ex( UINT vkey, UINT lparam, const BYTE *state, COMPOSITIONSTRING *compstr,
-                              BOOL *key_consumed, HIMC himc )
-{
-    UINT needed = sizeof(COMPOSITIONSTRING), comp_len, result_len, comp_clause_count = 0;
-    UINT cursor_begin = 0, cursor_end = 0;
-    struct ime_update *update;
-    void *dst;
-
-    TRACE( "vkey %#x, lparam %#x, state %p, compstr %p, himc %p\n", vkey, lparam, state, compstr, himc );
-
-    pthread_mutex_lock( &imm_mutex );
-
-    if (!(update = find_ime_update( vkey, lparam )))
-    {
-        pthread_mutex_unlock( &imm_mutex );
-        return STATUS_NOT_FOUND;
-    }
-
-    *key_consumed = update->key_consumed;
-
-    if (!update->comp_str) comp_len = 0;
-    else
-    {
-        comp_len = wcslen( update->comp_str );
-        cursor_begin = LOWORD(update->cursor_pos);
-        cursor_end   = HIWORD(update->cursor_pos);
-
-        if (cursor_begin > comp_len) cursor_begin = comp_len;
-        if (cursor_end > comp_len) cursor_end = comp_len;
-        if (cursor_end < cursor_begin) cursor_end = cursor_begin;
-
-        comp_clause_count = get_comp_clause_count( comp_len, cursor_begin, cursor_end );
-
-        needed += comp_len * sizeof(WCHAR); /* GCS_COMPSTR */
-        needed += comp_len; /* GCS_COMPATTR */
-        needed += comp_clause_count * sizeof(DWORD); /* GCS_COMPCLAUSE */
-    }
-
-    if (!update->result_str) result_len = 0;
-    else
-    {
-        result_len = wcslen( update->result_str );
-        needed += result_len * sizeof(WCHAR); /* GCS_RESULTSTR */
-        needed += 2 * sizeof(DWORD); /* GCS_RESULTCLAUSE */
-    }
-
-    if (compstr->dwSize < needed)
-    {
-        compstr->dwSize = needed;
-        pthread_mutex_unlock( &imm_mutex );
-        return STATUS_BUFFER_TOO_SMALL;
-    }
-
-    list_remove( &update->entry );
-    pthread_mutex_unlock( &imm_mutex );
-
-    memset( compstr, 0, sizeof(*compstr) );
-    compstr->dwSize = sizeof(*compstr);
-
-    if (update->comp_str)
-    {
-        compstr->dwCursorPos = cursor_begin;
-
-        compstr->dwCompStrLen = comp_len;
-        compstr->dwCompStrOffset = compstr->dwSize;
-        dst = (BYTE *)compstr + compstr->dwCompStrOffset;
-        memcpy( dst, update->comp_str, compstr->dwCompStrLen * sizeof(WCHAR) );
-        compstr->dwSize += compstr->dwCompStrLen * sizeof(WCHAR);
-
-        compstr->dwCompClauseLen = comp_clause_count * sizeof(DWORD);
-        compstr->dwCompClauseOffset = compstr->dwSize;
-        dst = (BYTE *)compstr + compstr->dwCompClauseOffset;
-        set_comp_clause( dst, comp_clause_count, comp_len, cursor_begin, cursor_end );
-        compstr->dwSize += compstr->dwCompClauseLen;
-
-        compstr->dwCompAttrLen = compstr->dwCompStrLen;
-        compstr->dwCompAttrOffset = compstr->dwSize;
-        dst = (BYTE *)compstr + compstr->dwCompAttrOffset;
-        set_comp_attr( dst, compstr->dwCompAttrLen, cursor_begin, cursor_end );
-        compstr->dwSize += compstr->dwCompAttrLen;
-    }
-
-    if (update->result_str)
-    {
-        compstr->dwResultStrLen = result_len;
-        compstr->dwResultStrOffset = compstr->dwSize;
-        dst = (BYTE *)compstr + compstr->dwResultStrOffset;
-        memcpy( dst, update->result_str, compstr->dwResultStrLen * sizeof(WCHAR) );
-        compstr->dwSize += compstr->dwResultStrLen * sizeof(WCHAR);
-
-        compstr->dwResultClauseLen = 2 * sizeof(DWORD);
-        compstr->dwResultClauseOffset = compstr->dwSize;
-        dst = (BYTE *)compstr + compstr->dwResultClauseOffset;
-        *((DWORD *)dst + 0) = 0;
-        *((DWORD *)dst + 1) = compstr->dwResultStrLen;
-        compstr->dwSize += compstr->dwResultClauseLen;
-    }
-
-    free( update );
-    return 0;
-}
-
 LRESULT ime_driver_call( HWND hwnd, enum wine_ime_call call, WPARAM wparam, LPARAM lparam,
                          struct ime_driver_call_params *params )
 {
-    LRESULT res;
-
     switch (call)
     {
     case WINE_IME_PROCESS_KEY:
-    {
-        struct imm_thread_data *data = get_imm_thread_data();
-
-        data->ime_process_scan = HIWORD(lparam);
-        data->ime_process_vkey = LOWORD(wparam);
-        res = user_driver->pImeProcessKey( params->himc, wparam, lparam, params->state );
-        data->ime_process_vkey = data->ime_process_scan = 0;
-
-        if (data->update)
-        {
-            data->update->key_consumed = res;
-            pthread_mutex_lock( &imm_mutex );
-            list_add_tail( &ime_updates, &data->update->entry );
-            pthread_mutex_unlock( &imm_mutex );
-            data->update = NULL;
-            res = TRUE;
-        }
-
-        TRACE( "processing scan %#x, vkey %#x -> %lu\n", LOWORD(wparam), HIWORD(lparam), res );
-        return res;
-    }
+        return user_driver->pImeProcessKey( params->himc, wparam, lparam, params->state );
     case WINE_IME_TO_ASCII_EX:
-        return ime_to_tascii_ex( wparam, lparam, params->state, params->compstr, params->key_consumed, params->himc );
-    case WINE_IME_POST_UPDATE:
-        post_ime_update( hwnd, wparam, (WCHAR *)lparam, (WCHAR *)params );
-        return 0;
+        return user_driver->pImeToAsciiEx( wparam, lparam, params->state, params->compstr, params->himc );
     default:
         ERR( "Unknown IME driver call %#x\n", call );
         return 0;
@@ -703,7 +450,7 @@ BOOL WINAPI ImmProcessKey( HWND hwnd, HKL hkl, UINT vkey, LPARAM key_data, DWORD
         { .hwnd = hwnd, .hkl = hkl, .vkey = vkey, .key_data = key_data };
     void *ret_ptr;
     ULONG ret_len;
-    return !KeUserModeCallback( NtUserImmProcessKey, &params, sizeof(params), &ret_ptr, &ret_len );
+    return KeUserModeCallback( NtUserImmProcessKey, &params, sizeof(params), &ret_ptr, &ret_len );
 }
 
 BOOL WINAPI ImmTranslateMessage( HWND hwnd, UINT msg, WPARAM wparam, LPARAM key_data )
@@ -712,5 +459,6 @@ BOOL WINAPI ImmTranslateMessage( HWND hwnd, UINT msg, WPARAM wparam, LPARAM key_
         { .hwnd = hwnd, .msg = msg, .wparam = wparam, .key_data = key_data };
     void *ret_ptr;
     ULONG ret_len;
-    return !KeUserModeCallback( NtUserImmTranslateMessage, &params, sizeof(params), &ret_ptr, &ret_len );
+    return KeUserModeCallback( NtUserImmTranslateMessage, &params, sizeof(params),
+                               &ret_ptr, &ret_len );
 }

@@ -56,7 +56,7 @@ fluid_event_clear(fluid_event_t *evt)
  * @return New sequencer event structure or NULL if out of memory
  */
 fluid_event_t *
-new_fluid_event(void)
+new_fluid_event()
 {
     fluid_event_t *evt;
 

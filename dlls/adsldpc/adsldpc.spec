@@ -1,9 +1,5 @@
-@ stub -arch=arm ??0CLexer@@QAA@XZ
-@ stub -arch=i386 ??0CLexer@@QAE@XZ
-@ stub -arch=win64 ??0CLexer@@QEAA@XZ
-@ stub -arch=arm ??1CLexer@@QAA@XZ
-@ stub -arch=i386 ??1CLexer@@QAE@XZ
-@ stub -arch=win64 ??1CLexer@@QEAA@XZ
+@ stub ??0CLexer@@QAE@XZ
+@ stub ??1CLexer@@QAE@XZ
 @ stub ADSIPrint
 @ stub ADsAbandonSearch
 @ stub ADsCloseSearchHandle
@@ -57,15 +53,11 @@
 @ stub GetDisplayName
 @ stub GetDomainDNSNameForDomain
 @ stub GetLDAPTypeName
-@ stub -arch=arm ?GetNextToken@CLexer@@QAAJPAGPAK@Z
-@ stub -arch=i386 ?GetNextToken@CLexer@@QAEJPAGPAK@Z
-@ stub -arch=win64 ?GetNextToken@CLexer@@QEAAJPEAGPEAK@Z
+@ stub ?GetNextToken@CLexer@@QAEJPAGPAK@Z
 @ stub GetServerAndPort
 @ stub GetSyntaxOfAttribute
 @ stub InitObjectInfo
-@ stub -arch=arm ?InitializePath@CLexer@@QAAJPAG@Z
-@ stub -arch=i386 ?InitializePath@CLexer@@QAEJPAG@Z
-@ stub -arch=win64 ?InitializePath@CLexer@@QEAAJPEAG@Z
+@ stub ?InitializePath@CLexer@@QAEJPAG@Z
 @ stub IsGCNamespace
 @ stub LdapAddExtS
 @ stub LdapAddS
@@ -144,15 +136,9 @@
 @ stub SchemaGetSyntaxOfAttribute
 @ stub SchemaIsClassAContainer
 @ stub SchemaOpen
-@ stub -arch=arm ?SetAtDisabler@CLexer@@QAAXH@Z
-@ stub -arch=i386 ?SetAtDisabler@CLexer@@QAEXH@Z
-@ stub -arch=win64 ?SetAtDisabler@CLexer@@QEAAXH@Z
-@ stub -arch=arm ?SetExclaimnationDisabler@CLexer@@QAAXH@Z
-@ stub -arch=i386 ?SetExclaimnationDisabler@CLexer@@QAEXH@Z
-@ stub -arch=win64 ?SetExclaimnationDisabler@CLexer@@QEAAXH@Z
-@ stub -arch=arm ?SetFSlashDisabler@CLexer@@QAAXH@Z
-@ stub -arch=i386 ?SetFSlashDisabler@CLexer@@QAEXH@Z
-@ stub -arch=win64 ?SetFSlashDisabler@CLexer@@QEAAXH@Z
+@ stub ?SetAtDisabler@CLexer@@QAEXH@Z
+@ stub ?SetExclaimnationDisabler@CLexer@@QAEXH@Z
+@ stub ?SetFSlashDisabler@CLexer@@QAEXH@Z
 @ stub SortAndRemoveDuplicateOIDs
 @ stub UnMarshallLDAPToLDAPSynID
 @ stub intcmp

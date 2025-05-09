@@ -18,7 +18,6 @@
 
 #define COBJMACROS
 
-#include <assert.h>
 #include <stdarg.h>
 
 #include "windef.h"
@@ -29,15 +28,6 @@
 #include "wbemprox_private.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(wbemprox);
-
-static CRITICAL_SECTION table_list_cs;
-static CRITICAL_SECTION_DEBUG table_debug =
-{
-    0, 0, &table_list_cs,
-    { &table_debug.ProcessLocksList, &table_debug.ProcessLocksList },
-      0, 0, { (DWORD_PTR)(__FILE__ ": table_list_cs") }
-};
-static CRITICAL_SECTION table_list_cs = { &table_debug, -1, 0, 0, 0, 0 };
 
 HRESULT get_column_index( const struct table *table, const WCHAR *name, UINT *column )
 {
@@ -311,24 +301,44 @@ void free_row_values( const struct table *table, UINT row )
     }
 }
 
+void clear_table( struct table *table )
+{
+    UINT i;
+
+    if (!table->data) return;
+
+    for (i = 0; i < table->num_rows; i++) free_row_values( table, i );
+    if (table->fill)
+    {
+        table->num_rows = 0;
+        table->num_rows_allocated = 0;
+        free( table->data );
+        table->data = NULL;
+    }
+}
+
 void free_columns( struct column *columns, UINT num_cols )
 {
     UINT i;
+
     for (i = 0; i < num_cols; i++) { free( (WCHAR *)columns[i].name ); }
     free( columns );
 }
 
-static void free_table( struct table *table )
+void free_table( struct table *table )
 {
-    UINT i;
+    if (!table) return;
 
-    TRACE("destroying %p\n", table);
-
-    free( (WCHAR *)table->name );
-    for (i = 0; i < table->num_rows; i++) free_row_values( table, i );
-    free( table->data );
-    free_columns( (struct column *)table->columns, table->num_cols );
-    free( table );
+    clear_table( table );
+    if (table->flags & TABLE_FLAG_DYNAMIC)
+    {
+        TRACE("destroying %p\n", table);
+        free( (WCHAR *)table->name );
+        free_columns( (struct column *)table->columns, table->num_cols );
+        free( table->data );
+        list_remove( &table->entry );
+        free( table );
+    }
 }
 
 void release_table( struct table *table )
@@ -336,96 +346,47 @@ void release_table( struct table *table )
     if (!InterlockedDecrement( &table->refs )) free_table( table );
 }
 
-struct table *grab_table( struct table *table )
+struct table *addref_table( struct table *table )
 {
     InterlockedIncrement( &table->refs );
     return table;
 }
 
-struct table *alloc_table( void )
+struct table *grab_table( enum wbm_namespace ns, const WCHAR *name )
 {
     struct table *table;
-    if (!(table = calloc( 1, sizeof(*table) ))) return NULL;
-    list_init( &table->entry );
-    table->refs = 1;
-    return table;
-}
-
-static struct column *dup_columns( const struct column *src, UINT count )
-{
-    struct column *dst;
-    int i;
-
-    if (!(dst = calloc( count, sizeof(*dst) ))) return NULL;
-    for (i = 0; i < count; i++)
-    {
-        if (!(dst[i].name = wcsdup( src[i].name )))
-        {
-            for (; i >= 0; i--) free( (WCHAR *)dst[i].name );
-            free( dst);
-            return NULL;
-        }
-        dst[i].type = src[i].type;
-    }
-    return dst;
-}
-
-static struct table *dup_table( const struct table *src )
-{
-    struct table *dst;
-
-    if (!(dst = alloc_table())) return NULL;
-    if (!(dst->name = wcsdup( src->name )))
-    {
-        free_table( dst );
-        return NULL;
-    }
-    if (!(dst->columns = dup_columns( src->columns, src->num_cols )))
-    {
-        free_table( dst );
-        return NULL;
-    }
-    dst->num_cols = src->num_cols;
-    if (src->data)
-    {
-        UINT size = get_row_size(src) * src->num_rows;
-
-        if (!(dst->data = malloc( size )))
-        {
-            free_table( dst );
-            return NULL;
-        }
-        memcpy( dst->data, src->data, size );
-        dst->num_rows = dst->num_rows_allocated = src->num_rows;
-    }
-    dst->fill = src->fill;
-
-    return dst;
-}
-
-struct table *create_table( enum wbm_namespace ns, const WCHAR *name )
-{
-    struct table *iter, *table;
 
     if (ns == WBEMPROX_NAMESPACE_LAST) return NULL;
 
-    EnterCriticalSection( &table_list_cs );
-
-    LIST_FOR_EACH_ENTRY( iter, table_list[ns], struct table, entry )
+    LIST_FOR_EACH_ENTRY( table, table_list[ns], struct table, entry )
     {
-        if (name && !wcsicmp( iter->name, name ))
+        if (name && !wcsicmp( table->name, name ))
         {
-            if ((table = dup_table( iter )))
-            {
-                TRACE("returning %p\n", table);
-                LeaveCriticalSection( &table_list_cs );
-                return table;
-            }
+            TRACE("returning %p\n", table);
+            return addref_table( table );
         }
     }
-
-    LeaveCriticalSection( &table_list_cs );
     return NULL;
+}
+
+struct table *create_table( const WCHAR *name, UINT num_cols, const struct column *columns,
+                            UINT num_rows, UINT num_allocated, BYTE *data,
+                            enum fill_status (*fill)(struct table *, const struct expr *cond) )
+{
+    struct table *table;
+
+    if (!(table = malloc( sizeof(*table) ))) return NULL;
+    table->name               = wcsdup( name );
+    table->num_cols           = num_cols;
+    table->columns            = columns;
+    table->num_rows           = num_rows;
+    table->num_rows_allocated = num_allocated;
+    table->data               = data;
+    table->fill               = fill;
+    table->flags              = TABLE_FLAG_DYNAMIC;
+    table->refs               = 0;
+    list_init( &table->entry );
+    return table;
 }
 
 BOOL add_table( enum wbm_namespace ns, struct table *table )
@@ -434,20 +395,15 @@ BOOL add_table( enum wbm_namespace ns, struct table *table )
 
     if (ns == WBEMPROX_NAMESPACE_LAST) return FALSE;
 
-    EnterCriticalSection( &table_list_cs );
-
     LIST_FOR_EACH_ENTRY( iter, table_list[ns], struct table, entry )
     {
         if (!wcsicmp( iter->name, table->name ))
         {
             TRACE("table %s already exists\n", debugstr_w(table->name));
-            LeaveCriticalSection( &table_list_cs );
             return FALSE;
         }
     }
     list_add_tail( table_list[ns], &table->entry );
-
-    LeaveCriticalSection( &table_list_cs );
     TRACE("added %p\n", table);
     return TRUE;
 }
@@ -455,56 +411,24 @@ BOOL add_table( enum wbm_namespace ns, struct table *table )
 BSTR get_method_name( enum wbm_namespace ns, const WCHAR *class, UINT index )
 {
     struct table *table;
+    UINT i, count = 0;
+    BSTR ret;
 
-    EnterCriticalSection( &table_list_cs );
+    if (!(table = grab_table( ns, class ))) return NULL;
 
-    LIST_FOR_EACH_ENTRY( table, table_list[ns], struct table, entry )
+    for (i = 0; i < table->num_cols; i++)
     {
-        if (!wcsicmp( table->name, class ))
+        if (table->columns[i].type & COL_FLAG_METHOD)
         {
-            UINT i, count = 0;
-            for (i = 0; i < table->num_cols; i++)
+            if (index == count)
             {
-                if (table->columns[i].type & COL_FLAG_METHOD)
-                {
-                    if (index == count++)
-                    {
-                        BSTR ret = SysAllocString( table->columns[i].name );
-                        LeaveCriticalSection( &table_list_cs );
-                        return ret;
-                    }
-                }
+                ret = SysAllocString( table->columns[i].name );
+                release_table( table );
+                return ret;
             }
+            count++;
         }
     }
-
-    LeaveCriticalSection( &table_list_cs );
-    return NULL;
-}
-
-WCHAR *get_first_key_property( enum wbm_namespace ns, const WCHAR *class )
-{
-    struct table *table;
-
-    EnterCriticalSection( &table_list_cs );
-
-    LIST_FOR_EACH_ENTRY( table, table_list[ns], struct table, entry )
-    {
-        if (!wcsicmp( table->name, class ))
-        {
-            UINT i;
-            for (i = 0; i < table->num_cols; i++)
-            {
-                if (table->columns[i].type & COL_FLAG_KEY)
-                {
-                    WCHAR *ret = wcsdup( table->columns[i].name );
-                    LeaveCriticalSection( &table_list_cs );
-                    return ret;
-                }
-            }
-        }
-    }
-
-    LeaveCriticalSection( &table_list_cs );
+    release_table( table );
     return NULL;
 }

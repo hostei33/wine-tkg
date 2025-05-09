@@ -247,7 +247,7 @@ HRESULT WINAPI AtlModuleGetClassObject(_ATL_MODULEW *pm, REFCLSID rclsid,
                                                   (void **)&obj->pCF);
                 if (obj->pCF)
                     hres = IUnknown_QueryInterface(obj->pCF, riid, ppv);
-                return hres;
+                break;
             }
         }
     }
@@ -258,7 +258,7 @@ HRESULT WINAPI AtlModuleGetClassObject(_ATL_MODULEW *pm, REFCLSID rclsid,
 }
 
 /***********************************************************************
- *           AtlModuleRegisterTypeLib             [ATL.@]
+ *           AtlModuleGetClassObject              [ATL.@]
  */
 HRESULT WINAPI AtlModuleRegisterTypeLib(_ATL_MODULEW *pm, LPCOLESTR lpszIndex)
 {

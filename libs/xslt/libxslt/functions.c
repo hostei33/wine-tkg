@@ -96,25 +96,45 @@ xsltXPathFunctionLookup (void *vctxt,
  ************************************************************************/
 
 static void
-xsltDocumentFunctionLoadDocument(xmlXPathParserContextPtr ctxt,
-                                 const xmlChar* URI, const xmlChar *fragment)
+xsltDocumentFunctionLoadDocument(xmlXPathParserContextPtr ctxt, xmlChar* URI)
 {
     xsltTransformContextPtr tctxt;
+    xmlURIPtr uri;
+    xmlChar *fragment;
     xsltDocumentPtr idoc; /* document info */
     xmlDocPtr doc;
     xmlXPathContextPtr xptrctxt = NULL;
     xmlXPathObjectPtr resObj = NULL;
 
-    (void) xptrctxt;
-
     tctxt = xsltXPathGetTransformContext(ctxt);
     if (tctxt == NULL) {
 	xsltTransformError(NULL, NULL, NULL,
 	    "document() : internal error tctxt == NULL\n");
-        goto out_fragment;
+	valuePush(ctxt, xmlXPathNewNodeSet(NULL));
+	return;
     }
 
-    idoc = xsltLoadDocument(tctxt, URI);
+    uri = xmlParseURI((const char *) URI);
+    if (uri == NULL) {
+	xsltTransformError(tctxt, NULL, NULL,
+	    "document() : failed to parse URI\n");
+	valuePush(ctxt, xmlXPathNewNodeSet(NULL));
+	return;
+    }
+
+    /*
+     * check for and remove fragment identifier
+     */
+    fragment = (xmlChar *)uri->fragment;
+    if (fragment != NULL) {
+        xmlChar *newURI;
+	uri->fragment = NULL;
+	newURI = xmlSaveUri(uri);
+	idoc = xsltLoadDocument(tctxt, newURI);
+	xmlFree(newURI);
+    } else
+	idoc = xsltLoadDocument(tctxt, URI);
+    xmlFreeURI(uri);
 
     if (idoc == NULL) {
 	if ((URI == NULL) ||
@@ -127,7 +147,12 @@ xsltDocumentFunctionLoadDocument(xmlXPathParserContextPtr ctxt,
 	    */
 	    doc = tctxt->style->doc;
 	} else {
-            goto out_fragment;
+	    valuePush(ctxt, xmlXPathNewNodeSet(NULL));
+
+	    if (fragment != NULL)
+		xmlFree(fragment);
+
+	    return;
 	}
     } else
 	doc = idoc->doc;
@@ -139,7 +164,7 @@ xsltDocumentFunctionLoadDocument(xmlXPathParserContextPtr ctxt,
 
     /* use XPointer of HTML location for fragment ID */
 #ifdef LIBXML_XPTR_ENABLED
-    xptrctxt = xmlXPathNewContext(doc);
+    xptrctxt = xmlXPtrNewContext(doc, NULL, NULL);
     if (xptrctxt == NULL) {
 	xsltTransformError(tctxt, NULL, NULL,
 	    "document() : internal error xptrctxt == NULL\n");
@@ -174,6 +199,7 @@ out_fragment:
     if (resObj == NULL)
         resObj = xmlXPathNewNodeSet(NULL);
     valuePush(ctxt, resObj);
+    xmlFree(fragment);
 }
 
 /**
@@ -189,8 +215,7 @@ xsltDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
 {
     xmlXPathObjectPtr obj, obj2 = NULL;
     xmlChar *base = NULL, *URI;
-    xmlChar *newURI = NULL;
-    xmlChar *fragment = NULL;
+
 
     if ((nargs < 1) || (nargs > 2)) {
         xsltTransformError(xsltXPathGetTransformContext(ctxt), NULL, NULL,
@@ -272,32 +297,7 @@ xsltDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
         valuePush(ctxt, xmlXPathNewNodeSet(NULL));
     } else {
         xsltTransformContextPtr tctxt;
-        xmlURIPtr uri;
-        const xmlChar *url;
-
         tctxt = xsltXPathGetTransformContext(ctxt);
-
-        url = obj->stringval;
-
-        uri = xmlParseURI((const char *) url);
-        if (uri == NULL) {
-            xsltTransformError(tctxt, NULL, NULL,
-                "document() : failed to parse URI '%s'\n", url);
-            valuePush(ctxt, xmlXPathNewNodeSet(NULL));
-            goto error;
-        }
-
-        /*
-         * check for and remove fragment identifier
-         */
-        fragment = (xmlChar *)uri->fragment;
-        if (fragment != NULL) {
-            uri->fragment = NULL;
-            newURI = xmlSaveUri(uri);
-            url = newURI;
-        }
-        xmlFreeURI(uri);
-
         if ((obj2 != NULL) && (obj2->nodesetval != NULL) &&
             (obj2->nodesetval->nodeNr > 0) &&
             IS_XSLT_REAL_NODE(obj2->nodesetval->nodeTab[0])) {
@@ -318,8 +318,7 @@ xsltDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
                                       (xmlNodePtr) tctxt->style->doc);
             }
         }
-
-        URI = xmlBuildURI(url, base);
+        URI = xmlBuildURI(obj->stringval, base);
         if (base != NULL)
             xmlFree(base);
         if (URI == NULL) {
@@ -332,14 +331,10 @@ xsltDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
                 valuePush(ctxt, xmlXPathNewNodeSet(NULL));
             }
         } else {
-	    xsltDocumentFunctionLoadDocument(ctxt, URI, fragment);
+	    xsltDocumentFunctionLoadDocument( ctxt, URI );
 	    xmlFree(URI);
 	}
     }
-
-error:
-    xmlFree(newURI);
-    xmlFree(fragment);
     xmlXPathFreeObject(obj);
     if (obj2 != NULL)
         xmlXPathFreeObject(obj2);
@@ -700,7 +695,7 @@ xsltGenerateIdFunction(xmlXPathParserContextPtr ctxt, int nargs){
     const xmlChar *nsPrefix = NULL;
     void **psviPtr;
     unsigned long id;
-    size_t size, nsPrefixSize = 0;
+    size_t size, nsPrefixSize;
 
     tctxt = xsltXPathGetTransformContext(ctxt);
 

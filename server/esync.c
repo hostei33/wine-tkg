@@ -23,6 +23,7 @@
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdarg.h>
 #ifdef HAVE_SYS_EVENTFD_H
 # include <sys/eventfd.h>
@@ -58,7 +59,7 @@ int do_esync(void)
 #endif
 }
 
-static char shm_name[200];
+static char shm_name[29];
 static int shm_fd;
 static off_t shm_size;
 static void **shm_addrs;
@@ -68,7 +69,7 @@ static long pagesize;
 static void shm_cleanup(void)
 {
     close( shm_fd );
-    if (unlink( shm_name ) == -1)
+    if (shm_unlink( shm_name ) == -1)
         perror( "shm_unlink" );
 }
 
@@ -80,12 +81,13 @@ void esync_init(void)
         fatal_error( "cannot stat config dir\n" );
 
     if (st.st_ino != (unsigned long)st.st_ino)
-        	sprintf( shm_name, "/data/data/com.winlator/files/rootfs/tmp/wine-%lx%08lx-esync", (unsigned long)((unsigned long long)st.st_ino >> 32), (unsigned long)st.st_ino );
-    	else
-            sprintf( shm_name, "/data/data/com.winlator/files/rootfs/tmp/wine-%lx-esync", (unsigned long)st.st_ino );
-        unlink( shm_name );
-        shm_fd = open( shm_name, O_RDWR | O_CREAT | O_EXCL, 0644 );
-        
+        sprintf( shm_name, "/data/data/com.winlator/files/rootfs/tmp/wine-%lx%08lx-esync", (unsigned long)((unsigned long long)st.st_ino >> 32), (unsigned long)st.st_ino );
+    else
+        sprintf( shm_name, "/data/data/com.winlator/files/rootfs/tmp/wine-%lx-esync", (unsigned long)st.st_ino );
+
+    shm_unlink( shm_name );
+
+    shm_fd = shm_open( shm_name, O_RDWR | O_CREAT | O_EXCL, 0644 );
     if (shm_fd == -1)
         perror( "shm_open" );
 

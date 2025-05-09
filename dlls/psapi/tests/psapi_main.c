@@ -530,6 +530,7 @@ static void test_EnumProcessModulesEx(void)
             ret = GetSystemDirectoryA(buffer, sizeof(buffer));
             ok(ret, "GetSystemDirectoryA failed: %lu\n", GetLastError());
             count = snapshot_count_in_dir(snap, pi.hProcess, buffer);
+            todo_wine
             ok(count > 2, "Wrong count %u in %s\n", count, buffer);
 
             /* in fact, this error is only returned when (list & 3 == 0), otherwise the corresponding
@@ -580,6 +581,7 @@ static void test_EnumProcessModulesEx(void)
 static void test_GetModuleInformation(void)
 {
     HMODULE hMod = GetModuleHandleA(NULL);
+    DWORD *tmp, counter = 0;
     MODULEINFO info;
     DWORD ret;
 
@@ -599,10 +601,21 @@ static void test_GetModuleInformation(void)
     GetModuleInformation(hpQV, hMod, &info, sizeof(info)-1);
     ok(GetLastError() == ERROR_INSUFFICIENT_BUFFER, "expected error=ERROR_INSUFFICIENT_BUFFER but got %ld\n", GetLastError());
 
-    SetLastError(0xdeadbeef);
     ret = GetModuleInformation(hpQV, hMod, &info, sizeof(info));
     ok(ret == 1, "failed with %ld\n", GetLastError());
     ok(info.lpBaseOfDll == hMod, "lpBaseOfDll=%p hMod=%p\n", info.lpBaseOfDll, hMod);
+
+    hMod = LoadLibraryA("shell32.dll");
+    ok(hMod != NULL, "Failed to load shell32.dll, error: %u\n", GetLastError());
+
+    ret = GetModuleInformation(hpQV, hMod, &info, sizeof(info));
+    ok(ret == 1, "failed with %d\n", GetLastError());
+    info.SizeOfImage /= sizeof(DWORD);
+    for (tmp = (DWORD *)hMod; info.SizeOfImage; info.SizeOfImage--)
+        counter ^= *tmp++;
+    trace("xor of shell32: %08x\n", counter);
+
+    FreeLibrary(hMod);
 }
 
 static BOOL check_with_margin(SIZE_T perf, SIZE_T sysperf, int margin)
@@ -990,11 +1003,9 @@ static void test_GetProcessImageFileName(void)
 static void test_GetModuleFileNameEx(void)
 {
     HMODULE hMod = GetModuleHandleA(NULL);
-    STARTUPINFOW si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
     char szModExPath[MAX_PATH+1], szModPath[MAX_PATH+1];
-    WCHAR buffer[MAX_PATH], buffer2[MAX_PATH];
-    DWORD ret, size, size2;
+    WCHAR buffer[MAX_PATH];
+    DWORD ret;
 
     SetLastError(0xdeadbeef);
     ret = GetModuleFileNameExA(NULL, hMod, szModExPath, sizeof(szModExPath));
@@ -1052,30 +1063,6 @@ static void test_GetModuleFileNameEx(void)
         ok(GetLastError() == 0xdeadbeef, "got error %ld\n", GetLastError());
         ok( buffer[0] == 0xcc, "buffer modified %s\n", wine_dbgstr_w(buffer) );
     }
-
-    /* Verify that retrieving the main process image file name works on a suspended process,
-     * where the loader has not yet had a chance to initialize the PEB. */
-    wcscpy(buffer, L"C:\\windows\\system32\\msinfo32.exe");
-    ret = CreateProcessW(NULL, buffer, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi);
-    ok(ret, "CreateProcessW failed: %lu\n", GetLastError());
-
-    size = GetModuleFileNameExW(pi.hProcess, NULL, buffer, ARRAYSIZE(buffer));
-    ok(size ||
-       broken(GetLastError() == ERROR_INVALID_HANDLE), /* < Win10 */
-       "GetModuleFileNameExW failed: %lu\n", GetLastError());
-    if (GetLastError() == ERROR_INVALID_HANDLE)
-        goto cleanup;
-    ok(size == wcslen(buffer), "unexpected size %lu\n", size);
-
-    size2 = ARRAYSIZE(buffer2);
-    ret = QueryFullProcessImageNameW(pi.hProcess, 0, buffer2, &size2);
-    ok(size == size2, "got size %lu, expected %lu\n", size, size2);
-    ok(!wcscmp(buffer, buffer2), "unexpected image name %s, expected %s\n", debugstr_w(buffer), debugstr_w(buffer2));
-
-cleanup:
-    TerminateProcess(pi.hProcess, 0);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
 }
 
 static void test_GetModuleBaseName(void)

@@ -406,7 +406,7 @@ typedef struct {
 
 typedef struct {
     streamoff off;
-    INT64 pos;
+    __int64 DECLSPEC_ALIGN(8) pos;
     int state;
 } fpos_int;
 
@@ -483,7 +483,7 @@ static void (__thiscall *p_basic_string_wchar_dtor)(basic_string_wchar*);
 /* Emulate a __thiscall */
 #ifdef __i386__
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 struct thiscall_thunk
 {
     BYTE pop_eax;    /* popl  %eax (ret addr) */
@@ -492,7 +492,7 @@ struct thiscall_thunk
     BYTE push_eax;   /* pushl %eax */
     WORD jmp_edx;    /* jmp  *%edx */
 };
-#pragma pack(pop)
+#include "poppack.h"
 
 static void * (WINAPI *call_thiscall_func1)( void *func, void *this );
 static void * (WINAPI *call_thiscall_func2)( void *func, void *this, const void *a );

@@ -47,7 +47,6 @@
 #define IOCTL_WINETEST_CHILD_GET_ID         CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define IOCTL_WINETEST_CHILD_MARK_PENDING   CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_NEITHER, FILE_ANY_ACCESS)
 #define IOCTL_WINETEST_CHILD_CHECK_REMOVED  CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_NEITHER, FILE_ANY_ACCESS)
-#define IOCTL_WINETEST_CHILD_MAIN           CTL_CODE(FILE_DEVICE_UNKNOWN, 0x803, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 static const char teststr[] = "Wine is not an emulator";
 
@@ -81,22 +80,3 @@ static const GUID control_class = {0xdeadbeef, 0x29ef, 0x4538, {0xa5, 0xfd, 0xb6
 
 #define SERVER_LISTEN_PORT 9374
 #define CLIENT_LISTEN_PORT 9375
-
-#define WINETEST_DEFINE_DEVPROPS                                                                         \
-    WINETEST_DRIVER_DEVPROP( 1, DEVPROP_TYPE_BYTE, {.byte = 0xde}, sizeof( BYTE ) )                      \
-    WINETEST_DRIVER_DEVPROP( 2, DEVPROP_TYPE_INT16, {.int16 = 0xbeef}, sizeof( INT16 ) )                 \
-    WINETEST_DRIVER_DEVPROP( 3, DEVPROP_TYPE_UINT16, {.uint16 = 0xbeef}, sizeof( UINT16 ) )              \
-    WINETEST_DRIVER_DEVPROP( 4, DEVPROP_TYPE_INT32, {.int32 = 0xdeadbeef}, sizeof( INT32 ) )             \
-    WINETEST_DRIVER_DEVPROP( 5, DEVPROP_TYPE_UINT32, {.uint32 = 0xdeadbeef}, sizeof( UINT32 ) )          \
-    WINETEST_DRIVER_DEVPROP( 6, DEVPROP_TYPE_INT64, {.int64 = 0xdeadbeefdeadbeef}, sizeof( INT64 ) )     \
-    WINETEST_DRIVER_DEVPROP( 7, DEVPROP_TYPE_UINT64, {.uint64 = 0xdeadbeefdeadbeef}, sizeof( UINT64 ) )
-
-#define WINETEST_DRIVER_DEVPROP( i, typ, val, size )                                               \
-    DEFINE_DEVPROPKEY( DEVPKEY_Winetest_##i, 0xdeadbeef, 0xdead, 0xbeef, 0xde, 0xad, 0xbe, 0xef,   \
-                       0xde, 0xad, 0xbe, 0xef, ( i ) );
-
-WINETEST_DEFINE_DEVPROPS;
-DEFINE_DEVPROPKEY( DEVPKEY_Winetest_8, 0xdeadbeef, 0xdead, 0xbeef, 0xde, 0xad, 0xbe, 0xef, 0xde,
-                   0xad, 0xbe, 0xef, 8 ); /* DEVPROP_TYPE_GUID */
-
-#undef WINETEST_DRIVER_DEVPROP

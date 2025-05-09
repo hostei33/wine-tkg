@@ -647,7 +647,7 @@ static inline BOOL is_whitespace(WCHAR c)
     return c == ' ' || c == '\t';
 }
 
-static const WCHAR *skip_whitespace(const WCHAR *p)
+static WCHAR *skip_whitespace(WCHAR *p)
 {
     for (; *p && is_whitespace(*p); p++);
     return p;
@@ -662,87 +662,92 @@ static inline BOOL is_digit(WCHAR c)
    that lacks the escaped-quote logic of build_argv(), because
    literal double quotes are illegal in any of its arguments.
    Example: 'XCOPY "c:\DIR A" "c:DIR B\"' is OK. */
-static int get_arg(const WCHAR **cmdline, WCHAR **arg)
+static int find_end_of_word(const WCHAR *word, WCHAR **end)
 {
-    const WCHAR *ptr = *cmdline;
-    int len, in_quotes = 0;
-
-    if (*ptr == '/') ptr++;
-    while (*ptr) {
-        if (*ptr == '"') in_quotes = !in_quotes;
-        if ((*ptr == '/' || is_whitespace(*ptr)) && !in_quotes) break;
-        ptr++;
+    BOOL in_quotes = FALSE;
+    const WCHAR *ptr = word;
+    for (;;) {
+        for (; *ptr != '\0' && *ptr != '"' &&
+                 (in_quotes || !is_whitespace(*ptr)); ptr++);
+        if (*ptr == '"') {
+            in_quotes = !in_quotes;
+            ptr++;
+        }
+        /* Odd number of double quotes is illegal for XCOPY */
+        if (in_quotes && *ptr == '\0')
+            return RC_INITERROR;
+        if (*ptr == '\0' || (!in_quotes && is_whitespace(*ptr)))
+            break;
     }
-    /* Odd number of double quotes is illegal for XCOPY */
-    if (in_quotes) return RC_INITERROR;
-
-    len = ptr - *cmdline;
-    *arg = malloc((len + 1) * sizeof(WCHAR));
-    if (!*arg)
-        return RC_INITERROR;
-    memcpy(*arg, *cmdline, len * sizeof(WCHAR));
-    (*arg)[len] = 0;
-
-    *cmdline = skip_whitespace(ptr);
+    *end = (WCHAR*)ptr;
     return RC_OK;
 }
 
 /* Remove all double quotes from a word */
-static void strip_quotes(WCHAR *word)
+static void strip_quotes(WCHAR *word, WCHAR **end)
 {
-    WCHAR *wp;
-    for (wp = word; *word != '\0'; word++) {
-        if (*word == '"')
+    WCHAR *rp, *wp;
+    for (rp = word, wp = word; *rp != '\0'; rp++) {
+        if (*rp == '"')
             continue;
-        if (wp < word)
-            *wp = *word;
+        if (wp < rp)
+            *wp = *rp;
         wp++;
     }
     *wp = '\0';
+    *end = wp;
 }
 
 static int XCOPY_ParseCommandLine(WCHAR *suppliedsource,
                                   WCHAR *supplieddestination, DWORD *pflags)
 {
     DWORD flags = *pflags;
-    const WCHAR *cmdline;
-    WCHAR *word;
-    int rc;
+    WCHAR *cmdline, *word, *end, *next;
+    int rc = RC_INITERROR;
 
-    cmdline = GetCommandLineW();
+    cmdline = _wcsdup(GetCommandLineW());
+    if (cmdline == NULL)
+        return rc;
+
     /* Skip first arg, which is the program name */
-    if ((rc = get_arg(&cmdline, &word)) != RC_OK)
-        exit(rc);
-    free(word);
+    if ((rc = find_end_of_word(cmdline, &word)) != RC_OK)
+        goto out;
+    word = skip_whitespace(word);
 
-    while (*cmdline)
+    while (*word)
     {
-        if ((rc = get_arg(&cmdline, &word)) != RC_OK)
-            exit(rc);
+        WCHAR first;
+        if ((rc = find_end_of_word(word, &end)) != RC_OK)
+            goto out;
+
+        next = skip_whitespace(end);
+        first = word[0];
+        *end = '\0';
+        strip_quotes(word, &end);
         WINE_TRACE("Processing Arg: '%s'\n", wine_dbgstr_w(word));
 
         /* First non-switch parameter is source, second is destination */
-        if (word[0] != '/') {
-            strip_quotes(word);
+        if (first != '/') {
             if (suppliedsource[0] == 0x00) {
                 lstrcpyW(suppliedsource, word);
             } else if (supplieddestination[0] == 0x00) {
                 lstrcpyW(supplieddestination, word);
             } else {
                 XCOPY_wprintf(XCOPY_LoadMessage(STRING_INVPARMS));
-                exit(RC_INITERROR);
+                goto out;
             }
         } else {
             /* Process all the switch options
                  Note: Windows docs say /P prompts when dest is created
                        but tests show it is done for each src file
                        regardless of the destination                   */
-            WCHAR *p = word + 1, *rest;
+            int skip=0;
+            WCHAR *rest;
 
-            while (*p) {
-                rest = p + 1;
+            while (word[0]) {
+                rest = NULL;
 
-                switch (toupper(*p)) {
+                switch (toupper(word[1])) {
                 case 'I': flags |= OPT_ASSUMEDIR;     break;
                 case 'S': flags |= OPT_RECURSIVE;     break;
                 case 'Q': flags |= OPT_QUIET;         break;
@@ -764,13 +769,15 @@ static int XCOPY_ParseCommandLine(WCHAR *suppliedsource,
 
                 /* E can be /E or /EXCLUDE */
                 case 'E': if (CompareStringW(LOCALE_USER_DEFAULT, NORM_IGNORECASE | SORT_STRINGSORT,
-                                             p, 8, L"EXCLUDE:", -1) == CSTR_EQUAL) {
-                            if (XCOPY_ProcessExcludeList(&p[8])) {
+                                             &word[1], 8, L"EXCLUDE:", -1) == CSTR_EQUAL) {
+                            if (XCOPY_ProcessExcludeList(&word[9])) {
                               XCOPY_FailMessage(ERROR_INVALID_PARAMETER);
-                              exit(RC_INITERROR);
+                              goto out;
                             } else {
                               flags |= OPT_EXCLUDELIST;
-                              rest = p + wcslen(p);
+
+                              /* Do not support concatenated switches onto exclude lists yet */
+                              rest = end;
                             }
                           } else {
                               flags |= OPT_EMPTYDIR | OPT_RECURSIVE;
@@ -778,9 +785,9 @@ static int XCOPY_ParseCommandLine(WCHAR *suppliedsource,
                           break;
 
                 /* D can be /D or /D: */
-                case 'D': if (p[1]==':' && is_digit(p[2])) {
+                case 'D': if (word[2]==':' && is_digit(word[3])) {
                               SYSTEMTIME st;
-                              WCHAR     *pos = &p[2];
+                              WCHAR     *pos = &word[3];
                               BOOL       isError = FALSE;
                               memset(&st, 0x00, sizeof(st));
 
@@ -824,33 +831,45 @@ static int XCOPY_ParseCommandLine(WCHAR *suppliedsource,
                                              wine_dbgstr_w(datestring), wine_dbgstr_w(timestring));
                               } else {
                                   XCOPY_FailMessage(ERROR_INVALID_PARAMETER);
-                                  exit(RC_INITERROR);
+                                  goto out;
                               }
                           } else {
                               flags |= OPT_DATENEWER;
                           }
                           break;
 
-                case '-': if (toupper(p[1])=='Y') {
+                case '-': if (toupper(word[2])=='Y') {
                               flags &= ~OPT_NOPROMPT;
-                              rest = &p[2];  /* Skip over 2 characters */
+                              rest = &word[3];  /* Skip over 3 characters */
                           }
                           break;
                 case '?': XCOPY_wprintf(XCOPY_LoadMessage(STRING_HELP));
-                          exit(RC_OK);
+                          rc = RC_HELP;
+                          goto out;
                 case 'V':
                     WINE_FIXME("ignoring /V\n");
                     break;
                 default:
-                    WINE_TRACE("Unhandled parameter '%s'\n", wine_dbgstr_w(p));
-                    XCOPY_wprintf(XCOPY_LoadMessage(STRING_INVPARM), p);
-                    exit(RC_INITERROR);
+                    WINE_TRACE("Unhandled parameter '%s'\n", wine_dbgstr_w(word));
+                    XCOPY_wprintf(XCOPY_LoadMessage(STRING_INVPARM), word);
+                    goto out;
                 }
 
-                p = rest;
+                /* Unless overridden above, skip over the '/' and the first character */
+                if (rest == NULL) rest = &word[2];
+
+                /* By now, rest should point either to the null after the
+                   switch, or the beginning of the next switch if there
+                   was no whitespace between them                          */
+                if (!skip && *rest && *rest != '/') {
+                    WINE_FIXME("Unexpected characters found and ignored '%s'\n", wine_dbgstr_w(rest));
+                    skip=1;
+                } else {
+                    word = rest;
+                }
             }
         }
-        free(word);
+        word = next;
     }
 
     /* Default the destination if not supplied */
@@ -858,7 +877,11 @@ static int XCOPY_ParseCommandLine(WCHAR *suppliedsource,
         lstrcpyW(supplieddestination, L".");
 
     *pflags = flags;
-    return RC_OK;
+    rc = RC_OK;
+
+ out:
+    free(cmdline);
+    return rc;
 }
 
 
@@ -1075,8 +1098,12 @@ int __cdecl wmain (int argc, WCHAR *argvW[])
      * Parse the command line
      */
     if ((rc = XCOPY_ParseCommandLine(suppliedsource, supplieddestination,
-                                     &flags)) != RC_OK)
-        return rc;
+                                     &flags)) != RC_OK) {
+        if (rc == RC_HELP)
+            return RC_OK;
+        else
+            return rc;
+    }
 
     /* Trace out the supplied information */
     WINE_TRACE("Supplied parameters:\n");

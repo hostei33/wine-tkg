@@ -71,7 +71,7 @@ WORD int16_sel = 0;
 #define MCB_PSP_DOS        0x0060
 #define MCB_PSP_FREE       0
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 typedef struct {
     BYTE type;
     WORD psp;     /* segment of owner psp */
@@ -79,7 +79,7 @@ typedef struct {
     BYTE pad[3];
     BYTE name[8];
 } MCB;
-#pragma pack(pop)
+#include "poppack.h"
 
 /*
 #define __DOSMEM_DEBUG__

@@ -87,16 +87,6 @@
 # define HAS_IRDA
 #endif
 
-#ifdef HAVE_BLUETOOTH_BLUETOOTH_H
-# include <bluetooth/bluetooth.h>
-# ifdef HAVE_BLUETOOTH_RFCOMM_H
-#  include <bluetooth/rfcomm.h>
-#  define HAS_BLUETOOTH
-# endif
-#endif
-
-#include <sys/un.h>
-
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "windef.h"
@@ -108,11 +98,6 @@
 #include "tcpmib.h"
 #include "wsipx.h"
 #include "af_irda.h"
-#include "afunix.h"
-#include "bthsdpdef.h"
-#include "bluetoothapis.h"
-#include "bthdef.h"
-#include "ws2bth.h"
 #include "wine/afd.h"
 #include "wine/rbtree.h"
 
@@ -150,7 +135,6 @@ union win_sockaddr
     struct WS_sockaddr_in6 in6;
     struct WS_sockaddr_ipx ipx;
     SOCKADDR_IRDA irda;
-    struct WS_sockaddr_un un;
 };
 
 union unix_sockaddr
@@ -164,10 +148,6 @@ union unix_sockaddr
 #ifdef HAS_IRDA
     struct sockaddr_irda irda;
 #endif
-#ifdef HAS_BLUETOOTH
-    struct sockaddr_rc rfcomm;
-#endif
-    struct sockaddr_un un;
 };
 
 static struct list poll_list = LIST_INIT( poll_list );
@@ -591,21 +571,6 @@ static int sockaddr_from_unix( const union unix_sockaddr *uaddr, struct WS_socka
     }
 #endif
 
-#ifdef HAS_BLUETOOTH
-    case AF_BLUETOOTH:
-    {
-        SOCKADDR_BTH win = {0};
-        BLUETOOTH_ADDRESS addr = {0};
-
-        if (wsaddrlen < sizeof(win)) return -1;
-        win.addressFamily = WS_AF_BTH;
-
-        memcpy( addr.rgBytes, uaddr->rfcomm.rc_bdaddr.b, sizeof( addr.rgBytes ));
-        win.btAddr = addr.ullLong;
-        win.port = uaddr->rfcomm.rc_channel;
-        return sizeof(win);
-    }
-#endif
     case AF_UNSPEC:
         return 0;
 
@@ -685,24 +650,6 @@ static socklen_t sockaddr_to_unix( const struct WS_sockaddr *wsaddr, int wsaddrl
     }
 #endif
 
-#ifdef HAS_BLUETOOTH
-    case WS_AF_BTH:
-    {
-        SOCKADDR_BTH win = {0};
-        BLUETOOTH_ADDRESS addr = {0};
-
-        if (wsaddrlen != sizeof(win)) return 0;
-        memcpy( &win, wsaddr, sizeof(win) );
-        addr.ullLong = win.btAddr;
-
-        uaddr->rfcomm.rc_family = AF_BLUETOOTH;
-        memcpy( &uaddr->rfcomm.rc_bdaddr, addr.rgBytes, sizeof( addr.rgBytes ) );
-        /* There can only be a maximum of 30 RFCOMM channels, so UINT8_MAX is safe to use here. */
-        uaddr->rfcomm.rc_channel = win.port == BT_PORT_ANY ? UINT8_MAX : win.port;
-        return sizeof(uaddr->rfcomm);
-    }
-#endif
-
     case WS_AF_UNSPEC:
         switch (wsaddrlen)
         {
@@ -750,9 +697,6 @@ static socklen_t get_unix_sockaddr_any( union unix_sockaddr *uaddr, int ws_famil
             uaddr->irda.sir_family = AF_IRDA;
             return sizeof(uaddr->irda);
 #endif
-        case WS_AF_UNIX:
-            uaddr->un.sun_family = AF_UNIX;
-            return sizeof(uaddr->un);
         default:
             return 0;
     }
@@ -1853,10 +1797,6 @@ static int get_unix_family( int family )
 #ifdef AF_IRDA
         case WS_AF_IRDA: return AF_IRDA;
 #endif
-#ifdef AF_BLUETOOTH
-        case WS_AF_BTH: return AF_BLUETOOTH;
-#endif
-        case WS_AF_UNIX: return AF_UNIX;
         case WS_AF_UNSPEC: return AF_UNSPEC;
         default: return -1;
     }
@@ -1873,15 +1813,10 @@ static int get_unix_type( int type )
     }
 }
 
-static int get_unix_protocol( int family, int protocol )
+static int get_unix_protocol( int protocol )
 {
     if (protocol >= WS_NSPROTO_IPX && protocol <= WS_NSPROTO_IPX + 255)
         return protocol;
-
-#ifdef HAS_BLUETOOTH
-    if (family == WS_AF_BTH)
-        return protocol == WS_BTHPROTO_RFCOMM ? BTPROTO_RFCOMM : -1;
-#endif
 
     switch (protocol)
     {
@@ -1935,13 +1870,11 @@ static int init_socket( struct sock *sock, int family, int type, int protocol )
 
     unix_family = get_unix_family( family );
     unix_type = get_unix_type( type );
-    unix_protocol = get_unix_protocol( family, protocol );
+    unix_protocol = get_unix_protocol( protocol );
 
     if (unix_protocol < 0)
     {
-        if (family && unix_family < 0)
-            set_win32_error( WSAEAFNOSUPPORT );
-        else if (type && unix_type < 0)
+        if (type && unix_type < 0)
             set_win32_error( WSAESOCKTNOSUPPORT );
         else
             set_win32_error( WSAEPROTONOSUPPORT );
@@ -1953,12 +1886,6 @@ static int init_socket( struct sock *sock, int family, int type, int protocol )
             set_win32_error( WSAESOCKTNOSUPPORT );
         else
             set_win32_error( WSAEAFNOSUPPORT );
-        return -1;
-    }
-
-    if (unix_family == AF_UNIX && unix_type == SOCK_DGRAM)
-    {
-        set_win32_error(WSAEAFNOSUPPORT);
         return -1;
     }
 
@@ -1983,10 +1910,6 @@ static int init_socket( struct sock *sock, int family, int type, int protocol )
     if (sockfd == -1)
     {
         if (errno == EINVAL) set_win32_error( WSAESOCKTNOSUPPORT );
-#ifdef AF_BLUETOOTH
-        else if (errno == ESOCKTNOSUPPORT && unix_family == AF_BLUETOOTH)
-            set_win32_error( WSAEAFNOSUPPORT );
-#endif
         else set_win32_error( sock_get_error( errno ));
         return -1;
     }
@@ -2142,36 +2065,14 @@ static struct sock *accept_socket( struct sock *sock )
             release_object( acceptsock );
             return NULL;
         }
-        allow_fd_caching( acceptsock->fd );
         unix_len = sizeof(unix_addr);
         if (!getsockname( acceptfd, &unix_addr.addr, &unix_len ))
         {
-            if (sock->family == WS_AF_UNIX)
-            {
-                acceptsock->addr_len = sock->addr_len;
-                acceptsock->addr.un = sock->addr.un;
-            }
-            else
-            {
-                acceptsock->addr_len = sockaddr_from_unix( &unix_addr,
-                                                           &acceptsock->addr.addr,
-                                                           sizeof(acceptsock->addr) );
-            }
-
+            acceptsock->addr_len = sockaddr_from_unix( &unix_addr, &acceptsock->addr.addr, sizeof(acceptsock->addr) );
             if (!getpeername( acceptfd, &unix_addr.addr, &unix_len ))
-            {
-                if (sock->family == WS_AF_UNIX)
-                {
-                    acceptsock->peer_addr_len = sizeof( sock->peer_addr.un );
-                    acceptsock->peer_addr.un = sock->peer_addr.un;
-                }
-                else
-                {
-                    acceptsock->peer_addr_len = sockaddr_from_unix( &unix_addr,
-                                                                    &acceptsock->peer_addr.addr,
-                                                                    sizeof(acceptsock->peer_addr) );
-                }
-            }
+                acceptsock->peer_addr_len = sockaddr_from_unix( &unix_addr,
+                                                                &acceptsock->peer_addr.addr,
+                                                                sizeof(acceptsock->peer_addr) );
         }
     }
 
@@ -2212,7 +2113,6 @@ static int accept_into_socket( struct sock *sock, struct sock *acceptsock )
                                             get_fd_options( acceptsock->fd ) )))
             return FALSE;
     }
-    allow_fd_caching( newfd );
 
     acceptsock->state = SOCK_CONNECTED;
     acceptsock->bound = 1;
@@ -2231,31 +2131,11 @@ static int accept_into_socket( struct sock *sock, struct sock *acceptsock )
     unix_len = sizeof(unix_addr);
     if (!getsockname( get_unix_fd( newfd ), &unix_addr.addr, &unix_len ))
     {
-        if (sock->family == WS_AF_UNIX)
-        {
-            acceptsock->addr_len = sock->addr_len;
-            acceptsock->addr.un = sock->addr.un;
-        }
-        else
-        {
-            acceptsock->addr_len = sockaddr_from_unix( &unix_addr,
-                                                       &acceptsock->addr.addr,
-                                                       sizeof(acceptsock->addr) );
-        }
+        acceptsock->addr_len = sockaddr_from_unix( &unix_addr, &acceptsock->addr.addr, sizeof(acceptsock->addr) );
         if (!getpeername( get_unix_fd( newfd ), &unix_addr.addr, &unix_len ))
-        {
-            if (sock->family == WS_AF_UNIX)
-            {
-                acceptsock->peer_addr_len = sizeof( sock->peer_addr.un );
-                acceptsock->peer_addr.un = sock->peer_addr.un;
-            }
-            else
-            {
-                acceptsock->peer_addr_len = sockaddr_from_unix( &unix_addr,
-                                                                &acceptsock->peer_addr.addr,
-                                                                sizeof(acceptsock->peer_addr) );
-            }
-        }
+            acceptsock->peer_addr_len = sockaddr_from_unix( &unix_addr,
+                                                            &acceptsock->peer_addr.addr,
+                                                            sizeof(acceptsock->peer_addr) );
     }
 
     clear_error();
@@ -2377,7 +2257,7 @@ static int bind_to_interface( struct sock *sock, const struct sockaddr_in *addr 
     in_addr_t bind_addr = addr->sin_addr.s_addr;
     struct ifaddrs *ifaddrs, *ifaddr;
     int fd = get_unix_fd( sock->fd );
-    int err = -1;
+    int err = 0;
 
     if (bind_addr == htonl( INADDR_ANY ) || bind_addr == htonl( INADDR_LOOPBACK ))
         return 0;
@@ -2713,13 +2593,8 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
 
         if (listen( unix_fd, params->backlog ) < 0)
         {
-            /* Due to the way we handle the Windows AF_UNIX bind edge case, we also need to
-             * ignore listen's error. */
-            if (!(errno == EINVAL && sock->family == WS_AF_UNIX && !*sock->addr.un.sun_path))
-            {
-                set_error( sock_get_ntstatus( errno ) );
-                return;
-            }
+            set_error( sock_get_ntstatus( errno ) );
+            return;
         }
 
         sock->state = SOCK_LISTENING;
@@ -2789,55 +2664,7 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
                 break;
         }
 
-        if (sock->family == WS_AF_UNIX)
-        {
-            if (*addr->sa_data)
-            {
-                int unix_path_len = get_req_data_size() - sizeof(*params) - params->addr_len;
-                char *unix_path;
-                char *base_name;
-
-                if (!(unix_path = mem_alloc( unix_path_len + 1 )))
-                    return;
-
-                memcpy( unix_path, (char *)(params + 1) + params->addr_len, unix_path_len );
-                unix_path[unix_path_len] = '\0';
-
-                base_name = strrchr(unix_path, '/');
-                if (base_name)
-                {
-                    if (base_name != unix_path)
-                        (++base_name)[-1] = '\0';
-                }
-                else
-                    base_name = unix_path;
-
-                if (chdir( unix_path ) == -1)
-                {
-                    set_error( sock_get_ntstatus( errno ) );
-                    free( unix_path );
-                    return;
-                }
-
-                send_len -= unix_path_len;
-                unix_len = sizeof(unix_addr.un);
-                memset( &unix_addr.un, 0, sizeof(unix_addr.un) );
-                unix_addr.un.sun_family = AF_UNIX;
-                memcpy( unix_addr.un.sun_path, base_name, strlen( base_name ) );
-                free( unix_path );
-            }
-            else
-            {
-                /* Contrary to documentation, Windows does not currently support abstract Unix
-                 * sockets. connect() throws WSAEINVAL if sun_family is AF_UNIX and sun_path
-                 * begins with '\0', even though bind() will succeed. */
-                set_win32_error( WSAEINVAL );
-                return;
-            }
-        }
-        else
-            unix_len = sockaddr_to_unix( addr, params->addr_len, &unix_addr );
-
+        unix_len = sockaddr_to_unix( addr, params->addr_len, &unix_addr );
         if (!unix_len)
         {
             set_error( STATUS_INVALID_ADDRESS );
@@ -2859,7 +2686,8 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
             ret = connect( unix_fd, &unix_addr.addr, unix_len );
         }
 
-        if (ret < 0 && errno == EACCES && sock->state == SOCK_CONNECTIONLESS && unix_addr.addr.sa_family == AF_INET)
+        if (ret < 0 && errno == EACCES && sock->state == SOCK_CONNECTIONLESS && unix_addr.addr.sa_family == AF_INET
+            && unix_addr.in.sin_addr.s_addr == htonl( INADDR_BROADCAST ))
         {
             int broadcast, saved_errno;
             socklen_t len = sizeof(broadcast);
@@ -2884,24 +2712,14 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
             return;
         }
 
-        if (sock->family == WS_AF_UNIX && *addr->sa_data)
-            fchdir(server_dir_fd);
-
         /* a connected or connecting socket can no longer be accepted into */
         allow_fd_caching( sock->fd );
 
         unix_len = sizeof(unix_addr);
-        if (sock->family == WS_AF_UNIX)
-        {
-            sock->peer_addr.un = *(struct WS_sockaddr_un *)addr;
-            sock->peer_addr_len = sizeof(struct WS_sockaddr_un);
-        }
-        else
-        {
-            getsockname( unix_fd, &unix_addr.addr, &unix_len );
-            sock->addr_len = sockaddr_from_unix( &unix_addr, &sock->addr.addr, sizeof(sock->addr) );
-            sock->peer_addr_len = sockaddr_from_unix( &peer_addr, &sock->peer_addr.addr, sizeof(sock->peer_addr));
-        }
+        getsockname( unix_fd, &unix_addr.addr, &unix_len );
+        sock->addr_len = sockaddr_from_unix( &unix_addr, &sock->addr.addr, sizeof(sock->addr) );
+        sock->peer_addr_len = sockaddr_from_unix( &peer_addr, &sock->peer_addr.addr, sizeof(sock->peer_addr));
+
         sock->bound = 1;
 
         if (!ret)
@@ -3143,7 +2961,6 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
         data_size_t in_size;
         socklen_t unix_len;
         int v6only = 1;
-        int unix_path_len = 0;
 
         /* the ioctl is METHOD_NEITHER, so ntdll gives us the output buffer as
          * input */
@@ -3153,10 +2970,8 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
             return;
         }
         in_size = get_req_data_size() - get_reply_max_size();
-        if (params->addr.sa_family == WS_AF_UNIX)
-            unix_path_len = in_size - sizeof(params->unknown) - sizeof(struct WS_sockaddr_un);
         if (in_size < offsetof(struct afd_bind_params, addr.sa_data)
-                || get_reply_max_size() < in_size - sizeof(int) - unix_path_len)
+                || get_reply_max_size() < in_size - sizeof(int))
         {
             set_error( STATUS_INVALID_PARAMETER );
             return;
@@ -3168,47 +2983,7 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
             return;
         }
 
-        if (sock->family == WS_AF_UNIX)
-        {
-            if (*params->addr.sa_data)
-            {
-                char *unix_path;
-                char *base_name;
-
-                if (!(unix_path = mem_alloc( unix_path_len + 1 )))
-                    return;
-
-                memcpy( unix_path, (char *)(&params->addr) + sizeof(struct WS_sockaddr_un), unix_path_len );
-                unix_path[unix_path_len] = '\0';
-
-                base_name = strrchr(unix_path, '/');
-                if (base_name)
-                {
-                    if (base_name != unix_path)
-                        (++base_name)[-1] = '\0';
-                }
-                else
-                    base_name = unix_path;
-
-                if (chdir( unix_path ) == -1)
-                {
-                    free( unix_path );
-                    set_error( sock_get_ntstatus( errno ) );
-                    return;
-                }
-
-                memset( &unix_addr.un, 0, sizeof(unix_addr.un) );
-                memcpy( unix_addr.un.sun_path, base_name, strlen( base_name ) );
-                free( unix_path );
-            }
-            else
-                memset(unix_addr.un.sun_path, 0, sizeof(unix_addr.un.sun_path));
-            unix_addr.un.sun_family = AF_UNIX;
-            unix_len = sizeof(unix_addr.un);
-        }
-        else
-            unix_len = sockaddr_to_unix( &params->addr, in_size - sizeof(int), &unix_addr );
-
+        unix_len = sockaddr_to_unix( &params->addr, in_size - sizeof(int), &unix_addr );
         if (!unix_len)
         {
             set_error( STATUS_INVALID_ADDRESS );
@@ -3247,55 +3022,17 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
         if (check_addr_usage( sock, &bind_addr, v6only ))
             return;
 
-#ifdef HAS_BLUETOOTH
-        if (unix_addr.rfcomm.rc_family == AF_BLUETOOTH
-            && !(unix_addr.rfcomm.rc_channel >= 1 && unix_addr.rfcomm.rc_channel <= 30))
-        {
-            int i;
-            if (unix_addr.rfcomm.rc_channel != UINT8_MAX)
-            {
-                set_error( sock_get_ntstatus( EADDRNOTAVAIL ) );
-                return;
-            }
-            /* If the RFCOMM channel was set to BT_PORT_ANY, we need to find an available RFCOMM
-             *  channel. The Linux kernel has a similar mechanism, but the channel is only assigned
-             *  on listen(), which we cannot call yet. The other, albeit hacky/race-y way to find an available
-             *  channel is to loop through all valid channel values (1 to 30) until bind() succeeds.
-             */
-            for (i = 1; i <= 30; i++)
-            {
-                bind_addr.rfcomm.rc_channel = i;
-                if (!bind( unix_fd, &bind_addr.addr, unix_len ))
-                    break;
-                if (errno != EADDRINUSE)
-                {
-                    set_error( sock_get_ntstatus( errno ) );
-                    return;
-                }
-            }
-            if (i > 30)
-            {
-                set_error( sock_get_ntstatus( EADDRINUSE ) );
-                return;
-            }
-        }
-        else
-#endif
-        if (bind( unix_fd, &bind_addr.addr, unix_len ) < 0)
+        /* Quake (and similar family) fails if we can't bind to an IPX address. This often
+         * doesn't work on Linux, so just fake success. */
+        if (unix_addr.addr.sa_family == AF_IPX)
+            fprintf( stderr, "wine: HACK: Faking AF_IPX bind success.\n" );
+        else if (bind( unix_fd, &bind_addr.addr, unix_len ) < 0)
         {
             if (errno == EADDRINUSE && sock->reuseaddr)
                 errno = EACCES;
 
-            /* Windows' AF_UNIX implementation has an edge case allowing for a socket to bind to
-             * an empty path. Linux doesn't, so it throws EINVAL. We check for this situation
-             * here and avoid early-exiting if it's the case. */
-            if (!(errno == EINVAL && sock->family == WS_AF_UNIX && !*params->addr.sa_data))
-            {
-                set_error( sock_get_ntstatus( errno ) );
-                if (sock->family == WS_AF_UNIX && *params->addr.sa_data)
-                    fchdir(server_dir_fd);
-                return;
-            }
+            set_error( sock_get_ntstatus( errno ) );
+            return;
         }
 
         sock->bound = 1;
@@ -3307,23 +3044,13 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
              * actual unix address */
             if (bind_addr.addr.sa_family == AF_INET)
                 bind_addr.in.sin_addr = unix_addr.in.sin_addr;
-            if (bind_addr.addr.sa_family == AF_UNIX)
-            {
-                sock->addr.un.sun_family = WS_AF_UNIX;
-                memcpy(sock->addr.un.sun_path, params->addr.sa_data, sizeof(sock->addr.un.sun_path));
-                sock->addr_len = sizeof(sock->addr.un);
-            }
-            else
-                sock->addr_len = sockaddr_from_unix( &bind_addr, &sock->addr.addr, sizeof(sock->addr) );
+            sock->addr_len = sockaddr_from_unix( &bind_addr, &sock->addr.addr, sizeof(sock->addr) );
         }
 
         update_addr_usage( sock, &bind_addr, v6only );
 
         if (get_reply_max_size() >= sock->addr_len)
             set_reply_data( &sock->addr, sock->addr_len );
-
-        if (sock->family == WS_AF_UNIX && *params->addr.sa_data)
-            fchdir(server_dir_fd);
         return;
     }
 
@@ -3340,15 +3067,7 @@ static void sock_ioctl( struct fd *fd, ioctl_code_t code, struct async *async )
             return;
         }
 
-        if (sock->family == WS_AF_UNIX)
-        {
-            if (*sock->addr.un.sun_path)
-                set_reply_data( &sock->addr, sizeof(sock->addr.un.sun_family) + strlen(sock->addr.un.sun_path) + 1 );
-            else
-                set_reply_data( &sock->addr, sizeof(sock->addr.un) );
-        }
-        else
-            set_reply_data( &sock->addr, sock->addr_len );
+        set_reply_data( &sock->addr, sock->addr_len );
         return;
 
     case IOCTL_AFD_WINE_GETPEERNAME:
@@ -4480,7 +4199,7 @@ struct enum_tcp_connection_info
 {
     MIB_TCP_STATE state_filter;
     unsigned int count;
-    union tcp_connection *conn;
+    tcp_connection *conn;
 };
 
 static int enum_tcp_connections( struct process *process, struct object *obj, void *user )
@@ -4488,7 +4207,7 @@ static int enum_tcp_connections( struct process *process, struct object *obj, vo
     struct sock *sock = (struct sock *)obj;
     struct enum_tcp_connection_info *info = user;
     MIB_TCP_STATE socket_state;
-    union tcp_connection *conn;
+    tcp_connection *conn;
 
     assert( obj->ops == &sock_ops );
 
@@ -4544,7 +4263,7 @@ static int enum_tcp_connections( struct process *process, struct object *obj, vo
 DECL_HANDLER(get_tcp_connections)
 {
     struct enum_tcp_connection_info info;
-    union tcp_connection *conn;
+    tcp_connection *conn;
     data_size_t max_conns = get_reply_max_size() / sizeof(*conn);
 
     info.state_filter = req->state_filter;
@@ -4565,14 +4284,14 @@ DECL_HANDLER(get_tcp_connections)
 struct enum_udp_endpoint_info
 {
     unsigned int count;
-    union udp_endpoint *endpt;
+    udp_endpoint *endpt;
 };
 
 static int enum_udp_endpoints( struct process *process, struct object *obj, void *user )
 {
     struct sock *sock = (struct sock *)obj;
     struct enum_udp_endpoint_info *info = user;
-    union udp_endpoint *endpt;
+    udp_endpoint *endpt;
 
     assert( obj->ops == &sock_ops );
 
@@ -4612,7 +4331,7 @@ static int enum_udp_endpoints( struct process *process, struct object *obj, void
 DECL_HANDLER(get_udp_endpoints)
 {
     struct enum_udp_endpoint_info info;
-    union udp_endpoint *endpt;
+    udp_endpoint *endpt;
     data_size_t max_endpts = get_reply_max_size() / sizeof(*endpt);
 
     info.endpt = NULL;

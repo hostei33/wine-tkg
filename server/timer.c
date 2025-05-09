@@ -119,6 +119,7 @@ static struct timer *create_timer( struct object *root, const struct unicode_str
             timer->timeout  = NULL;
             timer->thread   = NULL;
             timer->esync_fd = -1;
+            timer->fsync_idx = 0;
 
             if (do_fsync())
                 timer->fsync_idx = fsync_alloc_shm( 0, 0 );
@@ -138,7 +139,7 @@ static void timer_callback( void *private )
     /* queue an APC */
     if (timer->thread)
     {
-        union apc_call data;
+        apc_call_t data;
 
         assert (timer->callback);
         memset( &data, 0, sizeof(data) );
@@ -258,6 +259,7 @@ static void timer_destroy( struct object *obj )
     if (timer->timeout) remove_timeout_user( timer->timeout );
     if (timer->thread) release_object( timer->thread );
     if (do_esync()) close( timer->esync_fd );
+    if (timer->fsync_idx) fsync_free_shm_idx( timer->fsync_idx );
 }
 
 /* create a timer */
@@ -273,11 +275,7 @@ DECL_HANDLER(create_timer)
 
     if ((timer = create_timer( root, &name, objattr->attributes, req->manual, sd )))
     {
-        if (get_error() == STATUS_OBJECT_NAME_EXISTS)
-            reply->handle = alloc_handle( current->process, timer, req->access, objattr->attributes );
-        else
-            reply->handle = alloc_handle_no_access_check( current->process, timer,
-                                                          req->access, objattr->attributes );
+        reply->handle = alloc_handle( current->process, timer, req->access, objattr->attributes );
         release_object( timer );
     }
 

@@ -101,9 +101,6 @@ extern HBRUSH  COMCTL32_hPattern55AABrush;
 #define IDI_TT_INFO_SM                   22
 #define IDI_TT_WARN_SM                   25
 #define IDI_TT_ERROR_SM                  28
-#define IDI_TT_INFO_MD                   20
-#define IDI_TT_WARN_MD                   23
-#define IDI_TT_ERROR_MD                  26
 
 /* Taskdialog strings */
 #define IDS_BUTTON_YES    3000
@@ -197,7 +194,7 @@ BOOL Str_SetPtrAtoW(LPWSTR *lppDest, LPCSTR lpSrc);
 BOOL Str_SetPtrWtoA(LPSTR *lppDest, LPCWSTR lpSrc);
 BOOL imagelist_has_alpha(HIMAGELIST, UINT);
 
-#define COMCTL32_VERSION_MINOR 0
+#define COMCTL32_VERSION_MINOR 81
 
 /* Our internal stack structure of the window procedures to subclass */
 typedef struct _SUBCLASSPROCS {

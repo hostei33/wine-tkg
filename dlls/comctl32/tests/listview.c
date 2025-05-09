@@ -101,48 +101,6 @@ static void init_functions(void)
 
 static struct msg_sequence *sequences[NUM_MSG_SEQUENCES];
 
-static void CALLBACK msg_winevent_proc(HWINEVENTHOOK hevent,
-                                       DWORD event,
-                                       HWND hwnd,
-                                       LONG object_id,
-                                       LONG child_id,
-                                       DWORD thread_id,
-                                       DWORD event_time)
-{
-    struct message msg = {0};
-    char class_name[256];
-
-    /* ignore window and other system events */
-    if (object_id != OBJID_CLIENT) return;
-
-    /* ignore events not from a listview control */
-    if (!GetClassNameA(hwnd, class_name, ARRAY_SIZE(class_name)) ||
-        strcmp(class_name, WC_LISTVIEWA) != 0)
-        return;
-
-    msg.message = event;
-    msg.flags = winevent_hook|wparam|lparam;
-    msg.wParam = object_id;
-    msg.lParam = child_id;
-    add_message(sequences, LISTVIEW_SEQ_INDEX, &msg);
-    add_message(sequences, COMBINED_SEQ_INDEX, &msg);
-}
-
-static void init_winevent_hook(void) {
-    hwineventhook = SetWinEventHook(EVENT_MIN, EVENT_MAX, GetModuleHandleA(0), msg_winevent_proc,
-                                    0, GetCurrentThreadId(), WINEVENT_INCONTEXT);
-    if (!hwineventhook)
-        win_skip( "no win event hook support\n" );
-}
-
-static void uninit_winevent_hook(void) {
-    if (!hwineventhook)
-        return;
-
-    UnhookWinEvent(hwineventhook);
-    hwineventhook = 0;
-}
-
 static const struct message create_ownerdrawfixed_parent_seq[] = {
     { WM_NOTIFYFORMAT, sent },
     { WM_QUERYUISTATE, sent|optional }, /* Win2K and higher */
@@ -157,6 +115,7 @@ static const struct message redraw_listview_seq[] = {
     { WM_NCPAINT,    sent|id|defwinproc, 0, 0, HEADER_ID },
     { WM_ERASEBKGND, sent|id|defwinproc|optional, 0, 0, HEADER_ID },
     { WM_NOTIFY,     sent|id|defwinproc, 0, 0, LISTVIEW_ID },
+    { WM_NCPAINT,    sent|id|defwinproc, 0, 0, LISTVIEW_ID },
     { WM_ERASEBKGND, sent|id|defwinproc|optional, 0, 0, LISTVIEW_ID },
     { 0 }
 };
@@ -202,40 +161,27 @@ static const struct message listview_color_seq[] = {
 static const struct message listview_item_count_seq[] = {
     { LVM_GETITEMCOUNT,   sent },
     { LVM_INSERTITEMA,    sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
     { LVM_INSERTITEMA,    sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 2 },
     { LVM_INSERTITEMA,    sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
     { LVM_GETITEMCOUNT,   sent },
     { LVM_DELETEITEM,     sent|wparam, 2 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
     { WM_NCPAINT,         sent|optional },
     { WM_ERASEBKGND,      sent|optional },
     { LVM_GETITEMCOUNT,   sent },
     { LVM_DELETEALLITEMS, sent },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { LVM_GETITEMCOUNT,   sent },
     { LVM_INSERTITEMA,    sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
     { LVM_INSERTITEMA,    sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 2 },
     { LVM_GETITEMCOUNT,   sent },
     { LVM_INSERTITEMA,    sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
     { LVM_GETITEMCOUNT,   sent },
     { 0 }
 };
 
 static const struct message listview_itempos_seq[] = {
     { LVM_INSERTITEMA,     sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 1 },
     { LVM_INSERTITEMA,     sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 2 },
     { LVM_INSERTITEMA,     sent },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 3 },
     { LVM_SETITEMPOSITION, sent|wparam|lparam, 1, MAKELPARAM(10,5) },
     { WM_NCPAINT,          sent|optional },
     { WM_ERASEBKGND,       sent|optional },
@@ -468,19 +414,6 @@ static const struct message scroll_parent_seq[] = {
     { 0 }
 };
 
-static const struct message listview_setview_seq[] = {
-    { LVM_SETVIEW, sent|wparam|lparam, 1, 0 },
-    { WM_NOTIFYFORMAT, sent|defwinproc|lparam|optional, 0, NF_QUERY },
-    { WM_NOTIFYFORMAT, sent|defwinproc|lparam|optional, 0, NF_QUERY },
-    { WM_QUERYUISTATE, sent|defwinproc|wparam|lparam|optional, 0, 0 },
-    { WM_PARENTNOTIFY, sent|defwinproc|optional },
-    { WM_PARENTNOTIFY, sent|defwinproc|optional },
-    { WM_PARENTNOTIFY, sent|defwinproc|optional },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { WM_ERASEBKGND, sent|defwinproc|optional },
-    { 0 }
-};
-
 static const struct message setredraw_seq[] = {
     { WM_SETREDRAW, sent|id|wparam, FALSE, 0, LISTVIEW_ID },
     { 0 }
@@ -530,9 +463,6 @@ static const struct message listview_ownerdata_destroy[] = {
 static const struct message listview_ownerdata_deleteall[] = {
     { LVM_DELETEALLITEMS, sent },
     { WM_NOTIFY, sent|id, 0, 0, LVN_DELETEALLITEMS },
-    { EVENT_OBJECT_REORDER, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { EVENT_OBJECT_DESTROY, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
-    { EVENT_OBJECT_CREATE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
     { 0 }
 };
 
@@ -630,21 +560,6 @@ static void release_key(int vk)
     kstate[vk] &= ~0x80;
     res = SetKeyboardState(kstate);
     ok(res, "SetKeyboardState failed.\n");
-}
-
-static void flush_events(void)
-{
-    MSG msg;
-    int diff = 200;
-    int min_timeout = 100;
-    DWORD time = GetTickCount() + diff;
-
-    while (diff > 0)
-    {
-        if (MsgWaitForMultipleObjects( 0, NULL, FALSE, min_timeout, QS_ALLINPUT ) == WAIT_TIMEOUT) break;
-        while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE )) DispatchMessageA( &msg );
-        diff = time - GetTickCount();
-    }
 }
 
 static LRESULT WINAPI parent_wnd_proc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -895,8 +810,6 @@ static HWND create_listview_control(DWORD style)
 
     if (!hwnd) return NULL;
 
-    UpdateWindow(hwnd);
-
     oldproc = (WNDPROC)SetWindowLongPtrA(hwnd, GWLP_WNDPROC,
                                         (LONG_PTR)listview_subclass_proc);
     SetWindowLongPtrA(hwnd, GWLP_USERDATA, (LONG_PTR)oldproc);
@@ -919,8 +832,6 @@ static HWND create_listview_controlW(DWORD style, HWND parent)
     ok(hwnd != NULL, "gle=%ld\n", GetLastError());
 
     if (!hwnd) return NULL;
-
-    UpdateWindow(hwnd);
 
     oldproc = (WNDPROC)SetWindowLongPtrW(hwnd, GWLP_WNDPROC,
                                         (LONG_PTR)listview_subclass_proc);
@@ -1977,10 +1888,7 @@ static void test_create(BOOL is_version_6)
 
     /* WM_MEASUREITEM should be sent when created with LVS_OWNERDRAWFIXED */
     flush_sequences(sequences, NUM_MSG_SEQUENCES);
-    hList = CreateWindowExA(0, WC_LISTVIEWA, NULL,
-        WS_CHILD | WS_BORDER | WS_VISIBLE | LVS_OWNERDRAWFIXED | LVS_REPORT,
-        0, 0, 100, 100, hwndparent, NULL, GetModuleHandleA(NULL), NULL);
-    ok(hList != NULL, "Failed to create ListView window.\n");
+    hList = create_listview_control(LVS_OWNERDRAWFIXED | LVS_REPORT);
     ok_sequence(sequences, PARENT_SEQ_INDEX, create_ownerdrawfixed_parent_seq,
                 "created with LVS_OWNERDRAWFIXED|LVS_REPORT - parent seq", FALSE);
     DestroyWindow(hList);
@@ -2290,8 +2198,8 @@ static void test_color(void)
 
     rect.right = rect.bottom = 1;
     r = GetUpdateRect(hwnd, &rect, TRUE);
-    expect(FALSE, r);
-    ok(rect.right == 0 && rect.bottom == 0, "got update rectangle %s\n", wine_dbgstr_rect(&rect));
+    todo_wine expect(FALSE, r);
+    ok(rect.right == 0 && rect.bottom == 0, "got update rectangle\n");
 
     r = ValidateRect(hwnd, NULL);
     expect(TRUE, r);
@@ -2300,8 +2208,8 @@ static void test_color(void)
 
     rect.right = rect.bottom = 1;
     r = GetUpdateRect(hwnd, &rect, TRUE);
-    expect(FALSE, r);
-    ok(rect.right == 0 && rect.bottom == 0, "got update rectangle %s\n", wine_dbgstr_rect(&rect));
+    todo_wine expect(FALSE, r);
+    ok(rect.right == 0 && rect.bottom == 0, "got update rectangle\n");
 
     r = ValidateRect(hwnd, NULL);
     expect(TRUE, r);
@@ -2310,8 +2218,8 @@ static void test_color(void)
 
     rect.right = rect.bottom = 1;
     r = GetUpdateRect(hwnd, &rect, TRUE);
-    expect(FALSE, r);
-    ok(rect.right == 0 && rect.bottom == 0, "got update rectangle %s\n", wine_dbgstr_rect(&rect));
+    todo_wine expect(FALSE, r);
+    ok(rect.right == 0 && rect.bottom == 0, "got update rectangle\n");
 
     DestroyWindow(hwnd);
 }
@@ -2489,89 +2397,51 @@ static void test_item_position(void)
     DestroyWindow(hwnd);
 }
 
-static void test_LVM_GETORIGIN(BOOL is_v6)
+static void test_getorigin(void)
 {
-    POINT position;
+    /* LVM_GETORIGIN */
+
     HWND hwnd;
     DWORD r;
-    int i;
+    POINT position;
+
+    position.x = position.y = 0;
 
     hwnd = create_listview_control(LVS_ICON);
     ok(hwnd != NULL, "failed to create a listview window\n");
+    flush_sequences(sequences, NUM_MSG_SEQUENCES);
 
-    position.x = position.y = 123;
     r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
-    ok(r == 1, "Unexpected return value %lu.\n", r);
-    ok(!position.x && !position.y, "Unexpected position %ld,%ld.\n", position.x, position.y);
-
-    for (i = 0; i < 10; i++)
-        insert_item(hwnd, i);
-    flush_events();
-
-    r = SendMessageA(hwnd, LVM_SCROLL, 0, 50);
-    ok(r, "Unexpected return value %lu.\n", r);
-
-    position.x = position.y = 0;
-    r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
-    ok(r == 1, "Unexpected return value %lu.\n", r);
-    ok(position.y == 50, "Unexpected position %ld.\n", position.y);
-
+    expect(TRUE, r);
+    flush_sequences(sequences, NUM_MSG_SEQUENCES);
     DestroyWindow(hwnd);
 
     hwnd = create_listview_control(LVS_SMALLICON);
     ok(hwnd != NULL, "failed to create a listview window\n");
     flush_sequences(sequences, NUM_MSG_SEQUENCES);
 
-    position.x = position.y = 123;
     r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
-    ok(r == 1, "Unexpected return value %lu.\n", r);
-    ok(!position.x && !position.y, "Unexpected position %ld,%ld.\n", position.x, position.y);
+    expect(TRUE, r);
+    flush_sequences(sequences, NUM_MSG_SEQUENCES);
     DestroyWindow(hwnd);
 
-    if (is_v6)
-    {
-        hwnd = create_listview_control(LVS_LIST);
-        ok(hwnd != NULL, "failed to create a listview window\n");
+    hwnd = create_listview_control(LVS_LIST);
+    ok(hwnd != NULL, "failed to create a listview window\n");
+    flush_sequences(sequences, NUM_MSG_SEQUENCES);
 
-        position.x = position.y = 123;
-        r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
-        todo_wine
-        ok(r, "Unexpected return value %lu.\n", r);
-        todo_wine
-        ok(!position.x && !position.y, "Unexpected position %ld,%ld.\n", position.x, position.y);
-        DestroyWindow(hwnd);
+    r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
+    expect(FALSE, r);
+    flush_sequences(sequences, NUM_MSG_SEQUENCES);
+    DestroyWindow(hwnd);
 
-        hwnd = create_listview_control(LVS_REPORT);
-        ok(hwnd != NULL, "failed to create a listview window\n");
+    hwnd = create_listview_control(LVS_REPORT);
+    ok(hwnd != NULL, "failed to create a listview window\n");
+    flush_sequences(sequences, NUM_MSG_SEQUENCES);
 
-        position.x = position.y = 123;
-        r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
-        todo_wine
-        ok(r, "Unexpected return value %lu.\n", r);
-        todo_wine
-        ok(!position.x && !position.y, "Unexpected position %ld,%ld.\n", position.x, position.y);
-        DestroyWindow(hwnd);
-    }
-    else
-    {
-        hwnd = create_listview_control(LVS_LIST);
-        ok(hwnd != NULL, "failed to create a listview window\n");
-
-        position.x = position.y = 123;
-        r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
-        ok(!r, "Unexpected return value %lu.\n", r);
-        ok(position.x == 123 && position.y == 123, "Unexpected position %ld,%ld.\n", position.x, position.y);
-        DestroyWindow(hwnd);
-
-        hwnd = create_listview_control(LVS_REPORT);
-        ok(hwnd != NULL, "failed to create a listview window\n");
-
-        position.x = position.y = 123;
-        r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
-        ok(!r, "Unexpected return value %lu.\n", r);
-        ok(position.x == 123 && position.y == 123, "Unexpected position %ld,%ld.\n", position.x, position.y);
-        DestroyWindow(hwnd);
-    }
+    r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&position);
+    expect(FALSE, r);
+    flush_sequences(sequences, NUM_MSG_SEQUENCES);
+    DestroyWindow(hwnd);
 }
 
 static void test_multiselect(void)
@@ -3150,78 +3020,6 @@ static void test_subitem_rect(void)
     expect(1, rect.top);
     expect(-10, rect.bottom);
     DestroyWindow(hwnd);
-}
-
-static INT WINAPI test_CallBackCompareEx(LPARAM first, LPARAM second, LPARAM lParam)
-{
-    HWND list_view = (HWND)lParam;
-    CHAR buffer1[256], buffer2[256];
-    int itm1, itm2;
-
-    ListView_GetItemTextA(list_view, first, 0, buffer1, sizeof(buffer1));
-    ListView_GetItemTextA(list_view, second, 0, buffer2, sizeof(buffer2));
-
-    itm1 = atoi(buffer1);
-    itm2 = atoi(buffer2);
-
-    return (itm1 - itm2);
-}
-
-static void test_custom_sort(void)
-{
-    int prev_value;
-    int sorted;
-    LVITEMA lvi = {0};
-    LV_COLUMNA lvc = {0};
-    CHAR buffer[256];
-    CHAR col_names[][2] = { "1", "2" };
-    HWND list_view = create_listview_control(LVS_REPORT);
-
-    lvc.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
-    lvc.pszText = col_names[0];
-    lvc.iSubItem = 0;
-    SendMessageA(list_view, LVM_INSERTCOLUMNA, 0, (LPARAM)&lvc);
-
-    lvc.pszText = col_names[1];
-    lvc.iSubItem = 1;
-    SendMessageA(list_view, LVM_INSERTCOLUMNA, 1, (LPARAM)&lvc);
-
-    srand(1234);
-
-    for (int i = 0; i < 100; i++)
-    {
-        lvi.mask = LVIF_TEXT;
-        lvi.iItem = i;
-        lvi.iSubItem = 0;
-        lvi.pszText = buffer;
-        sprintf(buffer, "%d", rand() % 100);
-        SendMessageA(list_view, LVM_INSERTITEMA, 0, (LPARAM)&lvi);
-
-        lvi.iSubItem = 1;
-        sprintf(buffer, "%d", rand() % 100);
-        SendMessageA(list_view, LVM_SETITEMTEXTA, i, (LPARAM)&lvi);
-    }
-
-    SendMessageA(list_view, LVM_SORTITEMSEX, (WPARAM)list_view, (LPARAM)test_CallBackCompareEx);
-
-    for (int i = 1; i < 100; i++)
-    {
-        ListView_GetItemTextA(list_view, i - 1, 0, buffer, sizeof(buffer));
-        prev_value = atoi(buffer);
-
-        ListView_GetItemTextA(list_view, i, 0, buffer, sizeof(buffer));
-
-        if (atoi(buffer) < prev_value)
-        {
-            sorted = 0;
-            break;
-        }
-        sorted = 1;
-    }
-
-    ok(sorted, "ListView not sorted correctly.\n");
-
-    DestroyWindow(list_view);
 }
 
 /* comparison callback for test_sorting */
@@ -4778,32 +4576,6 @@ static void test_editbox(void)
     expect(lstrlenA(item.pszText), r);
     ok(strcmp(buffer, testitem2A) == 0, "Expected item text to change\n");
 
-    /* Modify to empty text, check notification data. */
-    SetFocus(hwnd);
-    hwndedit = (HWND)SendMessageA(hwnd, LVM_EDITLABELA, 0, 0);
-    ok(!!hwndedit, "Failed to edit a label.\n");
-    r = SendMessageA(hwndedit, WM_SETTEXT, 0, (LPARAM)"");
-    ok(r, "Unexpected return value %d.\n", r);
-    g_editbox_disp_info.item.pszText = NULL;
-    r = SendMessageA(hwndedit, WM_KEYDOWN, VK_RETURN, 0);
-    ok(!r, "Unexpected return value %d.\n", r);
-    ok(g_editbox_disp_info.item.pszText != NULL, "Unexpected notification text.\n");
-    memset(&item, 0, sizeof(item));
-    item.pszText = buffer;
-    item.cchTextMax = sizeof(buffer);
-    r = SendMessageA(hwnd, LVM_GETITEMTEXTA, 0, (LPARAM)&item);
-    ok(!r, "Unexpected return value %d.\n", r);
-    ok(!*buffer, "Unexpected item text %s.\n", debugstr_a(buffer));
-
-    /* end edit with saving */
-    SetFocus(hwnd);
-    hwndedit = (HWND)SendMessageA(hwnd, LVM_EDITLABELA, 0, 0);
-    flush_sequences(sequences, NUM_MSG_SEQUENCES);
-    r = SendMessageA(hwndedit, WM_KEYDOWN, VK_RETURN, 0);
-    expect(0, r);
-    ok_sequence(sequences, PARENT_SEQ_INDEX, edit_end_nochange,
-                "edit box - end edit, no change, return", TRUE);
-
     /* LVM_EDITLABEL with -1 destroys current edit */
     hwndedit = (HWND)SendMessageA(hwnd, LVM_GETEDITCONTROL, 0, 0);
     ok(hwndedit == NULL, "Expected Edit window not to be created\n");
@@ -5047,11 +4819,8 @@ static void test_get_set_view(void)
     expect(LV_VIEW_LIST, ret);
 
     /* switching view doesn't touch window style */
-    flush_sequences(sequences, NUM_MSG_SEQUENCES);
     ret = SendMessageA(hwnd, LVM_SETVIEW, LV_VIEW_DETAILS, 0);
     expect(1, ret);
-    ok_sequence(sequences, LISTVIEW_SEQ_INDEX, listview_setview_seq, "test setview seq", FALSE);
-
     style = GetWindowLongPtrA(hwnd, GWL_STYLE);
     ok(style & LVS_LIST, "Expected style to be preserved\n");
     ret = SendMessageA(hwnd, LVM_SETVIEW, LV_VIEW_ICON, 0);
@@ -5646,24 +5415,10 @@ todo_wine {
 
 }
 
-static const struct message finditem_ownerdata_parent_seq[] =
+static void test_finditem(void)
 {
-    { WM_NOTIFY, sent|id|wparam, 0, 0, LVN_ODFINDITEMA },
-    { 0 }
-};
-
-static const struct message finditem_ownerdata_parent_seq2[] =
-{
-    { WM_NOTIFY, sent|id|wparam, 0, 0, LVN_ODFINDITEMW },
-    { 0 }
-};
-
-static void test_LVM_FINDITEM(void)
-{
-    LVFINDINFOW fiW;
     LVFINDINFOA fi;
     static char f[5];
-    WCHAR strW[5];
     HWND hwnd;
     INT r;
 
@@ -5671,7 +5426,6 @@ static void test_LVM_FINDITEM(void)
     insert_item(hwnd, 0);
 
     memset(&fi, 0, sizeof(fi));
-    memset(&fiW, 0, sizeof(fiW));
 
     /* full string search, inserted text was "foo" */
     strcpy(f, "foo");
@@ -5755,51 +5509,6 @@ static void test_LVM_FINDITEM(void)
     fi.psz = f;
     r = SendMessageA(hwnd, LVM_FINDITEMA, -1, (LPARAM)&fi);
     ok(!r, "Unexpected item index %d.\n", r);
-
-    DestroyWindow(hwnd);
-
-    /* LVS_OWNERDATA */
-    hwnd = create_listview_control(LVS_REPORT | LVS_OWNERDATA);
-    ok(!!hwnd, "Failed to create alistview window.\n");
-
-    flush_sequences(sequences, NUM_MSG_SEQUENCES);
-    strcpy(f, "foo");
-    fi.flags = LVFI_STRING;
-    fi.psz = f;
-    r = SendMessageA(hwnd, LVM_FINDITEMA, -1, (LPARAM)&fi);
-    ok(!r, "Unexpected return value %d.\n", r);
-    ok_sequence(sequences, PARENT_SEQ_INDEX, finditem_ownerdata_parent_seq, "LVM_FINDITEMA owner data test", FALSE);
-
-    flush_sequences(sequences, NUM_MSG_SEQUENCES);
-    wcscpy(strW, L"foo");
-    fiW.flags = LVFI_STRING;
-    fiW.psz = strW;
-    r = SendMessageA(hwnd, LVM_FINDITEMW, -1, (LPARAM)&fiW);
-    ok(!r, "Unexpected return value %d.\n", r);
-    ok_sequence(sequences, PARENT_SEQ_INDEX, finditem_ownerdata_parent_seq, "LVM_FINDITEMW owner data test", FALSE);
-
-    /* Force Unicode notifications */
-    notifyFormat = NFR_UNICODE;
-    r = SendMessageA(hwnd, WM_NOTIFYFORMAT, 0, NF_REQUERY);
-    ok(r == NFR_UNICODE, "Unexpected return value %d.\n", r);
-
-    flush_sequences(sequences, NUM_MSG_SEQUENCES);
-    strcpy(f, "foo");
-    fi.flags = LVFI_STRING;
-    fi.psz = f;
-    r = SendMessageA(hwnd, LVM_FINDITEMA, -1, (LPARAM)&fi);
-    ok(!r, "Unexpected return value %d.\n", r);
-    ok_sequence(sequences, PARENT_SEQ_INDEX, finditem_ownerdata_parent_seq2, "LVM_FINDITEMA(W) owner data test", FALSE);
-
-    flush_sequences(sequences, NUM_MSG_SEQUENCES);
-    wcscpy(strW, L"foo");
-    fiW.flags = LVFI_STRING;
-    fiW.psz = strW;
-    r = SendMessageA(hwnd, LVM_FINDITEMW, -1, (LPARAM)&fiW);
-    ok(!r, "Unexpected return value %d.\n", r);
-    ok_sequence(sequences, PARENT_SEQ_INDEX, finditem_ownerdata_parent_seq2, "LVM_FINDITEMW(W) owner data test", FALSE);
-
-    notifyFormat = -1;
 
     DestroyWindow(hwnd);
 }
@@ -6703,6 +6412,21 @@ static void test_header_proc(void)
     DestroyWindow(hwnd);
 }
 
+static void flush_events(void)
+{
+    MSG msg;
+    int diff = 200;
+    int min_timeout = 100;
+    DWORD time = GetTickCount() + diff;
+
+    while (diff > 0)
+    {
+        if (MsgWaitForMultipleObjects( 0, NULL, FALSE, min_timeout, QS_ALLINPUT ) == WAIT_TIMEOUT) break;
+        while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE )) DispatchMessageA( &msg );
+        diff = time - GetTickCount();
+    }
+}
+
 static void test_oneclickactivate(void)
 {
     TRACKMOUSEEVENT track;
@@ -7047,9 +6771,7 @@ static void test_state_image(void)
 
 static void test_LVSCW_AUTOSIZE(void)
 {
-    int r, width, width2;
-    HIMAGELIST himl;
-    HBITMAP hbmp;
+    int width, width2;
     HWND hwnd;
     BOOL ret;
 
@@ -7085,29 +6807,8 @@ static void test_LVSCW_AUTOSIZE(void)
     ok(ret, "Failed to set column width.\n");
 
     width = SendMessageA(hwnd, LVM_GETCOLUMNWIDTH, 0, 0);
-    ok(width > 0, "Unexpected column width %d.\n", width);
+    ok(width > 0, "Unexpected column width %d.\n", width2);
     ok(width2 > width, "Expected reduced column width.\n");
-
-    /* With a state imagelist */
-    himl = pImageList_Create(48, 48, 0, 4, 4);
-    ok(!!himl, "Failed to create an imagelist.\n");
-    hbmp = CreateBitmap(48, 48, 1, 1, NULL);
-    ok(!!hbmp, "Failed to create a bitmap.\n");
-    r = pImageList_Add(himl, hbmp, 0);
-    ok(!r, "Unexpected return value %d.\n", r);
-    r = pImageList_Add(himl, hbmp, 0);
-    ok(r == 1, "Unexpected return value %d.\n", r);
-    DeleteObject(hbmp);
-
-    r = SendMessageA(hwnd, LVM_SETIMAGELIST, LVSIL_STATE, (LPARAM)himl);
-    ok(!r, "Unexpected return value %d.\n", r);
-
-    ret = SendMessageA(hwnd, LVM_SETCOLUMNWIDTH, 0, LVSCW_AUTOSIZE);
-    ok(ret, "Failed to set column width.\n");
-
-    width2 = SendMessageA(hwnd, LVM_GETCOLUMNWIDTH, 0, 0);
-    ok(width2 > 0, "Unexpected column width %d.\n", width2);
-    ok(width2 > width, "Expected increased column width.\n");
 
     DestroyWindow(hwnd);
 }
@@ -7455,40 +7156,6 @@ static void test_LVM_SETBKIMAGE(BOOL is_v6)
     CoUninitialize();
 }
 
-static void test_LVM_GETNEXTITEM(void)
-{
-    HWND hwnd;
-    LRESULT lr;
-
-    hwnd = create_listview_control(LVS_REPORT);
-    insert_item(hwnd, 0);
-    insert_item(hwnd, 1);
-
-    lr = SendMessageA(hwnd, LVM_GETNEXTITEM, 0, LVNI_ABOVE);
-    expect(-1, lr);
-    lr = SendMessageA(hwnd, LVM_GETNEXTITEM, 0, LVNI_BELOW);
-    expect(1, lr);
-    lr = SendMessageA(hwnd, LVM_GETNEXTITEM, 1, LVNI_ABOVE);
-    expect(0, lr);
-    lr = SendMessageA(hwnd, LVM_GETNEXTITEM, 1, LVNI_BELOW);
-    expect(-1, lr);
-
-    DestroyWindow(hwnd);
-}
-
-static void test_LVM_GETHOTCURSOR(void)
-{
-    HCURSOR cursor;
-    HWND hwnd;
-
-    hwnd = create_listview_control(LVS_REPORT);
-
-    cursor = (HCURSOR)SendMessageA(hwnd, LVM_GETHOTCURSOR, 0, 0);
-    ok(!!cursor, "Unexpected cursor %p.\n", cursor);
-
-    DestroyWindow(hwnd);
-}
-
 START_TEST(listview)
 {
     ULONG_PTR ctx_cookie;
@@ -7497,8 +7164,6 @@ START_TEST(listview)
     init_functions();
 
     init_msg_sequences(sequences, NUM_MSG_SEQUENCES);
-
-    init_winevent_hook();
 
     hwndparent = create_parent_window(FALSE);
     flush_sequences(sequences, NUM_MSG_SEQUENCES);
@@ -7516,7 +7181,7 @@ START_TEST(listview)
     test_item_count();
     test_item_position();
     test_columns();
-    test_LVM_GETORIGIN(FALSE);
+    test_getorigin();
     test_multiselect();
     test_getitemrect();
     test_subitem_rect();
@@ -7535,7 +7200,7 @@ START_TEST(listview)
     test_getitemspacing();
     test_getcolumnwidth();
     test_approximate_viewrect();
-    test_LVM_FINDITEM();
+    test_finditem();
     test_hover();
     test_destroynotify();
     test_createdragimage();
@@ -7556,9 +7221,6 @@ START_TEST(listview)
     test_LVM_GETCOUNTPERPAGE();
     test_item_state_change();
     test_LVM_SETBKIMAGE(FALSE);
-    test_custom_sort();
-    test_LVM_GETNEXTITEM();
-    test_LVM_GETHOTCURSOR();
 
     if (!load_v6_module(&ctx_cookie, &hCtx))
     {
@@ -7591,7 +7253,7 @@ START_TEST(listview)
     test_norecompute();
     test_nosortheader();
     test_indentation();
-    test_LVM_FINDITEM();
+    test_finditem();
     test_hover();
     test_destroynotify();
     test_createdragimage();
@@ -7607,12 +7269,7 @@ START_TEST(listview)
     test_item_state_change();
     test_selected_column();
     test_LVM_GETNEXTITEMINDEX();
-    test_LVM_GETNEXTITEM();
     test_LVM_SETBKIMAGE(TRUE);
-    test_LVM_GETHOTCURSOR();
-    test_LVM_GETORIGIN(TRUE);
-
-    uninit_winevent_hook();
 
     unload_v6_module(ctx_cookie, hCtx);
 

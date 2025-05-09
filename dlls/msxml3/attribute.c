@@ -116,7 +116,7 @@ static ULONG WINAPI domattr_Release(
             xmlFreeNs( This->node.node->ns );
             xmlFreeNode( This->node.node );
         }
-        free( This );
+        heap_free( This );
     }
 
     return ref;
@@ -377,10 +377,11 @@ static HRESULT WINAPI domattr_get_nodeTypeString(
     BSTR* p)
 {
     domattr *This = impl_from_IXMLDOMAttribute( iface );
+    static const WCHAR attributeW[] = {'a','t','t','r','i','b','u','t','e',0};
 
     TRACE("(%p)->(%p)\n", This, p);
 
-    return return_bstr(L"attribute", p);
+    return return_bstr(attributeW, p);
 }
 
 static HRESULT WINAPI domattr_get_text(
@@ -730,7 +731,7 @@ IUnknown* create_attribute( xmlNodePtr attribute, BOOL floating )
 {
     domattr *This;
 
-    This = malloc(sizeof(*This));
+    This = heap_alloc( sizeof *This );
     if ( !This )
         return NULL;
 

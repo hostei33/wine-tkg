@@ -5,4 +5,5 @@ UNIX_LIBS    = $(PULSE_LIBS) $(PTHREAD_LIBS) -lm
 UNIX_CFLAGS  = $(PULSE_CFLAGS)
 
 SOURCES = \
+	mmdevdrv.c \
 	pulse.c

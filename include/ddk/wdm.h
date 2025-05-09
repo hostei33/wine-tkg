@@ -40,11 +40,6 @@
 #define ADDRESS_AND_SIZE_TO_SPAN_PAGES(va, length) \
     ((BYTE_OFFSET(va) + ((SIZE_T)(length)) + (PAGE_SIZE - 1)) >> PAGE_SHIFT)
 
-#define LOW_PRIORITY             0
-#define LOW_REALTIME_PRIORITY   16
-#define HIGH_PRIORITY           31
-#define MAXIMUM_PRIORITY        32
-
 typedef LONG KPRIORITY;
 
 typedef ULONG_PTR KSPIN_LOCK, *PKSPIN_LOCK;
@@ -68,7 +63,6 @@ typedef NTSTATUS (WINAPI *PDRIVER_DISPATCH)(struct _DEVICE_OBJECT *, struct _IRP
 typedef void (WINAPI *PDRIVER_STARTIO)(struct _DEVICE_OBJECT *, struct _IRP *);
 typedef void (WINAPI *PDRIVER_UNLOAD)(struct _DRIVER_OBJECT *);
 typedef NTSTATUS (WINAPI *PDRIVER_ADD_DEVICE)(struct _DRIVER_OBJECT *, struct _DEVICE_OBJECT *);
-typedef void (WINAPI *PDEVICE_CHANGE_COMPLETE_CALLBACK)(void*);
 
 typedef struct _DISPATCHER_HEADER {
   UCHAR  Type;
@@ -311,23 +305,6 @@ typedef enum _POOL_TYPE {
   NonPagedPoolCacheAlignedMustS,
   MaxPoolType
 } POOL_TYPE;
-
-typedef ULONG64 POOL_FLAGS;
-
-#define POOL_FLAG_REQUIRED_START        0x00000001
-#define POOL_FLAG_USE_QUOTA             0x00000001
-#define POOL_FLAG_UNINITIALIZED         0x00000002
-#define POOL_FLAG_SESSION               0x00000004
-#define POOL_FLAG_CACHE_ALIGNED         0x00000008
-#define POOL_FLAG_RESERVED1             0x00000010
-#define POOL_FLAG_RAISE_ON_FAILURE      0x00000020
-#define POOL_FLAG_NON_PAGED             0x00000040
-#define POOL_FLAG_NON_PAGED_EXECUTE     0x00000080
-#define POOL_FLAG_PAGED                 0x00000100
-#define POOL_FLAG_RESERVED2             0x00000200
-#define POOL_FLAG_RESERVED3             0x00000400
-#define POOL_FLAG_LAST_KNOWN_REQUIRED   POOL_FLAG_RESERVED3
-#define POOL_FLAG_REQUIRED_END          0x80000000
 
 typedef struct _WAIT_CONTEXT_BLOCK {
   KDEVICE_QUEUE_ENTRY  WaitQueueEntry;
@@ -1012,7 +989,7 @@ typedef NTSTATUS (WINAPI *PIO_COMPLETION_ROUTINE)(
 #define SL_INVOKE_ON_ERROR              0x80
 
 #if !defined(_WIN64)
-#pragma pack(push,4)
+#include <pshpack4.h>
 #endif
 typedef struct _IO_STACK_LOCATION {
   UCHAR  MajorFunction;
@@ -1155,7 +1132,7 @@ typedef struct _IO_STACK_LOCATION {
   PVOID  Context;
 } IO_STACK_LOCATION, *PIO_STACK_LOCATION;
 #if !defined(_WIN64)
-#pragma pack(pop)
+#include <poppack.h>
 #endif
 
 /* MDL definitions */
@@ -1619,16 +1596,6 @@ typedef enum _DIRECTORY_NOTIFY_INFORMATION_CLASS {
     DirectoryNotifyExtendedInformation
 } DIRECTORY_NOTIFY_INFORMATION_CLASS, *PDIRECTORY_NOTIFY_INFORMATION_CLASS;
 
-typedef struct _TARGET_DEVICE_CUSTOM_NOTIFICATION
-{
-    USHORT Version;
-    USHORT Size;
-    GUID Event;
-    FILE_OBJECT *FileObject;
-    LONG NameBufferOffset;
-    UCHAR CustomDataBuffer[1];
-} TARGET_DEVICE_CUSTOM_NOTIFICATION, *PTARGET_DEVICE_CUSTOM_NOTIFICATION;
-
 typedef enum _WORK_QUEUE_TYPE {
     CriticalWorkQueue,
     DelayedWorkQueue,
@@ -1708,8 +1675,6 @@ typedef enum _MODE
 #define SYMBOLIC_LINK_QUERY             0x0001
 #define SYMBOLIC_LINK_ALL_ACCESS        (STANDARD_RIGHTS_REQUIRED | 0x1)
 
-typedef void (WINAPI *PREQUEST_POWER_COMPLETE)(DEVICE_OBJECT *device, UCHAR minor, POWER_STATE state, void *ctx, IO_STATUS_BLOCK *iosb);
-
 #ifndef WINE_UNIX_LIB
 
 NTSTATUS  WINAPI DbgQueryDebugFilterState(ULONG, ULONG);
@@ -1722,7 +1687,6 @@ BOOLEAN   WINAPI ExAcquireSharedStarveExclusive(ERESOURCE*,BOOLEAN);
 BOOLEAN   WINAPI ExAcquireSharedWaitForExclusive(ERESOURCE*,BOOLEAN);
 void      WINAPI ExFreePool(PVOID);
 PVOID     WINAPI ExAllocatePool(POOL_TYPE,SIZE_T) __WINE_ALLOC_SIZE(2) __WINE_DEALLOC(ExFreePool) __WINE_MALLOC;
-PVOID     WINAPI ExAllocatePool2(POOL_FLAGS,SIZE_T,ULONG) __WINE_ALLOC_SIZE(2) __WINE_DEALLOC(ExFreePool) __WINE_MALLOC;
 PVOID     WINAPI ExAllocatePoolWithQuota(POOL_TYPE,SIZE_T) __WINE_ALLOC_SIZE(2) __WINE_DEALLOC(ExFreePool) __WINE_MALLOC;
 void      WINAPI ExFreePoolWithTag(PVOID,ULONG);
 PVOID     WINAPI ExAllocatePoolWithTag(POOL_TYPE,SIZE_T,ULONG) __WINE_ALLOC_SIZE(2) __WINE_DEALLOC(ExFreePoolWithTag) __WINE_MALLOC;
@@ -1748,10 +1712,6 @@ void    FASTCALL ExReleaseFastMutexUnsafe(PFAST_MUTEX);
 void      WINAPI ExReleaseResourceForThreadLite(ERESOURCE*,ERESOURCE_THREAD);
 ULONG     WINAPI ExSetTimerResolution(ULONG,BOOLEAN);
 void      WINAPI ExUnregisterCallback(void*);
-
-#define PLUGPLAY_REGKEY_DEVICE            1
-#define PLUGPLAY_REGKEY_DRIVER            2
-#define PLUGPLAY_REGKEY_CURRENT_HWPROFILE 4
 
 #define PLUGPLAY_PROPERTY_PERSISTENT 0x0001
 
@@ -1787,7 +1747,6 @@ PEPROCESS WINAPI IoGetCurrentProcess(void);
 NTSTATUS  WINAPI IoGetDeviceInterfaces(const GUID*,PDEVICE_OBJECT,ULONG,PWSTR*);
 NTSTATUS  WINAPI IoGetDeviceObjectPointer(UNICODE_STRING*,ACCESS_MASK,PFILE_OBJECT*,PDEVICE_OBJECT*);
 NTSTATUS  WINAPI IoGetDeviceProperty(PDEVICE_OBJECT,DEVICE_REGISTRY_PROPERTY,ULONG,PVOID,PULONG);
-NTSTATUS  WINAPI IoGetDevicePropertyData(PDEVICE_OBJECT,const DEVPROPKEY*,LCID,ULONG,ULONG,void*,ULONG*,DEVPROPTYPE*);
 PVOID     WINAPI IoGetDriverObjectExtension(PDRIVER_OBJECT,PVOID);
 PDEVICE_OBJECT WINAPI IoGetRelatedDeviceObject(PFILE_OBJECT);
 void      WINAPI IoGetStackLimits(ULONG_PTR*,ULONG_PTR*);
@@ -1803,8 +1762,6 @@ NTSTATUS  WINAPI IoRegisterDeviceInterface(PDEVICE_OBJECT,const GUID*,PUNICODE_S
 void      WINAPI IoReleaseCancelSpinLock(KIRQL);
 void      WINAPI IoReleaseRemoveLockAndWaitEx(IO_REMOVE_LOCK*,void*,ULONG);
 void      WINAPI IoReleaseRemoveLockEx(IO_REMOVE_LOCK*,void*,ULONG);
-NTSTATUS  WINAPI IoReportTargetDeviceChange(DEVICE_OBJECT*,void*);
-NTSTATUS  WINAPI IoReportTargetDeviceChangeAsynchronous(DEVICE_OBJECT*,void*,PDEVICE_CHANGE_COMPLETE_CALLBACK,void*);
 void      WINAPI IoReuseIrp(IRP*,NTSTATUS);
 NTSTATUS  WINAPI IoSetDeviceInterfaceState(UNICODE_STRING*,BOOLEAN);
 NTSTATUS  WINAPI IoSetDevicePropertyData(DEVICE_OBJECT*,const DEVPROPKEY*,LCID,ULONG,DEVPROPTYPE,ULONG,void*);
@@ -1868,12 +1825,10 @@ PMDL      WINAPI MmAllocatePagesForMdl(PHYSICAL_ADDRESS,PHYSICAL_ADDRESS,PHYSICA
 void      WINAPI MmBuildMdlForNonPagedPool(MDL*);
 NTSTATUS  WINAPI MmCopyVirtualMemory(PEPROCESS,void*,PEPROCESS,void*,SIZE_T,KPROCESSOR_MODE,SIZE_T*);
 void *    WINAPI MmGetSystemRoutineAddress(UNICODE_STRING*);
-PVOID     WINAPI MmMapLockedPages(MDL*,KPROCESSOR_MODE);
 PVOID     WINAPI MmMapLockedPagesSpecifyCache(PMDLX,KPROCESSOR_MODE,MEMORY_CACHING_TYPE,PVOID,ULONG,MM_PAGE_PRIORITY);
 MM_SYSTEMSIZE WINAPI MmQuerySystemSize(void);
 void      WINAPI MmProbeAndLockPages(PMDLX, KPROCESSOR_MODE, LOCK_OPERATION);
 void      WINAPI MmUnmapLockedPages(void*, PMDL);
-void      WINAPI MmUnlockPages(PMDLX);
 
 void    FASTCALL ObfReferenceObject(void*);
 void      WINAPI ObDereferenceObject(void*);
@@ -1882,10 +1837,10 @@ NTSTATUS  WINAPI ObRegisterCallbacks(POB_CALLBACK_REGISTRATION, void**);
 NTSTATUS  WINAPI ObReferenceObjectByHandle(HANDLE,ACCESS_MASK,POBJECT_TYPE,KPROCESSOR_MODE,PVOID*,POBJECT_HANDLE_INFORMATION);
 NTSTATUS  WINAPI ObReferenceObjectByName(UNICODE_STRING*,ULONG,ACCESS_STATE*,ACCESS_MASK,POBJECT_TYPE,KPROCESSOR_MODE,void*,void**);
 NTSTATUS  WINAPI ObReferenceObjectByPointer(void*,ACCESS_MASK,POBJECT_TYPE,KPROCESSOR_MODE);
+NTSTATUS  WINAPI ObOpenObjectByPointer(void *,ULONG,ACCESS_STATE*,ACCESS_MASK,POBJECT_TYPE,KPROCESSOR_MODE,HANDLE*);
 void      WINAPI ObUnRegisterCallbacks(void*);
 
 NTSTATUS  WINAPI PoCallDriver(DEVICE_OBJECT*,IRP*);
-NTSTATUS  WINAPI PoRequestPowerIrp(DEVICE_OBJECT *device, UCHAR minor, POWER_STATE state, PREQUEST_POWER_COMPLETE complete_cb, void *ctx, IRP **irp);
 POWER_STATE WINAPI PoSetPowerState(PDEVICE_OBJECT,POWER_STATE_TYPE,POWER_STATE);
 void      WINAPI PoStartNextPowerIrp(IRP*);
 

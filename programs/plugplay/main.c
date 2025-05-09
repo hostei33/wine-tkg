@@ -65,7 +65,6 @@ struct event
     struct list entry;
     DWORD code;
     BYTE *data;
-    WCHAR *path;
     unsigned int size;
 };
 
@@ -109,7 +108,7 @@ plugplay_rpc_handle __cdecl plugplay_register_listener(void)
     return listener;
 }
 
-DWORD __cdecl plugplay_get_event( plugplay_rpc_handle handle, WCHAR **path, BYTE **data, unsigned int *size )
+DWORD __cdecl plugplay_get_event( plugplay_rpc_handle handle, BYTE **data, unsigned int *size )
 {
     struct listener *listener = handle;
     struct event *event;
@@ -127,7 +126,6 @@ DWORD __cdecl plugplay_get_event( plugplay_rpc_handle handle, WCHAR **path, BYTE
     LeaveCriticalSection( &plugplay_cs );
 
     ret = event->code;
-    *path = event->path;
     *data = event->data;
     *size = event->size;
     free( event );
@@ -139,17 +137,13 @@ void __cdecl plugplay_unregister_listener( plugplay_rpc_handle handle )
     destroy_listener( handle );
 }
 
-void __cdecl plugplay_send_event( const WCHAR *path, DWORD code, const BYTE *data, unsigned int size )
+void __cdecl plugplay_send_event( DWORD code, const BYTE *data, unsigned int size )
 {
     struct listener *listener;
     struct event *event;
-    const DEV_BROADCAST_HDR *header = (const DEV_BROADCAST_HDR *)data;
 
-    if (header->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
-    {
-        BroadcastSystemMessageW( 0, NULL, WM_DEVICECHANGE, code, (LPARAM)data );
-        BroadcastSystemMessageW( 0, NULL, WM_DEVICECHANGE, DBT_DEVNODES_CHANGED, 0 );
-    }
+    BroadcastSystemMessageW( 0, NULL, WM_DEVICECHANGE, code, (LPARAM)data );
+    BroadcastSystemMessageW( 0, NULL, WM_DEVICECHANGE, DBT_DEVNODES_CHANGED, 0 );
 
     EnterCriticalSection( &plugplay_cs );
 
@@ -164,7 +158,6 @@ void __cdecl plugplay_send_event( const WCHAR *path, DWORD code, const BYTE *dat
             break;
         }
 
-        event->path = wcsdup( path );
         event->code = code;
         memcpy( event->data, data, size );
         event->size = size;

@@ -29,7 +29,7 @@
 #define WIDL_using_Windows_Foundation_Collections
 #include "windows.foundation.h"
 #define WIDL_using_Windows_Networking
-#include "windows.networking.connectivity.h"
+#include "windows.networking.h"
 
 #include "wine/test.h"
 

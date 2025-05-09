@@ -22,7 +22,7 @@
 
 #include <corecrt.h>
 
-#pragma pack(push,8)
+#include <pshpack8.h>
 
 #ifdef __i386__
 
@@ -147,39 +147,34 @@ extern "C" {
 
 _ACRTIMP void __cdecl longjmp(jmp_buf,int);
 
-#ifndef __has_builtin
-# define __has_builtin(x) 0
-#endif
-
-#ifdef _UCRT
-# ifdef __i386__
-#  define _setjmp __intrinsic_setjmp
-# else
+#ifdef _WIN64
+# ifdef _UCRT
 #  define _setjmpex __intrinsic_setjmpex
 # endif
-#endif
-
-#ifdef __i386__
-_ACRTIMP int __cdecl __attribute__((__nothrow__,__returns_twice__)) _setjmp(jmp_buf);
-# define setjmp(buf) _setjmp((buf))
-#elif !defined(_setjmpex) && __has_builtin(_setjmpex)
-_ACRTIMP int __cdecl __attribute__((__nothrow__,__returns_twice__)) _setjmpex(jmp_buf);
-# define setjmp(buf) _setjmpex(buf)
-#else
-_ACRTIMP int __cdecl __attribute__((__nothrow__,__returns_twice__)) _setjmpex(jmp_buf,void*);
-# if __has_builtin(__builtin_sponentry)
-#  define setjmp(buf) _setjmpex((buf), __builtin_sponentry())
-# elif __has_builtin(__builtin_frame_address)
-#  define setjmp(buf) _setjmpex((buf), __builtin_frame_address(0))
-# else
-#  define setjmp(buf) _setjmpex((buf), NULL)
+# if defined(__GNUC__) || defined(__clang__)
+_ACRTIMP int __cdecl __attribute__ ((__nothrow__,__returns_twice__)) _setjmpex(jmp_buf,void*);
+# define setjmp(buf)   _setjmpex(buf,__builtin_frame_address(0))
+# define setjmpex(buf) _setjmpex(buf,__builtin_frame_address(0))
 # endif
-#endif  /* __i386__ */
+#else  /* _WIN64 */
+# ifdef _UCRT
+#  define _setjmp __intrinsic_setjmp
+# endif
+# if defined(__GNUC__) || defined(__clang__)
+_ACRTIMP int __cdecl __attribute__ ((__nothrow__,__returns_twice__)) _setjmp(jmp_buf);
+# else
+_ACRTIMP int __cdecl _setjmp(jmp_buf);
+# endif
+#endif  /* _WIN64 */
+
+#ifndef setjmp
+#define setjmp _setjmp
+#endif
 
 #ifdef __cplusplus
 }
 #endif
 
-#pragma pack(pop)
+#include <poppack.h>
 
 #endif /* __WINE_SETJMP_H */

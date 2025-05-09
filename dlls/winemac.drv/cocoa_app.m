@@ -191,6 +191,15 @@ static NSString* WineLocalizedString(unsigned int stringID)
 
             windowsBeingDragged = [[NSMutableSet alloc] init];
 
+            // On macOS 10.12+, use notifications to more reliably detect when windows are being dragged.
+            if ([NSProcessInfo instancesRespondToSelector:@selector(isOperatingSystemAtLeastVersion:)])
+            {
+                NSOperatingSystemVersion requiredVersion = { 10, 12, 0 };
+                useDragNotifications = [[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:requiredVersion];
+            }
+            else
+                useDragNotifications = NO;
+
             if (!requests || !requestsManipQueue || !eventQueues || !eventQueuesLock ||
                 !keyWindows || !originalDisplayModes || !latentDisplayModes)
             {
@@ -247,11 +256,13 @@ static NSString* WineLocalizedString(unsigned int stringID)
             if (activateIfTransformed)
                 [self tryToActivateIgnoringOtherApps:YES];
 
-            if (!enable_app_nap)
+#if defined(MAC_OS_X_VERSION_10_9) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_9
+            if (!enable_app_nap && [NSProcessInfo instancesRespondToSelector:@selector(beginActivityWithOptions:reason:)])
             {
                 [[[NSProcessInfo processInfo] beginActivityWithOptions:NSActivityUserInitiatedAllowingIdleSystemSleep
                                                                 reason:@"Running Windows program"] retain]; // intentional leak
             }
+#endif
 
             mainMenu = [[[NSMenu alloc] init] autorelease];
 
@@ -466,6 +477,8 @@ static NSString* WineLocalizedString(unsigned int stringID)
         if (lastKeyboardLayoutInputSource)
             CFRelease(lastKeyboardLayoutInputSource);
         lastKeyboardLayoutInputSource = inputSourceLayout;
+
+        inputSourceIsInputMethodValid = FALSE;
 
         if (inputSourceLayout)
         {
@@ -1305,7 +1318,7 @@ static NSString* WineLocalizedString(unsigned int stringID)
     {
         for (WineWindow* w in [NSApp windows])
         {
-            if ([w isKindOfClass:[WineWindow class]] && ![w isMiniaturized] && [w isVisible] && [w presentsVisibleContent])
+            if ([w isKindOfClass:[WineWindow class]] && ![w isMiniaturized] && [w isVisible])
                 return YES;
         }
 
@@ -1835,6 +1848,17 @@ static NSString* WineLocalizedString(unsigned int stringID)
                     [window postKeyEvent:anEvent];
             }
         }
+        else if (!useDragNotifications && type == NSEventTypeAppKitDefined)
+        {
+            WineWindow *window = (WineWindow *)[anEvent window];
+            short subtype = [anEvent subtype];
+
+            // These subtypes are not documented but they appear to mean
+            // "a window is being dragged" and "a window is no longer being
+            // dragged", respectively.
+            if ((subtype == 20 || subtype == 21) && [window isKindOfClass:[WineWindow class]])
+                [self handleWindowDrag:window begin:(subtype == 20)];
+        }
 
         return ret;
     }
@@ -1894,23 +1918,25 @@ static NSString* WineLocalizedString(unsigned int stringID)
             [windowsBeingDragged removeObject:window];
         }];
 
-        [nc addObserverForName:NSWindowWillStartDraggingNotification
-                        object:nil
-                         queue:[NSOperationQueue mainQueue]
-                    usingBlock:^(NSNotification *note){
-            NSWindow* window = [note object];
-            if ([window isKindOfClass:[WineWindow class]])
-                [self handleWindowDrag:(WineWindow *)window begin:YES];
-        }];
+        if (useDragNotifications) {
+            [nc addObserverForName:NSWindowWillStartDraggingNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note){
+                NSWindow* window = [note object];
+                if ([window isKindOfClass:[WineWindow class]])
+                    [self handleWindowDrag:(WineWindow *)window begin:YES];
+            }];
 
-        [nc addObserverForName:NSWindowDidEndDraggingNotification
-                        object:nil
-                         queue:[NSOperationQueue mainQueue]
-                    usingBlock:^(NSNotification *note){
-            NSWindow* window = [note object];
-            if ([window isKindOfClass:[WineWindow class]])
-                [self handleWindowDrag:(WineWindow *)window begin:NO];
-        }];
+            [nc addObserverForName:NSWindowDidEndDraggingNotification
+                            object:nil
+                             queue:[NSOperationQueue mainQueue]
+                        usingBlock:^(NSNotification *note){
+                NSWindow* window = [note object];
+                if ([window isKindOfClass:[WineWindow class]])
+                    [self handleWindowDrag:(WineWindow *)window begin:NO];
+            }];
+        }
 
         [nc addObserver:self
                selector:@selector(keyboardSelectionDidChange)
@@ -2038,73 +2064,24 @@ static NSString* WineLocalizedString(unsigned int stringID)
         [NSApp activate];
      }
 
-    static BOOL InputSourceShouldBeIgnored(TISInputSourceRef inputSource)
-    {
-        /* Certain system utilities are technically input sources, but we
-           shouldn't consider them as such for our purposes. */
-        static CFStringRef ignoredIDs[] = {
-            /* The "Emoji & Symbols" palette. */
-            CFSTR("com.apple.CharacterPaletteIM"),
-            /* The on-screen keyboard and accessibility panel. */
-            CFSTR("com.apple.inputmethod.AssistiveControl"),
-            /* The popup for accented characters when you hold down a key. */
-            CFSTR("com.apple.PressAndHold"),
-            /* Emoji list on MacBooks with the Touch Bar. */
-            CFSTR("com.apple.inputmethod.EmojiFunctionRowItem"),
-            /* Dictation. Ideally this would actually receive key events, since
-               escape cancels it, but it remains a "selected" input source even
-               when not active, so we need to ignore it to avoid incorrectly
-               sending input to it. */
-            CFSTR("com.apple.inputmethod.ironwood"),
-        };
-
-        CFStringRef sourceID = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceID);
-        for (int i = 0; i < sizeof(ignoredIDs) / sizeof(CFStringRef); i++)
-        {
-            if (CFEqual(sourceID, ignoredIDs[i]))
-                return YES;
-        }
-
-        return NO;
-    }
-
     - (BOOL) inputSourceIsInputMethod
     {
-        static dispatch_once_t onceToken;
-        static CFDictionaryRef filterDict;
-        CFArrayRef enabledSources;
-        CFIndex i;
-        BOOL ret = NO;
-
-        /* There may be multiple active ("selected") input sources, but there is
-           always exactly one selected keyboard input source. For instance,
-           handwriting methods are active simultaneously with a keyboard source.
-           As the name implies, TISCopyCurrentKeyboardInputSource only returns
-           the keyboard source, so it's not sufficient for our needs. We use
-           TISCreateInputSourceList instead to find all selected sources. */
-        dispatch_once(&onceToken, ^{
-            filterDict = CFDictionaryCreate(NULL, (const void **)&kTISPropertyInputSourceIsSelected, (const void **)&kCFBooleanTrue, 1,
-                                            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-
-        });
-        enabledSources = TISCreateInputSourceList(filterDict, false);
-        for (i = 0; i < CFArrayGetCount(enabledSources); i++)
+        if (!inputSourceIsInputMethodValid)
         {
-            TISInputSourceRef source = (TISInputSourceRef)CFArrayGetValueAtIndex(enabledSources, i);
-            CFStringRef type = TISGetInputSourceProperty(source, kTISPropertyInputSourceType);
-
-            /* kTISTypeKeyboardLayout is for physical keyboards. Any type other
-               than that is an IME. */
-            if (!CFEqual(type, kTISTypeKeyboardLayout) && !InputSourceShouldBeIgnored(source))
+            TISInputSourceRef inputSource = TISCopyCurrentKeyboardInputSource();
+            if (inputSource)
             {
-                ret = YES;
-                break;
+                CFStringRef type = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceType);
+                inputSourceIsInputMethod = !CFEqual(type, kTISTypeKeyboardLayout);
+                CFRelease(inputSource);
             }
+            else
+                inputSourceIsInputMethod = FALSE;
+            inputSourceIsInputMethodValid = TRUE;
         }
 
-        CFRelease(enabledSources);
-        return ret;
-     }
+        return inputSourceIsInputMethod;
+    }
 
     - (void) releaseMouseCapture
     {
@@ -2128,24 +2105,17 @@ static NSString* WineLocalizedString(unsigned int stringID)
 
     - (void) unminimizeWindowIfNoneVisible
     {
-        WineWindow *bestOption = nil;
-
-        if ([self isAnyWineWindowVisible])
-            return;
-
-        for (WineWindow *window in [NSApp windows])
+        if (![self frontWineWindow])
         {
-            if (![window isKindOfClass:[WineWindow class]] || ![window isMiniaturized])
-                continue;
-
-            bestOption = window;
-
-            /* Prefer any window that would actually show something. */
-            if ([window presentsVisibleContent])
-                break;
+            for (WineWindow* window in [NSApp windows])
+            {
+                if ([window isKindOfClass:[WineWindow class]] && [window isMiniaturized])
+                {
+                    [window deminiaturize:self];
+                    break;
+                }
+            }
         }
-
-        [bestOption deminiaturize:self];
     }
 
     - (void) setRetinaMode:(int)mode

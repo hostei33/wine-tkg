@@ -34,7 +34,7 @@
 #include "windows.foundation.h"
 #define WIDL_using_Windows_Networking
 #define WIDL_using_Windows_Networking_Connectivity
-#include "windows.networking.connectivity.h"
+#include "windows.networking.h"
 
 extern IActivationFactory *hostname_factory;
 

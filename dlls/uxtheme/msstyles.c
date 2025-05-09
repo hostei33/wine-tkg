@@ -1181,79 +1181,20 @@ PTHEME_PROPERTY MSSTYLES_FindProperty(PTHEME_CLASS tc, int iPartId, int iStateId
 }
 
 /* Prepare a bitmap to be used for alpha blending */
-static BOOL prepare_alpha (HBITMAP bmp, BOOL* hasAlpha, BOOL *hasDefaultTransparentColour)
+static BOOL prepare_alpha (HBITMAP bmp, BOOL* hasAlpha, BOOL *has_default_transparent_colour)
 {
     DIBSECTION dib;
     int n, stride;
     BYTE* p;
 
     *hasAlpha = FALSE;
-    *hasDefaultTransparentColour = FALSE;
+    *has_default_transparent_colour = FALSE;
 
     if (!bmp || GetObjectW( bmp, sizeof(dib), &dib ) != sizeof(dib))
         return FALSE;
 
-    if (dib.dsBm.bmBitsPixel <= 8)
-    {
-        RGBQUAD p[256];
-        HDC hdc = CreateCompatibleDC(NULL);
-        HBITMAP prev = SelectObject(hdc, bmp);
-        UINT count = GetDIBColorTable(hdc, 0, 256, p);
-
-        SelectObject(hdc, prev);
-        DeleteDC(hdc);
-
-        for (n = 0; n < count; ++n)
-        {
-            if (RGB(p[n].rgbRed, p[n].rgbGreen, p[n].rgbBlue) == DEFAULT_TRANSPARENT_COLOR)
-            {
-                *hasDefaultTransparentColour = TRUE;
-                return TRUE;
-            }
-        }
-        return TRUE;
-    }
-
-    if (dib.dsBm.bmBitsPixel == 16)
-    {
-        unsigned short transparent_color;
-        int y;
-
-        if (dib.dsBmih.biCompression == BI_RGB)
-        {
-            transparent_color = 0x7c00 | 0x001f;
-        }
-        else if (dib.dsBmih.biCompression == BI_BITFIELDS && dib.dsBitfields[0])
-        {
-            transparent_color = dib.dsBitfields[0] | dib.dsBitfields[2];
-        }
-        else
-        {
-            WARN("biCompression %ld, bpp %d not checked for default transparent colour.\n", dib.dsBmih.biCompression, dib.dsBm.bmBitsPixel);
-            return TRUE;
-        }
-        stride = (dib.dsBmih.biWidth * 2 + 3) & ~3;
-        p = dib.dsBm.bmBits;
-        for (y = 0; y < dib.dsBmih.biHeight; ++y)
-        {
-            p = (BYTE *)dib.dsBm.bmBits + stride * y;
-            for (n = 0; n < dib.dsBmih.biWidth; ++n, p += 2)
-            {
-                if ((p[0] | (p[1] << 8)) == transparent_color)
-                {
-                    *hasDefaultTransparentColour = TRUE;
-                    return TRUE;
-                }
-            }
-        }
-        return TRUE;
-    }
-
     if (dib.dsBmih.biCompression != BI_RGB)
-    {
-        WARN("biCompression %ld, bpp %d not checked for default transparent colour.\n", dib.dsBmih.biCompression, dib.dsBm.bmBitsPixel);
         return TRUE;
-    }
 
     if (dib.dsBm.bmBitsPixel == 24)
     {
@@ -1268,8 +1209,8 @@ static BOOL prepare_alpha (HBITMAP bmp, BOOL* hasAlpha, BOOL *hasDefaultTranspar
             {
                 if (RGB(p[0], p[1], p[2]) == DEFAULT_TRANSPARENT_COLOR)
                 {
-                    *hasDefaultTransparentColour = TRUE;
-                    return TRUE;
+                    *has_default_transparent_colour = TRUE;
+                    break;
                 }
             }
         }
@@ -1281,12 +1222,8 @@ static BOOL prepare_alpha (HBITMAP bmp, BOOL* hasAlpha, BOOL *hasDefaultTranspar
 
     /* If all alpha values are 0xff, don't use alpha blending */
     for (n = 0, p = dib.dsBm.bmBits; n < dib.dsBmih.biWidth * dib.dsBmih.biHeight; n++, p += 4)
-    {
         if ((*hasAlpha = (p[3] != 0xff)))
             break;
-        if (RGB(p[0], p[1], p[2]) == DEFAULT_TRANSPARENT_COLOR)
-            *hasDefaultTransparentColour = TRUE;
-    }
 
     if (!*hasAlpha)
         return TRUE;
@@ -1306,12 +1243,12 @@ static BOOL prepare_alpha (HBITMAP bmp, BOOL* hasAlpha, BOOL *hasDefaultTranspar
     return TRUE;
 }
 
-HBITMAP MSSTYLES_LoadBitmap (PTHEME_CLASS tc, LPCWSTR lpFilename, BOOL* hasAlpha, BOOL *hasDefaultTransparentColour)
+HBITMAP MSSTYLES_LoadBitmap (PTHEME_CLASS tc, LPCWSTR lpFilename, BOOL* hasAlpha, BOOL *has_default_transparent_colour)
 {
     WCHAR szFile[MAX_PATH];
     LPWSTR tmp;
     PTHEME_IMAGE img;
-    BOOL has_default;
+    BOOL has_default_trans;
 
     lstrcpynW(szFile, lpFilename, ARRAY_SIZE(szFile));
     tmp = szFile;
@@ -1329,8 +1266,8 @@ HBITMAP MSSTYLES_LoadBitmap (PTHEME_CLASS tc, LPCWSTR lpFilename, BOOL* hasAlpha
         {
             TRACE ("found %p %s: %p\n", img, debugstr_w (img->name), img->image);
             *hasAlpha = img->hasAlpha;
-            if (hasDefaultTransparentColour)
-                *hasDefaultTransparentColour = img->hasDefaultTransparentColour;
+            if (has_default_transparent_colour)
+                *has_default_transparent_colour = img->has_default_transparent_colour;
             return img->image;
         }
         img = img->next;
@@ -1338,11 +1275,11 @@ HBITMAP MSSTYLES_LoadBitmap (PTHEME_CLASS tc, LPCWSTR lpFilename, BOOL* hasAlpha
     /* Not found? Load from resources */
     img = malloc(sizeof(*img));
     img->image = LoadImageW(tc->hTheme, szFile, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
-    prepare_alpha (img->image, hasAlpha, &has_default);
+    if (!has_default_transparent_colour)
+        has_default_transparent_colour = &has_default_trans;
+    prepare_alpha (img->image, hasAlpha, has_default_transparent_colour);
     img->hasAlpha = *hasAlpha;
-    img->hasDefaultTransparentColour = has_default;
-    if (hasDefaultTransparentColour)
-        *hasDefaultTransparentColour = has_default;
+    img->has_default_transparent_colour = *has_default_transparent_colour;
     /* ...and stow away for later reuse. */
     lstrcpyW (img->name, szFile);
     img->next = tc->tf->images;

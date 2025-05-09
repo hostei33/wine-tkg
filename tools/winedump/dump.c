@@ -133,29 +133,6 @@ void dump_unicode_str( const WCHAR *str, int len )
     printf( "\"" );
 }
 
-const char *get_hexint64_str( DWORD64 l )
-{
-    char *buf = dump_want_n(2 + 16 + 1);
-    if (sizeof(l) > sizeof(unsigned long) && l >> 32)
-        sprintf(buf, "%#lx%08lx", (unsigned long)(l >> 32), (unsigned long)l);
-    else
-        sprintf(buf, "%#lx", (unsigned long)l);
-    assert(strlen(buf) <= 18);
-    return buf;
-}
-
-const char *get_uint64_str( DWORD64 l )
-{
-    char *buf = dump_want_n( 32 );
-    char *ptr = buf + 31;
-    *ptr = '\0';
-    for ( ; l; l /= 10)
-        *--ptr = '0' + (l % 10);
-    if (ptr == buf + 31) *--ptr = '0';
-    assert(ptr >= buf);
-    return ptr;
-}
-
 const char* get_symbol_str(const char* symname)
 {
     const char* ret = NULL;
@@ -224,15 +201,13 @@ static const struct dumper
     enum FileSig        kind;
     enum FileSig        (*get_kind)(void);
     file_dumper         dumper; /* default dump tool */
-    enum FileSig        (*alt_get_kind)( int fd );
-    void                (*alt_dumper)( int fd );
 }
 dumpers[] =
 {
     {SIG_DOS,           get_kind_exec,  dos_dump},
     {SIG_PE,            get_kind_exec,  pe_dump},
     {SIG_DBG,           get_kind_dbg,   dbg_dump},
-    {SIG_PDB,           .alt_get_kind = get_kind_pdb,   .alt_dumper = pdb_dump},
+    {SIG_PDB,           get_kind_pdb,   pdb_dump},
     {SIG_NE,            get_kind_exec,  ne_dump},
     {SIG_LE,            get_kind_exec,  le_dump},
     {SIG_COFFLIB,       get_kind_lib,   lib_dump},
@@ -251,57 +226,31 @@ dumpers[] =
 BOOL dump_analysis(const char *name, file_dumper fn, enum FileSig wanted_sig)
 {
     BOOL                ret = TRUE;
-    const struct dumper*dpr;
-    int                 fd;
-    struct stat         st;
+    const struct dumper *dpr;
 
     setbuf(stdout, NULL);
 
-    if ((fd = open( name, O_RDONLY | O_BINARY )) == -1) fatal( "Cannot read file" );
-    fstat( fd, &st );
-    printf("Contents of %s: %llu bytes\n\n", name, (unsigned long long)st.st_size);
+    if (!(dump_base = read_file( name, &dump_total_len ))) fatal( "Cannot read file" );
+
+    printf("Contents of %s: %zu bytes\n\n", name, dump_total_len);
 
     for (dpr = dumpers; dpr->kind != SIG_UNKNOWN; dpr++)
     {
-        if (!dpr->alt_get_kind) continue;
-        /* alt interface isn't compatible with incoming file_dumper */
-        if (wanted_sig == dpr->kind)
-            assert( !fn );
-
-        lseek( fd, 0, SEEK_SET );
-        if (dpr->alt_get_kind( fd ) == dpr->kind &&
+        if (dpr->get_kind() == dpr->kind &&
             (wanted_sig == SIG_UNKNOWN || wanted_sig == dpr->kind))
         {
-            lseek( fd, 0, SEEK_SET );
-            dpr->alt_dumper( fd );
+            if (fn) fn(); else dpr->dumper();
             break;
         }
     }
-    close(fd);
-
     if (dpr->kind == SIG_UNKNOWN)
     {
-        if (!(dump_base = read_file( name, &dump_total_len ))) fatal( "Cannot read file" );
-
-        for (dpr = dumpers; dpr->kind != SIG_UNKNOWN; dpr++)
-        {
-            if (!dpr->get_kind) continue;
-            if (dpr->get_kind() == dpr->kind &&
-                (wanted_sig == SIG_UNKNOWN || wanted_sig == dpr->kind))
-            {
-                if (fn) fn(); else dpr->dumper();
-                break;
-            }
-        }
-        if (dpr->kind == SIG_UNKNOWN)
-        {
-            printf("Can't get a suitable file signature, aborting\n");
-            ret = FALSE;
-        }
-
-        free( dump_base );
+	printf("Can't get a suitable file signature, aborting\n");
+        ret = FALSE;
     }
+
     if (ret) printf("Done dumping %s\n", name);
+    free( dump_base );
 
     return ret;
 }

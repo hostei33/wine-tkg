@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <time.h>
+#include <sys/stat.h>
 
 #include "debugger.h"
 #include "psapi.h"
@@ -75,11 +77,6 @@ BOOL dbg_attach_debuggee(DWORD pid)
         dbg_printf("WineDbg can't debug its own process. Please use another process ID.\n");
         return FALSE;
     }
-    if (dbg_curr_process)
-    {
-        dbg_printf("WineDbg can't debug several processes at once.\nEither 'detach' from current one, or use another instance of WineDbg\n");
-        return FALSE;
-    }
     if (!(dbg_curr_process = dbg_add_process(&be_process_active_io, pid, 0))) return FALSE;
 
     if (!DebugActiveProcess(pid))
@@ -92,11 +89,6 @@ BOOL dbg_attach_debuggee(DWORD pid)
     SetEnvironmentVariableA("DBGHELP_NOLIVE", NULL);
 
     dbg_curr_process->active_debuggee = TRUE;
-    dbg_printf("WineDbg attached to pid %04lx\n", pid);
-    dbg_curr_pid = pid;
-    dbg_curr_thread = NULL;
-    dbg_curr_tid = 0;
-
     return TRUE;
 }
 
@@ -285,7 +277,7 @@ static DWORD dbg_handle_exception(const EXCEPTION_RECORD* rec, BOOL first_chance
     }
 
     if (first_chance && !is_debug && !DBG_IVAR(BreakOnFirstChance) &&
-	!(rec->ExceptionFlags & EXCEPTION_STACK_INVALID))
+	!(rec->ExceptionFlags & EH_STACK_INVALID))
     {
         /* pass exception to program except for debug exceptions */
         return DBG_EXCEPTION_NOT_HANDLED;
@@ -680,7 +672,6 @@ static BOOL dbg_start_debuggee(LPSTR cmdLine)
         free(dbg_last_cmd_line);
         dbg_last_cmd_line = cmdLine;
     }
-    dbg_printf("WineDbg starting on pid %04lx\n", dbg_curr_pid);
 
     return TRUE;
 }
@@ -766,11 +757,6 @@ static char *dbg_build_command_line( char **argv )
     return ret;
 }
 
-void dbg_set_exec_file(const char *path)
-{
-    free(dbg_executable);
-    dbg_executable = strdup(path);
-}
 
 void	dbg_run_debuggee(struct list_string* ls)
 {
@@ -832,6 +818,48 @@ static HANDLE create_temp_file(void)
                         NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, 0 );
 }
 
+static HANDLE create_crash_report_file(void)
+{
+    const char *dir = getenv("WINE_CRASH_REPORT_DIR");
+    const char *sgi;
+    char timestr[32];
+    char name[MAX_PATH], *c;
+    time_t t;
+    struct tm lt;
+
+    if(!dir || dir[0] == 0)
+        return INVALID_HANDLE_VALUE;
+
+    strcpy(name, dir);
+
+    for(c = name + 1; *c; ++c){
+        if(*c == '/'){
+            *c = 0;
+            CreateDirectoryA(name, NULL);
+            *c = '/';
+        }
+    }
+    CreateDirectoryA(name, NULL);
+
+    sgi = getenv("SteamGameId");
+
+    t = time(NULL);
+    lt = *localtime(&t);
+    strftime(timestr, ARRAY_SIZE(timestr), "%Y-%m-%d_%H:%M:%S", &lt);
+
+    /* /path/to/crash/reports/2021-05-18_13:21:15_appid-976310_crash.log */
+    snprintf(name, ARRAY_SIZE(name),
+            "%s%s/%s_appid-%s_crash.log",
+            dir[0] == '/' ? "Z:/" : "",
+            dir,
+            timestr,
+            sgi ? sgi : "0"
+            );
+
+    return CreateFileA( name, GENERIC_WRITE, FILE_SHARE_READ,
+                        NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0 );
+}
+
 /******************************************************************
  *		dbg_active_attach
  *
@@ -862,6 +890,7 @@ enum dbg_start  dbg_active_attach(int argc, char* argv[])
     }
     else return start_error_parse;
 
+    dbg_curr_pid = pid;
     return start_ok;
 }
 
@@ -921,6 +950,10 @@ enum dbg_start dbg_active_auto(int argc, char* argv[])
         event = CreateEventW( NULL, TRUE, FALSE, NULL );
         if (event) thread = display_crash_details( event );
         if (thread) dbg_houtput = output = create_temp_file();
+        break;
+    case TRUE:
+        dbg_use_wine_dbg_output = TRUE;
+        dbg_crash_report_file = create_crash_report_file();
         break;
     }
 

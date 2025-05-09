@@ -31,7 +31,7 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(wincodecs);
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 
 typedef struct {
     BYTE bWidth;
@@ -51,7 +51,7 @@ typedef struct
     WORD idCount;
 } ICONHEADER;
 
-#pragma pack(pop)
+#include "poppack.h"
 
 typedef struct {
     IWICBitmapDecoder IWICBitmapDecoder_iface;
@@ -770,7 +770,7 @@ HRESULT IcoDecoder_CreateInstance(REFIID iid, void** ppv)
     This->ref = 1;
     This->stream = NULL;
     This->initialized = FALSE;
-    InitializeCriticalSectionEx(&This->lock, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&This->lock);
     This->lock.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": IcoDecoder.lock");
 
     ret = IWICBitmapDecoder_QueryInterface(&This->IWICBitmapDecoder_iface, iid, ppv);

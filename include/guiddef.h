@@ -30,7 +30,7 @@ typedef struct
 #else
 typedef struct _GUID
 {
-#if !defined(__LP64__) && !defined(WINE_UNIX_LIB)
+#ifndef __LP64__
     unsigned long  Data1;
 #else
     unsigned int   Data1;
@@ -56,9 +56,8 @@ typedef struct _GUID
 #ifdef __WINE_UUID_ATTR
 
 extern "C++" {
-    template<typename T> struct __wine_uuidof {
-        static const GUID uuid;
-    };
+    template<typename T> struct __wine_uuidof;
+
     template<typename T> struct __wine_uuidof_type {
         typedef __wine_uuidof<T> inst;
     };
@@ -158,10 +157,10 @@ typedef GUID FMTID,*LPFMTID;
 #define IsEqualGUID(rguid1, rguid2) (!memcmp(&(rguid1), &(rguid2), sizeof(GUID)))
 inline int InlineIsEqualGUID(REFGUID rguid1, REFGUID rguid2)
 {
-   return (((const unsigned int *)&rguid1)[0] == ((const unsigned int *)&rguid2)[0] &&
-           ((const unsigned int *)&rguid1)[1] == ((const unsigned int *)&rguid2)[1] &&
-           ((const unsigned int *)&rguid1)[2] == ((const unsigned int *)&rguid2)[2] &&
-           ((const unsigned int *)&rguid1)[3] == ((const unsigned int *)&rguid2)[3]);
+   return (((unsigned int *)&rguid1)[0] == ((unsigned int *)&rguid2)[0] &&
+           ((unsigned int *)&rguid1)[1] == ((unsigned int *)&rguid2)[1] &&
+           ((unsigned int *)&rguid1)[2] == ((unsigned int *)&rguid2)[2] &&
+           ((unsigned int *)&rguid1)[3] == ((unsigned int *)&rguid2)[3]);
 }
 #else
 #define IsEqualGUID(rguid1, rguid2) (!memcmp(rguid1, rguid2, sizeof(GUID)))

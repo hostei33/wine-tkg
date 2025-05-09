@@ -414,9 +414,6 @@ static HRESULT WINAPI d3d9_CheckDeviceFormatConversion(IDirect3D9Ex *iface, UINT
     if (output_idx >= d3d9->wined3d_output_count)
         return D3DERR_INVALIDCALL;
 
-    if (src_format == dst_format)
-        return S_OK;
-
     wined3d_mutex_lock();
     hr = wined3d_check_device_format_conversion(d3d9->wined3d_outputs[output_idx],
             wined3d_device_type_from_d3d(device_type), wined3dformat_from_d3dformat(src_format),
@@ -683,7 +680,7 @@ static const struct IDirect3D9ExVtbl d3d9_vtbl =
     d3d9_GetAdapterLUID,
 };
 
-BOOL d3d9_init(struct d3d9 *d3d9, BOOL extended, BOOL d3d9on12)
+BOOL d3d9_init(struct d3d9 *d3d9, BOOL extended)
 {
     DWORD flags = WINED3D_PRESENT_CONVERSION | WINED3D_HANDLE_RESTORE | WINED3D_PIXEL_CENTER_INTEGER
             | WINED3D_SRGB_READ_WRITE_CONTROL | WINED3D_LEGACY_UNBOUND_RESOURCE_COLOR
@@ -736,7 +733,6 @@ BOOL d3d9_init(struct d3d9 *d3d9, BOOL extended, BOOL d3d9on12)
 
     wined3d_mutex_unlock();
     d3d9->extended = extended;
-    d3d9->d3d9on12 = d3d9on12;
 
     return TRUE;
 }

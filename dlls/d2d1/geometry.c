@@ -16,6 +16,10 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC optimize "O2,no-strict-aliasing,excess-precision=standard"
+#endif
+
 #include "d2d1_private.h"
 #include <float.h>
 
@@ -1535,7 +1539,7 @@ static BOOL d2d_cdt_triangulate(struct d2d_cdt *cdt, size_t start_vertex, size_t
         return TRUE;
     }
 
-    /* More than three vertices, divide. */
+    /* More than tree vertices, divide. */
     cut = vertex_count / 2;
     if (!d2d_cdt_triangulate(cdt, start_vertex, cut, &left_outer, &left_inner))
         return FALSE;
@@ -2285,9 +2289,6 @@ static HRESULT d2d_path_geometry_triangulate(struct d2d_geometry *geometry)
     size_t vertex_count, i, j;
     struct d2d_cdt cdt = {0};
     D2D1_POINT_2F *vertices;
-#ifdef __i386__
-    unsigned int control_word_x87, mask = 0;
-#endif
 
     for (i = 0, vertex_count = 0; i < geometry->u.path.figure_count; ++i)
     {
@@ -2338,20 +2339,10 @@ static HRESULT d2d_path_geometry_triangulate(struct d2d_geometry *geometry)
 
     cdt.free_edge = ~0u;
     cdt.vertices = vertices;
-
-#ifdef __i386__
-    control_word_x87 = _controlfp(0, 0);
-    _controlfp(_PC_24, mask = _MCW_PC);
-#endif
     if (!d2d_cdt_triangulate(&cdt, 0, vertex_count, &left_edge, &right_edge))
         goto fail;
     if (!d2d_cdt_insert_segments(&cdt, geometry))
         goto fail;
-#ifdef __i386__
-    _controlfp(control_word_x87, _MCW_PC);
-    mask = 0;
-#endif
-
     if (!d2d_cdt_generate_faces(&cdt, geometry))
         goto fail;
 
@@ -2363,9 +2354,6 @@ fail:
     geometry->fill.vertex_count = 0;
     free(vertices);
     free(cdt.edges);
-#ifdef __i386__
-    if (mask) _controlfp(control_word_x87, mask);
-#endif
     return E_FAIL;
 }
 
@@ -3247,7 +3235,6 @@ done:
     if (FAILED(hr))
     {
         free(geometry->fill.bezier_vertices);
-        geometry->fill.bezier_vertices = NULL;
         geometry->fill.bezier_vertex_count = 0;
         d2d_path_geometry_free_figures(geometry);
         geometry->u.path.state = D2D_GEOMETRY_STATE_ERROR;
@@ -5497,13 +5484,8 @@ static const struct ID2D1GeometryGroupVtbl d2d_geometry_group_vtbl =
 HRESULT d2d_geometry_group_init(struct d2d_geometry *geometry, ID2D1Factory *factory,
         D2D1_FILL_MODE fill_mode, ID2D1Geometry **geometries, unsigned int geometry_count)
 {
-    unsigned int i, j;
-    struct d2d_geometry *other_geom;
-    D2D_MATRIX_3X2_F g, gplain;
-    size_t f_vertex_count, f_face_count, f_bezier_vertex_count, f_arc_vertex_count;
-    size_t o_vertex_count, o_face_count, o_bezier_count, o_bezier_face_count, o_arc_count, o_arc_face_count;
+    unsigned int i;
 
-    FIXME("Ignoring fill_mode=%#x!\n", fill_mode);
     d2d_geometry_init(geometry, factory, &identity, (ID2D1GeometryVtbl *)&d2d_geometry_group_vtbl);
 
     if (!(geometry->u.group.src_geometries = calloc(geometry_count, sizeof(*geometries))))
@@ -5512,241 +5494,12 @@ HRESULT d2d_geometry_group_init(struct d2d_geometry *geometry, ID2D1Factory *fac
         return E_OUTOFMEMORY;
     }
 
-    geometry->fill.vertex_count = 0;
-    geometry->fill.face_count = 0;
-    geometry->fill.bezier_vertex_count = 0;
-    geometry->fill.arc_vertex_count = 0;
-    geometry->outline.vertex_count = 0;
-    geometry->outline.face_count = 0;
-    geometry->outline.bezier_count = 0;
-    geometry->outline.bezier_face_count = 0;
-    geometry->outline.arc_count = 0;
-    geometry->outline.arc_face_count = 0;
     for (i = 0; i < geometry_count; ++i)
     {
         ID2D1Geometry_AddRef(geometry->u.group.src_geometries[i] = geometries[i]);
-        other_geom = unsafe_impl_from_ID2D1Geometry(geometries[i]);
-        geometry->fill.vertex_count += other_geom->fill.vertex_count;
-        geometry->fill.face_count += other_geom->fill.face_count;
-        geometry->fill.bezier_vertex_count += other_geom->fill.bezier_vertex_count;
-        geometry->fill.arc_vertex_count += other_geom->fill.arc_vertex_count;
-        geometry->outline.vertex_count += other_geom->outline.vertex_count;
-        geometry->outline.face_count += other_geom->outline.face_count;
-        geometry->outline.bezier_count += other_geom->outline.bezier_count;
-        geometry->outline.bezier_face_count += other_geom->outline.bezier_face_count;
-        geometry->outline.arc_count += other_geom->outline.arc_count;
-        geometry->outline.arc_face_count += other_geom->outline.arc_face_count;
     }
     geometry->u.group.geometry_count = geometry_count;
     geometry->u.group.fill_mode = fill_mode;
-
-    if (!(geometry->fill.vertices = calloc(geometry->fill.vertex_count, sizeof(D2D1_POINT_2F))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    if (!(geometry->fill.faces = calloc(geometry->fill.face_count, sizeof(struct d2d_face))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->fill.faces_size = geometry->fill.face_count;
-    if (!(geometry->fill.bezier_vertices = calloc(geometry->fill.bezier_vertex_count, sizeof(struct d2d_curve_vertex))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->fill.bezier_vertices_size = geometry->fill.bezier_vertex_count;
-    if (!(geometry->fill.arc_vertices = calloc(geometry->fill.arc_vertex_count, sizeof(struct d2d_curve_vertex))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->fill.arc_vertices_size = geometry->fill.arc_vertex_count;
-    if (!(geometry->outline.vertices = calloc(geometry->outline.vertex_count, sizeof(struct d2d_outline_vertex))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->outline.vertices_size = geometry->outline.vertex_count;
-    if (!(geometry->outline.faces = calloc(geometry->outline.face_count, sizeof(struct d2d_face))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->outline.faces_size = geometry->outline.face_count;
-    if (!(geometry->outline.beziers = calloc(geometry->outline.bezier_count, sizeof(struct d2d_curve_outline_vertex))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->outline.beziers_size = geometry->outline.bezier_count;
-    if (!(geometry->outline.bezier_faces = calloc(geometry->outline.bezier_face_count, sizeof(struct d2d_face))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->outline.bezier_faces_size = geometry->outline.bezier_face_count;
-    if (!(geometry->outline.arcs = calloc(geometry->outline.arc_count, sizeof(struct d2d_curve_outline_vertex))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->outline.arcs_size = geometry->outline.arc_count;
-    if (!(geometry->outline.arc_faces = calloc(geometry->outline.arc_face_count, sizeof(struct d2d_face))))
-    {
-        for (i = 0; i < geometry->u.group.geometry_count; ++i)
-            ID2D1Geometry_Release(geometry->u.group.src_geometries[i]);
-        d2d_geometry_cleanup(geometry);
-        return E_OUTOFMEMORY;
-    }
-    geometry->outline.arc_faces_size = geometry->outline.arc_face_count;
-
-    f_vertex_count = 0;
-    f_face_count = 0;
-    f_bezier_vertex_count = 0;
-    f_arc_vertex_count = 0;
-    o_vertex_count = 0;
-    o_face_count = 0;
-    o_bezier_count = 0;
-    o_bezier_face_count = 0;
-    o_arc_count = 0;
-    o_arc_face_count = 0;
-    for (i = 0; i < geometry_count; ++i)
-    {
-        other_geom = unsafe_impl_from_ID2D1Geometry(geometries[i]);
-        g = other_geom->transform;
-        gplain = g;
-        gplain.dx = 0.0f;
-        gplain.dy = 0.0f;
-
-        for (j = 0; j < other_geom->fill.vertex_count; ++j) {
-            d2d_point_transform(&geometry->fill.vertices[j+f_vertex_count], &g,
-                    other_geom->fill.vertices[j].x, other_geom->fill.vertices[j].y);
-        }
-        for (j = 0; j < other_geom->fill.face_count; ++j) {
-            geometry->fill.faces[f_face_count+j].v[0] = other_geom->fill.faces[j].v[0]
-                + (UINT16) f_vertex_count;
-            geometry->fill.faces[f_face_count+j].v[1] = other_geom->fill.faces[j].v[1]
-                + (UINT16) f_vertex_count;
-            geometry->fill.faces[f_face_count+j].v[2] = other_geom->fill.faces[j].v[2]
-                + (UINT16) f_vertex_count;
-        }
-        f_vertex_count += other_geom->fill.vertex_count;
-        f_face_count += other_geom->fill.face_count;
-
-        for (j = 0; j < other_geom->fill.bezier_vertex_count; ++j) {
-            d2d_point_transform(&geometry->fill.bezier_vertices[j+f_bezier_vertex_count].position,
-                    &g, other_geom->fill.bezier_vertices[j].position.x,
-                    other_geom->fill.bezier_vertices[j].position.y);
-            geometry->fill.bezier_vertices[j+f_bezier_vertex_count].texcoord
-                = other_geom->fill.bezier_vertices[j].texcoord;
-        }
-        f_bezier_vertex_count += other_geom->fill.bezier_vertex_count;
-
-        for (j = 0; j < other_geom->fill.arc_vertex_count; ++j) {
-            d2d_point_transform(&geometry->fill.arc_vertices[j+f_arc_vertex_count].position,
-                    &g, other_geom->fill.arc_vertices[j].position.x,
-                    other_geom->fill.arc_vertices[j].position.y);
-            geometry->fill.arc_vertices[j+f_arc_vertex_count].texcoord
-                = other_geom->fill.arc_vertices[j].texcoord;
-
-        }
-        f_arc_vertex_count += other_geom->fill.arc_vertex_count;
-
-        for (j = 0; j < other_geom->outline.vertex_count; ++j) {
-            d2d_point_transform(&geometry->outline.vertices[j+o_vertex_count].position, &g,
-                    other_geom->outline.vertices[j].position.x, other_geom->outline.vertices[j].position.y);
-            d2d_point_transform(&geometry->outline.vertices[j+o_vertex_count].prev, &gplain,
-                    other_geom->outline.vertices[j].prev.x, other_geom->outline.vertices[j].prev.y);
-            d2d_point_normalise(&geometry->outline.vertices[j+o_vertex_count].prev);
-            d2d_point_transform(&geometry->outline.vertices[j+o_vertex_count].next, &gplain,
-                    other_geom->outline.vertices[j].next.x, other_geom->outline.vertices[j].next.y);
-            d2d_point_normalise(&geometry->outline.vertices[j+o_vertex_count].next);
-        }
-        for (j = 0; j < other_geom->outline.face_count; ++j) {
-            geometry->outline.faces[o_face_count+j].v[0] = other_geom->outline.faces[j].v[0]
-                + (UINT16) o_vertex_count;
-            geometry->outline.faces[o_face_count+j].v[1] = other_geom->outline.faces[j].v[1]
-                + (UINT16) o_vertex_count;
-            geometry->outline.faces[o_face_count+j].v[2] = other_geom->outline.faces[j].v[2]
-                + (UINT16) o_vertex_count;
-        }
-        o_vertex_count += other_geom->outline.vertex_count;
-        o_face_count += other_geom->outline.face_count;
-
-        for (j = 0; j < other_geom->outline.bezier_count; ++j) {
-            d2d_point_transform(&geometry->outline.beziers[j+o_bezier_count].position, &g,
-                    other_geom->outline.beziers[j].position.x, other_geom->outline.beziers[j].position.y);
-            d2d_point_transform(&geometry->outline.beziers[j+o_bezier_count].prev, &gplain,
-                    other_geom->outline.beziers[j].prev.x, other_geom->outline.beziers[j].prev.y);
-            d2d_point_normalise(&geometry->outline.beziers[j+o_bezier_count].prev);
-            d2d_point_transform(&geometry->outline.beziers[j+o_bezier_count].next, &gplain,
-                    other_geom->outline.beziers[j].next.x, other_geom->outline.beziers[j].next.y);
-            d2d_point_normalise(&geometry->outline.beziers[j+o_bezier_count].next);
-            d2d_point_transform(&geometry->outline.beziers[j+o_bezier_count].p0, &g,
-                    other_geom->outline.beziers[j].p0.x, other_geom->outline.beziers[j].p0.y);
-            d2d_point_transform(&geometry->outline.beziers[j+o_bezier_count].p1, &g,
-                    other_geom->outline.beziers[j].p1.x, other_geom->outline.beziers[j].p1.y);
-            d2d_point_transform(&geometry->outline.beziers[j+o_bezier_count].p2, &g,
-                    other_geom->outline.beziers[j].p2.x, other_geom->outline.beziers[j].p2.y);
-        }
-        for (j = 0; j < other_geom->outline.bezier_face_count; ++j) {
-            geometry->outline.bezier_faces[o_bezier_face_count+j].v[0]
-                = other_geom->outline.bezier_faces[j].v[0] + (UINT16) o_bezier_count;
-            geometry->outline.bezier_faces[o_bezier_face_count+j].v[1]
-                = other_geom->outline.bezier_faces[j].v[1] + (UINT16) o_bezier_count;
-            geometry->outline.bezier_faces[o_bezier_face_count+j].v[2]
-                = other_geom->outline.bezier_faces[j].v[2] + (UINT16) o_bezier_count;
-        }
-        o_bezier_count += other_geom->outline.bezier_count;
-        o_bezier_face_count += other_geom->outline.bezier_face_count;
-
-        for (j = 0; j < other_geom->outline.arc_count; ++j) {
-            d2d_point_transform(&geometry->outline.arcs[j+o_arc_count].position, &g,
-                    other_geom->outline.arcs[j].position.x, other_geom->outline.arcs[j].position.y);
-            d2d_point_transform(&geometry->outline.arcs[j+o_arc_count].prev, &gplain,
-                    other_geom->outline.arcs[j].prev.x, other_geom->outline.arcs[j].prev.y);
-            d2d_point_normalise(&geometry->outline.arcs[j+o_arc_count].prev);
-            d2d_point_transform(&geometry->outline.arcs[j+o_arc_count].next, &gplain,
-                    other_geom->outline.arcs[j].next.x, other_geom->outline.arcs[j].next.y);
-            d2d_point_normalise(&geometry->outline.arcs[j+o_arc_count].next);
-            d2d_point_transform(&geometry->outline.arcs[j+o_arc_count].p0, &g,
-                    other_geom->outline.arcs[j].p0.x, other_geom->outline.arcs[j].p0.y);
-            d2d_point_transform(&geometry->outline.arcs[j+o_arc_count].p1, &g,
-                    other_geom->outline.arcs[j].p1.x, other_geom->outline.arcs[j].p1.y);
-            d2d_point_transform(&geometry->outline.arcs[j+o_arc_count].p2, &g,
-                    other_geom->outline.arcs[j].p2.x, other_geom->outline.arcs[j].p2.y);
-        }
-        for (j = 0; j < other_geom->outline.arc_face_count; ++j) {
-            geometry->outline.arc_faces[o_arc_face_count+j].v[0]
-                = other_geom->outline.arc_faces[j].v[0] + (UINT16) o_arc_count;
-            geometry->outline.arc_faces[o_arc_face_count+j].v[1]
-                = other_geom->outline.arc_faces[j].v[1] + (UINT16) o_arc_count;
-            geometry->outline.arc_faces[o_arc_face_count+j].v[2]
-                = other_geom->outline.arc_faces[j].v[2] + (UINT16) o_arc_count;
-        }
-        o_arc_count += other_geom->outline.arc_count;
-        o_arc_face_count += other_geom->outline.arc_face_count;
-    }
 
     return S_OK;
 }

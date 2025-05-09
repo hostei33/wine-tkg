@@ -51,13 +51,13 @@ enum instr_op
 
 WINE_DEFAULT_DEBUG_CHANNEL(int);
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 struct idtr
 {
     WORD  limit;
     BYTE *base;
 };
-#pragma pack(pop)
+#include "poppack.h"
 
 static LDT_ENTRY idt[256];
 

@@ -49,6 +49,10 @@ struct segment
     DMUS_IO_SEGMENT_HEADER header;
     IDirectMusicGraph *pGraph;
     struct list tracks;
+
+    PCMWAVEFORMAT wave_format;
+    void *wave_data;
+    int data_size;
 };
 
 static struct segment *segment_create(void);
@@ -108,6 +112,7 @@ static ULONG WINAPI segment_Release(IDirectMusicSegment8 *iface)
             list_remove(&entry->entry);
             track_entry_destroy(entry);
         }
+        free(This->wave_data);
         free(This);
     }
 
@@ -516,12 +521,6 @@ static HRESULT WINAPI segment_GetAudioPathConfig(IDirectMusicSegment8 *iface, IU
 {
     struct segment *This = impl_from_IDirectMusicSegment8(iface);
     FIXME("(%p, %p): stub\n", This, ppAudioPathConfig);
-
-    if (!ppAudioPathConfig)
-        return E_POINTER;
-
-    create_dmaudiopath_config(&IID_IUnknown, (void**)ppAudioPathConfig);
-
     return S_OK;
 }
 
@@ -813,7 +812,7 @@ static HRESULT WINAPI segment_persist_stream_Load(IPersistStream *iface, IStream
             break;
 
         case mmioFOURCC('M','T','h','d'):
-            hr = parse_midi(stream, &This->IDirectMusicSegment8_iface);
+            FIXME("MIDI file loading not supported\n");
             break;
 
         case MAKE_IDTYPE(FOURCC_RIFF, mmioFOURCC('W','A','V','E')):
@@ -836,9 +835,7 @@ static HRESULT WINAPI segment_persist_stream_Load(IPersistStream *iface, IStream
         }
     }
 
-    if (chunk.id != mmioFOURCC('M', 'T', 'h', 'd'))
-        stream_skip_chunk(stream, &chunk);
-
+    stream_skip_chunk(stream, &chunk);
     if (FAILED(hr))
     {
         WARN("Failed to load segment from stream %p, hr %#lx\n", stream, hr);

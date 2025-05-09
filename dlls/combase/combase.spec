@@ -292,7 +292,7 @@
 @ stub RoFreeParameterizedTypeExtra
 @ stub RoGetActivatableClassRegistration
 @ stdcall RoGetActivationFactory(ptr ptr ptr)
-@ stdcall RoGetAgileReference(long ptr ptr ptr)
+@ stub RoGetAgileReference
 @ stdcall RoGetApartmentIdentifier(ptr)
 @ stub RoGetErrorReportingFlags
 @ stub RoGetMatchingRestrictedErrorInfo
@@ -302,7 +302,7 @@
 @ stub RoInspectCapturedStackBackTrace
 @ stub RoInspectThreadErrorInfo
 @ stdcall RoOriginateError(long ptr)
-@ stdcall RoOriginateErrorW(long long ptr)
+@ stub RoOriginateErrorW
 @ stdcall RoOriginateLanguageException(long ptr ptr)
 @ stub RoParameterizedTypeExtraGetTypeSignature
 @ stdcall RoRegisterActivationFactories(ptr ptr long ptr)
@@ -319,7 +319,7 @@
 @ stub RoUnregisterForApartmentShutdown
 @ stub SetCleanupFlag
 @ stdcall SetErrorInfo(long ptr)
-@ stdcall SetRestrictedErrorInfo(ptr)
+@ stub SetRestrictedErrorInfo
 @ stdcall StringFromCLSID(ptr ptr)
 @ stdcall StringFromGUID2(ptr ptr long)
 @ stdcall StringFromIID(ptr ptr) StringFromCLSID

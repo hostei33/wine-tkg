@@ -86,7 +86,7 @@
 @ stub SdbGetNamedLayer
 @ stub SdbGetNextChild
 @ stub SdbGetNthUserSdb
-@ stdcall SdbGetPermLayerKeys(wstr ptr ptr long)
+@ stub SdbGetPermLayerKeys
 @ stub SdbGetShowDebugInfoOption
 @ stub SdbGetShowDebugInfoOptionValue
 @ stub SdbGetStandardDatabaseGUID
@@ -140,7 +140,7 @@
 @ stub SdbSetApphelpDebugParameters
 @ stub SdbSetEntryFlags
 @ stub SdbSetImageType
-@ stdcall SdbSetPermLayerKeys(wstr wstr long)
+@ stub SdbSetPermLayerKeys
 @ stub SdbShowApphelpDialog
 @ stub SdbShowApphelpFromQuery
 @ stub SdbStartIndexing
@@ -161,7 +161,6 @@
 @ stub SdbWriteStringTag
 @ stub SdbWriteStringTagDirect
 @ stub SdbWriteWORDTag
-@ stdcall SetPermLayerState(wstr ptr ptr long long)
 @ stub SetPermLayers
 @ stub ShimDbgPrint
 @ stub ShimDumpCache

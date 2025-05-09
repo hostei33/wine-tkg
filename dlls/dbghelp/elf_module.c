@@ -602,7 +602,7 @@ BOOL elf_map_handle(HANDLE handle, struct image_file_map* fmap)
     return elf_map_file(&emfd, fmap);
 }
 
-static void elf_module_remove(struct module_format* modfmt)
+static void elf_module_remove(struct process* pcs, struct module_format* modfmt)
 {
     image_unmap_file(&modfmt->u.elf_info->file_map);
     HeapFree(GetProcessHeap(), 0, modfmt);
@@ -699,7 +699,7 @@ static void elf_hash_symtab(struct module* module, struct pool* pool,
         {
         case ELF_STT_FILE:
             if (symname)
-                compiland = symt_new_compiland(module, symname);
+                compiland = symt_new_compiland(module, source_new(module, NULL, symname));
             else
                 compiland = NULL;
             continue;
@@ -762,7 +762,7 @@ static void elf_hash_symtab(struct module* module, struct pool* pool,
  */
 static const struct elf_sym *elf_lookup_symtab(const struct module* module,
                                                const struct hash_table* ht_symtab,
-                                               const char* name, symref_t symref_compiland)
+                                               const char* name, const struct symt* compiland)
 {
     struct symtab_elt*          weak_result = NULL; /* without compiland name */
     struct symtab_elt*          result = NULL;
@@ -771,19 +771,19 @@ static const struct elf_sym *elf_lookup_symtab(const struct module* module,
     const char*                 compiland_name;
     const char*                 compiland_basename;
     const char*                 base;
-    struct symt_compiland      *compiland = (struct symt_compiland*)SYMT_SYMREF_TO_PTR(symref_compiland);
 
-    /* we need weak match up (at least) when symbols of same name,
+    /* we need weak match up (at least) when symbols of same name, 
      * defined several times in different compilation units,
      * are merged in a single one (hence a different filename for c.u.)
      */
     if (compiland)
     {
-        compiland_name = ((const struct symt_compiland*)compiland)->filename;
+        compiland_name = source_get(module,
+                                    ((const struct symt_compiland*)compiland)->source);
         compiland_basename = file_nameA(compiland_name);
     }
     else compiland_name = compiland_basename = NULL;
-
+    
     hash_table_iter_init(ht_symtab, &hti, name);
     while ((ste = hash_table_iter_up(&hti)))
     {
@@ -794,7 +794,7 @@ static const struct elf_sym *elf_lookup_symtab(const struct module* module,
             continue;
         if (ste->compiland && compiland_name)
         {
-            const char* filename = ste->compiland->filename;
+            const char* filename = source_get(module, ste->compiland->source);
             if (strcmp(filename, compiland_name))
             {
                 base = file_nameA(filename);
@@ -804,11 +804,9 @@ static const struct elf_sym *elf_lookup_symtab(const struct module* module,
         if (result)
         {
             FIXME("Already found symbol %s (%s) in symtab %s @%08x and %s @%08x\n",
-                  debugstr_a(name), debugstr_a(compiland_name),
-                  debugstr_a(result->compiland->filename),
-                  (unsigned int)result->sym.st_value,
-                  debugstr_a(ste->compiland->filename),
-                  (unsigned int)ste->sym.st_value);
+                  name, compiland_name,
+                  source_get(module, result->compiland->source), (unsigned int)result->sym.st_value,
+                  source_get(module, ste->compiland->source), (unsigned int)ste->sym.st_value);
         }
         else
         {
@@ -819,7 +817,7 @@ static const struct elf_sym *elf_lookup_symtab(const struct module* module,
     if (!result && !(result = weak_result))
     {
         FIXME("Couldn't find symbol %s!%s in symtab\n",
-              debugstr_w(module->modulename), debugstr_a(name));
+              debugstr_w(module->modulename), name);
         return NULL;
     }
     return &result->sym;
@@ -857,26 +855,26 @@ static void elf_finish_stabs_info(struct module* module, const struct hash_table
             {
                 break;
             }
-            symp = elf_lookup_symtab(module, symtab, sym->hash_elt.name,
+            symp = elf_lookup_symtab(module, symtab, sym->hash_elt.name, 
                                      ((struct symt_function*)sym)->container);
             if (symp)
             {
                 if (((struct symt_function*)sym)->ranges[0].low != elf_info->elf_addr &&
                     ((struct symt_function*)sym)->ranges[0].low != elf_info->elf_addr + symp->st_value)
                     FIXME("Changing address for %p/%s!%s from %I64x to %I64x\n",
-                          sym, debugstr_w(module->modulename), debugstr_a(sym->hash_elt.name),
+                          sym, debugstr_w(module->modulename), sym->hash_elt.name,
                           ((struct symt_function*)sym)->ranges[0].low,
                           elf_info->elf_addr + symp->st_value);
                 if (size && size != symp->st_size)
                     FIXME("Changing size for %p/%s!%s from %I64x to %I64x\n",
-                          sym, debugstr_w(module->modulename), debugstr_a(sym->hash_elt.name),
+                          sym, debugstr_w(module->modulename), sym->hash_elt.name,
                           size, symp->st_size);
 
                 ((struct symt_function*)sym)->ranges[0].low = elf_info->elf_addr + symp->st_value;
                 ((struct symt_function*)sym)->ranges[0].high = elf_info->elf_addr + symp->st_value + symp->st_size;
             } else
                 FIXME("Couldn't find %s!%s\n",
-                      debugstr_w(module->modulename), debugstr_a(sym->hash_elt.name));
+                      debugstr_w(module->modulename), sym->hash_elt.name);
             break;
         case SymTagData:
             switch (((struct symt_data*)sym)->kind)
@@ -886,14 +884,14 @@ static void elf_finish_stabs_info(struct module* module, const struct hash_table
                 if (((struct symt_data*)sym)->u.var.kind != loc_absolute ||
                     ((struct symt_data*)sym)->u.var.offset != elf_info->elf_addr)
                     break;
-                symp = elf_lookup_symtab(module, symtab, sym->hash_elt.name,
+                symp = elf_lookup_symtab(module, symtab, sym->hash_elt.name, 
                                          ((struct symt_data*)sym)->container);
                 if (symp)
                 {
                     if (((struct symt_data*)sym)->u.var.offset != elf_info->elf_addr &&
                         ((struct symt_data*)sym)->u.var.offset != elf_info->elf_addr + symp->st_value)
                         FIXME("Changing address for %p/%s!%s from %I64x to %I64x\n",
-                              sym, debugstr_w(module->modulename), debugstr_a(sym->hash_elt.name),
+                              sym, debugstr_w(module->modulename), sym->hash_elt.name,
                               ((struct symt_function*)sym)->ranges[0].low,
                               elf_info->elf_addr + symp->st_value);
                     ((struct symt_data*)sym)->u.var.offset = elf_info->elf_addr + symp->st_value;
@@ -901,7 +899,7 @@ static void elf_finish_stabs_info(struct module* module, const struct hash_table
                         DataIsFileStatic : DataIsGlobal;
                 } else
                     FIXME("Couldn't find %s!%s\n",
-                          debugstr_w(module->modulename), debugstr_a(sym->hash_elt.name));
+                          debugstr_w(module->modulename), sym->hash_elt.name);
                 break;
             default:;
             }
@@ -960,7 +958,7 @@ static int elf_new_wine_thunks(struct module* module, const struct hash_table* h
                 {
                 case ELF_STT_FUNC:
                     symt_new_function(module, ste->compiland, ste->ht_elt.name,
-                                      addr, ste->sym.st_size, 0, 0);
+                                      addr, ste->sym.st_size, NULL);
                     break;
                 case ELF_STT_OBJECT:
                     loc.kind = loc_absolute;
@@ -968,7 +966,7 @@ static int elf_new_wine_thunks(struct module* module, const struct hash_table* h
                     loc.offset = addr;
                     symt_new_global_variable(module, ste->compiland, ste->ht_elt.name,
                                              elf_is_local_symbol(ste->sym.st_info),
-                                             loc, ste->sym.st_size, 0);
+                                             loc, ste->sym.st_size, NULL);
                     break;
                 default:
                     FIXME("Shouldn't happen\n");
@@ -1142,12 +1140,6 @@ static BOOL elf_fetch_file_info(struct process* process, const WCHAR* name, ULON
     return TRUE;
 }
 
-static const struct module_format_vtable elf_module_format_vtable =
-{
-    elf_module_remove,
-    NULL,
-};
-
 static BOOL elf_load_file_from_fmap(struct process* pcs, const WCHAR* filename,
                                     struct image_file_map* fmap, ULONG_PTR load_offset,
                                     ULONG_PTR dyn_addr, struct elf_info* elf_info)
@@ -1259,7 +1251,8 @@ static BOOL elf_load_file_from_fmap(struct process* pcs, const WCHAR* filename,
         elf_module_info = (void*)(modfmt + 1);
         elf_info->module->format_info[DFI_ELF] = modfmt;
         modfmt->module      = elf_info->module;
-        modfmt->vtable      = &elf_module_format_vtable;
+        modfmt->remove      = elf_module_remove;
+        modfmt->loc_compute = NULL;
         modfmt->u.elf_info  = elf_module_info;
 
         elf_module_info->elf_addr = load_offset;
@@ -1462,7 +1455,6 @@ static BOOL elf_search_and_load_file(struct process* pcs, const WCHAR* filename,
         load_elf.elf_info    = elf_info;
 
         ret = search_unix_path(filename, process_getenv(pcs, L"LD_LIBRARY_PATH"), elf_load_file_cb, &load_elf)
-            || search_unix_path(filename, BINDIR, elf_load_file_cb, &load_elf)
             || search_dll_path(pcs, filename, IMAGE_FILE_MACHINE_UNKNOWN, elf_load_file_cb, &load_elf);
     }
 
@@ -1471,6 +1463,59 @@ static BOOL elf_search_and_load_file(struct process* pcs, const WCHAR* filename,
 
 typedef BOOL (*enum_elf_modules_cb)(const WCHAR*, ULONG_PTR load_addr,
                                     ULONG_PTR dyn_addr, BOOL is_system, void* user);
+
+static BOOL elf_linkmap_validate_entry(const struct process* pcs, DWORD64 base, DWORD64 name_addr, WCHAR* buffer, SIZE_T buflen)
+{
+    static DWORD page_size;
+    MEMORY_BASIC_INFORMATION mem_info;
+    char bufstr[MAX_PATH];
+
+    if (!page_size)
+    {
+        SYSTEM_INFO sys_info;
+        GetSystemInfo(&sys_info);
+        page_size = sys_info.dwPageSize;
+    }
+    if (base & (page_size - 1))
+    {
+        WARN("Unaligned base addr=%I64x page_size=%lx\n", base, page_size);
+        return FALSE;
+    }
+    if (VirtualQueryEx(pcs->handle, (void*)(ULONG_PTR)base, &mem_info, sizeof(mem_info)))
+    {
+        if (mem_info.BaseAddress != (void*)(ULONG_PTR)base)
+        {
+            WARN("Invalid base addr %I64x (beg map at %p)\n", base, mem_info.BaseAddress);
+            return FALSE;
+        }
+    }
+    else
+    {
+        /* Some ELF modules are loaded in 32bit mode above 2G limit,
+         * and virtual query will fail on these addresses when process is not large address aware.
+         * Don't consider this as an error for a 32bit debuggee.
+         */
+        if (pcs->is_64bit)
+        {
+            WARN("Invalid base addr %I64x\n", base);
+            return FALSE;
+        }
+    }
+
+    memset(bufstr, ' ', sizeof(bufstr));
+    if (!read_process_memory(pcs, name_addr, bufstr, sizeof(bufstr)))
+    {
+        WARN("Invalid name_address %I64x\n", name_addr);
+        return FALSE;
+    }
+    if (!memchr(bufstr, '\0', sizeof(bufstr)))
+    {
+        WARN("Unterminated string %s\n", wine_dbgstr_an(bufstr, sizeof(bufstr)));
+        return FALSE;
+    }
+    MultiByteToWideChar(CP_UNIXCP, 0, bufstr, -1, buffer, buflen);
+    return TRUE;
+}
 
 /******************************************************************
  *		elf_enum_modules_internal
@@ -1481,8 +1526,7 @@ static BOOL elf_enum_modules_internal(const struct process* pcs,
                                       const WCHAR* main_name,
                                       enum_elf_modules_cb cb, void* user)
 {
-    WCHAR bufstrW[MAX_PATH];
-    char bufstr[256];
+    WCHAR bufstr[MAX_PATH];
     ULONG_PTR lm_addr;
 
     if (pcs->is_host_64bit)
@@ -1516,15 +1560,16 @@ static BOOL elf_enum_modules_internal(const struct process* pcs,
             if (!read_process_memory(pcs, lm_addr, &lm, sizeof(lm)))
                 return FALSE;
 
-            if (lm.l_prev && /* skip first entry, normally debuggee itself */
-                lm.l_name && read_process_memory(pcs, lm.l_name, bufstr, sizeof(bufstr)))
+            /* skip first entry(normally debuggee itself) and entries without names */
+            if (!lm.l_prev || !lm.l_name) continue;
+            if (!elf_linkmap_validate_entry(pcs, lm.l_addr, lm.l_name, bufstr, ARRAY_SIZE(bufstr)))
             {
-                bufstr[sizeof(bufstr) - 1] = '\0';
-                MultiByteToWideChar(CP_UNIXCP, 0, bufstr, -1, bufstrW, ARRAY_SIZE(bufstrW));
-                if (main_name && !bufstrW[0]) lstrcpyW(bufstrW, main_name);
-                if (!cb(bufstrW, (ULONG_PTR)lm.l_addr, (ULONG_PTR)lm.l_ld, FALSE, user))
-                    break;
+                FIXME("Incorrect link_map entry, bailing out\n");
+                return FALSE;
             }
+            if (main_name && !bufstr[0]) lstrcpyW(bufstr, main_name);
+            if (!cb(bufstr, (ULONG_PTR)lm.l_addr, (ULONG_PTR)lm.l_ld, FALSE, user))
+                break;
         }
     }
     else
@@ -1558,15 +1603,16 @@ static BOOL elf_enum_modules_internal(const struct process* pcs,
             if (!read_process_memory(pcs, lm_addr, &lm, sizeof(lm)))
                 return FALSE;
 
-            if (lm.l_prev && /* skip first entry, normally debuggee itself */
-                lm.l_name && read_process_memory(pcs, lm.l_name, bufstr, sizeof(bufstr)))
+            /* skip first entry(normally debuggee itself) and entries without names */
+            if (!lm.l_prev || !lm.l_name) continue;
+            if (!elf_linkmap_validate_entry(pcs, lm.l_addr, lm.l_name, bufstr, ARRAY_SIZE(bufstr)))
             {
-                bufstr[sizeof(bufstr) - 1] = '\0';
-                MultiByteToWideChar(CP_UNIXCP, 0, bufstr, -1, bufstrW, ARRAY_SIZE(bufstrW));
-                if (main_name && !bufstrW[0]) lstrcpyW(bufstrW, main_name);
-                if (!cb(bufstrW, (ULONG_PTR)lm.l_addr, (ULONG_PTR)lm.l_ld, FALSE, user))
-                    break;
+                FIXME("Incorrect link_map entry, bailing out\n");
+                return FALSE;
             }
+            if (main_name && !bufstr[0]) lstrcpyW(bufstr, main_name);
+            if (!cb(bufstr, (ULONG_PTR)lm.l_addr, (ULONG_PTR)lm.l_ld, FALSE, user))
+                break;
         }
     }
 
@@ -1777,16 +1823,21 @@ BOOL elf_read_wine_loader_dbg_info(struct process* pcs, ULONG_PTR addr)
 {
     struct elf_info     elf_info;
     BOOL ret = FALSE;
-    const WCHAR *loader;
+    WCHAR* loader;
 
     elf_info.flags = ELF_INFO_DEBUG_HEADER | ELF_INFO_MODULE;
     loader = get_wine_loader_name(pcs);
-    if (loader) ret = elf_search_and_load_file(pcs, loader, addr, 0, &elf_info);
+    if (loader)
+    {
+        ret = elf_search_and_load_file(pcs, loader, addr, 0, &elf_info);
+        HeapFree(GetProcessHeap(), 0, loader);
+    }
     if (!ret || !elf_info.dbg_hdr_addr) return FALSE;
     if (elf_info.dbg_hdr_addr != (ULONG_PTR)elf_info.dbg_hdr_addr)
     {
         ERR("Unable to access ELF libraries (outside 32bit limit)\n");
         module_remove(pcs, elf_info.module);
+        pcs->loader = &empty_loader_ops;
         return FALSE;
     }
     TRACE("Found ELF debug header %#I64x\n", elf_info.dbg_hdr_addr);

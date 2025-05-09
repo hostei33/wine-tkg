@@ -331,7 +331,6 @@ NTSTATUS WINAPI wow64_NtQuerySystemInformation( UINT *args )
     case SystemCodeIntegrityInformation:  /* SYSTEM_CODEINTEGRITY_INFORMATION */
     case SystemKernelDebuggerInformationEx:  /* SYSTEM_KERNEL_DEBUGGER_INFORMATION_EX */
     case SystemCpuSetInformation:  /* SYSTEM_CPU_SET_INFORMATION */
-    case SystemLeapSecondInformation: /* SYSTEM_LEAP_SECOND_INFORMATION */
     case SystemProcessorBrandString:  /* char[] */
     case SystemProcessorFeaturesInformation:  /* SYSTEM_PROCESSOR_FEATURES_INFORMATION */
     case SystemWineVersionInformation:  /* char[] */
@@ -408,7 +407,7 @@ NTSTATUS WINAPI wow64_NtQuerySystemInformation( UINT *args )
         }
         return status;
 
-    case SystemProcessIdInformation:  /* SYSTEM_PROCESS_ID_INFORMATION */
+    case SystemProcessIdInformation:
     {
         SYSTEM_PROCESS_ID_INFORMATION32 *info32 = ptr;
         SYSTEM_PROCESS_ID_INFORMATION info;
@@ -416,7 +415,7 @@ NTSTATUS WINAPI wow64_NtQuerySystemInformation( UINT *args )
         if (retlen) *retlen = sizeof(*info32);
         if (len < sizeof(*info32)) return STATUS_INFO_LENGTH_MISMATCH;
 
-        info.ProcessId = info32->ProcessId;
+        info.ProcessId = ULongToHandle( info32->ProcessId );
         unicode_str_32to64( &info.ImageName, &info32->ImageName );
         if (!(status = NtQuerySystemInformation( class, &info, sizeof(info), NULL )))
         {
@@ -779,30 +778,7 @@ NTSTATUS WINAPI wow64_NtSystemDebugControl( UINT *args )
     ULONG out_len = get_ulong( &args );
     ULONG *retlen = get_ptr( &args );
 
-    switch (command)
-    {
-    case SysDbgBreakPoint:
-    case SysDbgEnableKernelDebugger:
-    case SysDbgDisableKernelDebugger:
-    case SysDbgGetAutoKdEnable:
-    case SysDbgSetAutoKdEnable:
-    case SysDbgGetPrintBufferSize:
-    case SysDbgSetPrintBufferSize:
-    case SysDbgGetKdUmExceptionEnable:
-    case SysDbgSetKdUmExceptionEnable:
-    case SysDbgGetTriageDump:
-    case SysDbgGetKdBlockEnable:
-    case SysDbgSetKdBlockEnable:
-    case SysDbgRegisterForUmBreakInfo:
-    case SysDbgGetUmBreakPid:
-    case SysDbgClearUmBreakPid:
-    case SysDbgGetUmAttachPid:
-    case SysDbgClearUmAttachPid:
-        return NtSystemDebugControl( command, in_buf, in_len, out_buf, out_len, retlen );
-
-    default:
-        return STATUS_NOT_IMPLEMENTED;  /* not implemented on Windows either */
-    }
+    return NtSystemDebugControl( command, in_buf, in_len, out_buf, out_len, retlen );
 }
 
 
@@ -855,4 +831,22 @@ NTSTATUS WINAPI wow64_NtWow64GetNativeSystemInformation( UINT *args )
     default:
         return STATUS_INVALID_INFO_CLASS;
     }
+}
+
+
+/**********************************************************************
+ *           wow64___wine_set_unix_env
+ */
+NTSTATUS WINAPI wow64___wine_set_unix_env( UINT *args )
+{
+    const char *var = get_ptr( &args );
+    const char *val = get_ptr( &args );
+
+    return __wine_set_unix_env( var, val );
+}
+
+BOOL WINAPI __wine_needs_override_large_address_aware(void);
+NTSTATUS WINAPI wow64___wine_needs_override_large_address_aware( UINT * args )
+{
+    return __wine_needs_override_large_address_aware();
 }

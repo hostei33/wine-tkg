@@ -7,5 +7,5 @@
 @ stub RoGetMetaDataFile
 @ stdcall RoIsApiContractMajorVersionPresent(wstr long ptr)
 @ stub RoIsApiContractPresent
-@ stdcall RoParseTypeName(ptr ptr ptr)
+@ stub RoParseTypeName
 @ stdcall RoResolveNamespace(ptr ptr long ptr ptr ptr ptr ptr)

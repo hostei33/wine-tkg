@@ -53,7 +53,6 @@ typedef struct
     COLORREF  ColorBar;     /* Bar color */
     COLORREF  ColorBk;      /* Background color */
     HFONT     Font;         /* Handle to font (not unused) */
-    UINT      State;        /* State of progress bar */
 } PROGRESS_INFO;
 
 /* Control configuration constants */
@@ -148,7 +147,6 @@ typedef struct tagProgressDrawInfo
     int ledW, ledGap;
     HTHEME theme;
     RECT bgRect;
-    UINT state;
 } ProgressDrawInfo;
 
 typedef void (*ProgressDrawProc)(const ProgressDrawInfo* di, int start, int end);
@@ -245,7 +243,7 @@ static void draw_theme_bar_H (const ProgressDrawInfo* di, int start, int end)
     r.top = di->rect.top;
     r.bottom = di->rect.bottom;
     r.right = di->rect.left + end;
-    DrawThemeBackground (di->theme, di->hdc, PP_FILL, di->state, &r, NULL);
+    DrawThemeBackground (di->theme, di->hdc, PP_CHUNK, 0, &r, NULL);
 }
 
 /* draw themed vertical bar from 'start' to 'end' */
@@ -256,7 +254,7 @@ static void draw_theme_bar_V (const ProgressDrawInfo* di, int start, int end)
     r.right = di->rect.right;
     r.bottom = di->rect.bottom - start;
     r.top = di->rect.bottom - end;
-    DrawThemeBackground (di->theme, di->hdc, PP_FILLVERT, di->state, &r, NULL);
+    DrawThemeBackground (di->theme, di->hdc, PP_CHUNKVERT, 0, &r, NULL);
 }
 
 /* draw themed horizontal background from 'start' to 'end' */
@@ -312,7 +310,6 @@ static LRESULT PROGRESS_Draw (PROGRESS_INFO *infoPtr, HDC hdc)
     TRACE("(infoPtr=%p, hdc=%p)\n", infoPtr, hdc);
 
     pdi.hdc = hdc;
-    pdi.state = infoPtr->State;
     pdi.theme = GetWindowTheme (infoPtr->Self);
 
     /* get the required bar brush */
@@ -520,28 +517,9 @@ static UINT PROGRESS_SetPos (PROGRESS_INFO *infoPtr, INT pos)
 	    TRACE("PBM_SETPOS: current pos changed from %d to %d\n", oldVal, infoPtr->CurVal);
             PROGRESS_Invalidate( infoPtr, oldVal, infoPtr->CurVal );
             UpdateWindow( infoPtr->Self );
-            NotifyWinEvent( EVENT_OBJECT_VALUECHANGE, infoPtr->Self, OBJID_CLIENT, 0 );
         }
         return oldVal;
     }
-}
-
-static UINT PROGRESS_SetState (HWND hwnd, PROGRESS_INFO *infoPtr, UINT state)
-{
-    UINT prev_state = infoPtr->State;
-
-    if (state == PBST_NORMAL || state == PBST_PAUSED || state == PBST_ERROR)
-        infoPtr->State = state;
-    else
-        return 0;
-
-    if (state != prev_state)
-    {
-        NotifyWinEvent(EVENT_OBJECT_STATECHANGE, hwnd, OBJID_CLIENT, 0);
-
-        InvalidateRect(hwnd, NULL, TRUE);
-    }
-    return prev_state;
 }
 
 /***********************************************************************
@@ -591,7 +569,6 @@ static LRESULT WINAPI ProgressWindowProc(HWND hwnd, UINT message,
         infoPtr->ColorBar = CLR_DEFAULT;
         infoPtr->ColorBk = CLR_DEFAULT;
         infoPtr->Font = 0;
-        infoPtr->State = PBST_NORMAL;
 
         TRACE("Progress Ctrl creation, hwnd=%p\n", hwnd);
         return 0;
@@ -734,10 +711,12 @@ static LRESULT WINAPI ProgressWindowProc(HWND hwnd, UINT message,
 	return infoPtr->ColorBk;
 
     case PBM_SETSTATE:
-        return PROGRESS_SetState(hwnd, infoPtr, wParam);
+        if(wParam != PBST_NORMAL)
+            FIXME("state %Ix not yet handled\n", wParam);
+        return PBST_NORMAL;
 
     case PBM_GETSTATE:
-        return infoPtr->State;
+        return PBST_NORMAL;
 
     case PBM_SETMARQUEE:
 	if(wParam != 0)

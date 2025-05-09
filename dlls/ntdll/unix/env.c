@@ -44,10 +44,6 @@
 #ifdef __APPLE__
 # include <CoreFoundation/CFLocale.h>
 # include <CoreFoundation/CFString.h>
-# include <crt_externs.h>
-# define environ (*_NSGetEnviron())
-#else
-  extern char **environ;
 #endif
 
 #include "ntstatus.h"
@@ -63,6 +59,7 @@
 #include "error.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(environ);
+WINE_DECLARE_DEBUG_CHANNEL(nls);
 
 PEB *peb = NULL;
 WOW_PEB *wow_peb = NULL;
@@ -74,6 +71,7 @@ static const WCHAR bootstrapW[] = {'W','I','N','E','B','O','O','T','S','T','R','
 
 int main_argc = 0;
 char **main_argv = NULL;
+char **main_envp = NULL;
 WCHAR **main_wargv = NULL;
 
 static LCID user_lcid, system_lcid;
@@ -271,7 +269,6 @@ static const struct { const char *name; UINT cp; } charset_names[] =
     { "ISO88599", 28599 },
     { "KOI8R", 20866 },
     { "KOI8U", 21866 },
-    { "SHIFTJIS", 932 },
     { "SJIS", 932 },
     { "TIS620", 28601 },
     { "UTF8", CP_UTF8 }
@@ -279,13 +276,14 @@ static const struct { const char *name; UINT cp; } charset_names[] =
 
 static void init_unix_codepage(void)
 {
+    const char *name, *ctype;
     char charset_name[16];
-    const char *name;
     size_t i, j;
     int min = 0, max = ARRAY_SIZE(charset_names) - 1;
 
-    setlocale( LC_CTYPE, "" );
-    if (!(name = nl_langinfo( CODESET ))) return;
+    if (!(ctype = setlocale( LC_CTYPE, "" ))) name = "UTF-8";
+    else if (!(name = nl_langinfo( CODESET ))) return;
+    TRACE_(nls)( "Unix LC_CTYPE %s, using %s codeset\n", debugstr_a(ctype), debugstr_a(name) );
 
     /* remove punctuation characters from charset name */
     for (i = j = 0; name[i] && j < sizeof(charset_name)-1; i++)
@@ -345,6 +343,7 @@ static BOOL is_special_env_var( const char *var )
             STARTS_WITH( var, "TEMP=" ) ||
             STARTS_WITH( var, "TMP=" ) ||
             STARTS_WITH( var, "QT_" ) ||
+            STARTS_WITH( var, "SDL_AUDIODRIVER=" ) ||
             STARTS_WITH( var, "VK_" ) ||
             STARTS_WITH( var, "XDG_SESSION_TYPE=" ));
 }
@@ -401,7 +400,7 @@ DWORD ntdll_umbstowcs( const char *src, DWORD srclen, WCHAR *dst, DWORD dstlen )
  */
 int ntdll_wcstoumbs( const WCHAR *src, DWORD srclen, char *dst, DWORD dstlen, BOOL strict )
 {
-    unsigned int i, reslen;
+    unsigned int i, reslen = 0;
 
     if (unix_cp.CodePage != CP_UTF8)
     {
@@ -802,13 +801,29 @@ static const NLS_LOCALE_DATA *get_win_locale( const NLS_LOCALE_HEADER *header, c
 static void init_locale(void)
 {
     struct locale_nls_header *header;
+    const char *all, *ctype, *messages;
     const NLS_LOCALE_HEADER *locale_table;
     const NLS_LOCALE_DATA *locale;
     char *p;
 
-    setlocale( LC_ALL, "" );
-    if (!unix_to_win_locale( setlocale( LC_CTYPE, NULL ), system_locale )) system_locale[0] = 0;
-    if (!unix_to_win_locale( setlocale( LC_MESSAGES, NULL ), user_locale )) user_locale[0] = 0;
+    if (!(all = setlocale( LC_ALL, "" )) && (all = getenv( "LC_ALL" )))
+        FIXME_(nls)( "Failed to set LC_ALL to %s, is the locale supported?\n", debugstr_a(all) );
+    if (!(ctype = setlocale( LC_CTYPE, "" )) && (ctype = getenv( "LC_CTYPE" )))
+        FIXME_(nls)( "Failed to set LC_CTYPE to %s, is the locale supported?\n", debugstr_a(ctype) );
+    if (!(messages = setlocale( LC_MESSAGES, "" )) && (messages = getenv( "LC_MESSAGES" )))
+        FIXME_(nls)( "Failed to set LC_MESSAGES to %s, is the locale supported?\n", debugstr_a(messages) );
+
+    if (!unix_to_win_locale( ctype, system_locale )) system_locale[0] = 0;
+    TRACE_(nls)( "Unix LC_CTYPE is %s, setting system locale to %s\n", debugstr_a(ctype), debugstr_a(user_locale) );
+
+    if (main_argc > 1 && strstr(main_argv[1], "start_protected_game.exe"))
+    {
+        FIXME( "HACK setting EN locale.\n" );
+        messages = "en-US";
+    }
+
+    if (!unix_to_win_locale( messages, user_locale )) user_locale[0] = 0;
+    TRACE_(nls)( "Unix LC_MESSAGES is %s, user system locale to %s\n", debugstr_a(messages), debugstr_a(user_locale) );
 
 #ifdef __APPLE__
     if (!system_locale[0])
@@ -935,12 +950,12 @@ static WCHAR *get_initial_environment( SIZE_T *pos, SIZE_T *size )
 
     /* estimate needed size */
     *size = 1;
-    for (e = environ; *e; e++) *size += strlen(*e) + 1;
+    for (e = main_envp; *e; e++) *size += strlen(*e) + 1;
 
     env = malloc( *size * sizeof(WCHAR) );
     ptr = env;
     end = env + *size - 1;
-    for (e = environ; *e && ptr < end; e++)
+    for (e = main_envp; *e && ptr < end; e++)
     {
         char *str = *e;
 
@@ -1085,6 +1100,7 @@ static void add_system_dll_path_var( WCHAR **env, SIZE_T *pos, SIZE_T *size )
 static void add_dynamic_environment( WCHAR **env, SIZE_T *pos, SIZE_T *size )
 {
     const char *overrides = getenv( "WINEDLLOVERRIDES" );
+    const char *wineloader = getenv( "WINELOADER" );
     unsigned int i;
     char str[22];
 
@@ -1092,7 +1108,6 @@ static void add_dynamic_environment( WCHAR **env, SIZE_T *pos, SIZE_T *size )
     add_path_var( env, pos, size, "WINEHOMEDIR", home_dir );
     add_path_var( env, pos, size, "WINEBUILDDIR", build_dir );
     add_path_var( env, pos, size, "WINECONFIGDIR", config_dir );
-    add_path_var( env, pos, size, "WINELOADER", wineloader );
     for (i = 0; dll_paths[i]; i++)
     {
         snprintf( str, sizeof(str), "WINEDLLDIR%u", i );
@@ -1101,6 +1116,7 @@ static void add_dynamic_environment( WCHAR **env, SIZE_T *pos, SIZE_T *size )
     snprintf( str, sizeof(str), "WINEDLLDIR%u", i );
     append_envW( env, pos, size, str, NULL );
     add_system_dll_path_var( env, pos, size );
+    append_envA( env, pos, size, "WINELOADER", wineloader );
     append_envA( env, pos, size, "WINEUSERNAME", user_name );
     append_envA( env, pos, size, "WINEDLLOVERRIDES", overrides );
     if (unix_cp.CodePage != CP_UTF8)
@@ -1386,6 +1402,27 @@ static void add_registry_environment( WCHAR **env, SIZE_T *pos, SIZE_T *size )
     }
 }
 
+static void get_std_handle( int fd, unsigned int access, unsigned int attributes, HANDLE *handle )
+{
+    IO_STATUS_BLOCK io;
+    FILE_POSITION_INFORMATION pos_info;
+    FILE_NAME_INFORMATION name_info;
+    NTSTATUS status;
+
+    wine_server_fd_to_handle( fd, access, attributes, handle );
+    if (!*handle) return;
+
+    /* Python checks if a file is seekable and if so expects the file name to be gettable from handle. */
+    if (NtQueryInformationFile( *handle, &io, &pos_info, sizeof(pos_info), FilePositionInformation ))
+        return;
+
+    TRACE("handle for fd %d is seekable.\n", fd);
+    if (!(status = NtQueryInformationFile( *handle, &io, &name_info, sizeof(name_info), FileNameInformation ))
+          || status == STATUS_BUFFER_OVERFLOW) return;
+    TRACE("closing handle for fd %d.\n", fd);
+    NtClose( *handle );
+    *handle = NULL;
+}
 
 /*************************************************************************
  *		get_initial_console
@@ -1396,9 +1433,9 @@ static void get_initial_console( RTL_USER_PROCESS_PARAMETERS *params )
 {
     int output_fd = -1;
 
-    wine_server_fd_to_handle( 0, GENERIC_READ|SYNCHRONIZE,  OBJ_INHERIT, &params->hStdInput );
-    wine_server_fd_to_handle( 1, GENERIC_WRITE|SYNCHRONIZE, OBJ_INHERIT, &params->hStdOutput );
-    wine_server_fd_to_handle( 2, GENERIC_WRITE|SYNCHRONIZE, OBJ_INHERIT, &params->hStdError );
+    get_std_handle( 0, GENERIC_READ|SYNCHRONIZE,  OBJ_INHERIT, &params->hStdInput );
+    get_std_handle( 1, GENERIC_WRITE|SYNCHRONIZE, OBJ_INHERIT, &params->hStdOutput );
+    get_std_handle( 2, GENERIC_WRITE|SYNCHRONIZE, OBJ_INHERIT, &params->hStdError );
 
     if (main_image_info.SubSystemType != IMAGE_SUBSYSTEM_WINDOWS_CUI)
         return;
@@ -1638,9 +1675,18 @@ static void run_wineboot( WCHAR *env, SIZE_T size )
 
     wine_server_fd_to_handle( 2, GENERIC_WRITE | SYNCHRONIZE, OBJ_INHERIT, &params.hStdError );
 
-    status = NtCreateUserProcess( &process, &thread, PROCESS_ALL_ACCESS, THREAD_ALL_ACCESS,
-                                  NULL, NULL, 0, THREAD_CREATE_FLAGS_CREATE_SUSPENDED, &params,
-                                  &create_info, &ps_attr );
+    if (NtCurrentTeb64() && !NtCurrentTeb64()->TlsSlots[WOW64_TLS_FILESYSREDIR])
+    {
+        NtCurrentTeb64()->TlsSlots[WOW64_TLS_FILESYSREDIR] = TRUE;
+        status = NtCreateUserProcess( &process, &thread, PROCESS_ALL_ACCESS, THREAD_ALL_ACCESS,
+                                      NULL, NULL, 0, THREAD_CREATE_FLAGS_CREATE_SUSPENDED, &params,
+                                      &create_info, &ps_attr );
+        NtCurrentTeb64()->TlsSlots[WOW64_TLS_FILESYSREDIR] = FALSE;
+    }
+    else
+        status = NtCreateUserProcess( &process, &thread, PROCESS_ALL_ACCESS, THREAD_ALL_ACCESS,
+                                      NULL, NULL, 0, THREAD_CREATE_FLAGS_CREATE_SUSPENDED, &params,
+                                      &create_info, &ps_attr );
     NtClose( params.hStdError );
 
     if (status)
@@ -1810,7 +1856,7 @@ static void *build_wow64_parameters( const RTL_USER_PROCESS_PARAMETERS *params )
                    + ((params->RuntimeInfo.MaximumLength + 1) & ~1)
                    + params->EnvironmentSize);
 
-    status = NtAllocateVirtualMemory( NtCurrentProcess(), (void **)&wow64_params, limit_2g - 1, &size,
+    status = NtAllocateVirtualMemory( NtCurrentProcess(), (void **)&wow64_params, 0, &size,
                                       MEM_COMMIT, PAGE_READWRITE );
     assert( !status );
 
@@ -1928,8 +1974,6 @@ static RTL_USER_PROCESS_PARAMETERS *build_initial_params( void **module )
     WCHAR *curdir = get_initial_directory();
     NTSTATUS status;
 
-    if (NtCurrentTeb64()) NtCurrentTeb64()->TlsSlots[WOW64_TLS_FILESYSREDIR] = TRUE;
-
     /* store the initial PATH value */
     path = get_env_var( env, env_pos, pathW, 4 );
     add_dynamic_environment( &env, &env_pos, &env_size );
@@ -1950,7 +1994,7 @@ static RTL_USER_PROCESS_PARAMETERS *build_initial_params( void **module )
     env[env_pos++] = 0;
 
     status = load_main_exe( NULL, main_argv[1], curdir, 0, &image, module );
-    if (NT_SUCCESS(status))
+    if (!status)
     {
         char *loader;
 
@@ -1971,11 +2015,7 @@ static RTL_USER_PROCESS_PARAMETERS *build_initial_params( void **module )
         load_start_exe( &image, module );
         prepend_argv( args, 2 );
     }
-    else
-    {
-        rebuild_argv();
-        if (NtCurrentTeb64()) NtCurrentTeb64()->TlsSlots[WOW64_TLS_FILESYSREDIR] = FALSE;
-    }
+    else rebuild_argv();
 
     main_wargv = build_wargv( get_dos_path( image ));
     cmdline = build_command_line( main_wargv );
@@ -2033,7 +2073,7 @@ void init_startup_info(void)
     unsigned int status;
     SIZE_T size, info_size, env_size, env_pos;
     RTL_USER_PROCESS_PARAMETERS *params = NULL;
-    struct startup_info_data *info;
+    startup_info_t *info;
     USHORT machine;
 
     if (!startup_info_size)
@@ -2158,9 +2198,9 @@ static BOOL is_console_handle( HANDLE handle )
  */
 void *create_startup_info( const UNICODE_STRING *nt_image, ULONG process_flags,
                            const RTL_USER_PROCESS_PARAMETERS *params,
-                           const struct pe_image_info *pe_info, DWORD *info_size )
+                           const pe_image_info_t *pe_info, DWORD *info_size )
 {
-    struct startup_info_data *info;
+    startup_info_t *info;
     UNICODE_STRING dos_image = *nt_image;
     DWORD size;
     void *ptr;
@@ -2467,4 +2507,15 @@ void WINAPI RtlSetLastWin32Error( DWORD err )
     if (wow_teb) wow_teb->LastErrorValue = err;
 #endif
     teb->LastErrorValue = err;
+}
+
+
+/**********************************************************************
+ *      __wine_set_unix_env  (ntdll.so)
+ */
+NTSTATUS WINAPI __wine_set_unix_env( const char *var, const char *val )
+{
+    if (!val) unsetenv(var);
+    else setenv(var, val, 1);
+    return 0;
 }

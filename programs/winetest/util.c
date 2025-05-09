@@ -25,6 +25,8 @@
 
 #include "winetest.h"
 
+HANDLE logfile = 0;
+
 void *xalloc (size_t len)
 {
     void *p = malloc( len );
@@ -48,8 +50,7 @@ char *xstrdup( const char *str )
     return res;
 }
 
-static char *vstrfmtmake( const char *fmt, va_list ap ) __WINE_PRINTF_ATTR(1,0);
-static char *vstrfmtmake( const char *fmt, va_list ap )
+static char *vstrfmtmake (size_t *lenp, const char *fmt, va_list ap)
 {
     size_t size = 1000;
     char *p;
@@ -64,42 +65,45 @@ static char *vstrfmtmake( const char *fmt, va_list ap )
         else break;
         p = xrealloc(p, size);
     }
+    if (lenp) *lenp = n;
     return p;
 }
 
-char *vstrmake(va_list ap)
+char *vstrmake (size_t *lenp, va_list ap)
 {
     const char *fmt;
 
     fmt = va_arg (ap, const char*);
-    return vstrfmtmake (fmt, ap);
+    return vstrfmtmake (lenp, fmt, ap);
 }
 
-char *strmake( const char *fmt, ... )
+char * WINAPIV strmake (size_t *lenp, ...)
 {
     va_list ap;
     char *p;
 
-    va_start( ap, fmt );
-    p = vstrfmtmake( fmt, ap );
-    va_end( ap );
+    va_start (ap, lenp);
+    p = vstrmake (lenp, ap);
+    va_end (ap);
     return p;
 }
 
-void output( HANDLE file, const char *fmt, ... )
+void WINAPIV xprintf (const char *fmt, ...)
 {
     va_list ap;
+    size_t size;
     DWORD written;
     char *buffer, *head;
 
     va_start (ap, fmt);
-    buffer = vstrfmtmake (fmt, ap);
+    buffer = vstrfmtmake (&size, fmt, ap);
     head = buffer;
     va_end (ap);
-    while (head[0]) {
-        if (!WriteFile( file, head, strlen(head), &written, NULL ))
+    while (size) {
+        if (!WriteFile( logfile, head, size, &written, NULL ))
             report (R_FATAL, "Can't write logs: %u", GetLastError());
         head += written;
+        size -= written;
     }
     free(buffer);
 }

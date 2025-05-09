@@ -117,7 +117,7 @@ typedef struct tagWTI_EXTENSIONS_INFO
 } WTI_EXTENSIONS_INFO, *LPWTI_EXTENSIONS_INFO;
 
 typedef struct tagWTPACKET {
-        UINT pkContext;
+        HCTX pkContext;
         UINT pkStatus;
         LONG pkTime;
         WTPKT pkChanged;

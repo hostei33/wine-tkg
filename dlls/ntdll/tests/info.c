@@ -18,8 +18,8 @@
  *
  */
 
-#include <stdarg.h>
 #include <stdio.h>
+#include <psapi.h>
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -28,11 +28,9 @@
 #include "winternl.h"
 #include "winnls.h"
 #include "ddk/ntddk.h"
-#include "psapi.h"
 #include "wine/test.h"
 
 static NTSTATUS (WINAPI * pNtQuerySystemInformation)(SYSTEM_INFORMATION_CLASS, PVOID, ULONG, PULONG);
-static NTSTATUS (WINAPI * pNtQueryInformationProcess)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
 static NTSTATUS (WINAPI * pNtSetSystemInformation)(SYSTEM_INFORMATION_CLASS, PVOID, ULONG);
 static NTSTATUS (WINAPI * pRtlGetNativeSystemInformation)(SYSTEM_INFORMATION_CLASS, PVOID, ULONG, PULONG);
 static NTSTATUS (WINAPI * pNtQuerySystemInformationEx)(SYSTEM_INFORMATION_CLASS, void*, ULONG, void*, ULONG, ULONG*);
@@ -91,7 +89,6 @@ static void InitFunctionPtrs(void)
     HMODULE hkernel32 = GetModuleHandleA("kernel32");
 
     NTDLL_GET_PROC(NtQuerySystemInformation);
-    NTDLL_GET_PROC(NtQueryInformationProcess);
     NTDLL_GET_PROC(NtQuerySystemInformationEx);
     NTDLL_GET_PROC(NtSetSystemInformation);
     NTDLL_GET_PROC(RtlGetNativeSystemInformation);
@@ -360,15 +357,16 @@ static void test_query_cpu(void)
         if (winetest_debug > 1) trace("Processor FeatureSet : %08lx\n", sci.ProcessorFeatureBits);
         ok( sci.ProcessorFeatureBits != 0, "Expected some features for this processor, got %08lx\n",
             sci.ProcessorFeatureBits);
+
+        ok( sci.ProcessorLevel == sci2.ProcessorLevel, "ProcessorLevel differs %x / %x\n",
+            sci.ProcessorLevel, sci2.ProcessorLevel );
+        ok( sci.ProcessorRevision == sci2.ProcessorRevision, "ProcessorRevision differs %x / %x\n",
+            sci.ProcessorRevision, sci2.ProcessorRevision );
+        ok( sci.MaximumProcessors == sci2.MaximumProcessors, "MaximumProcessors differs %x / %x\n",
+            sci.MaximumProcessors, sci2.MaximumProcessors );
+        ok( sci.ProcessorFeatureBits == sci2.ProcessorFeatureBits, "ProcessorFeatureBits differs %lx / %lx\n",
+            sci.ProcessorFeatureBits, sci2.ProcessorFeatureBits );
     }
-    ok( sci.ProcessorLevel == sci2.ProcessorLevel, "ProcessorLevel differs %x / %x\n",
-        sci.ProcessorLevel, sci2.ProcessorLevel );
-    ok( sci.ProcessorRevision == sci2.ProcessorRevision, "ProcessorRevision differs %x / %x\n",
-        sci.ProcessorRevision, sci2.ProcessorRevision );
-    ok( sci.MaximumProcessors == sci2.MaximumProcessors, "MaximumProcessors differs %x / %x\n",
-        sci.MaximumProcessors, sci2.MaximumProcessors );
-    ok( sci.ProcessorFeatureBits == sci2.ProcessorFeatureBits, "ProcessorFeatureBits differs %lx / %lx\n",
-        sci.ProcessorFeatureBits, sci2.ProcessorFeatureBits );
 
     memset(&sci3, 0xcc, sizeof(sci3));
     status = pNtQuerySystemInformation(SystemEmulationProcessorInformation, &sci3, sizeof(sci3), &len);
@@ -854,12 +852,17 @@ static void test_query_handle(void)
     ULONG ExpectedLength, ReturnLength;
     ULONG SystemInformationLength = sizeof(SYSTEM_HANDLE_INFORMATION);
     SYSTEM_HANDLE_INFORMATION* shi = HeapAlloc(GetProcessHeap(), 0, SystemInformationLength);
-    HANDLE EventHandle;
+    HANDLE EventHandle, handle_dup;
+    void *obj1, *obj2;
     BOOL found, ret;
     INT i;
 
     EventHandle = CreateEventA(NULL, FALSE, FALSE, NULL);
     ok( EventHandle != NULL, "CreateEventA failed %lu\n", GetLastError() );
+
+    ret = DuplicateHandle(GetCurrentProcess(), EventHandle, GetCurrentProcess(), &handle_dup, 0, TRUE, DUPLICATE_SAME_ACCESS);
+    ok(ret, "got error %lu\n", GetLastError());
+
     ret = SetHandleInformation(EventHandle, HANDLE_FLAG_INHERIT | HANDLE_FLAG_PROTECT_FROM_CLOSE,
             HANDLE_FLAG_INHERIT | HANDLE_FLAG_PROTECT_FROM_CLOSE);
     ok(ret, "got error %lu\n", GetLastError());
@@ -883,6 +886,7 @@ static void test_query_handle(void)
         memset(shi, 0x55, SystemInformationLength);
         status = pNtQuerySystemInformation(SystemHandleInformation, shi, SystemInformationLength, &ReturnLength);
     }
+    CloseHandle(handle_dup);
     ok( status == STATUS_SUCCESS, "Expected STATUS_SUCCESS, got %08lx\n", status );
     ExpectedLength = FIELD_OFFSET(SYSTEM_HANDLE_INFORMATION, Handle[shi->Count]);
     ok( ReturnLength == ExpectedLength || broken(ReturnLength == ExpectedLength - sizeof(DWORD)), /* Vista / 2008 */
@@ -897,19 +901,37 @@ static void test_query_handle(void)
         goto done;
     }
 
-    found = FALSE;
+    obj1 = obj2 = (void *)0xdeadbeef;
     for (i = 0; i < shi->Count; i++)
     {
         if (shi->Handle[i].OwnerPid == GetCurrentProcessId() &&
                 (HANDLE)(ULONG_PTR)shi->Handle[i].HandleValue == EventHandle)
         {
+            ok(obj1 == (void *)0xdeadbeef, "Found duplicate.\n");
             ok(shi->Handle[i].HandleFlags == (OBJ_INHERIT | OBJ_PROTECT_CLOSE),
                     "got attributes %#x\n", shi->Handle[i].HandleFlags);
-            found = TRUE;
-            break;
+            obj1 = shi->Handle[i].ObjectPointer;
         }
+        if (shi->Handle[i].OwnerPid == GetCurrentProcessId() &&
+                (HANDLE)(ULONG_PTR)shi->Handle[i].HandleValue == handle_dup)
+        {
+            ok(obj2 == (void *)0xdeadbeef, "Found duplicate.\n");
+            ok(shi->Handle[i].HandleFlags == OBJ_INHERIT, "got attributes %#x\n", shi->Handle[i].HandleFlags);
+            obj2 = shi->Handle[i].ObjectPointer;
+        }
+        ok((ULONG_PTR)shi->Handle[i].ObjectPointer > (ULONG_PTR)0xffff800000000000, "got %p.\n",
+                shi->Handle[i].ObjectPointer);
     }
-    ok( found, "Expected to find event handle %p (pid %lx) in handle list\n", EventHandle, GetCurrentProcessId() );
+    ok(obj1 != (void *)0xdeadbeef, "Didn't find %p (pid %lx).\n", EventHandle, GetCurrentProcessId());
+    ok(obj1 == obj2, "got %p, %p.\n", obj1, obj2);
+
+    for (i = 0; i < shi->Count; i++)
+    {
+        if (!(shi->Handle[i].OwnerPid == GetCurrentProcessId()
+              && ((HANDLE)(ULONG_PTR)shi->Handle[i].HandleValue == EventHandle
+              || (HANDLE)(ULONG_PTR)shi->Handle[i].HandleValue == handle_dup)))
+            ok(shi->Handle[i].ObjectPointer != obj1, "Got same object.\n");
+    }
 
     ret = SetHandleInformation(EventHandle, HANDLE_FLAG_PROTECT_FROM_CLOSE, 0);
     ok(ret, "got error %lu\n", GetLastError());
@@ -999,11 +1021,12 @@ static void test_query_handle_ex(void)
     found = FALSE;
     for (i = 0; i < info->NumberOfHandles; ++i)
     {
+        ok((ULONG_PTR)info->Handles[i].Object > (ULONG_PTR)0xffff800000000000, "got %p.\n", info->Handles[i].Object);
         if (info->Handles[i].UniqueProcessId == GetCurrentProcessId()
                 && (HANDLE)info->Handles[i].HandleValue == event)
         {
+            ok(!found, "Found duplicate.\n");
             found = TRUE;
-            break;
         }
     }
     ok(!found, "event handle found\n");
@@ -1096,7 +1119,6 @@ static void test_query_interrupt(void)
 
 static void test_time_adjustment(void)
 {
-    SYSTEM_LEAP_SECOND_INFORMATION leap;
     SYSTEM_TIME_ADJUSTMENT_QUERY query;
     SYSTEM_TIME_ADJUSTMENT adjust;
     NTSTATUS status;
@@ -1127,21 +1149,6 @@ static void test_time_adjustment(void)
     status = pNtSetSystemInformation( SystemTimeAdjustmentInformation, &adjust, sizeof(adjust)+1 );
     todo_wine
     ok( status == STATUS_INFO_LENGTH_MISMATCH, "got %08lx\n", status );
-
-    len = 0;
-    memset( &leap, 0xcc, sizeof(leap) );
-    status = pNtQuerySystemInformation( SystemLeapSecondInformation, &leap, sizeof(leap), &len );
-    if (status == STATUS_INVALID_INFO_CLASS)
-    {
-        win_skip( "NtQuerySystemInformation(SystemLeapSecondInformation) is not implemented.\n" );
-    }
-    else
-    {
-        ok( status == STATUS_SUCCESS, "got %08lx\n", status );
-        ok( len == sizeof(leap), "wrong len %lu\n", len );
-        ok( leap.Enabled == 1, "got %u\n", leap.Enabled );
-        ok( !leap.Flags, "got %lx\n", leap.Flags );
-    }
 }
 
 static void test_query_kerndebug(void)
@@ -1817,7 +1824,17 @@ static void test_query_process_basic(void)
 {
     NTSTATUS status;
     ULONG ReturnLength;
-    PROCESS_BASIC_INFORMATION pbi;
+
+    typedef struct _PROCESS_BASIC_INFORMATION_PRIVATE {
+        DWORD_PTR ExitStatus;
+        PPEB      PebBaseAddress;
+        DWORD_PTR AffinityMask;
+        DWORD_PTR BasePriority;
+        ULONG_PTR UniqueProcessId;
+        ULONG_PTR InheritedFromUniqueProcessId;
+    } PROCESS_BASIC_INFORMATION_PRIVATE;
+
+    PROCESS_BASIC_INFORMATION_PRIVATE pbi;
 
     /* This test also covers some basic parameter testing that should be the same for
      * every information class
@@ -2367,11 +2384,8 @@ static void test_query_process_image_file_name(void)
     ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %08lx\n", status);
 
     buffer = malloc(ReturnLength);
-    memset( buffer, 0xcc, ReturnLength );
     status = NtQueryInformationProcess( GetCurrentProcess(), ProcessImageFileName, buffer, ReturnLength, &ReturnLength);
     ok( status == STATUS_SUCCESS, "Expected STATUS_SUCCESS, got %08lx\n", status);
-    ok( buffer->MaximumLength == buffer->Length + sizeof(WCHAR), "got %u, %u.\n", buffer->Length, buffer->MaximumLength );
-    ok ( !buffer->Buffer[buffer->Length / sizeof(WCHAR)], "got %#x.\n", buffer->Buffer[buffer->Length / sizeof(WCHAR)] );
     todo_wine
     ok(!memcmp(buffer->Buffer, deviceW, sizeof(deviceW)),
         "Expected image name to begin with \\Device\\, got %s\n",
@@ -2393,11 +2407,8 @@ static void test_query_process_image_file_name(void)
     ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %08lx\n", status);
 
     buffer = malloc(ReturnLength);
-    memset( buffer, 0xcc, ReturnLength );
     status = NtQueryInformationProcess( GetCurrentProcess(), ProcessImageFileNameWin32, buffer, ReturnLength, &ReturnLength);
     ok( status == STATUS_SUCCESS, "Expected STATUS_SUCCESS, got %08lx\n", status);
-    ok( buffer->MaximumLength == buffer->Length + sizeof(WCHAR), "got %u, %u.\n", buffer->Length, buffer->MaximumLength );
-    ok ( !buffer->Buffer[buffer->Length / sizeof(WCHAR)], "got %#x.\n", buffer->Buffer[buffer->Length / sizeof(WCHAR)] );
     ok(memcmp(buffer->Buffer, deviceW, sizeof(deviceW)),
         "Expected image name not to begin with \\Device\\, got %s\n",
         wine_dbgstr_wn(buffer->Buffer, buffer->Length / sizeof(WCHAR)));
@@ -2443,7 +2454,6 @@ static void test_query_process_image_info(void)
 
 static void test_query_process_debug_object_handle(int argc, char **argv)
 {
-    char buffer[sizeof(HANDLE) * 2];
     char cmdline[MAX_PATH];
     STARTUPINFOA si = {0};
     PROCESS_INFORMATION pi;
@@ -2483,22 +2493,6 @@ static void test_query_process_debug_object_handle(int argc, char **argv)
     ok(len == 0xdeadbeef || broken(len == 0xfffffffc || len == 0xffc), /* wow64 */
        "len set to %lx\n", len );
 
-    status = NtQueryInformationProcess(GetCurrentProcess(),
-            ProcessDebugObjectHandle, (void *)0xdeadbea0, sizeof(debug_object), &len);
-    if (is_wow64)
-    {
-        todo_wine_if(old_wow64)
-        {
-            ok(status == STATUS_PORT_NOT_SET, "got %#lx\n", status);
-            ok(len == sizeof(HANDLE), "got %lu\n", len);
-        }
-    }
-    else
-    {
-        ok(status == STATUS_ACCESS_VIOLATION, "got %#lx\n", status);
-        ok(len == 0xdeadbeef, "got %lu\n", len );
-    }
-
     status = NtQueryInformationProcess(NULL, ProcessDebugObjectHandle,
             &debug_object, sizeof(debug_object), NULL);
     ok(status == STATUS_INVALID_HANDLE,
@@ -2509,7 +2503,7 @@ static void test_query_process_debug_object_handle(int argc, char **argv)
             ProcessDebugObjectHandle, &debug_object, sizeof(debug_object) - 1, &len);
     ok(status == STATUS_INFO_LENGTH_MISMATCH,
        "Expected NtQueryInformationProcess to return STATUS_INFO_LENGTH_MISMATCH, got 0x%08lx\n", status);
-    ok(len == 0xdeadbeef || broken(len == 0xfffffffc || len == 0xffc || len == 4), /* wow64 */
+    ok(len == 0xdeadbeef || broken(len == 0xfffffffc || len == 0xffc), /* wow64 */
        "len set to %lx\n", len );
 
     len = 0xdeadbeef;
@@ -2517,7 +2511,7 @@ static void test_query_process_debug_object_handle(int argc, char **argv)
             ProcessDebugObjectHandle, &debug_object, sizeof(debug_object) + 1, &len);
     ok(status == STATUS_INFO_LENGTH_MISMATCH,
        "Expected NtQueryInformationProcess to return STATUS_INFO_LENGTH_MISMATCH, got 0x%08lx\n", status);
-    ok(len == 0xdeadbeef || broken(len == 0xfffffffc || len == 0xffc || len == 4), /* wow64 */
+    ok(len == 0xdeadbeef || broken(len == 0xfffffffc || len == 0xffc), /* wow64 */
        "len set to %lx\n", len );
 
     len = 0xdeadbeef;
@@ -2527,70 +2521,10 @@ static void test_query_process_debug_object_handle(int argc, char **argv)
             sizeof(debug_object), &len);
     ok(status == STATUS_PORT_NOT_SET,
        "Expected NtQueryInformationProcess to return STATUS_PORT_NOT_SET, got 0x%08lx\n", status);
-    todo_wine_if(is_wow64 && old_wow64)
-    ok((!is_wow64 && !debug_object) || (is_wow64 && debug_object == (HANDLE)0xdeadbeef), "got %p\n", debug_object);
+    ok(debug_object == NULL ||
+       broken(debug_object == (HANDLE)0xdeadbeef), /* Wow64 */
+       "Expected debug object handle to be NULL, got %p\n", debug_object);
     ok(len == sizeof(debug_object), "len set to %lx\n", len );
-
-    debug_object = (HANDLE)0xdeadbeef;
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, &debug_object,
-            sizeof(debug_object), NULL);
-    ok(status == STATUS_PORT_NOT_SET, "got %#lx.\n", status);
-    todo_wine_if(is_wow64 && old_wow64)
-    ok((!is_wow64 && !debug_object) || (is_wow64 && debug_object == (HANDLE)0xdeadbeef), "got %p\n", debug_object);
-
-    debug_object = (HANDLE)0xdeadbeef;
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, &debug_object,
-            sizeof(debug_object), (void *)0xdeadbea0);
-    ok(status == STATUS_ACCESS_VIOLATION, "got %#lx.\n", status);
-    ok(debug_object == (HANDLE)0xdeadbeef, "got %p\n", debug_object);
-
-    debug_object = (HANDLE)0xdeadbeef;
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, &debug_object,
-            sizeof(debug_object), (void *)0xdeadbea1);
-    ok(status == STATUS_ACCESS_VIOLATION, "got %#lx.\n", status);
-    ok(debug_object == (HANDLE)0xdeadbeef, "got %p\n", debug_object);
-
-    debug_object = (HANDLE)0xdeadbeef;
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, &debug_object,
-            0, (void *)0xdeadbea0);
-    ok(status == STATUS_ACCESS_VIOLATION, "got %#lx.\n", status);
-    ok(debug_object == (HANDLE)0xdeadbeef, "got %p\n", debug_object);
-
-    memset(buffer, 0xcc, sizeof(buffer));
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, buffer + 1, sizeof(HANDLE), NULL);
-    todo_wine_if(is_wow64 && old_wow64)
-    ok((!is_wow64 && status == STATUS_DATATYPE_MISALIGNMENT) || (is_wow64 && status == STATUS_PORT_NOT_SET),
-            "got %#lx.\n", status);
-    ok(*(HANDLE *)(buffer + 1) == (HANDLE)(ULONG_PTR)0xcccccccccccccccc, "got %p\n", *(HANDLE *)(buffer + 1));
-
-    memset(buffer, 0xcc, sizeof(buffer));
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, buffer + 4, sizeof(HANDLE), NULL);
-    ok(status == STATUS_PORT_NOT_SET, "got %#lx.\n", status);
-    todo_wine_if(is_wow64 && old_wow64)
-    ok((!is_wow64 && !*(HANDLE *)(buffer + 4)) || (is_wow64 && *(HANDLE *)(buffer + 4) == (HANDLE)0xcccccccc),
-            "got %p\n", *(HANDLE *)(buffer + 4));
-
-    memset(buffer, 0xcc, sizeof(buffer));
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, buffer + 1, sizeof(HANDLE),
-            (void *)0xdeadbea0);
-    todo_wine_if(is_wow64 && old_wow64)
-    ok((!is_wow64 && status == STATUS_DATATYPE_MISALIGNMENT) || (is_wow64 && status == STATUS_ACCESS_VIOLATION),
-            "got %#lx.\n", status);
-    ok(*(HANDLE *)(buffer + 1) == (HANDLE)(ULONG_PTR)0xcccccccccccccccc, "got %p\n", *(HANDLE *)(buffer + 1));
-
-    memset(buffer, 0xcc, sizeof(buffer));
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, buffer + 1, 1,
-            (void *)0xdeadbea0);
-    todo_wine_if(is_wow64 && old_wow64)
-    ok((!is_wow64 && status == STATUS_DATATYPE_MISALIGNMENT) || (is_wow64 && status == STATUS_ACCESS_VIOLATION),
-            "got %#lx.\n", status);
-    ok(*(HANDLE *)(buffer + 1) == (HANDLE)(ULONG_PTR)0xcccccccccccccccc, "got %p\n", *(HANDLE *)(buffer + 1));
-
-    memset(buffer, 0xcc, sizeof(buffer));
-    status = NtQueryInformationProcess(GetCurrentProcess(), ProcessDebugObjectHandle, buffer + 1, 0,
-            (void *)0xdeadbea0);
-    ok(status == STATUS_ACCESS_VIOLATION, "got %#lx.\n", status);
-    ok(*(HANDLE *)(buffer + 1) == (HANDLE)(ULONG_PTR)0xcccccccccccccccc, "got %p\n", *(HANDLE *)(buffer + 1));
 
     len = 0xdeadbeef;
     debug_object = (HANDLE)0xdeadbeef;
@@ -2773,59 +2707,6 @@ static void test_query_process_debug_flags(int argc, char **argv)
         ret = CloseHandle(pi.hProcess);
         ok(ret, "CloseHandle failed, last error %#lx.\n", GetLastError());
     }
-}
-
-static void test_query_process_quota_limits(void)
-{
-    QUOTA_LIMITS qlimits;
-    NTSTATUS status;
-    HANDLE process;
-    ULONG ret_len;
-
-    status = NtQueryInformationProcess(NULL, ProcessQuotaLimits, NULL, sizeof(qlimits), NULL);
-    ok(status == STATUS_INVALID_HANDLE, "NtQueryInformationProcess failed, status %#lx.\n", status);
-
-    status = NtQueryInformationProcess(NULL, ProcessQuotaLimits, &qlimits, sizeof(qlimits), NULL);
-    ok(status == STATUS_INVALID_HANDLE, "NtQueryInformationProcess failed, status %#lx.\n", status);
-
-    process = GetCurrentProcess();
-    status = NtQueryInformationProcess( process, ProcessQuotaLimits, &qlimits, 2, &ret_len);
-    ok(status == STATUS_INFO_LENGTH_MISMATCH, "NtQueryInformationProcess failed, status %#lx.\n", status);
-
-    memset(&qlimits, 0, sizeof(qlimits));
-    status = NtQueryInformationProcess( process, ProcessQuotaLimits, &qlimits, sizeof(qlimits), &ret_len);
-    ok(status == STATUS_SUCCESS, "NtQueryInformationProcess failed, status %#lx.\n", status);
-    ok(sizeof(qlimits) == ret_len, "len set to %lx\n", ret_len);
-    ok(qlimits.MinimumWorkingSetSize == 204800,"Expected MinimumWorkingSetSize = 204800, got %s\n",
-        wine_dbgstr_longlong(qlimits.MinimumWorkingSetSize));
-    ok(qlimits.MaximumWorkingSetSize == 1413120,"Expected MaximumWorkingSetSize = 1413120, got %s\n",
-        wine_dbgstr_longlong(qlimits.MaximumWorkingSetSize));
-    ok(qlimits.PagefileLimit == ~0,"Expected PagefileLimit = ~0, got %s\n",
-        wine_dbgstr_longlong(qlimits.PagefileLimit));
-    ok(qlimits.TimeLimit.QuadPart == ~0,"Expected TimeLimit = ~0, got %s\n",
-        wine_dbgstr_longlong(qlimits.TimeLimit.QuadPart));
-
-    if (winetest_debug > 1)
-    {
-        trace("Quota Limits:\n");
-        trace("PagedPoolLimit: %s\n", wine_dbgstr_longlong(qlimits.PagedPoolLimit));
-        trace("NonPagedPoolLimit: %s\n", wine_dbgstr_longlong(qlimits.NonPagedPoolLimit));
-    }
-
-    memset(&qlimits, 0, sizeof(qlimits));
-    status = NtQueryInformationProcess( process, ProcessQuotaLimits, &qlimits, sizeof(qlimits) * 2, &ret_len);
-    ok(status == STATUS_INFO_LENGTH_MISMATCH, "NtQueryInformationProcess failed, status %#lx.\n", status);
-    ok(sizeof(qlimits) == ret_len, "len set to %lx\n", ret_len);
-
-    memset(&qlimits, 0, sizeof(qlimits));
-    status = NtQueryInformationProcess( process, ProcessQuotaLimits, &qlimits, sizeof(qlimits) - 1, &ret_len);
-    ok(status == STATUS_INFO_LENGTH_MISMATCH, "NtQueryInformationProcess failed, status %#lx.\n", status);
-    ok(sizeof(qlimits) == ret_len, "len set to %lx\n", ret_len);
-
-    memset(&qlimits, 0, sizeof(qlimits));
-    status = NtQueryInformationProcess( process, ProcessQuotaLimits, &qlimits, sizeof(qlimits) + 1, &ret_len);
-    ok(status == STATUS_INFO_LENGTH_MISMATCH, "NtQueryInformationProcess failed, status %#lx.\n", status);
-    ok(sizeof(qlimits) == ret_len, "len set to %lx\n", ret_len);
 }
 
 static void test_readvirtualmemory(void)
@@ -3332,164 +3213,6 @@ static void test_affinity(void)
         "Unexpected thread affinity\n" );
 }
 
-static void test_priority(void)
-{
-    NTSTATUS status;
-    DWORD proc_priority;
-    int thread_base_priority, expected_nt_priority;
-    ULONG nt_thread_priority, process_base_priority;
-    THREAD_BASIC_INFORMATION tbi;
-    DECLSPEC_ALIGN(8) PROCESS_PRIORITY_CLASS ppc; /* needs align, or STATUS_DATATYPE_MISALIGNMENT is returned */
-    PROCESS_BASIC_INFORMATION pbi;
-    BOOL ret;
-
-    /* Change process priority class to HIGH_PRIORITY_CLASS and test */
-    ret = SetPriorityClass( GetCurrentProcess(), HIGH_PRIORITY_CLASS );
-    ok( ret, "SetPriorityClass to HIGH_PRIORITY_CLASS failed: %lu\n", GetLastError() );
-    proc_priority = GetPriorityClass( GetCurrentProcess() );
-    ok( proc_priority == HIGH_PRIORITY_CLASS, "Expected HIGH_PRIORITY_CLASS, got %lu\n", proc_priority );
-    status = pNtQueryInformationProcess( GetCurrentProcess(), ProcessPriorityClass, &ppc, sizeof(ppc), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationProcess failed: %08lx\n", status );
-    ok( ppc.PriorityClass == PROCESS_PRIOCLASS_HIGH, "Expected PROCESS_PRIOCLASS_HIGH, got %lu\n", proc_priority );
-
-    /* Restore process priority back to normal */
-    ret = SetPriorityClass( GetCurrentProcess(), NORMAL_PRIORITY_CLASS );
-    ok( ret, "Restore SetPriorityClass failed: %lu\n", GetLastError() );
-    proc_priority = GetPriorityClass( GetCurrentProcess() );
-    ok( proc_priority == NORMAL_PRIORITY_CLASS, "Expected NORMAL_PRIORITY_CLASS after restore, got %lu\n", proc_priority );
-    status = pNtQueryInformationProcess( GetCurrentProcess(), ProcessPriorityClass, &ppc, sizeof(ppc), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationProcess failed: %08lx\n", status );
-    ok( ppc.PriorityClass == PROCESS_PRIOCLASS_NORMAL, "Expected PROCESS_PRIOCLASS_NORMAL, got %lu\n", proc_priority );
-
-    /* Before checking any thread priorities, disable priority boosting
-     * in order to make the tests reliable. */
-    SetThreadPriorityBoost( GetCurrentThread(), TRUE );
-
-    /* Test thread priority:
-     * Compare the value from GetThreadPriority (thread priority level)
-     * with the BasePriority from NtQueryInformationThread. */
-    thread_base_priority = GetThreadPriority( GetCurrentThread() );
-    ok( thread_base_priority != THREAD_PRIORITY_ERROR_RETURN, "GetThreadPriority returned error\n" );
-
-    status = pNtQueryInformationThread( GetCurrentThread(), ThreadBasicInformation, &tbi, sizeof(tbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationThread failed: %08lx\n", status );
-    ok( thread_base_priority == tbi.BasePriority, "Thread priority mismatch: Win32 API returned %d, NT BasePriority is %ld\n",
-        thread_base_priority, tbi.BasePriority );
-
-    /* Change the thread priority to THREAD_PRIORITY_HIGHEST and compare with
-     * underlying NT priority, which should be now the NORMAL_PRIORITY_CLASS
-     * base value (8) + THREAD_PRIORITY_HIGHEST (+2) = 10 (without boost). */
-    ret = SetThreadPriority( GetCurrentThread(), THREAD_PRIORITY_HIGHEST );
-    ok( ret, "SetThreadPriority(THREAD_PRIORITY_HIGHEST) failed: %lu\n", GetLastError() );
-    thread_base_priority = GetThreadPriority( GetCurrentThread() );
-    ok( thread_base_priority == THREAD_PRIORITY_HIGHEST, "Expected THREAD_PRIORITY_HIGHEST (%d), got %d\n",
-        THREAD_PRIORITY_HIGHEST, thread_base_priority );
-
-    status = pNtQueryInformationThread( GetCurrentThread(), ThreadBasicInformation, &tbi, sizeof(tbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationThread failed after setting priority: %08lx\n", status );
-    ok( thread_base_priority == tbi.BasePriority, "After setting, API priority (%d) does not match NT BasePriority (%ld)\n",
-        thread_base_priority, tbi.BasePriority );
-    memset( &pbi, 0xcd, sizeof(pbi) );
-    status = pNtQueryInformationProcess( GetCurrentProcess(), ProcessBasicInformation, &pbi, sizeof(pbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationProcess failed after setting priority: %08lx\n", status );
-    if (is_wow64)
-    {
-        todo_wine ok( pbi.BasePriority == 0xcdcdcdcd, "got %#lx\n", pbi.BasePriority );
-        pbi.BasePriority = tbi.Priority - THREAD_PRIORITY_HIGHEST;
-    }
-    expected_nt_priority = pbi.BasePriority + THREAD_PRIORITY_HIGHEST;
-    ok( expected_nt_priority == tbi.Priority, "After setting, effective NT priority (%ld) does not match expected priority %d.\n",
-        tbi.Priority, expected_nt_priority );
-
-    /* Test setting the thread priority to THREAD_PRIORITY_LOWEST now, but using
-     * pNtSetInformationThread, also testing NT priority directly afterwards. */
-    nt_thread_priority = THREAD_PRIORITY_LOWEST;
-    status = pNtSetInformationThread( GetCurrentThread(), ThreadBasePriority, &nt_thread_priority, sizeof(ULONG) );
-    ok( status == STATUS_SUCCESS, "NtSetInformationThread(ThreadBasePriority) failed: %08lx\n", status );
-    /* Effective thread priority should be now NORMAL_PRIORITY_CLASS base
-     * value (8) + THREAD_PRIORITY_LOWEST (-2) = 6. */
-    status = pNtQueryInformationThread( GetCurrentThread(), ThreadBasicInformation, &tbi, sizeof(tbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationThread failed after setting priority: %08lx\n", status );
-    ok( nt_thread_priority == tbi.BasePriority, "After setting, BasePriority (%ld) does not match set BasePriority (%ld)\n",
-        nt_thread_priority, tbi.BasePriority );
-    expected_nt_priority = pbi.BasePriority + THREAD_PRIORITY_LOWEST;
-    ok( expected_nt_priority == tbi.Priority, "After setting, effective NT priority (%ld) does not match expected priority %d.\n",
-        tbi.Priority, expected_nt_priority );
-    /* Now set NT thread priority directly to 12, a value normally impossible to
-     * reach in NORMAL_PRIORITY_CLASS without boost. */
-    nt_thread_priority = 12;
-    status = pNtSetInformationThread( GetCurrentThread(), ThreadPriority, &nt_thread_priority, sizeof(ULONG) );
-    ok( status == STATUS_SUCCESS, "NtSetInformationThread(ThreadPriority) failed: %08lx\n", status );
-    /* Effective thread priority should be now 12, BasePriority should be
-     * unchanged. */
-    status = pNtQueryInformationThread( GetCurrentThread(), ThreadBasicInformation, &tbi, sizeof(tbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationThread failed after setting priority: %08lx\n", status );
-    ok( THREAD_PRIORITY_LOWEST == tbi.BasePriority, "After setting, BasePriority (%ld) does not match set BasePriority THREAD_PRIORITY_LOWEST.\n",
-        tbi.BasePriority );
-    ok( nt_thread_priority == tbi.Priority, "After setting, effective NT priority (%ld) does not match expected priority %lu.\n",
-        tbi.Priority, nt_thread_priority );
-    /* Changing process priority recalculates all priorities again and
-     * overwrites our custom priority of 12. */
-    ret = SetPriorityClass( GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS );
-    ok( ret, "SetPriorityClass to BELOW_NORMAL_PRIORITY_CLASS failed: %lu\n", GetLastError() );
-    /* Effective thread priority should be now BELOW_NORMAL_PRIORITY_CLASS base
-     * value (6) + THREAD_PRIORITY_LOWEST (-2) = 4. */
-    status = pNtQueryInformationThread( GetCurrentThread(), ThreadBasicInformation, &tbi, sizeof(tbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationThread failed after setting priority: %08lx\n", status );
-    memset( &pbi, 0xcd, sizeof(pbi) );
-    status = pNtQueryInformationProcess( GetCurrentProcess(), ProcessBasicInformation, &pbi, sizeof(pbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationProcess failed after setting priority: %08lx\n", status );
-    if (is_wow64)
-    {
-        todo_wine ok( pbi.BasePriority == 0xcdcdcdcd, "got %#lx\n", pbi.BasePriority );
-        pbi.BasePriority = tbi.Priority - THREAD_PRIORITY_LOWEST;
-    }
-    expected_nt_priority = pbi.BasePriority + THREAD_PRIORITY_LOWEST;
-    ok( expected_nt_priority == tbi.Priority, "After setting, effective NT priority (%ld) does not match expected priority %d.\n",
-        tbi.Priority, expected_nt_priority );
-    /* Test setting a custom process base priority that does not correspond to
-     * any process priority class. */
-    process_base_priority = 5;
-    status = pNtSetInformationProcess( GetCurrentProcess(), ProcessBasePriority, &process_base_priority, sizeof(ULONG) );
-    ok( status == STATUS_SUCCESS, "NtSetInformationProcess failed after setting base priority: %08lx\n", status );
-    memset( &pbi, 0xcd, sizeof(pbi) );
-    status = pNtQueryInformationProcess( GetCurrentProcess(), ProcessBasicInformation, &pbi, sizeof(pbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationProcess failed after setting base priority: %08lx\n", status );
-    if (is_wow64)
-    {
-        todo_wine ok( pbi.BasePriority == 0xcdcdcdcd, "got %#lx\n", pbi.BasePriority );
-        pbi.BasePriority = process_base_priority;
-    }
-    ok( process_base_priority == pbi.BasePriority, "After setting, effective base priority (%ld) does not match expected base priority %ld.\n",
-        pbi.BasePriority, process_base_priority );
-    /* Effective thread priority should be now base priority 5 (and not 6 as before)
-     * + THREAD_PRIORITY_LOWEST (-2) = 3. */
-    status = pNtQueryInformationThread( GetCurrentThread(), ThreadBasicInformation, &tbi, sizeof(tbi), NULL );
-    ok( status == STATUS_SUCCESS, "NtQueryInformationThread failed after setting process base priority: %08lx\n", status );
-    expected_nt_priority = pbi.BasePriority + THREAD_PRIORITY_LOWEST;
-    ok( expected_nt_priority == tbi.Priority, "After setting process base priority, effective NT priority (%ld) does not match expected priority %d.\n",
-        tbi.Priority, expected_nt_priority );
-    /* Setting an out of range priority above HIGH_PRIORITY (31) or LOW_PRIORITY (0)
-     * and lower fails. */
-    nt_thread_priority = 42;
-    status = pNtSetInformationThread( GetCurrentThread(), ThreadPriority, &nt_thread_priority, sizeof(ULONG) );
-    ok( status == STATUS_INVALID_PARAMETER, "got %08lx, expected STATUS_INVALID_PARAMETER.\n", status );
-    nt_thread_priority = 0; /* 0 also fails in addition to negative values. */
-    status = pNtSetInformationThread( GetCurrentThread(), ThreadPriority, &nt_thread_priority, sizeof(ULONG) );
-    ok( status == STATUS_INVALID_PARAMETER, "got %08lx, expected STATUS_INVALID_PARAMETER.\n", status );
-    /* Moving a thread into the realtime band is normally not possible in a non-realtime process. */
-    nt_thread_priority = 24;
-    status = pNtSetInformationThread( GetCurrentThread(), ThreadPriority, &nt_thread_priority, sizeof(ULONG) );
-    ok( status == STATUS_PRIVILEGE_NOT_HELD, "got %08lx, expected STATUS_PRIVILEGE_NOT_HELD.\n", status );
-
-    /* Restore thread priority and boosting behaviour back to normal */
-    SetThreadPriorityBoost( GetCurrentThread(), FALSE );
-    ret = SetThreadPriority( GetCurrentThread(), THREAD_PRIORITY_NORMAL );
-    ok( ret, "Restore SetThreadPriority(THREAD_PRIORITY_NORMAL) failed: %lu\n", GetLastError() );
-    ret = SetPriorityClass( GetCurrentProcess(), NORMAL_PRIORITY_CLASS );
-    ok( ret, "SetPriorityClass to NORMAL_PRIORITY_CLASS failed: %lu\n", GetLastError() );
-}
-
 static DWORD WINAPI hide_from_debugger_thread(void *arg)
 {
     HANDLE stop_event = arg;
@@ -3501,7 +3224,7 @@ static void test_HideFromDebugger(void)
 {
     NTSTATUS status;
     HANDLE thread, stop_event;
-    ULONG dummy, ret_len;
+    ULONG dummy;
 
     dummy = 0;
     status = pNtSetInformationThread( GetCurrentThread(), ThreadHideFromDebugger, &dummy, sizeof(ULONG) );
@@ -3547,27 +3270,6 @@ static void test_HideFromDebugger(void)
     status = NtQueryInformationThread( thread, ThreadHideFromDebugger, &dummy, 1, NULL );
     ok( status == STATUS_SUCCESS, "got %#lx\n", status );
     ok( dummy == 1, "Expected dummy == 1, got %08lx\n", dummy );
-
-    status = NtQueryInformationThread( thread, ThreadHideFromDebugger, &dummy, 1, (ULONG *)1 );
-    ok( status == STATUS_ACCESS_VIOLATION, "Expected STATUS_ACCESS_VIOLATION, got %08lx\n", status );
-
-    status = NtQueryInformationThread( thread, ThreadHideFromDebugger, &dummy, 0, (ULONG *)1 );
-    ok( status == STATUS_ACCESS_VIOLATION, "Expected STATUS_ACCESS_VIOLATION, got %08lx\n", status );
-
-    ret_len = 0xdeadbeef;
-    status = NtQueryInformationThread( thread, ThreadHideFromDebugger, &dummy, 0, &ret_len );
-    ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %#lx\n", status );
-    ok( ret_len == 0xdeadbeef, "Expected ret_len == deadbeef, got %08lx\n", ret_len );
-
-    ret_len = 0xdeadbeef;
-    status = NtQueryInformationThread( (HANDLE)0xdeadbeef, ThreadHideFromDebugger, &dummy, 1, &ret_len );
-    ok( status == STATUS_INVALID_HANDLE, "Expected STATUS_INVALID_HANDLE, got %#lx\n", status );
-    ok( ret_len == 0xdeadbeef, "Expected ret_len == deadbeef, got %08lx\n", ret_len );
-
-    ret_len = 0xdeadbeef;
-    status = NtQueryInformationThread( thread, ThreadHideFromDebugger, &dummy, 1, &ret_len );
-    ok( status == STATUS_SUCCESS, "got %#lx\n", status );
-    ok( ret_len == 1, "Expected ret_len == 1, got %08lx\n", ret_len );
 
     SetEvent( stop_event );
     WaitForSingleObject( thread, INFINITE );
@@ -3817,7 +3519,6 @@ static void test_thread_lookup(void)
 static void test_thread_ideal_processor(void)
 {
     ULONG number, len;
-    PROCESSOR_NUMBER processor;
     NTSTATUS status;
 
     number = 0;
@@ -3834,12 +3535,6 @@ static void test_thread_ideal_processor(void)
 
     status = pNtQueryInformationThread( GetCurrentThread(), ThreadIdealProcessor, &number, sizeof(number), &len );
     ok(status == STATUS_INVALID_INFO_CLASS, "Unexpected status %#lx.\n", status);
-
-    status = pNtQueryInformationThread( GetCurrentThread(), ThreadIdealProcessorEx, &processor, sizeof(processor) + 1, &len );
-    ok(status == STATUS_INFO_LENGTH_MISMATCH, "Unexpected status %#lx.\n", status);
-
-    status = pNtQueryInformationThread( GetCurrentThread(), ThreadIdealProcessorEx, &processor, sizeof(processor), &len );
-    ok(status == STATUS_SUCCESS, "Unexpected status %#lx.\n", status);
 }
 
 static void test_thread_info(void)
@@ -4096,7 +3791,7 @@ static void test_system_debug_control(void)
     NTSTATUS status;
     int class;
 
-    for (class = 0; class < SysDbgMaxInfoClass; ++class)
+    for (class = 0; class <= SysDbgSetKdBlockEnable; ++class)
     {
         status = pNtSystemDebugControl( class, NULL, 0, NULL, 0, NULL );
         if (is_wow64)
@@ -4107,82 +3802,9 @@ static void test_system_debug_control(void)
         }
         else
         {
-            ok( status == STATUS_DEBUGGER_INACTIVE || status == STATUS_ACCESS_DENIED || status == STATUS_INFO_LENGTH_MISMATCH,
-                "class %d, got %#lx.\n", class, status );
+            ok( status == STATUS_DEBUGGER_INACTIVE || status == STATUS_ACCESS_DENIED, "class %d, got %#lx.\n", class, status );
         }
     }
-}
-
-static void test_process_token(int argc, char **argv)
-{
-    STARTUPINFOA si = {.cb = sizeof(si)};
-    PROCESS_ACCESS_TOKEN token_info = {0};
-    TOKEN_STATISTICS stats1, stats2;
-    HANDLE token, their_token;
-    PROCESS_INFORMATION pi;
-    char cmdline[MAX_PATH];
-    NTSTATUS status;
-    DWORD size;
-    BOOL ret;
-
-    token_info.Thread = (HANDLE)0xdeadbeef;
-
-    sprintf( cmdline, "%s %s dummy", argv[0], argv[1] );
-
-    ret = CreateProcessA( NULL, cmdline, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi );
-    ok( ret, "got error %lu\n", GetLastError() );
-
-    status = pNtSetInformationProcess( pi.hProcess, ProcessAccessToken, &token_info, sizeof(token_info) - 1 );
-    ok( status == STATUS_INFO_LENGTH_MISMATCH, "got %#lx\n", status );
-
-    status = pNtSetInformationProcess( pi.hProcess, ProcessAccessToken, &token_info, sizeof(token_info) );
-    ok( status == STATUS_INVALID_HANDLE, "got %#lx\n", status );
-
-    ret = OpenProcessToken( GetCurrentProcess(), TOKEN_QUERY | READ_CONTROL | TOKEN_DUPLICATE
-            | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_PRIVILEGES | TOKEN_ADJUST_DEFAULT, &token );
-    ok( ret, "got error %lu\n", GetLastError() );
-
-    token_info.Token = token;
-    status = pNtSetInformationProcess( pi.hProcess, ProcessAccessToken, &token_info, sizeof(token_info) );
-    todo_wine ok( status == STATUS_TOKEN_ALREADY_IN_USE, "got %#lx\n", status );
-
-    ret = DuplicateTokenEx( token, TOKEN_ALL_ACCESS, NULL, SecurityAnonymous, TokenImpersonation, &token_info.Token );
-    ok( ret, "got error %lu\n", GetLastError() );
-    status = pNtSetInformationProcess( pi.hProcess, ProcessAccessToken, &token_info, sizeof(token_info) );
-    todo_wine ok( status == STATUS_BAD_IMPERSONATION_LEVEL, "got %#lx\n", status );
-    CloseHandle( token_info.Token );
-
-    ret = DuplicateTokenEx( token, TOKEN_QUERY, NULL, SecurityAnonymous, TokenPrimary, &token_info.Token );
-    ok( ret, "got error %lu\n", GetLastError() );
-    status = pNtSetInformationProcess( pi.hProcess, ProcessAccessToken, &token_info, sizeof(token_info) );
-    ok( status == STATUS_ACCESS_DENIED, "got %#lx\n", status );
-    CloseHandle( token_info.Token );
-
-    ret = DuplicateTokenEx( token, TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY, NULL, SecurityAnonymous, TokenPrimary, &token_info.Token );
-    ok(ret, "got error %lu\n", GetLastError());
-    status = pNtSetInformationProcess( pi.hProcess, ProcessAccessToken, &token_info, sizeof(token_info) );
-    ok( status == STATUS_SUCCESS, "got %#lx\n", status );
-
-    ret = OpenProcessToken( pi.hProcess, TOKEN_QUERY, &their_token );
-    ok( ret, "got error %lu\n", GetLastError() );
-
-    /* The tokens should be the same. */
-    ret = GetTokenInformation( token_info.Token, TokenStatistics, &stats1, sizeof(stats1), &size );
-    ok( ret, "got error %lu\n", GetLastError() );
-    ret = GetTokenInformation( their_token, TokenStatistics, &stats2, sizeof(stats2), &size );
-    ok( ret, "got error %lu\n", GetLastError() );
-    ok( !memcmp( &stats1.TokenId, &stats2.TokenId, sizeof(LUID) ), "expected same IDs\n" );
-
-    CloseHandle( token_info.Token );
-    CloseHandle( their_token );
-
-    ResumeThread( pi.hThread );
-    ret = WaitForSingleObject( pi.hProcess, 1000 );
-    ok( !ret, "got %d\n", ret );
-
-    CloseHandle( pi.hProcess );
-    CloseHandle( pi.hThread );
-    CloseHandle( token );
 }
 
 static void test_process_id(void)
@@ -4209,7 +3831,7 @@ static void test_process_id(void)
     ok( status == STATUS_INFO_LENGTH_MISMATCH || (is_wow64 && status == STATUS_ACCESS_VIOLATION), "got %#lx.\n", status );
     ok( len == sizeof(info) || (is_wow64 && len == 0xdeadbeef), "got %#lx.\n", len );
 
-    info.ProcessId = 0xdeadbeef;
+    info.ProcessId = (void *)0xdeadbeef;
     info.ImageName.Length = info.ImageName.MaximumLength = 0;
     info.ImageName.Buffer = NULL;
     status = pNtQuerySystemInformation( SystemProcessIdInformation, &info, sizeof(info), &len );
@@ -4217,7 +3839,7 @@ static void test_process_id(void)
     ok( !info.ImageName.Length, "got %#x.\n", info.ImageName.Length );
     ok( !info.ImageName.MaximumLength, "got %#x.\n", info.ImageName.MaximumLength );
 
-    info.ProcessId = GetCurrentProcessId();
+    info.ProcessId = (void *)(ULONG_PTR)GetCurrentProcessId();
     status = pNtQuerySystemInformation( SystemProcessIdInformation, &info, sizeof(info), &len );
     ok( status == STATUS_INFO_LENGTH_MISMATCH, "got %#lx.\n", status );
     ok( len == sizeof(info), "got %#lx.\n", len );
@@ -4235,7 +3857,7 @@ static void test_process_id(void)
     ok( info.ImageName.MaximumLength == length + 2 || (is_wow64 && !info.ImageName.Length),
         "got %#x.\n", info.ImageName.MaximumLength );
 
-    info.ProcessId = 0xdeadbeef;
+    info.ProcessId = (void *)0xdeadbeef;
     info.ImageName.MaximumLength = sizeof(name);
     info.ImageName.Buffer = name;
     info.ImageName.Length = 0;
@@ -4245,7 +3867,7 @@ static void test_process_id(void)
     ok( info.ImageName.MaximumLength == sizeof(name), "got %#x.\n", info.ImageName.MaximumLength );
     ok( info.ImageName.Buffer == name, "got %p, %p.\n", info.ImageName.Buffer, name );
 
-    info.ProcessId = 0;
+    info.ProcessId = NULL;
     info.ImageName.MaximumLength = sizeof(name);
     info.ImageName.Buffer = name;
     info.ImageName.Length = 0;
@@ -4255,7 +3877,7 @@ static void test_process_id(void)
     ok( info.ImageName.MaximumLength == sizeof(name), "got %#x.\n", info.ImageName.MaximumLength );
     ok( info.ImageName.Buffer == name, "got non NULL.\n" );
 
-    info.ProcessId = 0;
+    info.ProcessId = NULL;
     info.ImageName.MaximumLength = sizeof(name);
     info.ImageName.Buffer = name;
     info.ImageName.Length = 4;
@@ -4265,7 +3887,7 @@ static void test_process_id(void)
     ok( info.ImageName.MaximumLength == sizeof(name), "got %#x.\n", info.ImageName.MaximumLength );
     ok( info.ImageName.Buffer == name, "got non NULL.\n" );
 
-    info.ProcessId = GetCurrentProcessId();
+    info.ProcessId = (void *)(ULONG_PTR)GetCurrentProcessId();
     info.ImageName.MaximumLength = sizeof(name);
     info.ImageName.Buffer = name;
     info.ImageName.Length = 4;
@@ -4296,7 +3918,7 @@ static void test_process_id(void)
             /* process is gone already. */
             continue;
         }
-        info.ProcessId = pids[i];
+        info.ProcessId = (void *)(ULONG_PTR)pids[i];
         info.ImageName.Length = 0;
         info.ImageName.MaximumLength = sizeof(name);
         info.ImageName.Buffer = name;
@@ -4357,6 +3979,270 @@ static void test_processor_idle_cycle_time(void)
     ok( size == cpu_count * sizeof(*buffer), "got %#lx.\n", size );
 }
 
+static DWORD WINAPI test_set_process_tls_info_thread(void *param)
+{
+    return 0;
+}
+
+static void test_set_process_tls_info(void)
+{
+    THREAD_BASIC_INFORMATION tbi;
+    TEB *teb = NtCurrentTeb(), *thread_teb;
+    char buffer[1024];
+    PROCESS_TLS_INFORMATION *tlsinfo = (PROCESS_TLS_INFORMATION *)buffer;
+    void **save_tls_pointers[2];
+    void *tls_pointer[4], *new_tls_pointer[4], *tls_pointer2[4], *new_tls_pointer2[4];
+    unsigned int i;
+    DWORD thread_id, curr_thread_id = GetCurrentThreadId();
+    NTSTATUS status;
+    HANDLE thread;
+    BOOL wow = is_wow64 && !old_wow64;
+
+    thread = CreateThread( NULL, 0, test_set_process_tls_info_thread, NULL, CREATE_SUSPENDED, &thread_id );
+    do
+    {
+        /* workaround currently present Wine bug when thread teb may be not available immediately
+         * after creating a thread before it is initialized on the Unix side. */
+        Sleep( 1 );
+        status = NtQueryInformationThread( thread, ThreadBasicInformation, &tbi, sizeof(tbi), NULL );
+        ok( !status, "got %#lx.\n", status );
+    } while (!(thread_teb = tbi.TebBaseAddress));
+    ok( !thread_teb->ThreadLocalStoragePointer, "got %p.\n", thread_teb->ThreadLocalStoragePointer );
+
+    save_tls_pointers[0] = teb->ThreadLocalStoragePointer;
+    save_tls_pointers[1] = thread_teb->ThreadLocalStoragePointer;
+
+    for (i = 0; i < ARRAY_SIZE(tls_pointer); ++i)
+    {
+        tls_pointer[i] = (void *)(ULONG_PTR)(i + 1);
+        new_tls_pointer[i] = (void *)(ULONG_PTR)(i + 20);
+    }
+    teb->ThreadLocalStoragePointer = tls_pointer;
+
+    /* This flag probably requests WOW64 teb update. */
+    tlsinfo->Flags = 1;
+    tlsinfo->ThreadDataCount = 1;
+    tlsinfo->OperationType = ProcessTlsReplaceVector;
+    tlsinfo->TlsVectorLength = 2;
+    tlsinfo->ThreadData[0].Flags = 0;
+    tlsinfo->ThreadData[0].ThreadId = thread_id;
+    tlsinfo->ThreadData[0].TlsVector = new_tls_pointer;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    if (wow)
+    {
+        ok( !status, "got %#lx.\n", status );
+        ok( tlsinfo->Flags == 1, "got %#lx.\n", tlsinfo->Flags );
+        ok( tlsinfo->ThreadData[0].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+        ok( tlsinfo->ThreadData[0].ThreadId == curr_thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+    }
+    else
+    {
+        ok( status == STATUS_INVALID_PARAMETER, "got %#lx.\n", status );
+        ok( tlsinfo->Flags == 1, "got %#lx.\n", tlsinfo->Flags );
+        ok( !tlsinfo->ThreadData[0].Flags, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+        ok( tlsinfo->ThreadData[0].ThreadId == thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+    }
+
+    /* Other PROCESS_TLS_INFORMATION flags are invalid. STATUS_INFO_LENGTH_MISMATCH is weird but that's for any flag
+     * besides 1. */
+    tlsinfo->Flags = 2;
+    tlsinfo->ThreadData[0].Flags = 0;
+    tlsinfo->ThreadData[0].ThreadId = thread_id;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_INFO_LENGTH_MISMATCH, "got %#lx.\n", status );
+    ok( tlsinfo->Flags == 2, "got %#lx.\n", tlsinfo->Flags );
+    ok( !tlsinfo->ThreadData[0].Flags, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+    ok( tlsinfo->ThreadData[0].ThreadId == thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+
+    /* Nonzero THREAD_TLS_INFORMATION flags on input are invalid. */
+    tlsinfo->Flags = 0;
+    tlsinfo->ThreadData[0].Flags = 1;
+    tlsinfo->ThreadData[0].ThreadId = thread_id;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_INVALID_PARAMETER, "got %#lx.\n", status );
+    ok( !tlsinfo->Flags, "got %#lx.\n", tlsinfo->Flags );
+    ok( tlsinfo->ThreadData[0].Flags == 1, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+    ok( tlsinfo->ThreadData[0].ThreadId == thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+
+    tlsinfo->ThreadData[0].Flags = 0;
+    tlsinfo->OperationType = MaxProcessTlsOperation;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    /* Unknown operation type. */
+    ok( status == STATUS_INFO_LENGTH_MISMATCH || status == STATUS_INVALID_PARAMETER, "got %#lx.\n", status );
+
+    tlsinfo->OperationType = ProcessTlsReplaceVector;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]) + 8);
+    /* Larger data size. */
+    ok( (!wow && status == STATUS_INFO_LENGTH_MISMATCH) || (wow && !status), "got %#lx.\n", status );
+
+    tlsinfo->ThreadData[0].Flags = 0;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_SUCCESS, "got %#lx.\n", status );
+    ok( !tlsinfo->Flags, "got %#lx.\n", tlsinfo->Flags );
+    ok( tlsinfo->ThreadData[0].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+    /* ThreadId is output parameter, ignored on input and contains the thread where the data were assigned on
+     * output. */
+    ok( tlsinfo->ThreadData[0].ThreadId == curr_thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+    /* TlsVector contains the repaced vector on output. */
+    ok( tlsinfo->ThreadData[0].TlsVector == tls_pointer, "got %p.\n", tlsinfo->ThreadData[0].TlsVector );
+    ok( teb->ThreadLocalStoragePointer == new_tls_pointer, "wrong vector.\n" );
+    for (i = 0; i < ARRAY_SIZE(tls_pointer); ++i)
+    {
+        ok( tls_pointer[i] == (void *)(ULONG_PTR)(i + 1), "got %p.\n", tls_pointer );
+        /* TlsVectorLength pointers are copied from the old vector to the new one. */
+        if (i < 2)
+            ok( new_tls_pointer[i] == (void *)(ULONG_PTR)(i + 1), "got %p.\n", tls_pointer );
+        else
+            ok( new_tls_pointer[i] == (void *)(ULONG_PTR)(i + 20), "got %p.\n", tls_pointer );
+    }
+
+    teb->ThreadLocalStoragePointer = NULL;
+    tlsinfo->ThreadData[0].Flags = 0;
+    tlsinfo->ThreadData[0].TlsVector = new_tls_pointer;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_SUCCESS, "got %#lx.\n", status );
+    /* Threads with NULL ThreadLocalStoragePointer are ignored. */
+    ok( !tlsinfo->Flags, "got %#lx.\n", tlsinfo->Flags );
+    ok( !tlsinfo->ThreadData[0].Flags, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+    ok( tlsinfo->ThreadData[0].TlsVector == new_tls_pointer, "got %p.\n", tlsinfo->ThreadData[0].TlsVector );
+
+    memcpy( tls_pointer2, tls_pointer, sizeof(tls_pointer2) );
+    thread_teb->ThreadLocalStoragePointer = tls_pointer2;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_SUCCESS, "got %#lx.\n", status );
+    ok( tlsinfo->ThreadData[0].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+    ok( thread_teb->ThreadLocalStoragePointer == new_tls_pointer, "wrong vector.\n" );
+    ok( tlsinfo->ThreadData[0].ThreadId == thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+    ok( tlsinfo->ThreadData[0].TlsVector == tls_pointer2, "got %p.\n", tlsinfo->ThreadData[0].TlsVector );
+
+    /* Two eligible threads, data for only one are provided, that succeeds. */
+    teb->ThreadLocalStoragePointer = tls_pointer;
+    thread_teb->ThreadLocalStoragePointer = tls_pointer2;
+    tlsinfo->ThreadData[0].Flags = 0;
+    tlsinfo->ThreadData[0].TlsVector = new_tls_pointer;
+    thread_teb->ThreadLocalStoragePointer = tls_pointer2;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_SUCCESS, "got %#lx.\n", status );
+    ok( tlsinfo->ThreadDataCount == 1, "got %#lx.\n", tlsinfo->ThreadDataCount );
+    ok( tlsinfo->ThreadData[0].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+    ok( teb->ThreadLocalStoragePointer == new_tls_pointer, "wrong vector.\n" );
+    ok( tlsinfo->ThreadData[0].ThreadId == curr_thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+    ok( tlsinfo->ThreadData[0].TlsVector == tls_pointer, "got %p.\n", tlsinfo->ThreadData[0].TlsVector );
+    ok( thread_teb->ThreadLocalStoragePointer == tls_pointer2, "wrong vector.\n" );
+
+    /* Set for both threads at once as probably intended. Provide an extra data for the missing third thread
+     * which won't be used. */
+    teb->ThreadLocalStoragePointer = tls_pointer;
+    thread_teb->ThreadLocalStoragePointer = tls_pointer2;
+    memcpy( new_tls_pointer2, new_tls_pointer, sizeof(new_tls_pointer2) );
+    tlsinfo->ThreadDataCount = 3;
+    tlsinfo->ThreadData[0].TlsVector = new_tls_pointer;
+    tlsinfo->ThreadData[0].Flags = 0;
+    tlsinfo->ThreadData[1].TlsVector = new_tls_pointer2;
+    tlsinfo->ThreadData[1].Flags = 0;
+    tlsinfo->ThreadData[2].TlsVector = (void *)0xdeadbeef;
+    tlsinfo->ThreadData[2].Flags = 0;
+    tlsinfo->ThreadData[2].ThreadId = 0xdeadbeef;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_SUCCESS, "got %#lx.\n", status );
+    ok( !tlsinfo->Flags, "got %#lx.\n", tlsinfo->Flags );
+    ok( tlsinfo->ThreadDataCount == 3, "got %#lx.\n", tlsinfo->ThreadDataCount );
+    ok( tlsinfo->ThreadData[0].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+    ok( teb->ThreadLocalStoragePointer == new_tls_pointer, "wrong vector.\n" );
+    ok( tlsinfo->ThreadData[0].ThreadId == curr_thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+    ok( tlsinfo->ThreadData[0].TlsVector == tls_pointer, "got %p.\n", tlsinfo->ThreadData[0].TlsVector );
+    ok( tlsinfo->ThreadData[1].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[1].Flags );
+    ok( teb->ThreadLocalStoragePointer == new_tls_pointer, "wrong vector.\n" );
+    ok( tlsinfo->ThreadData[1].ThreadId == thread_id, "got %#Ix.\n", tlsinfo->ThreadData[1].ThreadId );
+    ok( tlsinfo->ThreadData[1].TlsVector == tls_pointer2, "got %p.\n", tlsinfo->ThreadData[1].TlsVector );
+    ok( !tlsinfo->ThreadData[2].Flags, "got %#lx.\n", tlsinfo->ThreadData[2].Flags );
+    ok( tlsinfo->ThreadData[2].ThreadId == 0xdeadbeef, "got %#Ix.\n", tlsinfo->ThreadData[2].ThreadId );
+    ok( tlsinfo->ThreadData[2].TlsVector == (void *)0xdeadbeef, "got %p.\n", tlsinfo->ThreadData[2].TlsVector );
+
+    /* Test with unaccessible data. */
+    tlsinfo->ThreadData[0].TlsVector = new_tls_pointer;
+    tlsinfo->ThreadData[0].ThreadId = 0;
+    tlsinfo->ThreadData[0].Flags = 0;
+    tlsinfo->ThreadData[1].TlsVector = new_tls_pointer2;
+    tlsinfo->ThreadData[1].ThreadId = 0;
+    tlsinfo->ThreadData[1].Flags = 0;
+    teb->ThreadLocalStoragePointer = tls_pointer;
+    thread_teb->ThreadLocalStoragePointer = (void *)0xdeadbee0;
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_ACCESS_VIOLATION, "got %#lx.\n", status );
+    ok( !tlsinfo->Flags, "got %#lx.\n", tlsinfo->Flags );
+    ok( tlsinfo->ThreadDataCount == 3, "got %#lx.\n", tlsinfo->ThreadDataCount );
+    if (wow)
+    {
+        ok( !tlsinfo->ThreadData[0].Flags, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+        ok( !tlsinfo->ThreadData[0].ThreadId, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+        ok( tlsinfo->ThreadData[0].TlsVector == new_tls_pointer, "got %p.\n", tlsinfo->ThreadData[0].TlsVector );
+    }
+    else
+    {
+        ok( tlsinfo->ThreadData[0].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+        ok( tlsinfo->ThreadData[0].ThreadId == curr_thread_id, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+        ok( tlsinfo->ThreadData[0].TlsVector == tls_pointer, "got %p.\n", tlsinfo->ThreadData[0].TlsVector );
+    }
+    ok( teb->ThreadLocalStoragePointer == new_tls_pointer, "wrong vector.\n" );
+    ok( !tlsinfo->ThreadData[1].Flags, "got %#lx.\n", tlsinfo->ThreadData[1].Flags );
+    ok( teb->ThreadLocalStoragePointer == new_tls_pointer, "wrong vector.\n" );
+    ok( !tlsinfo->ThreadData[1].ThreadId, "got %#Ix.\n", tlsinfo->ThreadData[1].ThreadId );
+    ok( tlsinfo->ThreadData[1].TlsVector == new_tls_pointer2, "got %p.\n", tlsinfo->ThreadData[1].TlsVector );
+    ok( !tlsinfo->ThreadData[2].Flags, "got %#lx.\n", tlsinfo->ThreadData[2].Flags );
+    ok( tlsinfo->ThreadData[2].ThreadId == 0xdeadbeef, "got %#Ix.\n", tlsinfo->ThreadData[2].ThreadId );
+    ok( tlsinfo->ThreadData[2].TlsVector == (void *)0xdeadbeef, "got %p.\n", tlsinfo->ThreadData[2].TlsVector );
+
+    /* Test replacing TLS index. */
+    teb->ThreadLocalStoragePointer = new_tls_pointer;
+    thread_teb->ThreadLocalStoragePointer = new_tls_pointer2;
+    new_tls_pointer[1] = (void *)0xcccccccc;
+    new_tls_pointer2[1] = (void *)0xdddddddd;
+    tlsinfo->ThreadDataCount = 3;
+    tlsinfo->OperationType = ProcessTlsReplaceIndex;
+    tlsinfo->TlsIndex = 1;
+    for (i = 0; i < 3; ++i)
+    {
+        tlsinfo->ThreadData[i].Flags = 0;
+        tlsinfo->ThreadData[i].ThreadId = 0xdeadbeef;
+        tlsinfo->ThreadData[i].TlsModulePointer = (void *)((ULONG_PTR)i + 1);
+    }
+    status = NtSetInformationProcess( GetCurrentProcess(), ProcessTlsInformation, tlsinfo,
+                                      offsetof(PROCESS_TLS_INFORMATION, ThreadData[tlsinfo->ThreadDataCount]));
+    ok( status == STATUS_SUCCESS, "got %#lx.\n", status );
+    ok( !tlsinfo->Flags, "got %#lx.\n", tlsinfo->Flags );
+    ok( tlsinfo->ThreadDataCount == 3, "got %#lx.\n", tlsinfo->ThreadDataCount );
+    ok( tlsinfo->ThreadData[0].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[0].Flags );
+    ok( (ULONG_PTR)new_tls_pointer[1] == 1, "got %p.\n", new_tls_pointer[1] );
+    ok( tlsinfo->ThreadData[0].ThreadId == 0xdeadbeef, "got %#Ix.\n", tlsinfo->ThreadData[0].ThreadId );
+    ok( (ULONG_PTR)tlsinfo->ThreadData[0].TlsModulePointer == 0xcccccccc, "got %p.\n", tlsinfo->ThreadData[0].TlsModulePointer );
+    ok( tlsinfo->ThreadData[1].Flags == THREAD_TLS_INFORMATION_ASSIGNED, "got %#lx.\n", tlsinfo->ThreadData[1].Flags );
+    ok( (ULONG_PTR)new_tls_pointer2[1] == 2, "got %p.\n", new_tls_pointer2[1] );
+    ok( tlsinfo->ThreadData[1].ThreadId == 0xdeadbeef, "got %#Ix.\n", tlsinfo->ThreadData[1].ThreadId );
+    ok( (ULONG_PTR)tlsinfo->ThreadData[1].TlsModulePointer == 0xdddddddd, "got %p.\n", tlsinfo->ThreadData[1].TlsModulePointer );
+    ok( !tlsinfo->ThreadData[2].Flags, "got %#lx.\n", tlsinfo->ThreadData[2].Flags );
+    ok( tlsinfo->ThreadData[2].ThreadId == 0xdeadbeef, "got %#Ix.\n", tlsinfo->ThreadData[2].ThreadId );
+    ok( (ULONG_PTR)tlsinfo->ThreadData[2].TlsModulePointer == 3, "got %p.\n", tlsinfo->ThreadData[2].TlsModulePointer );
+
+    /* Restore original TLS data. */
+    teb->ThreadLocalStoragePointer = save_tls_pointers[0];
+    thread_teb->ThreadLocalStoragePointer = save_tls_pointers[1];
+    ResumeThread( thread );
+    WaitForSingleObject( thread, INFINITE );
+    CloseHandle( thread );
+}
+
 START_TEST(info)
 {
     char **argv;
@@ -4411,7 +4297,6 @@ START_TEST(info)
     test_query_process_debug_object_handle(argc, argv);
     test_query_process_debug_flags(argc, argv);
     test_query_process_image_info();
-    test_query_process_quota_limits();
     test_mapprotection();
     test_threadstack();
 
@@ -4424,7 +4309,6 @@ START_TEST(info)
     test_ThreadIsTerminated();
 
     test_affinity();
-    test_priority();
     test_debug_object();
 
     /* belongs to its own file */
@@ -4435,7 +4319,7 @@ START_TEST(info)
     test_ThreadEnableAlignmentFaultFixup();
     test_process_instrumentation_callback();
     test_system_debug_control();
-    test_process_token(argc, argv);
     test_process_id();
     test_processor_idle_cycle_time();
+    test_set_process_tls_info();
 }

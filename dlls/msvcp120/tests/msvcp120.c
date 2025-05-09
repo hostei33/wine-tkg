@@ -17,14 +17,12 @@
  */
 
 #include <locale.h>
-#include <share.h>
 #include <stdio.h>
 #include <math.h>
 #include <limits.h>
 
 #include "wine/test.h"
 #include "winbase.h"
-#include "winnls.h"
 
 DWORD expect_idx;
 static int vector_alloc_count;
@@ -105,7 +103,7 @@ static void free_expect_struct(void)
 /* Emulate a __thiscall */
 #ifdef __i386__
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 struct thiscall_thunk
 {
     BYTE pop_eax;    /* popl  %eax (ret addr) */
@@ -114,7 +112,7 @@ struct thiscall_thunk
     BYTE push_eax;   /* pushl %eax */
     WORD jmp_edx;    /* jmp  *%edx */
 };
-#pragma pack(pop)
+#include "poppack.h"
 
 static void * (WINAPI *call_thiscall_func1)( void *func, void *this );
 static void * (WINAPI *call_thiscall_func2)( void *func, void *this, void *a );
@@ -212,8 +210,6 @@ static BOOL compare_float(float f, float g, unsigned int ulps)
 static char* (__cdecl *p_setlocale)(int, const char*);
 static int (__cdecl *p__setmbcp)(int);
 static int (__cdecl *p__ismbblead)(unsigned int);
-static int (__cdecl *p_fclose)(FILE*);
-static int (__cdecl *p__unlink)(const char*);
 
 static MSVCRT_long (__cdecl *p__Xtime_diff_to_millis2)(const xtime*, const xtime*);
 static int (__cdecl *p_xtime_get)(xtime*, int);
@@ -427,21 +423,6 @@ static void (__thiscall *p_vector_base_v4__Internal_resize)(
 
 static const BYTE *p_byte_reverse_table;
 
-typedef enum {
-    OPENMODE_in         = 0x01,
-    OPENMODE_out        = 0x02,
-    OPENMODE_ate        = 0x04,
-    OPENMODE_app        = 0x08,
-    OPENMODE_trunc      = 0x10,
-    OPENMODE__Nocreate  = 0x40,
-    OPENMODE__Noreplace = 0x80,
-    OPENMODE_binary     = 0x20,
-    OPENMODE_mask       = 0xff
-} IOSB_openmode;
-
-static FILE* (__cdecl *p__Fiopen_wchar)(const wchar_t*, int, int);
-static FILE* (__cdecl *p__Fiopen)(const char*, int, int);
-
 static HMODULE msvcp;
 #define SETNOFAIL(x,y) x = (void*)GetProcAddress(msvcp,y)
 #define SET(x,y) do { SETNOFAIL(x,y); ok(x != NULL, "Export '%s' not found\n", y); } while(0)
@@ -603,10 +584,6 @@ static BOOL init(void)
                 "?_Internal_resize@_Concurrent_vector_base_v4@details@Concurrency@@IEAAX_K00P6AXPEAX0@ZP6AX1PEBX0@Z3@Z");
         SET(p__Syserror_map,
                 "?_Syserror_map@std@@YAPEBDH@Z");
-        SET(p__Fiopen_wchar,
-                "?_Fiopen@std@@YAPEAU_iobuf@@PEB_WHH@Z");
-        SET(p__Fiopen,
-                "?_Fiopen@std@@YAPEAU_iobuf@@PEBDHH@Z");
     } else {
         SET(p_tr2_sys__File_size,
                 "?_File_size@sys@tr2@std@@YA_KPBD@Z");
@@ -682,10 +659,6 @@ static BOOL init(void)
                 "?_Segment_index_of@_Concurrent_vector_base_v4@details@Concurrency@@KAII@Z");
         SET(p__Syserror_map,
                 "?_Syserror_map@std@@YAPBDH@Z");
-        SET(p__Fiopen_wchar,
-                "?_Fiopen@std@@YAPAU_iobuf@@PB_WHH@Z");
-        SET(p__Fiopen,
-                "?_Fiopen@std@@YAPAU_iobuf@@PBDHH@Z");
 #ifdef __i386__
         SET(p_i386_Thrd_current,
                 "_Thrd_current");
@@ -796,7 +769,7 @@ static BOOL init(void)
         SET(p_vector_base_v4__Internal_reserve,
                 "?_Internal_reserve@_Concurrent_vector_base_v4@details@Concurrency@@IAAXIII@Z");
         SET(p_vector_base_v4__Internal_resize,
-                "?_Internal_resize@_Concurrent_vector_base_v4@details@Concurrency@@IAAXIIIP6AXPAXI@ZP6AX0PBXI@Z2@Z");
+                "?_Internal_resize@_Concurrent_vector_base_v4@details@Concurrency@@IAEXIIIP6AXPAXI@ZP6AX0PBXI@Z2@Z");
 #endif
     }
     SET(p__Thrd_equal,
@@ -848,8 +821,6 @@ static BOOL init(void)
     p_setlocale = (void*)GetProcAddress(hdll, "setlocale");
     p__setmbcp = (void*)GetProcAddress(hdll, "_setmbcp");
     p__ismbblead = (void*)GetProcAddress(hdll, "_ismbblead");
-    p_fclose = (void*)GetProcAddress(hdll, "fclose");
-    p__unlink = (void*)GetProcAddress(hdll, "_unlink");
 
     hdll = GetModuleHandleA("kernel32.dll");
     pCreateSymbolicLinkA = (void*)GetProcAddress(hdll, "CreateSymbolicLinkA");
@@ -1646,14 +1617,15 @@ static void test_tr2_sys__Stat(void)
         char const *path;
         enum file_type ret;
         int err_code;
+        int is_todo;
     } tests[] = {
-        { NULL, status_unknown, ERROR_INVALID_PARAMETER },
-        { "tr2_test_dir",    directory_file, ERROR_SUCCESS },
-        { "tr2_test_dir\\f1",  regular_file, ERROR_SUCCESS },
-        { "tr2_test_dir\\not_exist_file  ", file_not_found, ERROR_SUCCESS },
-        { "tr2_test_dir\\??invalid_name>>", file_not_found, ERROR_SUCCESS },
-        { "tr2_test_dir\\f1_link" ,   regular_file, ERROR_SUCCESS },
-        { "tr2_test_dir\\dir_link", directory_file, ERROR_SUCCESS },
+        { NULL, status_unknown, ERROR_INVALID_PARAMETER, FALSE },
+        { "tr2_test_dir",    directory_file, ERROR_SUCCESS, FALSE },
+        { "tr2_test_dir\\f1",  regular_file, ERROR_SUCCESS, FALSE },
+        { "tr2_test_dir\\not_exist_file  ", file_not_found, ERROR_SUCCESS, FALSE },
+        { "tr2_test_dir\\??invalid_name>>", file_not_found, ERROR_SUCCESS, FALSE },
+        { "tr2_test_dir\\f1_link" ,   regular_file, ERROR_SUCCESS, TRUE },
+        { "tr2_test_dir\\dir_link", directory_file, ERROR_SUCCESS, TRUE },
     };
 
     CreateDirectoryA("tr2_test_dir", NULL);
@@ -1696,14 +1668,16 @@ static void test_tr2_sys__Stat(void)
     for(i=0; i<ARRAY_SIZE(tests); i++) {
         err_code = 0xdeadbeef;
         val = p_tr2_sys__Stat(tests[i].path, &err_code);
-        ok(tests[i].ret == val, "tr2_sys__Stat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
+        todo_wine_if(tests[i].is_todo)
+            ok(tests[i].ret == val, "tr2_sys__Stat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
         ok(tests[i].err_code == err_code, "tr2_sys__Stat(): test %d err_code expect: %d, got %d\n",
                 i+1, tests[i].err_code, err_code);
 
         /* test tr2_sys__Lstat */
         err_code = 0xdeadbeef;
         val = p_tr2_sys__Lstat(tests[i].path, &err_code);
-        ok(tests[i].ret == val, "tr2_sys__Lstat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
+        todo_wine_if(tests[i].is_todo)
+            ok(tests[i].ret == val, "tr2_sys__Lstat(): test %d expect: %d, got %d\n", i+1, tests[i].ret, val);
         ok(tests[i].err_code == err_code, "tr2_sys__Lstat(): test %d err_code expect: %d, got %d\n",
                 i+1, tests[i].err_code, err_code);
     }
@@ -1718,8 +1692,8 @@ static void test_tr2_sys__Stat(void)
     ok(ERROR_SUCCESS == err_code, "tr2_sys__Lstat_wchar(): err_code expect ERROR_SUCCESS, got %d\n", err_code);
 
     if(ret) {
-        ok(DeleteFileA("tr2_test_dir/f1_link"), "expect tr2_test_dir/f1_link to exist\n");
-        ok(RemoveDirectoryA("tr2_test_dir/dir_link"), "expect tr2_test_dir/dir_link to exist\n");
+        todo_wine ok(DeleteFileA("tr2_test_dir/f1_link"), "expect tr2_test_dir/f1_link to exist\n");
+        todo_wine ok(RemoveDirectoryA("tr2_test_dir/dir_link"), "expect tr2_test_dir/dir_link to exist\n");
     }
     ok(DeleteFileA("tr2_test_dir/f1"), "expect tr2_test_dir/f1 to exist\n");
     ok(RemoveDirectoryA("tr2_test_dir"), "expect tr2_test_dir to exist\n");
@@ -1948,15 +1922,16 @@ static void test_tr2_sys__Symlink(void)
         char const *existing_path;
         char const *new_path;
         int last_error;
+        MSVCP_bool is_todo;
     } tests[] = {
-        { "f1", "f1_link", ERROR_SUCCESS },
-        { "f1", "tr2_test_dir\\f1_link", ERROR_SUCCESS },
-        { "tr2_test_dir\\f1_link", "tr2_test_dir\\f1_link_link", ERROR_SUCCESS },
-        { "tr2_test_dir", "dir_link", ERROR_SUCCESS },
-        { NULL, "NULL_link", ERROR_INVALID_PARAMETER },
-        { "f1", NULL, ERROR_INVALID_PARAMETER },
-        { "not_exist",  "not_exist_link", ERROR_SUCCESS },
-        { "f1", "not_exist_dir\\f1_link", ERROR_PATH_NOT_FOUND }
+        { "f1", "f1_link", ERROR_SUCCESS, FALSE },
+        { "f1", "tr2_test_dir\\f1_link", ERROR_SUCCESS, FALSE },
+        { "tr2_test_dir\\f1_link", "tr2_test_dir\\f1_link_link", ERROR_SUCCESS, FALSE },
+        { "tr2_test_dir", "dir_link", ERROR_SUCCESS, FALSE },
+        { NULL, "NULL_link", ERROR_INVALID_PARAMETER, FALSE },
+        { "f1", NULL, ERROR_INVALID_PARAMETER, FALSE },
+        { "not_exist",  "not_exist_link", ERROR_SUCCESS, FALSE },
+        { "f1", "not_exist_dir\\f1_link", ERROR_PATH_NOT_FOUND, TRUE }
     };
 
     ret = p_tr2_sys__Make_dir("tr2_test_dir");
@@ -1981,17 +1956,18 @@ static void test_tr2_sys__Symlink(void)
         }
 
         ok(errno == 0xdeadbeef, "tr2_sys__Symlink(): test %d errno expect 0xdeadbeef, got %d\n", i+1, errno);
-        ok(ret == tests[i].last_error, "tr2_sys__Symlink(): test %d expect: %d, got %d\n", i+1, tests[i].last_error, ret);
+        todo_wine_if(tests[i].is_todo)
+            ok(ret == tests[i].last_error, "tr2_sys__Symlink(): test %d expect: %d, got %d\n", i+1, tests[i].last_error, ret);
         if(ret == ERROR_SUCCESS)
             ok(p_tr2_sys__File_size(tests[i].new_path) == 0, "tr2_sys__Symlink(): expect 0, got %s\n", wine_dbgstr_longlong(p_tr2_sys__File_size(tests[i].new_path)));
     }
 
     ok(DeleteFileA("f1"), "expect f1 to exist\n");
-    ok(DeleteFileA("f1_link"), "expect f1_link to exist\n");
-    ok(DeleteFileA("tr2_test_dir/f1_link"), "expect tr2_test_dir/f1_link to exist\n");
-    ok(DeleteFileA("tr2_test_dir/f1_link_link"), "expect tr2_test_dir/f1_link_link to exist\n");
-    ok(DeleteFileA("not_exist_link"), "expect not_exist_link to exist\n");
-    ok(DeleteFileA("dir_link"), "expect dir_link to exist\n");
+    todo_wine ok(DeleteFileA("f1_link"), "expect f1_link to exist\n");
+    todo_wine ok(DeleteFileA("tr2_test_dir/f1_link"), "expect tr2_test_dir/f1_link to exist\n");
+    todo_wine ok(DeleteFileA("tr2_test_dir/f1_link_link"), "expect tr2_test_dir/f1_link_link to exist\n");
+    todo_wine ok(DeleteFileA("not_exist_link"), "expect not_exist_link to exist\n");
+    todo_wine ok(DeleteFileA("dir_link"), "expect dir_link to exist\n");
     ret = p_tr2_sys__Remove_dir("tr2_test_dir");
     ok(ret == 1, "tr2_sys__Remove_dir(): expect 1 got %d\n", ret);
 }
@@ -2005,14 +1981,15 @@ static void test_tr2_sys__Unlink(void)
     struct {
         char const *path;
         int last_error;
+        MSVCP_bool is_todo;
     } tests[] = {
-        { "tr2_test_dir\\f1_symlink", ERROR_SUCCESS },
-        { "tr2_test_dir\\f1_link", ERROR_SUCCESS },
-        { "tr2_test_dir\\f1", ERROR_SUCCESS },
-        { "tr2_test_dir", ERROR_ACCESS_DENIED },
-        { "not_exist", ERROR_FILE_NOT_FOUND },
-        { "not_exist_dir\\not_exist_file", ERROR_PATH_NOT_FOUND },
-        { NULL, ERROR_PATH_NOT_FOUND }
+        { "tr2_test_dir\\f1_symlink", ERROR_SUCCESS, TRUE },
+        { "tr2_test_dir\\f1_link", ERROR_SUCCESS, FALSE },
+        { "tr2_test_dir\\f1", ERROR_SUCCESS, FALSE },
+        { "tr2_test_dir", ERROR_ACCESS_DENIED, FALSE },
+        { "not_exist", ERROR_FILE_NOT_FOUND, FALSE },
+        { "not_exist_dir\\not_exist_file", ERROR_PATH_NOT_FOUND, FALSE },
+        { NULL, ERROR_PATH_NOT_FOUND, FALSE }
     };
 
     GetCurrentDirectoryA(MAX_PATH, current_path);
@@ -2041,8 +2018,9 @@ static void test_tr2_sys__Unlink(void)
     for(i=0; i<ARRAY_SIZE(tests); i++) {
         errno = 0xdeadbeef;
         ret = p_tr2_sys__Unlink(tests[i].path);
-        ok(ret == tests[i].last_error, "tr2_sys__Unlink(): test %d expect: %d, got %d\n",
-           i+1, tests[i].last_error, ret);
+        todo_wine_if(tests[i].is_todo)
+            ok(ret == tests[i].last_error, "tr2_sys__Unlink(): test %d expect: %d, got %d\n",
+                    i+1, tests[i].last_error, ret);
         ok(errno == 0xdeadbeef, "tr2_sys__Unlink(): test %d errno expect: 0xdeadbeef, got %d\n", i+1, ret);
     }
 
@@ -2451,28 +2429,18 @@ static void test__Mtx(void)
 
         r = p__Mtx_init(&mtx, flags[i]);
         ok(!r, "failed to init mtx (flags %x)\n", flags[i]);
-        ok(mtx->thread_id == -1, "mtx.thread_id = %lx (flags %x)\n", mtx->thread_id, flags[i]);
-        ok(mtx->count == 0, "mtx.count = %lu (flags %x)\n", mtx->count, flags[i]);
 
         r = p__Mtx_trylock(&mtx);
         ok(!r, "_Mtx_trylock returned %x (flags %x)\n", r, flags[i]);
-        ok(mtx->thread_id == GetCurrentThreadId(), "mtx.thread_id = %lx (flags %x)\n", mtx->thread_id, flags[i]);
-        ok(mtx->count == 1, "mtx.count = %lu (flags %x)\n", mtx->count, flags[i]);
         r = p__Mtx_trylock(&mtx);
         ok(r == expect, "_Mtx_trylock returned %x (flags %x)\n", r, flags[i]);
-        ok(mtx->thread_id == GetCurrentThreadId(), "mtx.thread_id = %lx (flags %x)\n", mtx->thread_id, flags[i]);
-        ok(mtx->count == r ? 1 : 2, "mtx.count = %lu, expected %u (flags %x)\n", mtx->count, r ? 1 : 2, flags[i]);
         if(!r) p__Mtx_unlock(&mtx);
 
         r = p__Mtx_lock(&mtx);
         ok(r == expect, "_Mtx_lock returned %x (flags %x)\n", r, flags[i]);
-        ok(mtx->thread_id == GetCurrentThreadId(), "mtx.thread_id = %lx (flags %x)\n", mtx->thread_id, flags[i]);
-        ok(mtx->count == r ? 1 : 2, "mtx.count = %lu, expected %u (flags %x)\n", mtx->count, r ? 1 : 2, flags[i]);
         if(!r) p__Mtx_unlock(&mtx);
 
         p__Mtx_unlock(&mtx);
-        ok(mtx->thread_id == -1, "mtx.thread_id = %lx (flags %x)\n", mtx->thread_id, flags[i]);
-        ok(mtx->count == 0, "mtx.count = %lu (flags %x)\n", mtx->count, flags[i]);
         p__Mtx_destroy(&mtx);
     }
 }
@@ -3365,57 +3333,6 @@ static void test_data_exports(void)
     }
 }
 
-static void test__Fiopen(void)
-{
-    int i, ret;
-    FILE *f;
-    wchar_t wpath[MAX_PATH];
-    HANDLE h;
-    static const struct {
-        const char *loc;
-        const char *path;
-    } tests[] = {
-        { "German",   "t\xe4\xcf\xf6\xdf.txt" },
-        { "Turkish",  "t\xd0\xf0\xdd\xde\xfd\xfe.txt" },
-        { "Arabic",   "t\xca\x8c.txt" },
-        { "Japanese", "t\xb8\xd5.txt" },
-        { "Chinese",  "t\x81\x40\xfd\x71.txt" },
-    };
-
-    for(i=0; i<ARRAY_SIZE(tests); i++) {
-        if(!p_setlocale(LC_ALL, tests[i].loc)) {
-            win_skip("skipping locale %s\n", tests[i].loc);
-            continue;
-        }
-
-        memset(wpath, 0, sizeof(wpath));
-        ret = MultiByteToWideChar(CP_ACP, 0, tests[i].path, -1, wpath, MAX_PATH);
-        ok(ret, "MultiByteToWideChar failed on %s with locale %s: %lx\n",
-            tests[i].path, tests[i].loc, GetLastError());
-
-        h = CreateFileW(wpath, GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (h == INVALID_HANDLE_VALUE)
-        {
-            skip("can't create test file (%s)\n", wine_dbgstr_w(wpath));
-            continue;
-        }
-        CloseHandle(h);
-
-        f = p__Fiopen(tests[i].path, OPENMODE_in, SH_DENYNO);
-        ok(!!f, "failed to create %s with locale %s\n", wine_dbgstr_a(tests[i].path), tests[i].loc);
-        p_fclose(f);
-
-        f = p__Fiopen_wchar(wpath, OPENMODE_in, SH_DENYNO);
-        ok(!!f, "failed to open %s with locale %s\n", wine_dbgstr_w(wpath), tests[i].loc);
-        p_fclose(f);
-
-        ok(!p__unlink(tests[i].path), "failed to unlink %s with locale %s\n",
-            tests[i].path, tests[i].loc);
-    }
-    p_setlocale(LC_ALL, "C");
-}
-
 START_TEST(msvcp120)
 {
     if(!init()) return;
@@ -3462,8 +3379,6 @@ START_TEST(msvcp120)
     test_vbtable_size_exports();
 
     test_data_exports();
-
-    test__Fiopen();
 
     free_expect_struct();
     TlsFree(expect_idx);

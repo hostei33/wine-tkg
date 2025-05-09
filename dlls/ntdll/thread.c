@@ -35,6 +35,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(thread);
 WINE_DECLARE_DEBUG_CHANNEL(relay);
 WINE_DECLARE_DEBUG_CHANNEL(pid);
 WINE_DECLARE_DEBUG_CHANNEL(timestamp);
+WINE_DECLARE_DEBUG_CHANNEL(microsecs);
 
 struct _KUSER_SHARED_DATA *user_shared_data = (void *)0x7ffe0000;
 
@@ -92,30 +93,24 @@ static int append_output( struct debug_info *info, const char *str, size_t len )
 unsigned char __cdecl __wine_dbg_get_channel_flags( struct __wine_debug_channel *channel )
 {
     int min, max, pos, res;
-    unsigned char flags;
-
-    if (!(channel->flags & (1 << __WINE_DBCL_INIT))) return channel->flags;
+    unsigned char default_flags;
 
     if (!debug_options) init_options();
 
-    flags = debug_options[nb_debug_options].flags;
     min = 0;
     max = nb_debug_options - 1;
     while (min <= max)
     {
         pos = (min + max) / 2;
         res = strcmp( channel->name, debug_options[pos].name );
-        if (!res)
-        {
-            flags = debug_options[pos].flags;
-            break;
-        }
+        if (!res) return debug_options[pos].flags;
         if (res < 0) max = pos - 1;
         else min = pos + 1;
     }
-
-    if (!(flags & (1 << __WINE_DBCL_INIT))) channel->flags = flags; /* not dynamically changeable */
-    return flags;
+    /* no option for this channel */
+    default_flags = debug_options[nb_debug_options].flags;
+    if (channel->flags & (1 << __WINE_DBCL_INIT)) channel->flags = default_flags;
+    return default_flags;
 }
 
 /***********************************************************************
@@ -148,7 +143,14 @@ int __cdecl __wine_dbg_header( enum __wine_debug_class cls, struct __wine_debug_
     /* only print header if we are at the beginning of the line */
     if (info->out_pos) return 0;
 
-    if (TRACE_ON(timestamp))
+    if (TRACE_ON(microsecs))
+    {
+        LARGE_INTEGER counter, frequency, microsecs;
+        NtQueryPerformanceCounter(&counter, &frequency);
+        microsecs.QuadPart = counter.QuadPart * 1000000 / frequency.QuadPart;
+        pos += sprintf( pos, "%3u.%06u:", (unsigned int)(microsecs.QuadPart / 1000000), (unsigned int)(microsecs.QuadPart % 1000000) );
+    }
+    else if (TRACE_ON(timestamp))
     {
         ULONG ticks = NtGetTickCount();
         pos += sprintf( pos, "%3lu.%03lu:", ticks / 1000, ticks % 1000 );
@@ -204,8 +206,15 @@ void set_native_thread_name( DWORD tid, const char *name )
 
     if (tid != -1)
     {
-        OBJECT_ATTRIBUTES attr = { .Length = sizeof(attr) };
+        OBJECT_ATTRIBUTES attr;
         CLIENT_ID cid;
+
+        attr.Length = sizeof(attr);
+        attr.RootDirectory = 0;
+        attr.Attributes = 0;
+        attr.ObjectName = NULL;
+        attr.SecurityDescriptor = NULL;
+        attr.SecurityQualityOfService = NULL;
 
         cid.UniqueProcess = 0;
         cid.UniqueThread = ULongToHandle( tid );
@@ -333,9 +342,10 @@ NTSTATUS WINAPI RtlCreateUserStack( SIZE_T commit, SIZE_T reserve, ULONG zero_bi
                                       &alloc, sizeof(alloc) );
     if (!status)
     {
-        void *addr;
+        void *addr = alloc.StackBase;
         SIZE_T size = page_size;
 
+        NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_COMMIT, PAGE_NOACCESS );
         addr = (char *)alloc.StackBase + page_size;
         NtAllocateVirtualMemory( GetCurrentProcess(), &addr, 0, &size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD );
         addr = (char *)alloc.StackBase + 2 * page_size;
@@ -409,31 +419,6 @@ TEB_ACTIVE_FRAME * WINAPI RtlGetFrame(void)
 BOOLEAN WINAPI RtlIsCurrentThread( HANDLE handle )
 {
     return handle == NtCurrentThread() || !NtCompareObjects( handle, NtCurrentThread() );
-}
-
-
-/***********************************************************************
- *              RtlSetThreadErrorMode  (NTDLL.@)
- */
-NTSTATUS WINAPI RtlSetThreadErrorMode( DWORD mode, LPDWORD oldmode )
-{
-    if (mode & ~0x70)
-        return STATUS_INVALID_PARAMETER_1;
-
-    if (oldmode)
-        *oldmode = NtCurrentTeb()->HardErrorMode;
-
-    NtCurrentTeb()->HardErrorMode = mode;
-    return STATUS_SUCCESS;
-}
-
-
-/***********************************************************************
- *              RtlGetThreadErrorMode  (NTDLL.@)
- */
-DWORD WINAPI RtlGetThreadErrorMode( void )
-{
-    return NtCurrentTeb()->HardErrorMode;
 }
 
 
@@ -517,8 +502,10 @@ NTSTATUS WINAPI DECLSPEC_HOTPATCH RtlFlsAlloc( PFLS_CALLBACK_FUNCTION callback, 
 {
     unsigned int chunk_index, index, i;
     FLS_INFO_CHUNK *chunk;
+    TEB_FLS_DATA *fls;
 
-    if (!NtCurrentTeb()->FlsSlots && !(NtCurrentTeb()->FlsSlots = fls_alloc_data()))
+    if (!(fls = NtCurrentTeb()->FlsSlots)
+            && !(NtCurrentTeb()->FlsSlots = fls = fls_alloc_data()))
         return STATUS_NO_MEMORY;
 
     lock_fls_data();

@@ -123,8 +123,8 @@ static const struct object_ops file_ops =
     add_queue,                    /* add_queue */
     remove_queue,                 /* remove_queue */
     default_fd_signaled,          /* signaled */
-    NULL,                         /* get_esync_fd */
-    NULL,                         /* get_fsync_idx */
+    default_fd_get_esync_fd,      /* get_esync_fd */
+    default_fd_get_fsync_idx,     /* get_fsync_idx */
     no_satisfied,                 /* satisfied */
     no_signal,                    /* signal */
     file_get_fd,                  /* get_fd */
@@ -186,6 +186,7 @@ struct file *create_file_for_fd( int fd, unsigned int access, unsigned int shari
         release_object( file );
         return NULL;
     }
+    set_unix_name_of_fd( file->fd, &st );
     allow_fd_caching( file->fd );
     return file;
 }
@@ -398,7 +399,6 @@ static enum server_fd_type file_get_fd_type( struct fd *fd )
 {
     struct file *file = get_fd_user( fd );
 
-    if (S_ISLNK(file->mode)) return FD_TYPE_SYMLINK;
     if (S_ISREG(file->mode) || S_ISBLK(file->mode)) return FD_TYPE_FILE;
     if (S_ISDIR(file->mode)) return FD_TYPE_DIR;
     return FD_TYPE_CHAR;
@@ -437,8 +437,11 @@ struct security_descriptor *mode_to_sd( mode_t mode, const struct sid *user, con
     sd->sacl_len = 0;
     sd->dacl_len = dacl_size;
 
-    ptr = mem_append( sd + 1, user, sd->owner_len );
-    ptr = mem_append( ptr, group, sd->group_len );
+    ptr = (char *)(sd + 1);
+    memcpy( ptr, user, sd->owner_len );
+    ptr += sd->owner_len;
+    memcpy( ptr, group, sd->group_len );
+    ptr += sd->group_len;
 
     dacl = (struct acl *)ptr;
     dacl->revision = ACL_REVISION;
@@ -617,7 +620,7 @@ mode_t sd_to_mode( const struct security_descriptor *sd, const struct sid *owner
                     {
                         bits_to_set &= ~((mode << 6) | (mode << 3));  /* user + group */
                     }
-                    else if (equal_sid( sid, owner ))
+                    else if (equal_sid( sid, owner ) || equal_sid( sid, &owner_rights_sid ))
                     {
                         bits_to_set &= ~(mode << 6);  /* user only */
                     }
@@ -636,7 +639,7 @@ mode_t sd_to_mode( const struct security_descriptor *sd, const struct sid *owner
                         new_mode |= mode & bits_to_set;
                         bits_to_set &= ~mode;
                     }
-                    else if (equal_sid( sid, owner ))
+                    else if (equal_sid( sid, owner ) || equal_sid( sid, &owner_rights_sid ))
                     {
                         mode = (mode << 6);  /* user only */
                         new_mode |= mode & bits_to_set;

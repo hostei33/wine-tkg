@@ -51,11 +51,12 @@ static const char cups_collate_false[] = "%cupsJobTicket: collate=false\n";
 static const char cups_collate_true[] = "%cupsJobTicket: collate=true\n";
 static const char cups_ap_d_inputslot[] = "%cupsJobTicket: AP_D_InputSlot=\n"; /* intentionally empty value */
 
-static const char psheader[] = /* title */
+static const char psheader[] = /* title llx lly urx ury orientation */
 "%%%%Creator: Wine PostScript Driver\n"
 "%%%%Title: %s\n"
-"%%%%BoundingBox: (atend)\n"
+"%%%%BoundingBox: %d %d %d %d\n"
 "%%%%Pages: (atend)\n"
+"%%%%Orientation: %s\n"
 "%%%%EndComments\n";
 
 static const char psbeginprolog[] =
@@ -93,11 +94,8 @@ static const char psendfeature[] =
 "\n%%EndFeature\n"
 "} stopped cleartomark\n";
 
-static const char psnewpage[] = /* name, number, llx, lly, urx, ury, orientation,
-                                   xres, yres, xtrans, ytrans, rot */
+static const char psnewpage[] = /* name, number, xres, yres, xtrans, ytrans, rot */
 "%%%%Page: %s %d\n"
-"%%%%PageBoundingBox: %ld %ld %ld %ld\n"
-"%%%%PageOrientation: %s\n"
 "%%%%BeginPageSetup\n"
 "/pgsave save def\n"
 "72 %d div 72 %d div scale\n"
@@ -110,9 +108,8 @@ static const char psendpage[] =
 "pgsave restore\n"
 "showpage\n";
 
-static const char psfooter[] = /* llx, lly, urx, ury, pages */
+static const char psfooter[] = /* pages */
 "%%%%Trailer\n"
-"%%%%BoundingBox: %ld %ld %ld %ld\n"
 "%%%%Pages: %d\n"
 "%%%%EOF\n";
 
@@ -397,24 +394,15 @@ static void write_cups_job_ticket( print_ctx *ctx, const struct ticket_info *inf
         write_spool( ctx, cups_ap_d_inputslot, sizeof(cups_ap_d_inputslot) - 1 );
 }
 
-INT PSDRV_WritePageSize( print_ctx *ctx )
-{
-    PAGESIZE *page = find_pagesize( ctx->pi->ppd, &ctx->Devmode->dmPublic );
-
-    if (page && page->InvocationString)
-        PSDRV_WriteFeature( ctx, "*PageSize", page->Name, page->InvocationString );
-    else
-        WARN("Page size not set\n");
-    return 1;
-}
-
 INT PSDRV_WriteHeader( print_ctx *ctx, LPCWSTR title )
 {
     char *buf, *escaped_title;
     INPUTSLOT *slot = find_slot( ctx->pi->ppd, &ctx->Devmode->dmPublic );
     PAGESIZE *page = find_pagesize( ctx->pi->ppd, &ctx->Devmode->dmPublic );
     DUPLEX *duplex = find_duplex( ctx->pi->ppd, &ctx->Devmode->dmPublic );
+    int llx, lly, urx, ury;
     int ret, len;
+    const char * dmOrientation;
 
     struct ticket_info ticket_info = { page, duplex };
 
@@ -432,14 +420,47 @@ INT PSDRV_WriteHeader( print_ctx *ctx, LPCWSTR title )
 
     escaped_title = escape_title(title);
     buf = HeapAlloc( GetProcessHeap(), 0, sizeof(psheader) +
-                     strlen(escaped_title) );
+                     strlen(escaped_title) + 30 );
     if(!buf) {
         WARN("HeapAlloc failed\n");
         HeapFree(GetProcessHeap(), 0, escaped_title);
         return 0;
     }
 
-    sprintf(buf, psheader, escaped_title);
+    /* BBox co-ords are in default user co-ord system so urx < ury even in
+       landscape mode */
+    if ((ctx->Devmode->dmPublic.dmFields & DM_PAPERSIZE) && page)
+    {
+        if (page->ImageableArea)
+        {
+            llx = page->ImageableArea->llx;
+            lly = page->ImageableArea->lly;
+            urx = page->ImageableArea->urx;
+            ury = page->ImageableArea->ury;
+        }
+        else
+        {
+            llx = lly = 0;
+            urx = page->PaperDimension->x;
+            ury = page->PaperDimension->y;
+        }
+    }
+    else if ((ctx->Devmode->dmPublic.dmFields & DM_PAPERLENGTH) &&
+            (ctx->Devmode->dmPublic.dmFields & DM_PAPERWIDTH))
+    {
+        /* Devmode sizes in 1/10 mm */
+        llx = lly = 0;
+        urx = ctx->Devmode->dmPublic.dmPaperWidth * 72.0 / 254.0;
+        ury = ctx->Devmode->dmPublic.dmPaperLength * 72.0 / 254.0;
+    }
+    else
+    {
+        llx = lly = urx = ury = 0;
+    }
+    /* FIXME should do something better with BBox */
+
+    dmOrientation = (ctx->Devmode->dmPublic.dmOrientation == DMORIENT_LANDSCAPE ? "Landscape" : "Portrait");
+    sprintf(buf, psheader, escaped_title, llx, lly, urx, ury, dmOrientation);
 
     HeapFree(GetProcessHeap(), 0, escaped_title);
 
@@ -455,7 +476,8 @@ INT PSDRV_WriteHeader( print_ctx *ctx, LPCWSTR title )
     if (slot && slot->InvocationString)
         PSDRV_WriteFeature( ctx, "*InputSlot", slot->Name, slot->InvocationString );
 
-    PSDRV_WritePageSize( ctx );
+    if (page && page->InvocationString)
+        PSDRV_WriteFeature( ctx, "*PageSize", page->Name, page->InvocationString );
 
     if (duplex && duplex->InvocationString)
         PSDRV_WriteFeature( ctx, "*Duplex", duplex->Name, duplex->InvocationString );
@@ -478,8 +500,7 @@ INT PSDRV_WriteFooter( print_ctx *ctx )
         return 0;
     }
 
-    sprintf(buf, psfooter, ctx->bbox.left, ctx->bbox.top,
-            ctx->bbox.right, ctx->bbox.bottom, ctx->job.PageNo);
+    sprintf(buf, psfooter, ctx->job.PageNo);
 
     if( write_spool( ctx, buf, strlen(buf) ) != strlen(buf) ) {
         WARN("WriteSpool error\n");
@@ -501,56 +522,22 @@ INT PSDRV_WriteEndPage( print_ctx *ctx )
 }
 
 
-static void get_bounding_box( print_ctx *ctx, RECT *bbox)
-{
-    PAGESIZE *page;
-
-    /* BBox co-ords are in default user co-ord system so urx < ury even in
-       landscape mode */
-    if ((ctx->Devmode->dmPublic.dmFields & DM_PAPERSIZE) &&
-            (page = find_pagesize( ctx->pi->ppd, &ctx->Devmode->dmPublic )))
-    {
-        if (page->ImageableArea)
-        {
-            bbox->left = page->ImageableArea->llx;
-            bbox->top = page->ImageableArea->lly;
-            bbox->right = page->ImageableArea->urx;
-            bbox->bottom = page->ImageableArea->ury;
-        }
-        else
-        {
-            bbox->left = bbox->top = 0;
-            bbox->right = page->PaperDimension->x;
-            bbox->bottom = page->PaperDimension->y;
-        }
-    }
-    else if ((ctx->Devmode->dmPublic.dmFields & DM_PAPERLENGTH) &&
-            (ctx->Devmode->dmPublic.dmFields & DM_PAPERWIDTH))
-    {
-        /* Devmode sizes in 1/10 mm */
-        bbox->left = bbox->top = 0;
-        bbox->right = ctx->Devmode->dmPublic.dmPaperWidth * 72.0 / 254.0;
-        bbox->bottom = ctx->Devmode->dmPublic.dmPaperLength * 72.0 / 254.0;
-    }
-    else
-    {
-        bbox->left = bbox->top = bbox->right = bbox->bottom = 0;
-    }
-    /* FIXME should do something better with BBox */
-}
-
 
 
 INT PSDRV_WriteNewPage( print_ctx *ctx )
 {
+    char *buf;
+    char name[100];
     signed int xtrans, ytrans, rotation;
-    char buf[256], name[16];
-    RECT bbox;
+    int ret = 1;
 
     sprintf(name, "%d", ctx->job.PageNo);
 
-    get_bounding_box( ctx, &bbox );
-    UnionRect( &ctx->bbox, &bbox, &ctx->bbox );
+    buf = HeapAlloc( GetProcessHeap(), 0, sizeof(psnewpage) + 200 );
+    if(!buf) {
+        WARN("HeapAlloc failed\n");
+        return 0;
+    }
 
     if(ctx->Devmode->dmPublic.dmOrientation == DMORIENT_LANDSCAPE) {
         if(ctx->pi->ppd->LandscapeOrientation == -90) {
@@ -572,16 +559,15 @@ INT PSDRV_WriteNewPage( print_ctx *ctx )
     }
 
     sprintf(buf, psnewpage, name, ctx->job.PageNo,
-            bbox.left, bbox.top, bbox.right, bbox.bottom,
-            ctx->Devmode->dmPublic.dmOrientation == DMORIENT_LANDSCAPE ? "Landscape" : "Portrait",
-            GetDeviceCaps(ctx->hdc, ASPECTX), GetDeviceCaps(ctx->hdc, ASPECTY),
-            xtrans, ytrans, rotation);
+	    GetDeviceCaps(ctx->hdc, ASPECTX), GetDeviceCaps(ctx->hdc, ASPECTY),
+	    xtrans, ytrans, rotation);
 
     if( write_spool( ctx, buf, strlen(buf) ) != strlen(buf) ) {
         WARN("WriteSpool error\n");
-        return 0;
+        ret = 0;
     }
-    return 1;
+    HeapFree( GetProcessHeap(), 0, buf );
+    return ret;
 }
 
 
@@ -625,7 +611,9 @@ BOOL PSDRV_WriteArc(print_ctx *ctx, INT x, INT y, INT w, INT h, double ang1,
 
     /* Make angles -ve and swap order because we're working with an upside
        down y-axis */
-    _sprintf_l(buf, psarc, c_locale, x, y, w, h, -ang2, -ang1);
+    push_lc_numeric("C");
+    sprintf(buf, psarc, x, y, w, h, -ang2, -ang1);
+    pop_lc_numeric();
     return PSDRV_WriteSpool(ctx, buf, strlen(buf));
 }
 
@@ -676,11 +664,16 @@ BOOL PSDRV_WriteSetColor(print_ctx *ctx, PSCOLOR *color)
 
     switch(color->type) {
     case PSCOLOR_RGB:
-        _sprintf_l(buf, pssetrgbcolor, c_locale, color->value.rgb.r, color->value.rgb.g, color->value.rgb.b);
+        push_lc_numeric("C");
+        sprintf(buf, pssetrgbcolor, color->value.rgb.r, color->value.rgb.g,
+		color->value.rgb.b);
+        pop_lc_numeric();
 	return PSDRV_WriteSpool(ctx, buf, strlen(buf));
 
     case PSCOLOR_GRAY:
-        _sprintf_l(buf, pssetgray, c_locale, color->value.gray.i);
+        push_lc_numeric("C");
+        sprintf(buf, pssetgray, color->value.gray.i);
+        pop_lc_numeric();
 	return PSDRV_WriteSpool(ctx, buf, strlen(buf));
 
     default:
@@ -779,7 +772,9 @@ BOOL PSDRV_WriteRotate(print_ctx *ctx, float ang)
 {
     char buf[256];
 
-    _sprintf_l(buf, psrotate, c_locale, ang);
+    push_lc_numeric("C");
+    sprintf(buf, psrotate, ang);
+    pop_lc_numeric();
     return PSDRV_WriteSpool(ctx, buf, strlen(buf));
 }
 

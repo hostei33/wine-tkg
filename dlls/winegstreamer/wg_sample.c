@@ -283,7 +283,7 @@ HRESULT wg_sample_queue_create(struct wg_sample_queue **out)
     if (!(queue = calloc(1, sizeof(*queue))))
         return E_OUTOFMEMORY;
 
-    InitializeCriticalSectionEx(&queue->cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&queue->cs);
     queue->cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": cs");
     list_init(&queue->samples);
 
@@ -302,6 +302,13 @@ void wg_sample_queue_destroy(struct wg_sample_queue *queue)
 
     free(queue);
 }
+
+/* These unixlib entry points should not be used directly, they assume samples
+ * to be queued and zero-copy support, use the helpers below instead.
+ */
+HRESULT wg_transform_push_data(wg_transform_t transform, struct wg_sample *sample);
+HRESULT wg_transform_read_data(wg_transform_t transform, struct wg_sample *sample,
+        struct wg_format *format);
 
 HRESULT wg_transform_push_mf(wg_transform_t transform, IMFSample *sample,
         struct wg_sample_queue *queue)
@@ -339,21 +346,23 @@ HRESULT wg_transform_push_mf(wg_transform_t transform, IMFSample *sample,
 }
 
 HRESULT wg_transform_read_mf(wg_transform_t transform, IMFSample *sample,
-        DWORD sample_size, DWORD *flags)
+        DWORD sample_size, struct wg_format *format, DWORD *flags)
 {
     struct wg_sample *wg_sample;
     IMFMediaBuffer *buffer;
     HRESULT hr;
 
-    TRACE_(mfplat)("transform %#I64x, sample %p, flags %p.\n", transform, sample, flags);
+    TRACE_(mfplat)("transform %#I64x, sample %p, format %p, flags %p.\n", transform, sample, format, flags);
 
     if (FAILED(hr = wg_sample_create_mf(sample, &wg_sample)))
         return hr;
 
     wg_sample->size = 0;
 
-    if (FAILED(hr = wg_transform_read_data(transform, wg_sample)))
+    if (FAILED(hr = wg_transform_read_data(transform, wg_sample, format)))
     {
+        if (hr == MF_E_TRANSFORM_STREAM_CHANGE && !format)
+            FIXME("Unexpected stream format change!\n");
         wg_sample_release(wg_sample);
         return hr;
     }
@@ -421,7 +430,7 @@ HRESULT wg_transform_read_quartz(wg_transform_t transform, struct wg_sample *wg_
 
     TRACE_(mfplat)("transform %#I64x, wg_sample %p.\n", transform, wg_sample);
 
-    if (FAILED(hr = wg_transform_read_data(transform, wg_sample)))
+    if (FAILED(hr = wg_transform_read_data(transform, wg_sample, NULL)))
     {
         if (hr == MF_E_TRANSFORM_STREAM_CHANGE)
             FIXME("Unexpected stream format change!\n");
@@ -496,7 +505,7 @@ HRESULT wg_transform_read_dmo(wg_transform_t transform, DMO_OUTPUT_DATA_BUFFER *
         return hr;
     wg_sample->size = 0;
 
-    if (FAILED(hr = wg_transform_read_data(transform, wg_sample)))
+    if (FAILED(hr = wg_transform_read_data(transform, wg_sample, NULL)))
     {
         if (hr == MF_E_TRANSFORM_STREAM_CHANGE)
             TRACE_(mfplat)("Stream format changed.\n");

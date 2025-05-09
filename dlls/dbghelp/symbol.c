@@ -70,15 +70,15 @@ int __cdecl symt_cmp_addr(const void* p1, const void* p2)
  *     which is exposed to the caller and index is the index of the symbol in
  *     this array
  */
-DWORD             symt_symref_to_index(struct module* module, symref_t symref)
+DWORD             symt_ptr2index(struct module* module, const struct symt* sym)
 {
     struct vector* vector;
     DWORD offset;
-    symref_t *c;
+    const struct symt** c;
     int len, i;
 
-    if (!symref) return 0;
-    if (symt_is_symref_ptr(symref) && ((struct symt*)symref)->tag == SymTagCustom)
+    if (!sym) return 0;
+    if (sym->tag == SymTagCustom)
     {
         vector = &module->vcustom_symt;
         offset = BASE_CUSTOM_SYMT;
@@ -89,23 +89,23 @@ DWORD             symt_symref_to_index(struct module* module, symref_t symref)
         vector = &module->vsymt;
         offset = 1;
 #else
-        return (DWORD)symref;
+        return (DWORD)sym;
 #endif
     }
     len = vector_length(vector);
     /* FIXME: this is inefficient */
     for (i = 0; i < len; i++)
     {
-        if (*(symref_t*)vector_at(vector, i) == symref)
+        if (*(struct symt**)vector_at(vector, i) == sym)
             return i + offset;
     }
     /* not found */
     c = vector_add(vector, &module->pool);
-    if (c) *c = symref;
+    if (c) *c = sym;
     return len + offset;
 }
 
-symref_t      symt_index_to_symref(struct module* module, DWORD id)
+struct symt*      symt_index2ptr(struct module* module, DWORD id)
 {
     struct vector* vector;
     if (id >= BASE_CUSTOM_SYMT)
@@ -116,13 +116,13 @@ symref_t      symt_index_to_symref(struct module* module, DWORD id)
     else
     {
 #ifdef _WIN64
-        if (!id--) return 0;
+        if (!id--) return NULL;
         vector = &module->vsymt;
 #else
-        return (symref_t)id;
+        return (struct symt*)id;
 #endif
     }
-    return (id >= vector_length(vector)) ? 0 : *(symref_t *)vector_at(vector, id);
+    return (id >= vector_length(vector)) ? NULL : *(struct symt**)vector_at(vector, id);
 }
 
 static BOOL symt_grow_sorttab(struct module* module, unsigned sz)
@@ -226,28 +226,28 @@ struct symt_module* symt_new_module(struct module* module)
     {
         sym->symt.tag = SymTagExe;
         sym->module   = module;
-        vector_init(&sym->vchildren, sizeof(symref_t), 0);
+        vector_init(&sym->vchildren, sizeof(struct symt*), 8);
     }
     return sym;
 }
 
-struct symt_compiland* symt_new_compiland(struct module* module, const char *filename)
+struct symt_compiland* symt_new_compiland(struct module* module, unsigned src_idx)
 {
     struct symt_compiland*    sym;
-    symref_t*                 p;
+    struct symt_compiland**   p;
 
     TRACE_(dbghelp_symt)("Adding compiland symbol %s:%s\n",
-                         debugstr_w(module->modulename), debugstr_a(filename));
+                         debugstr_w(module->modulename), source_get(module, src_idx));
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {
         sym->symt.tag  = SymTagCompiland;
-        sym->container = symt_ptr_to_symref(&module->top->symt);
+        sym->container = module->top;
         sym->address   = 0;
-        sym->filename  = pool_strdup(&module->pool, filename);
-        vector_init(&sym->vchildren, sizeof(symref_t), 0);
+        sym->source    = src_idx;
+        vector_init(&sym->vchildren, sizeof(struct symt*), 32);
         sym->user      = NULL;
         p = vector_add(&module->top->vchildren, &module->pool);
-        if (p) *p = symt_ptr_to_symref(&sym->symt);
+        *p = sym;
     }
     return sym;
 }
@@ -259,10 +259,10 @@ struct symt_public* symt_new_public(struct module* module,
                                     ULONG_PTR address, unsigned size)
 {
     struct symt_public* sym;
-    symref_t*           p;
+    struct symt**       p;
 
     TRACE_(dbghelp_symt)("Adding public symbol %s:%s @%Ix\n",
-                         debugstr_w(module->modulename), debugstr_a(name), address);
+                         debugstr_w(module->modulename), name, address);
     if ((dbghelp_options & SYMOPT_AUTO_PUBLICS) &&
         symt_find_nearest(module, address) != NULL)
         return NULL;
@@ -270,7 +270,7 @@ struct symt_public* symt_new_public(struct module* module,
     {
         sym->symt.tag      = SymTagPublicSymbol;
         sym->hash_elt.name = pool_strdup(&module->pool, name);
-        sym->container     = compiland ? symt_ptr_to_symref(&compiland->symt) : 0;
+        sym->container     = compiland ? &compiland->symt : NULL;
         sym->is_function   = is_function;
         sym->address       = address;
         sym->size          = size;
@@ -278,7 +278,7 @@ struct symt_public* symt_new_public(struct module* module,
         if (compiland)
         {
             p = vector_add(&compiland->vchildren, &module->pool);
-            if (p) *p = symt_ptr_to_symref(&sym->symt);
+            *p = &sym->symt;
         }
     }
     return sym;
@@ -288,31 +288,31 @@ struct symt_data* symt_new_global_variable(struct module* module,
                                            struct symt_compiland* compiland, 
                                            const char* name, unsigned is_static,
                                            struct location loc, ULONG_PTR size,
-                                           symref_t type)
+                                           struct symt* type)
 {
     struct symt_data*   sym;
-    symref_t*           p;
+    struct symt**       p;
     DWORD64             tsz;
 
-    TRACE_(dbghelp_symt)("Adding global symbol %s:%s %d@%Ix %Ix\n",
-                         debugstr_w(module->modulename), debugstr_a(name), loc.kind, loc.offset, type);
+    TRACE_(dbghelp_symt)("Adding global symbol %s:%s %d@%Ix %p\n",
+                         debugstr_w(module->modulename), name, loc.kind, loc.offset, type);
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {
         sym->symt.tag      = SymTagData;
         sym->hash_elt.name = pool_strdup(&module->pool, name);
         sym->kind          = is_static ? DataIsFileStatic : DataIsGlobal;
-        sym->container     = symt_ptr_to_symref(compiland ? &compiland->symt : &module->top->symt);
+        sym->container     = compiland ? &compiland->symt : &module->top->symt;
         sym->type          = type;
         sym->u.var         = loc;
-        if (type && size && symt_get_info_from_symref(module, type, TI_GET_LENGTH, &tsz))
+        if (type && size && symt_get_info(module, type, TI_GET_LENGTH, &tsz))
         {
             if (tsz != size)
                 FIXME("Size mismatch for %s.%s between type (%I64u) and src (%Iu)\n",
-                      debugstr_w(module->modulename), debugstr_a(name), tsz, size);
+                      debugstr_w(module->modulename), name, tsz, size);
         }
         symt_add_module_ht(module, (struct symt_ht*)sym);
         p = vector_add(compiland ? &compiland->vchildren : &module->top->vchildren, &module->pool);
-        if (p) *p = symt_ptr_to_symref(&sym->symt);
+        *p = &sym->symt;
     }
     return sym;
 }
@@ -321,21 +321,20 @@ static struct symt_function* init_function_or_inlinesite(struct module* module,
                                                          DWORD tag,
                                                          struct symt* container,
                                                          const char* name,
-                                                         symref_t sig_type,
-                                                         DWORD_PTR user,
+                                                         struct symt* sig_type,
                                                          unsigned num_ranges)
 {
     struct symt_function* sym;
 
+    assert(!sig_type || sig_type->tag == SymTagFunctionType);
     if ((sym = pool_alloc(&module->pool, offsetof(struct symt_function, ranges[num_ranges]))))
     {
-        sym->symt.tag   = tag;
+        sym->symt.tag  = tag;
         sym->hash_elt.name = pool_strdup(&module->pool, name);
-        sym->container  = symt_ptr_to_symref(container);
-        sym->type       = sig_type;
-        vector_init(&sym->vlines,  sizeof(struct line_info), 0);
-        vector_init(&sym->vchildren, sizeof(symref_t), 0);
-        sym->user       = user;
+        sym->container = container;
+        sym->type      = sig_type;
+        vector_init(&sym->vlines,  sizeof(struct line_info), 64);
+        vector_init(&sym->vchildren, sizeof(struct symt*), 8);
         sym->num_ranges = num_ranges;
     }
     return sym;
@@ -345,16 +344,15 @@ struct symt_function* symt_new_function(struct module* module,
                                         struct symt_compiland* compiland,
                                         const char* name,
                                         ULONG_PTR addr, ULONG_PTR size,
-                                        symref_t sig_type, DWORD_PTR user)
+                                        struct symt* sig_type)
 {
     struct symt_function* sym;
 
     TRACE_(dbghelp_symt)("Adding global function %s:%s @%Ix-%Ix\n",
-                         debugstr_w(module->modulename), debugstr_a(name), addr, addr + size - 1);
-
-    if ((sym = init_function_or_inlinesite(module, SymTagFunction, &compiland->symt, name, sig_type, user, 1)))
+                         debugstr_w(module->modulename), name, addr, addr + size - 1);
+    if ((sym = init_function_or_inlinesite(module, SymTagFunction, &compiland->symt, name, sig_type, 1)))
     {
-        symref_t* p;
+        struct symt** p;
         sym->ranges[0].low = addr;
         sym->ranges[0].high = addr + size;
         sym->next_inlinesite = NULL; /* first of list */
@@ -362,7 +360,7 @@ struct symt_function* symt_new_function(struct module* module,
         if (compiland)
         {
             p = vector_add(&compiland->vchildren, &module->pool);
-            if (p) *p = symt_ptr_to_symref(&sym->symt);
+            *p = &sym->symt;
         }
     }
     return sym;
@@ -372,16 +370,15 @@ struct symt_function* symt_new_inlinesite(struct module* module,
                                           struct symt_function* func,
                                           struct symt* container,
                                           const char* name,
-                                          symref_t sig_type,
-                                          DWORD_PTR user,
+                                          struct symt* sig_type,
                                           unsigned num_ranges)
 {
     struct symt_function* sym;
 
-    TRACE_(dbghelp_symt)("Adding inline site %s\n", debugstr_a(name));
-    if ((sym = init_function_or_inlinesite(module, SymTagInlineSite, container, name, sig_type, user, num_ranges)))
+    TRACE_(dbghelp_symt)("Adding inline site %s\n", name);
+    if ((sym = init_function_or_inlinesite(module, SymTagInlineSite, container, name, sig_type, num_ranges)))
     {
-        symref_t* p;
+        struct symt** p;
         assert(container);
 
         /* chain inline sites */
@@ -394,7 +391,7 @@ struct symt_function* symt_new_inlinesite(struct module* module,
             assert(container->tag == SymTagBlock);
             p = vector_add(&((struct symt_block*)container)->vchildren, &module->pool);
         }
-        if (p) *p = symt_ptr_to_symref(&sym->symt);
+        *p = &sym->symt;
     }
     return sym;
 }
@@ -411,8 +408,8 @@ void symt_add_func_line(struct module* module, struct symt_function* func,
     if (func == NULL || !(dbghelp_options & SYMOPT_LOAD_LINES)) return;
 
     TRACE_(dbghelp_symt)("(%p)%s:%Ix %s:%u\n",
-                         func, debugstr_a(func->hash_elt.name), addr,
-                         debugstr_a(source_get(module, source_idx)), line_num);
+                         func, func->hash_elt.name, addr,
+                         source_get(module, source_idx), line_num);
 
     assert(func->symt.tag == SymTagFunction || func->symt.tag == SymTagInlineSite);
 
@@ -429,7 +426,7 @@ void symt_add_func_line(struct module* module, struct symt_function* func,
     prev = vlen ? vector_at(&func->vlines, vlen - 1) : NULL;
     if (last_matches && prev && addr == prev->u.address)
     {
-        WARN("Duplicate addition of line number in %s\n", debugstr_a(func->hash_elt.name));
+        WARN("Duplicate addition of line number in %s\n", func->hash_elt.name);
         return;
     }
     if (!last_matches)
@@ -464,19 +461,19 @@ void symt_add_func_line(struct module* module, struct symt_function* func,
  * Otherwise, the variable is stored on the stack:
  *      - offset is then the offset from the frame register
  */
-struct symt_data* symt_add_func_local(struct module* module,
-                                      struct symt_function* func,
+struct symt_data* symt_add_func_local(struct module* module, 
+                                      struct symt_function* func, 
                                       enum DataKind dt,
                                       const struct location* loc,
-                                      struct symt_block* block,
-                                      symref_t type, const char* name)
+                                      struct symt_block* block, 
+                                      struct symt* type, const char* name)
 {
     struct symt_data*   locsym;
-    symref_t*           p;
+    struct symt**       p;
 
-    TRACE_(dbghelp_symt)("Adding local symbol (%s:%s): %s %Ix\n",
-                         debugstr_w(module->modulename), debugstr_a(func->hash_elt.name),
-                         debugstr_a(name), type);
+    TRACE_(dbghelp_symt)("Adding local symbol (%s:%s): %s %p\n",
+                         debugstr_w(module->modulename), func->hash_elt.name,
+                         name, type);
 
     assert(symt_check_tag(&func->symt, SymTagFunction) || symt_check_tag(&func->symt, SymTagInlineSite));
     assert(dt == DataIsParam || dt == DataIsLocal || dt == DataIsStaticLocal);
@@ -486,14 +483,14 @@ struct symt_data* symt_add_func_local(struct module* module,
     locsym->hash_elt.name = pool_strdup(&module->pool, name);
     locsym->hash_elt.next = NULL;
     locsym->kind          = dt;
-    locsym->container     = symt_ptr_to_symref(block ? &block->symt : &func->symt);
+    locsym->container     = block ? &block->symt : &func->symt;
     locsym->type          = type;
     locsym->u.var         = *loc;
     if (block)
         p = vector_add(&block->vchildren, &module->pool);
     else
         p = vector_add(&func->vchildren, &module->pool);
-    if (p) *p = symt_ptr_to_symref(&locsym->symt);
+    *p = &locsym->symt;
     if (dt == DataIsStaticLocal)
         symt_add_module_addr(module, (struct symt_ht*)locsym);
     return locsym;
@@ -507,15 +504,15 @@ struct symt_data* symt_add_func_local(struct module* module,
 struct symt_data* symt_add_func_constant(struct module* module,
                                          struct symt_function* func,
                                          struct symt_block* block,
-                                         symref_t type, const char* name,
+                                         struct symt* type, const char* name,
                                          VARIANT* v)
 {
     struct symt_data*   locsym;
-    symref_t*           p;
+    struct symt**       p;
 
-    TRACE_(dbghelp_symt)("Adding local constant (%s:%s): %s %Ix\n",
-                         debugstr_w(module->modulename), debugstr_a(func->hash_elt.name),
-                         debugstr_a(name), type);
+    TRACE_(dbghelp_symt)("Adding local constant (%s:%s): %s %p\n",
+                         debugstr_w(module->modulename), func->hash_elt.name,
+                         name, type);
 
     assert(symt_check_tag(&func->symt, SymTagFunction) || symt_check_tag(&func->symt, SymTagInlineSite));
 
@@ -524,14 +521,14 @@ struct symt_data* symt_add_func_constant(struct module* module,
     locsym->hash_elt.name = pool_strdup(&module->pool, name);
     locsym->hash_elt.next = NULL;
     locsym->kind          = DataIsConstant;
-    locsym->container     = symt_ptr_to_symref(block ? &block->symt : &func->symt);
+    locsym->container     = block ? &block->symt : &func->symt;
     locsym->type          = type;
     locsym->u.value       = *v;
     if (block)
         p = vector_add(&block->vchildren, &module->pool);
     else
         p = vector_add(&func->vchildren, &module->pool);
-    if (p) *p = symt_ptr_to_symref(&locsym->symt);
+    *p = &locsym->symt;
     return locsym;
 }
 
@@ -541,7 +538,7 @@ struct symt_block* symt_open_func_block(struct module* module,
                                         unsigned num_ranges)
 {
     struct symt_block*  block;
-    symref_t*           p;
+    struct symt**       p;
 
     assert(symt_check_tag(&func->symt, SymTagFunction) || symt_check_tag(&func->symt, SymTagInlineSite));
     assert(num_ranges > 0);
@@ -550,13 +547,13 @@ struct symt_block* symt_open_func_block(struct module* module,
     block = pool_alloc(&module->pool, offsetof(struct symt_block, ranges[num_ranges]));
     block->symt.tag = SymTagBlock;
     block->num_ranges = num_ranges;
-    block->container = symt_ptr_to_symref(parent_block ? &parent_block->symt : &func->symt);
-    vector_init(&block->vchildren, sizeof(symref_t), 0);
+    block->container = parent_block ? &parent_block->symt : &func->symt;
+    vector_init(&block->vchildren, sizeof(struct symt*), 4);
     if (parent_block)
         p = vector_add(&parent_block->vchildren, &module->pool);
     else
         p = vector_add(&func->vchildren, &module->pool);
-    if (p) *p = symt_ptr_to_symref(&block->symt);
+    *p = &block->symt;
 
     return block;
 }
@@ -565,15 +562,10 @@ struct symt_block* symt_close_func_block(struct module* module,
                                          const struct symt_function* func,
                                          struct symt_block* block)
 {
-    struct symt *container;
-
     assert(symt_check_tag(&func->symt, SymTagFunction) || symt_check_tag(&func->symt, SymTagInlineSite));
 
-    container = SYMT_SYMREF_TO_PTR(block->container);
-    assert(container);
-
-    return (container->tag == SymTagBlock) ?
-        CONTAINING_RECORD(container, struct symt_block, symt) : NULL;
+    return (block->container->tag == SymTagBlock) ?
+        CONTAINING_RECORD(block->container, struct symt_block, symt) : NULL;
 }
 
 struct symt_hierarchy_point* symt_add_function_point(struct module* module,
@@ -582,17 +574,17 @@ struct symt_hierarchy_point* symt_add_function_point(struct module* module,
                                                      const struct location* loc,
                                                      const char* name)
 {
-    struct symt_hierarchy_point *sym;
-    symref_t                    *p;
+    struct symt_hierarchy_point*sym;
+    struct symt**               p;
 
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {
-        sym->symt.tag  = point;
-        sym->container = symt_ptr_to_symref(&func->symt);
-        sym->loc       = *loc;
+        sym->symt.tag = point;
+        sym->parent   = &func->symt;
+        sym->loc      = *loc;
         sym->hash_elt.name = name ? pool_strdup(&module->pool, name) : NULL;
         p = vector_add(&func->vchildren, &module->pool);
-        if (p) *p = symt_ptr_to_symref(&sym->symt);
+        *p = &sym->symt;
     }
     return sym;
 }
@@ -605,22 +597,22 @@ struct symt_thunk* symt_new_thunk(struct module* module,
     struct symt_thunk*  sym;
 
     TRACE_(dbghelp_symt)("Adding global thunk %s:%s @%Ix-%Ix\n",
-                         debugstr_w(module->modulename), debugstr_a(name), addr, addr + size - 1);
+                         debugstr_w(module->modulename), name, addr, addr + size - 1);
 
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {
         sym->symt.tag  = SymTagThunk;
         sym->hash_elt.name = pool_strdup(&module->pool, name);
-        sym->container = symt_ptr_to_symref(&compiland->symt);
+        sym->container = &compiland->symt;
         sym->address   = addr;
         sym->size      = size;
         sym->ordinal   = ord;
         symt_add_module_ht(module, (struct symt_ht*)sym);
         if (compiland)
         {
-            symref_t *p;
+            struct symt**       p;
             p = vector_add(&compiland->vchildren, &module->pool);
-            if (p) *p = symt_ptr_to_symref(&sym->symt);
+            *p = &sym->symt;
         }
     }
     return sym;
@@ -628,28 +620,28 @@ struct symt_thunk* symt_new_thunk(struct module* module,
 
 struct symt_data* symt_new_constant(struct module* module,
                                     struct symt_compiland* compiland,
-                                    const char* name, symref_t type,
+                                    const char* name, struct symt* type,
                                     const VARIANT* v)
 {
     struct symt_data*  sym;
 
     TRACE_(dbghelp_symt)("Adding constant value %s:%s\n",
-                         debugstr_w(module->modulename), debugstr_a(name));
+                         debugstr_w(module->modulename), name);
 
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {
         sym->symt.tag      = SymTagData;
         sym->hash_elt.name = pool_strdup(&module->pool, name);
         sym->kind          = DataIsConstant;
-        sym->container     = symt_ptr_to_symref(compiland ? &compiland->symt : &module->top->symt);
+        sym->container     = compiland ? &compiland->symt : &module->top->symt;
         sym->type          = type;
         sym->u.value       = *v;
         symt_add_module_ht(module, (struct symt_ht*)sym);
         if (compiland)
         {
-            symref_t *p;
+            struct symt**       p;
             p = vector_add(&compiland->vchildren, &module->pool);
-            if (p) *p = symt_ptr_to_symref(&sym->symt);
+            *p = &sym->symt;
         }
     }
     return sym;
@@ -662,7 +654,7 @@ struct symt_hierarchy_point* symt_new_label(struct module* module,
     struct symt_hierarchy_point*        sym;
 
     TRACE_(dbghelp_symt)("Adding global label value %s:%s\n",
-                         debugstr_w(module->modulename), debugstr_a(name));
+                         debugstr_w(module->modulename), name);
 
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {
@@ -670,13 +662,13 @@ struct symt_hierarchy_point* symt_new_label(struct module* module,
         sym->hash_elt.name = pool_strdup(&module->pool, name);
         sym->loc.kind      = loc_absolute;
         sym->loc.offset    = address;
-        sym->container     = compiland ? symt_ptr_to_symref(&compiland->symt) : 0;
+        sym->parent        = compiland ? &compiland->symt : NULL;
         symt_add_module_ht(module, (struct symt_ht*)sym);
         if (compiland)
         {
-            symref_t *p;
+            struct symt**       p;
             p = vector_add(&compiland->vchildren, &module->pool);
-            if (p) *p = symt_ptr_to_symref(&sym->symt);
+            *p = &sym->symt;
         }
     }
     return sym;
@@ -688,7 +680,7 @@ struct symt_custom* symt_new_custom(struct module* module, const char* name,
     struct symt_custom*        sym;
 
     TRACE_(dbghelp_symt)("Adding custom symbol %s:%s\n",
-                         debugstr_w(module->modulename), debugstr_a(name));
+                         debugstr_w(module->modulename), name);
 
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {
@@ -702,7 +694,7 @@ struct symt_custom* symt_new_custom(struct module* module, const char* name,
 }
 
 /* expect sym_info->MaxNameLen to be set before being called */
-static BOOL symt_fill_sym_info(struct module_pair* pair,
+static void symt_fill_sym_info(struct module_pair* pair,
                                const struct symt_function* func,
                                const struct symt* sym, SYMBOL_INFO* sym_info)
 {
@@ -712,18 +704,17 @@ static BOOL symt_fill_sym_info(struct module_pair* pair,
 
     if (!symt_get_info(pair->effective, sym, TI_GET_TYPE, &sym_info->TypeIndex))
         sym_info->TypeIndex = 0;
-    sym_info->Index = symt_ptr_to_index(pair->effective, sym);
+    sym_info->Index = symt_ptr2index(pair->effective, sym);
     sym_info->Reserved[0] = sym_info->Reserved[1] = 0;
     if (!symt_get_info(pair->effective, sym, TI_GET_LENGTH, &size) &&
         (!sym_info->TypeIndex ||
-         !symt_get_info_from_index(pair->effective, sym_info->TypeIndex, TI_GET_LENGTH, &size)))
+         !symt_get_info(pair->effective, symt_index2ptr(pair->effective, sym_info->TypeIndex),
+                         TI_GET_LENGTH, &size)))
         size = 0;
     sym_info->Size = (DWORD)size;
     sym_info->ModBase = pair->requested->module.BaseOfImage;
     sym_info->Flags = 0;
     sym_info->Value = 0;
-    sym_info->Address = 0;
-    sym_info->Register = 0;
 
     switch (sym->tag)
     {
@@ -742,28 +733,28 @@ static BOOL symt_fill_sym_info(struct module_pair* pair,
 
                     if (loc.kind >= loc_user)
                     {
-                        struct module_format_vtable_iterator iter = {};
+                        unsigned                i;
+                        struct module_format*   modfmt;
 
-                        while ((module_format_vtable_iterator_next(pair->effective, &iter,
-                                                                   MODULE_FORMAT_VTABLE_INDEX(loc_compute))))
+                        for (i = 0; i < DFI_LAST; i++)
                         {
-                            iter.modfmt->vtable->loc_compute(iter.modfmt, func, &loc);
-                            break;
+                            modfmt = pair->effective->format_info[i];
+                            if (modfmt && modfmt->loc_compute)
+                            {
+                                modfmt->loc_compute(pair->pcs, modfmt, func, &loc);
+                                break;
+                            }
                         }
                     }
                     switch (loc.kind)
                     {
                     case loc_error:
-                        if (loc.reg == loc_err_out_of_scope)
-                        {
-                            sym_info->Flags |= SYMFLAG_NULL;
-                            break;
-                        }
                         /* for now we report error cases as a negative register number */
                         /* fall through */
                     case loc_register:
                         sym_info->Flags |= SYMFLAG_REGISTER;
                         sym_info->Register = loc.reg;
+                        sym_info->Address = 0;
                         break;
                     case loc_regrel:
                         sym_info->Flags |= SYMFLAG_REGREL;
@@ -792,6 +783,7 @@ static BOOL symt_fill_sym_info(struct module_pair* pair,
                     /* fall through */
                 case loc_absolute:
                     symt_get_address(sym, &sym_info->Address);
+                    sym_info->Register = 0;
                     break;
                 default:
                     FIXME("Shouldn't happen (kind=%d), debug reader backend is broken\n", data->u.var.kind);
@@ -800,8 +792,8 @@ static BOOL symt_fill_sym_info(struct module_pair* pair,
                 break;
             case DataIsConstant:
                 sym_info->Flags |= SYMFLAG_VALUEPRESENT;
-                if (symt_check_tag(SYMT_SYMREF_TO_PTR(data->container), SymTagFunction) ||
-                    symt_check_tag(SYMT_SYMREF_TO_PTR(data->container), SymTagBlock))
+                if (data->container &&
+                    (data->container->tag == SymTagFunction || data->container->tag == SymTagBlock))
                     sym_info->Flags |= SYMFLAG_LOCAL;
                 switch (V_VT(&data->u.value))
                 {
@@ -851,6 +843,7 @@ static BOOL symt_fill_sym_info(struct module_pair* pair,
         break;
     default:
         symt_get_address(sym, &sym_info->Address);
+        sym_info->Register = 0;
         break;
     }
     sym_info->Scope = 0; /* FIXME */
@@ -867,8 +860,7 @@ static BOOL symt_fill_sym_info(struct module_pair* pair,
         symbol_setname(sym_info, name);
 
     TRACE_(dbghelp_symt)("%p => %s %lu %I64x\n",
-                         sym, debugstr_a(sym_info->Name), sym_info->Size, sym_info->Address);
-    return TRUE;
+                         sym, sym_info->Name, sym_info->Size, sym_info->Address);
 }
 
 struct sym_enum
@@ -885,7 +877,7 @@ struct sym_enum
 static BOOL send_symbol(const struct sym_enum* se, struct module_pair* pair,
                         const struct symt_function* func, const struct symt* sym)
 {
-    if (!symt_fill_sym_info(pair, func, sym, se->sym_info)) return FALSE;
+    symt_fill_sym_info(pair, func, sym, se->sym_info);
     if (se->index && se->sym_info->Index != se->index) return FALSE;
     if (se->tag && se->sym_info->Tag != se->tag) return FALSE;
     if (se->addr && !(se->addr >= se->sym_info->Address && se->addr < se->sym_info->Address + se->sym_info->Size)) return FALSE;
@@ -1002,7 +994,7 @@ static void symt_get_length(struct module* module, const struct symt* symt, ULON
         return;
 
     if (symt_get_info(module, symt, TI_GET_TYPE, &type_index) &&
-        symt_get_info_from_index(module, type_index, TI_GET_LENGTH, size)) return;
+        symt_get_info(module, symt_index2ptr(module, type_index), TI_GET_LENGTH, size)) return;
     *size = 1; /* no size info */
 }
 
@@ -1098,7 +1090,7 @@ static BOOL symt_enum_locals_helper(struct module_pair* pair,
                                     const WCHAR* match, const struct sym_enum* se,
                                     struct symt_function* func, const struct vector* v)
 {
-    const struct symt*  lsym;
+    struct symt*        lsym = NULL;
     DWORD_PTR           pc = pair->pcs->localscope_pc;
     unsigned int        i;
     WCHAR*              nameW;
@@ -1106,8 +1098,7 @@ static BOOL symt_enum_locals_helper(struct module_pair* pair,
 
     for (i=0; i<vector_length(v); i++)
     {
-        lsym = SYMT_SYMREF_TO_PTR(*(symref_t*)vector_at(v, i));
-
+        lsym = *(struct symt**)vector_at(v, i);
         switch (lsym->tag)
         {
         case SymTagBlock:
@@ -1246,9 +1237,9 @@ struct symt* symt_get_upper_inlined(struct symt_function* inlined)
     {
         assert(symt);
         if (symt->tag == SymTagBlock)
-            symt = SYMT_SYMREF_TO_PTR(((struct symt_block*)symt)->container);
+            symt = ((struct symt_block*)symt)->container;
         else
-            symt = SYMT_SYMREF_TO_PTR(((struct symt_function*)symt)->container);
+            symt = ((struct symt_function*)symt)->container;
     } while (symt->tag == SymTagBlock);
     assert(symt->tag == SymTagFunction || symt->tag == SymTagInlineSite);
     return symt;
@@ -1617,7 +1608,7 @@ BOOL WINAPI SymFromName(HANDLE hProcess, PCSTR Name, PSYMBOL_INFO Symbol)
     struct module*              module;
     const char*                 name;
 
-    TRACE("(%p, %s, %p)\n", hProcess, debugstr_a(Name), Symbol);
+    TRACE("(%p, %s, %p)\n", hProcess, Name, Symbol);
     if (!pcs) return FALSE;
     if (Symbol->SizeOfStruct < sizeof(*Symbol)) return FALSE;
     name = strchr(Name, '!');
@@ -1644,8 +1635,7 @@ BOOL WINAPI SymFromName(HANDLE hProcess, PCSTR Name, PSYMBOL_INFO Symbol)
 
         for (i = 0; i < vector_length(v); i++)
         {
-            struct symt* lsym = SYMT_SYMREF_TO_PTR(*(symref_t*)vector_at(v, i));
-
+            struct symt* lsym = *(struct symt**)vector_at(v, i);
             switch (lsym->tag)
             {
             case SymTagBlock: /* no recursion */
@@ -1768,85 +1758,108 @@ BOOL WINAPI SymGetSymFromName(HANDLE hProcess, PCSTR Name, PIMAGEHLP_SYMBOL Symb
     return TRUE;
 }
 
-static void init_lineinfo(struct lineinfo_t* line_info, BOOL unicode)
+struct internal_line_t
 {
-    line_info->unicode = unicode;
-    line_info->key = NULL;
-    line_info->line_number = 0;
-    line_info->file_nameA = NULL;
-    line_info->address = 0;
+    BOOL                        unicode;
+    PVOID                       key;
+    DWORD                       line_number;
+    union
+    {
+        CHAR*                   file_nameA;
+        WCHAR*                  file_nameW;
+    };
+    DWORD64                     address;
+};
+
+static void init_internal_line(struct internal_line_t* intl, BOOL unicode)
+{
+    intl->unicode = unicode;
+    intl->key = NULL;
+    intl->line_number = 0;
+    intl->file_nameA = NULL;
+    intl->address = 0;
 }
 
-static BOOL lineinfo_copy_toA32(const struct lineinfo_t* line_info, IMAGEHLP_LINE* l32)
+static BOOL internal_line_copy_toA32(const struct internal_line_t* intl, IMAGEHLP_LINE* l32)
 {
-    if (line_info->unicode) return FALSE;
-    l32->Key = line_info->key;
-    l32->LineNumber = line_info->line_number;
-    l32->FileName = line_info->file_nameA;
-    l32->Address = line_info->address;
+    if (intl->unicode) return FALSE;
+    l32->Key = intl->key;
+    l32->LineNumber = intl->line_number;
+    l32->FileName = intl->file_nameA;
+    l32->Address = intl->address;
     return TRUE;
 }
 
-static BOOL lineinfo_copy_toA64(const struct lineinfo_t* line_info, IMAGEHLP_LINE64* l64)
+static BOOL internal_line_copy_toA64(const struct internal_line_t* intl, IMAGEHLP_LINE64* l64)
 {
-    if (line_info->unicode) return FALSE;
-    l64->Key = line_info->key;
-    l64->LineNumber = line_info->line_number;
-    l64->FileName = line_info->file_nameA;
-    l64->Address = line_info->address;
+    if (intl->unicode) return FALSE;
+    l64->Key = intl->key;
+    l64->LineNumber = intl->line_number;
+    l64->FileName = intl->file_nameA;
+    l64->Address = intl->address;
     return TRUE;
 }
 
-static BOOL lineinfo_copy_toW64(const struct lineinfo_t* line_info, IMAGEHLP_LINEW64* l64)
+static BOOL internal_line_copy_toW64(const struct internal_line_t* intl, IMAGEHLP_LINEW64* l64)
 {
-    if (!line_info->unicode) return FALSE;
-    l64->Key = line_info->key;
-    l64->LineNumber = line_info->line_number;
-    l64->FileName = line_info->file_nameW;
-    l64->Address = line_info->address;
+    if (!intl->unicode) return FALSE;
+    l64->Key = intl->key;
+    l64->LineNumber = intl->line_number;
+    l64->FileName = intl->file_nameW;
+    l64->Address = intl->address;
     return TRUE;
 }
 
-BOOL lineinfo_set_nameA(struct process* pcs, struct lineinfo_t* line_info, char* str)
+static BOOL internal_line_set_nameA(struct process* pcs, struct internal_line_t* intl, char* str, BOOL copy)
 {
     DWORD len;
 
-    if (line_info->unicode)
+    if (intl->unicode)
     {
         len = MultiByteToWideChar(CP_ACP, 0, str, -1, NULL, 0);
-        if (!(line_info->file_nameW = fetch_buffer(pcs, len * sizeof(WCHAR)))) return FALSE;
-        MultiByteToWideChar(CP_ACP, 0, str, -1, line_info->file_nameW, len);
+        if (!(intl->file_nameW = fetch_buffer(pcs, len * sizeof(WCHAR)))) return FALSE;
+        MultiByteToWideChar(CP_ACP, 0, str, -1, intl->file_nameW, len);
     }
     else
     {
-        len = strlen(str) + 1;
-        if (!(line_info->file_nameA = fetch_buffer(pcs, len))) return FALSE;
-        memcpy(line_info->file_nameA, str, len);
+        if (copy)
+        {
+            len = strlen(str) + 1;
+            if (!(intl->file_nameA = fetch_buffer(pcs, len))) return FALSE;
+            memcpy(intl->file_nameA, str, len);
+        }
+        else
+            intl->file_nameA = str;
     }
     return TRUE;
 }
 
-static BOOL lineinfo_set_nameW(struct process* pcs, struct lineinfo_t* line_info, WCHAR* wstr)
+static BOOL internal_line_set_nameW(struct process* pcs, struct internal_line_t* intl, WCHAR* wstr, BOOL copy)
 {
     DWORD len;
 
-    if (line_info->unicode)
+    if (intl->unicode)
     {
-        len = (lstrlenW(wstr) + 1) * sizeof(WCHAR);
-        if (!(line_info->file_nameW = fetch_buffer(pcs, len))) return FALSE;
-        memcpy(line_info->file_nameW, wstr, len);
+        if (copy)
+        {
+            len = (lstrlenW(wstr) + 1) * sizeof(WCHAR);
+            if (!(intl->file_nameW = fetch_buffer(pcs, len))) return FALSE;
+            memcpy(intl->file_nameW, wstr, len);
+        }
+        else
+            intl->file_nameW = wstr;
     }
     else
     {
         DWORD len = WideCharToMultiByte(CP_ACP, 0, wstr, -1, NULL, 0, NULL, NULL);
-        if (!(line_info->file_nameA = fetch_buffer(pcs, len))) return FALSE;
-        WideCharToMultiByte(CP_ACP, 0, wstr, -1, line_info->file_nameA, len, NULL, NULL);
+        if (!(intl->file_nameA = fetch_buffer(pcs, len))) return FALSE;
+        WideCharToMultiByte(CP_ACP, 0, wstr, -1, intl->file_nameA, len, NULL, NULL);
     }
     return TRUE;
 }
 
 static BOOL get_line_from_function(struct module_pair* pair, struct symt_function* func, DWORD64 addr,
-                                   PDWORD pdwDisplacement, struct lineinfo_t* line_info)
+                                   PDWORD pdwDisplacement, struct internal_line_t* intl)
 {
     struct line_info*           dli = NULL;
     struct line_info*           found_dli = NULL;
@@ -1858,9 +1871,9 @@ static BOOL get_line_from_function(struct module_pair* pair, struct symt_functio
         if (!dli->is_source_file)
         {
             if (found_dli || dli->u.address > addr) continue;
-            line_info->line_number = dli->line_number;
-            line_info->address     = dli->u.address;
-            line_info->key         = dli;
+            intl->line_number = dli->line_number;
+            intl->address     = dli->u.address;
+            intl->key         = dli;
             found_dli = dli;
             continue;
         }
@@ -1870,12 +1883,12 @@ static BOOL get_line_from_function(struct module_pair* pair, struct symt_functio
             if (dbghelp_opt_source_actual_path)
             {
                 /* Return native file paths when using winedbg */
-                ret = lineinfo_set_nameA(pair->pcs, line_info, (char*)source_get(pair->effective, dli->u.source_file));
+                ret = internal_line_set_nameA(pair->pcs, intl, (char*)source_get(pair->effective, dli->u.source_file), FALSE);
             }
             else
             {
                 WCHAR *dospath = wine_get_dos_file_name(source_get(pair->effective, dli->u.source_file));
-                ret = lineinfo_set_nameW(pair->pcs, line_info, dospath);
+                ret = internal_line_set_nameW(pair->pcs, intl, dospath, TRUE);
                 HeapFree( GetProcessHeap(), 0, dospath );
             }
             if (ret && pdwDisplacement) *pdwDisplacement = addr - found_dli->u.address;
@@ -1891,29 +1904,16 @@ static BOOL get_line_from_function(struct module_pair* pair, struct symt_functio
  * fills source file information from an address
  */
 static BOOL get_line_from_addr(HANDLE hProcess, DWORD64 addr,
-                               PDWORD pdwDisplacement, struct lineinfo_t* line_info)
+                               PDWORD pdwDisplacement, struct internal_line_t* intl)
 {
-    struct module_pair                   pair;
-    struct symt_ht*                      symt;
-    struct module_format_vtable_iterator iter = {};
-    BOOL                                 ret = FALSE;
+    struct module_pair          pair;
+    struct symt_ht*             symt;
+
     if (!module_init_pair(&pair, hProcess, addr)) return FALSE;
+    if ((symt = symt_find_symbol_at(pair.effective, addr)) == NULL) return FALSE;
 
-    while ((module_format_vtable_iterator_next(pair.effective, &iter,
-                                               MODULE_FORMAT_VTABLE_INDEX(get_line_from_address))))
-    {
-        if (iter.modfmt->vtable->get_line_from_address(iter.modfmt, addr, line_info) == MR_SUCCESS)
-        {
-            if (pdwDisplacement) *pdwDisplacement = addr - line_info->address;
-            return TRUE;
-        }
-    }
-
-    symt = symt_find_symbol_at(pair.effective, addr);
-    if (symt_check_tag(&symt->symt, SymTagFunction))
-        ret = get_line_from_function(&pair, (struct symt_function*)symt, addr, pdwDisplacement, line_info);
-
-    return ret;
+    if (symt->symt.tag != SymTagFunction && symt->symt.tag != SymTagInlineSite) return FALSE;
+    return get_line_from_function(&pair, (struct symt_function*)symt, addr, pdwDisplacement, intl);
 }
 
 /***********************************************************************
@@ -1969,14 +1969,14 @@ BOOL WINAPI SymGetSymPrev(HANDLE hProcess, PIMAGEHLP_SYMBOL Symbol)
 BOOL WINAPI SymGetLineFromAddr(HANDLE hProcess, DWORD dwAddr,
                                PDWORD pdwDisplacement, PIMAGEHLP_LINE Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, FALSE);
-    if (!get_line_from_addr(hProcess, dwAddr, pdwDisplacement, &line_info)) return FALSE;
-    return lineinfo_copy_toA32(&line_info, Line);
+    init_internal_line(&intl, FALSE);
+    if (!get_line_from_addr(hProcess, dwAddr, pdwDisplacement, &intl)) return FALSE;
+    return internal_line_copy_toA32(&intl, Line);
 }
 
 /******************************************************************
@@ -1986,14 +1986,14 @@ BOOL WINAPI SymGetLineFromAddr(HANDLE hProcess, DWORD dwAddr,
 BOOL WINAPI SymGetLineFromAddr64(HANDLE hProcess, DWORD64 dwAddr, 
                                  PDWORD pdwDisplacement, PIMAGEHLP_LINE64 Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, FALSE);
-    if (!get_line_from_addr(hProcess, dwAddr, pdwDisplacement, &line_info)) return FALSE;
-    return lineinfo_copy_toA64(&line_info, Line);
+    init_internal_line(&intl, FALSE);
+    if (!get_line_from_addr(hProcess, dwAddr, pdwDisplacement, &intl)) return FALSE;
+    return internal_line_copy_toA64(&intl, Line);
 }
 
 /******************************************************************
@@ -2003,40 +2003,24 @@ BOOL WINAPI SymGetLineFromAddr64(HANDLE hProcess, DWORD64 dwAddr,
 BOOL WINAPI SymGetLineFromAddrW64(HANDLE hProcess, DWORD64 dwAddr, 
                                   PDWORD pdwDisplacement, PIMAGEHLP_LINEW64 Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, TRUE);
-    if (!get_line_from_addr(hProcess, dwAddr, pdwDisplacement, &line_info)) return FALSE;
-    return lineinfo_copy_toW64(&line_info, Line);
+    init_internal_line(&intl, TRUE);
+    if (!get_line_from_addr(hProcess, dwAddr, pdwDisplacement, &intl)) return FALSE;
+    return internal_line_copy_toW64(&intl, Line);
 }
 
-static BOOL symt_get_func_line_prev(HANDLE hProcess, struct lineinfo_t* line_info, void* key, DWORD64 addr)
+static BOOL symt_get_func_line_prev(HANDLE hProcess, struct internal_line_t* intl, void* key, DWORD64 addr)
 {
     struct module_pair  pair;
     struct line_info*   li;
     struct line_info*   srcli;
-    struct module_format_vtable_iterator iter = {};
 
     if (!module_init_pair(&pair, hProcess, addr)) return FALSE;
 
-    line_info->address = addr;
-    line_info->key = key;
-    while ((module_format_vtable_iterator_next(pair.effective, &iter,
-                                               MODULE_FORMAT_VTABLE_INDEX(advance_line_info))))
-    {
-        switch (iter.modfmt->vtable->advance_line_info(iter.modfmt, line_info, FALSE))
-        {
-        case MR_SUCCESS:
-            return TRUE;
-        case MR_NOT_FOUND: /* continue */
-            break;
-        default:
-            return FALSE;
-        }
-    }
     if (key == NULL) return FALSE;
 
     li = key;
@@ -2046,13 +2030,13 @@ static BOOL symt_get_func_line_prev(HANDLE hProcess, struct lineinfo_t* line_inf
         li--;
         if (!li->is_source_file)
         {
-            line_info->line_number = li->line_number;
-            line_info->address     = li->u.address;
-            line_info->key         = li;
+            intl->line_number = li->line_number;
+            intl->address     = li->u.address;
+            intl->key         = li;
             /* search source file */
             for (srcli = li; !srcli->is_source_file; srcli--);
 
-            return lineinfo_set_nameA(pair.pcs, line_info, (char*)source_get(pair.effective, srcli->u.source_file));
+            return internal_line_set_nameA(pair.pcs, intl, (char*)source_get(pair.effective, srcli->u.source_file), FALSE);
         }
     }
     SetLastError(ERROR_NO_MORE_ITEMS); /* FIXME */
@@ -2065,14 +2049,14 @@ static BOOL symt_get_func_line_prev(HANDLE hProcess, struct lineinfo_t* line_inf
  */
 BOOL WINAPI SymGetLinePrev64(HANDLE hProcess, PIMAGEHLP_LINE64 Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, FALSE);
-    if (!symt_get_func_line_prev(hProcess, &line_info, Line->Key, Line->Address)) return FALSE;
-    return lineinfo_copy_toA64(&line_info, Line);
+    init_internal_line(&intl, FALSE);
+    if (!symt_get_func_line_prev(hProcess, &intl, Line->Key, Line->Address)) return FALSE;
+    return internal_line_copy_toA64(&intl, Line);
 }
 
 /******************************************************************
@@ -2081,14 +2065,14 @@ BOOL WINAPI SymGetLinePrev64(HANDLE hProcess, PIMAGEHLP_LINE64 Line)
  */
 BOOL WINAPI SymGetLinePrev(HANDLE hProcess, PIMAGEHLP_LINE Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, FALSE);
-    if (!symt_get_func_line_prev(hProcess, &line_info, Line->Key, Line->Address)) return FALSE;
-    return lineinfo_copy_toA32(&line_info, Line);
+    init_internal_line(&intl, FALSE);
+    if (!symt_get_func_line_prev(hProcess, &intl, Line->Key, Line->Address)) return FALSE;
+    return internal_line_copy_toA32(&intl, Line);
 }
 
 /******************************************************************
@@ -2097,38 +2081,25 @@ BOOL WINAPI SymGetLinePrev(HANDLE hProcess, PIMAGEHLP_LINE Line)
  */
 BOOL WINAPI SymGetLinePrevW64(HANDLE hProcess, PIMAGEHLP_LINEW64 Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, TRUE);
-    if (!symt_get_func_line_prev(hProcess, &line_info, Line->Key, Line->Address)) return FALSE;
-    return lineinfo_copy_toW64(&line_info, Line);
+    init_internal_line(&intl, TRUE);
+    if (!symt_get_func_line_prev(hProcess, &intl, Line->Key, Line->Address)) return FALSE;
+    return internal_line_copy_toW64(&intl, Line);
 }
 
-static BOOL symt_get_func_line_next(HANDLE hProcess, struct lineinfo_t* line_info, void* key, DWORD64 addr)
+static BOOL symt_get_func_line_next(HANDLE hProcess, struct internal_line_t* intl, void* key, DWORD64 addr)
 {
     struct module_pair  pair;
     struct line_info*   li;
     struct line_info*   srcli;
-    struct module_format_vtable_iterator iter = {};
-
-    if (!module_init_pair(&pair, hProcess, addr)) return FALSE;
-
-    line_info->address = addr;
-    line_info->key = key;
-    while ((module_format_vtable_iterator_next(pair.effective, &iter,
-                                               MODULE_FORMAT_VTABLE_INDEX(advance_line_info))))
-    {
-        switch (iter.modfmt->vtable->advance_line_info(iter.modfmt, line_info, TRUE))
-        {
-        case MR_SUCCESS: return TRUE;
-        default: break;
-        }
-    }
 
     if (key == NULL) return FALSE;
+    if (!module_init_pair(&pair, hProcess, addr)) return FALSE;
+
     /* search current source file */
     for (srcli = key; !srcli->is_source_file; srcli--);
 
@@ -2138,10 +2109,10 @@ static BOOL symt_get_func_line_next(HANDLE hProcess, struct lineinfo_t* line_inf
         li++;
         if (!li->is_source_file)
         {
-            line_info->line_number = li->line_number;
-            line_info->address     = li->u.address;
-            line_info->key         = li;
-            return lineinfo_set_nameA(pair.pcs, line_info, (char*)source_get(pair.effective, srcli->u.source_file));
+            intl->line_number = li->line_number;
+            intl->address     = li->u.address;
+            intl->key         = li;
+            return internal_line_set_nameA(pair.pcs, intl, (char*)source_get(pair.effective, srcli->u.source_file), FALSE);
         }
         srcli = li;
     }
@@ -2155,14 +2126,14 @@ static BOOL symt_get_func_line_next(HANDLE hProcess, struct lineinfo_t* line_inf
  */
 BOOL WINAPI SymGetLineNext64(HANDLE hProcess, PIMAGEHLP_LINE64 Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, FALSE);
-    if (!symt_get_func_line_next(hProcess, &line_info, Line->Key, Line->Address)) return FALSE;
-    return lineinfo_copy_toA64(&line_info, Line);
+    init_internal_line(&intl, FALSE);
+    if (!symt_get_func_line_next(hProcess, &intl, Line->Key, Line->Address)) return FALSE;
+    return internal_line_copy_toA64(&intl, Line);
 }
 
 /******************************************************************
@@ -2171,14 +2142,14 @@ BOOL WINAPI SymGetLineNext64(HANDLE hProcess, PIMAGEHLP_LINE64 Line)
  */
 BOOL WINAPI SymGetLineNext(HANDLE hProcess, PIMAGEHLP_LINE Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, FALSE);
-    if (!symt_get_func_line_next(hProcess, &line_info, Line->Key, Line->Address)) return FALSE;
-    return lineinfo_copy_toA32(&line_info, Line);
+    init_internal_line(&intl, FALSE);
+    if (!symt_get_func_line_next(hProcess, &intl, Line->Key, Line->Address)) return FALSE;
+    return internal_line_copy_toA32(&intl, Line);
 }
 
 /******************************************************************
@@ -2187,14 +2158,14 @@ BOOL WINAPI SymGetLineNext(HANDLE hProcess, PIMAGEHLP_LINE Line)
  */
 BOOL WINAPI SymGetLineNextW64(HANDLE hProcess, PIMAGEHLP_LINEW64 Line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p %p)\n", hProcess, Line);
 
     if (Line->SizeOfStruct < sizeof(*Line)) return FALSE;
-    init_lineinfo(&line_info, TRUE);
-    if (!symt_get_func_line_next(hProcess, &line_info, Line->Key, Line->Address)) return FALSE;
-    return lineinfo_copy_toW64(&line_info, Line);
+    init_internal_line(&intl, TRUE);
+    if (!symt_get_func_line_next(hProcess, &intl, Line->Key, Line->Address)) return FALSE;
+    return internal_line_copy_toW64(&intl, Line);
 }
 
 /***********************************************************************
@@ -2388,28 +2359,13 @@ found:
     return TRUE;
 }
 
-BOOL symt_match_stringAW(const char *string, const WCHAR *re, BOOL _case)
-{
-    WCHAR*      strW;
-    BOOL        ret = FALSE;
-    DWORD       sz;
-
-    sz = MultiByteToWideChar(CP_ACP, 0, string, -1, NULL, 0);
-    if ((strW = HeapAlloc(GetProcessHeap(), 0, sz * sizeof(WCHAR))))
-    {
-        MultiByteToWideChar(CP_ACP, 0, string, -1, strW, sz);
-        ret = SymMatchStringW(strW, re, _case);
-        HeapFree(GetProcessHeap(), 0, strW);
-    }
-    return ret;
-}
-
 /******************************************************************
  *		SymMatchStringA (DBGHELP.@)
  *
  */
 BOOL WINAPI SymMatchStringA(PCSTR string, PCSTR re, BOOL _case)
 {
+    WCHAR*      strW;
     WCHAR*      reW;
     BOOL        ret = FALSE;
     DWORD       sz;
@@ -2419,15 +2375,19 @@ BOOL WINAPI SymMatchStringA(PCSTR string, PCSTR re, BOOL _case)
         SetLastError(ERROR_INVALID_HANDLE);
         return FALSE;
     }
-    TRACE("%s %s %c\n", debugstr_a(string), debugstr_a(re), _case ? 'Y' : 'N');
+    TRACE("%s %s %c\n", string, re, _case ? 'Y' : 'N');
 
+    sz = MultiByteToWideChar(CP_ACP, 0, string, -1, NULL, 0);
+    if ((strW = HeapAlloc(GetProcessHeap(), 0, sz * sizeof(WCHAR))))
+        MultiByteToWideChar(CP_ACP, 0, string, -1, strW, sz);
     sz = MultiByteToWideChar(CP_ACP, 0, re, -1, NULL, 0);
     if ((reW = HeapAlloc(GetProcessHeap(), 0, sz * sizeof(WCHAR))))
-    {
         MultiByteToWideChar(CP_ACP, 0, re, -1, reW, sz);
-        ret = symt_match_stringAW(string, reW, _case);
-        HeapFree(GetProcessHeap(), 0, reW);
-    }
+
+    if (strW && reW)
+        ret = SymMatchStringW(strW, reW, _case);
+    HeapFree(GetProcessHeap(), 0, strW);
+    HeapFree(GetProcessHeap(), 0, reW);
     return ret;
 }
 
@@ -2483,7 +2443,7 @@ BOOL WINAPI SymSearch(HANDLE hProcess, ULONG64 BaseOfDll, DWORD Index,
     BOOLEAN     ret;
 
     TRACE("(%p %I64x %lu %lu %s %I64x %p %p %lx)\n",
-          hProcess, BaseOfDll, Index, SymTag, debugstr_a(Mask),
+          hProcess, BaseOfDll, Index, SymTag, Mask,
           Address, EnumSymbolsCallback, UserContext, Options);
 
     if (Mask)
@@ -2531,7 +2491,7 @@ BOOL WINAPI SymAddSymbol(HANDLE hProcess, ULONG64 BaseOfDll, PCSTR name,
 {
     struct module_pair  pair;
 
-    TRACE("(%p %s %I64x %lu)\n", hProcess, debugstr_a(name), addr, size);
+    TRACE("(%p %s %I64x %lu)\n", hProcess, wine_dbgstr_a(name), addr, size);
 
     if (!module_init_pair(&pair, hProcess, BaseOfDll)) return FALSE;
 
@@ -2547,7 +2507,7 @@ BOOL WINAPI SymAddSymbolW(HANDLE hProcess, ULONG64 BaseOfDll, PCWSTR nameW,
 {
     char       name[MAX_SYM_NAME];
 
-    TRACE("(%p %s %I64x %lu)\n", hProcess, debugstr_w(nameW), addr, size);
+    TRACE("(%p %s %I64x %lu)\n", hProcess, wine_dbgstr_w(nameW), addr, size);
 
     WideCharToMultiByte(CP_ACP, 0, nameW, -1, name, ARRAY_SIZE(name), NULL, NULL);
 
@@ -2564,32 +2524,18 @@ BOOL WINAPI SymEnumLines(HANDLE hProcess, ULONG64 base, PCSTR compiland,
     struct module_pair          pair;
     struct hash_table_iter      hti;
     struct symt_ht*             sym;
-    WCHAR*                      compiland_regex;
-    WCHAR*                      srcfile_regex;
+    WCHAR*                      srcmask;
     struct line_info*           dli;
     void*                       ptr;
     SRCCODEINFO                 sci;
     const char*                 file;
-    struct module_format_vtable_iterator iter = {};
 
     if (!cb) return FALSE;
     if (!(dbghelp_options & SYMOPT_LOAD_LINES)) return TRUE;
 
     if (!module_init_pair(&pair, hProcess, base)) return FALSE;
-    if (!(compiland_regex = file_regex(compiland))) return FALSE;
-    if (!(srcfile_regex = file_regex(srcfile))) return FALSE;
-
-    while ((module_format_vtable_iterator_next(pair.effective, &iter,
-                                               MODULE_FORMAT_VTABLE_INDEX(enumerate_lines))))
-    {
-        enum method_result result = iter.modfmt->vtable->enumerate_lines(iter.modfmt, compiland_regex, srcfile_regex, cb, user);
-        HeapFree(GetProcessHeap(), 0, compiland_regex);
-        HeapFree(GetProcessHeap(), 0, srcfile_regex);
-        return result == MR_SUCCESS;
-    }
-
-    if (compiland) FIXME("Unsupported yet (filtering on compiland %s)\n", debugstr_a(compiland));
-    HeapFree(GetProcessHeap(), 0, compiland_regex);
+    if (compiland) FIXME("Unsupported yet (filtering on compiland %s)\n", compiland);
+    if (!(srcmask = file_regex(srcfile))) return FALSE;
 
     sci.SizeOfStruct = sizeof(sci);
     sci.ModBase      = base;
@@ -2609,10 +2555,20 @@ BOOL WINAPI SymEnumLines(HANDLE hProcess, ULONG64 base, PCSTR compiland,
             if (dli->is_source_file)
             {
                 file = source_get(pair.effective, dli->u.source_file);
-                if (file && symt_match_stringAW(file, srcfile_regex, FALSE))
-                    strcpy(sci.FileName, file);
+                if (!file) sci.FileName[0] = '\0';
                 else
-                    sci.FileName[0] = '\0';
+                {
+                    DWORD   sz = MultiByteToWideChar(CP_ACP, 0, file, -1, NULL, 0);
+                    WCHAR*  fileW;
+
+                    if ((fileW = HeapAlloc(GetProcessHeap(), 0, sz * sizeof(WCHAR))))
+                        MultiByteToWideChar(CP_ACP, 0, file, -1, fileW, sz);
+                    if (SymMatchStringW(fileW, srcmask, FALSE))
+                        strcpy(sci.FileName, file);
+                    else
+                        sci.FileName[0] = '\0';
+                    HeapFree(GetProcessHeap(), 0, fileW);
+                }
             }
             else if (sci.FileName[0])
             {
@@ -2624,14 +2580,14 @@ BOOL WINAPI SymEnumLines(HANDLE hProcess, ULONG64 base, PCSTR compiland,
             }
         }
     }
-    HeapFree(GetProcessHeap(), 0, srcfile_regex);
+    HeapFree(GetProcessHeap(), 0, srcmask);
     return TRUE;
 }
 
 BOOL WINAPI SymGetLineFromName(HANDLE hProcess, PCSTR ModuleName, PCSTR FileName,
                 DWORD dwLineNumber, PLONG plDisplacement, PIMAGEHLP_LINE Line)
 {
-    FIXME("(%p) (%s, %s, %ld %p %p): stub\n", hProcess, debugstr_a(ModuleName), debugstr_a(FileName),
+    FIXME("(%p) (%s, %s, %ld %p %p): stub\n", hProcess, ModuleName, FileName,
                 dwLineNumber, plDisplacement, Line);
     return FALSE;
 }
@@ -2639,7 +2595,7 @@ BOOL WINAPI SymGetLineFromName(HANDLE hProcess, PCSTR ModuleName, PCSTR FileName
 BOOL WINAPI SymGetLineFromName64(HANDLE hProcess, PCSTR ModuleName, PCSTR FileName,
                 DWORD dwLineNumber, PLONG lpDisplacement, PIMAGEHLP_LINE64 Line)
 {
-    FIXME("(%p) (%s, %s, %ld %p %p): stub\n", hProcess, debugstr_a(ModuleName), debugstr_a(FileName),
+    FIXME("(%p) (%s, %s, %ld %p %p): stub\n", hProcess, ModuleName, FileName,
                 dwLineNumber, lpDisplacement, Line);
     return FALSE;
 }
@@ -2658,17 +2614,10 @@ BOOL WINAPI SymGetLineFromNameW64(HANDLE hProcess, PCWSTR ModuleName, PCWSTR Fil
  */
 BOOL WINAPI SymFromIndex(HANDLE hProcess, ULONG64 BaseOfDll, DWORD index, PSYMBOL_INFO symbol)
 {
-    struct module_pair  pair;
-    symref_t            symref;
-
-    TRACE("hProcess = %p, BaseOfDll = %I64x, index = %ld, symbol = %p\n",
+    FIXME("hProcess = %p, BaseOfDll = %I64x, index = %ld, symbol = %p\n",
           hProcess, BaseOfDll, index, symbol);
 
-    if (!module_init_pair(&pair, hProcess, BaseOfDll)) return FALSE;
-    if ((symref = symt_index_to_symref(pair.effective, index)) == 0) return FALSE;
-    if (!symt_is_symref_ptr(symref)) return FALSE;
-    symt_fill_sym_info(&pair, NULL, (struct symt*)symref, symbol);
-    return TRUE;
+    return FALSE;
 }
 
 /******************************************************************
@@ -2677,21 +2626,10 @@ BOOL WINAPI SymFromIndex(HANDLE hProcess, ULONG64 BaseOfDll, DWORD index, PSYMBO
  */
 BOOL WINAPI SymFromIndexW(HANDLE hProcess, ULONG64 BaseOfDll, DWORD index, PSYMBOL_INFOW symbol)
 {
-    PSYMBOL_INFO        si;
-    BOOL                ret;
-
-    TRACE("hProcess = %p, BaseOfDll = %I64x, index = %ld, symbol = %p\n",
+    FIXME("hProcess = %p, BaseOfDll = %I64x, index = %ld, symbol = %p\n",
           hProcess, BaseOfDll, index, symbol);
 
-    si = HeapAlloc(GetProcessHeap(), 0, sizeof(*si) + symbol->MaxNameLen * sizeof(WCHAR));
-    if (!si) return FALSE;
-
-    si->SizeOfStruct = sizeof(*si);
-    si->MaxNameLen = symbol->MaxNameLen;
-    if ((ret = SymFromIndex(hProcess, BaseOfDll, index, si)))
-        copy_symbolW(symbol, si);
-    HeapFree(GetProcessHeap(), 0, si);
-    return ret;
+    return FALSE;
 }
 
 /******************************************************************
@@ -2700,7 +2638,7 @@ BOOL WINAPI SymFromIndexW(HANDLE hProcess, ULONG64 BaseOfDll, DWORD index, PSYMB
  */
 PCHAR WINAPI SymSetHomeDirectory(HANDLE hProcess, PCSTR dir)
 {
-    FIXME("(%p, %s): stub\n", hProcess, debugstr_a(dir));
+    FIXME("(%p, %s): stub\n", hProcess, dir);
 
     return NULL;
 }
@@ -2775,7 +2713,7 @@ BOOL WINAPI SymFromInlineContextW(HANDLE hProcess, DWORD64 addr, ULONG inline_ct
 }
 
 static BOOL get_line_from_inline_context(HANDLE hProcess, DWORD64 addr, ULONG inline_ctx, DWORD64 mod_addr, PDWORD disp,
-                                         struct lineinfo_t* line_info)
+                                         struct internal_line_t* intl)
 {
     struct module_pair pair;
     struct symt_function* inlined;
@@ -2785,31 +2723,12 @@ static BOOL get_line_from_inline_context(HANDLE hProcess, DWORD64 addr, ULONG in
     {
     case IFC_MODE_INLINE:
         inlined = symt_find_inlined_site(pair.effective, addr, inline_ctx);
-        if (symt_check_tag(&inlined->symt, SymTagInlineSite))
-        {
-            struct module_format_vtable_iterator iter = {};
-            while ((module_format_vtable_iterator_next(pair.effective, &iter,
-                                                       MODULE_FORMAT_VTABLE_INDEX(get_line_from_inlined_address))))
-            {
-                enum method_result result = iter.modfmt->vtable->get_line_from_inlined_address(iter.modfmt, inlined, addr, line_info);
-                switch (result)
-                {
-                case MR_SUCCESS:
-                    if (disp) *disp = addr - line_info->address;
-                    return TRUE;
-                case MR_NOT_FOUND: /* continue */
-                    break;
-                default:
-                    return FALSE;
-                }
-            }
-        }
-        if (inlined && get_line_from_function(&pair, inlined, addr, disp, line_info))
+        if (inlined && get_line_from_function(&pair, inlined, addr, disp, intl))
             return TRUE;
         /* fall through: check if we can find line info at top function level */
     case IFC_MODE_IGNORE:
     case IFC_MODE_REGULAR:
-        return get_line_from_addr(hProcess, addr, disp, line_info);
+        return get_line_from_addr(hProcess, addr, disp, intl);
     default:
         SetLastError(ERROR_INVALID_PARAMETER);
         return FALSE;
@@ -2822,16 +2741,16 @@ static BOOL get_line_from_inline_context(HANDLE hProcess, DWORD64 addr, ULONG in
  */
 BOOL WINAPI SymGetLineFromInlineContext(HANDLE hProcess, DWORD64 addr, ULONG inline_ctx, DWORD64 mod_addr, PDWORD disp, PIMAGEHLP_LINE64 line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p, %#I64x, 0x%lx, %#I64x, %p, %p)\n",
           hProcess, addr, inline_ctx, mod_addr, disp, line);
 
     if (line->SizeOfStruct < sizeof(*line)) return FALSE;
-    init_lineinfo(&line_info, FALSE);
+    init_internal_line(&intl, FALSE);
 
-    if (!get_line_from_inline_context(hProcess, addr, inline_ctx, mod_addr, disp, &line_info)) return FALSE;
-    return lineinfo_copy_toA64(&line_info, line);
+    if (!get_line_from_inline_context(hProcess, addr, inline_ctx, mod_addr, disp, &intl)) return FALSE;
+    return internal_line_copy_toA64(&intl, line);
 }
 
 /******************************************************************
@@ -2840,16 +2759,16 @@ BOOL WINAPI SymGetLineFromInlineContext(HANDLE hProcess, DWORD64 addr, ULONG inl
  */
 BOOL WINAPI SymGetLineFromInlineContextW(HANDLE hProcess, DWORD64 addr, ULONG inline_ctx, DWORD64 mod_addr, PDWORD disp, PIMAGEHLP_LINEW64 line)
 {
-    struct lineinfo_t line_info;
+    struct internal_line_t intl;
 
     TRACE("(%p, %#I64x, 0x%lx, %#I64x, %p, %p)\n",
           hProcess, addr, inline_ctx, mod_addr, disp, line);
 
     if (line->SizeOfStruct < sizeof(*line)) return FALSE;
-    init_lineinfo(&line_info, TRUE);
+    init_internal_line(&intl, TRUE);
 
-    if (!get_line_from_inline_context(hProcess, addr, inline_ctx, mod_addr, disp, &line_info)) return FALSE;
-    return lineinfo_copy_toW64(&line_info, line);
+    if (!get_line_from_inline_context(hProcess, addr, inline_ctx, mod_addr, disp, &intl)) return FALSE;
+    return internal_line_copy_toW64(&intl, line);
 }
 
 /******************************************************************

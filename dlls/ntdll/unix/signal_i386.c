@@ -1034,10 +1034,17 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
     struct syscall_frame *frame = x86_thread_data()->syscall_frame;
     DWORD needed_flags = context->ContextFlags & ~CONTEXT_i386;
     BOOL self = (handle == GetCurrentThread());
+    BOOL use_cached_debug_regs = FALSE;
     NTSTATUS ret;
 
-    /* debug registers require a server call */
-    if (needed_flags & CONTEXT_DEBUG_REGISTERS) self = FALSE;
+    if (!validate_context_xstate( context )) return STATUS_INVALID_PARAMETER;
+
+    if (self && needed_flags & CONTEXT_DEBUG_REGISTERS)
+    {
+        /* debug registers require a server call if hw breakpoints are enabled */
+        if (x86_thread_data()->dr7 & 0xff) self = FALSE;
+        else use_cached_debug_regs = TRUE;
+    }
 
     if (!self)
     {
@@ -1131,10 +1138,6 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
             XSAVE_AREA_HEADER *xstate = (XSAVE_AREA_HEADER *)((char *)context_ex + context_ex->XState.Offset);
             UINT64 mask;
 
-            if (context_ex->XState.Length < sizeof(XSAVE_AREA_HEADER) ||
-                context_ex->XState.Length > sizeof(XSAVE_AREA_HEADER) + xstate_features_size)
-                return STATUS_INVALID_PARAMETER;
-
             if (xstate_compaction_enabled) frame->xstate.CompactionMask |= xstate_extended_features();
             mask = (xstate_compaction_enabled ? xstate->CompactionMask : xstate->Mask) & xstate_extended_features();
             xstate->Mask = frame->xstate.Mask & mask;
@@ -1149,30 +1152,42 @@ NTSTATUS WINAPI NtGetContextThread( HANDLE handle, CONTEXT *context )
                 frame->restore_flags |= CONTEXT_XSTATE;
             }
         }
-        /* update the cached version of the debug registers */
-        if (needed_flags & CONTEXT_DEBUG_REGISTERS)
+        if (context->ContextFlags & (CONTEXT_DEBUG_REGISTERS & ~CONTEXT_i386))
         {
-            x86_thread_data()->dr0 = context->Dr0;
-            x86_thread_data()->dr1 = context->Dr1;
-            x86_thread_data()->dr2 = context->Dr2;
-            x86_thread_data()->dr3 = context->Dr3;
-            x86_thread_data()->dr6 = context->Dr6;
-            x86_thread_data()->dr7 = context->Dr7;
+            if (use_cached_debug_regs)
+            {
+                context->Dr0 = x86_thread_data()->dr0;
+                context->Dr1 = x86_thread_data()->dr1;
+                context->Dr2 = x86_thread_data()->dr2;
+                context->Dr3 = x86_thread_data()->dr3;
+                context->Dr6 = x86_thread_data()->dr6;
+                context->Dr7 = x86_thread_data()->dr7;
+            }
+            else
+            {
+                /* update the cached version of the debug registers */
+                x86_thread_data()->dr0 = context->Dr0;
+                x86_thread_data()->dr1 = context->Dr1;
+                x86_thread_data()->dr2 = context->Dr2;
+                x86_thread_data()->dr3 = context->Dr3;
+                x86_thread_data()->dr6 = context->Dr6;
+                x86_thread_data()->dr7 = context->Dr7;
+            }
         }
         set_context_exception_reporting_flags( &context->ContextFlags, CONTEXT_SERVICE_ACTIVE );
     }
 
     if (context->ContextFlags & (CONTEXT_INTEGER & ~CONTEXT_i386))
-        TRACE( "%p: eax=%08x ebx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x\n", handle,
+        TRACE( "%p: eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx\n", handle,
                context->Eax, context->Ebx, context->Ecx, context->Edx, context->Esi, context->Edi );
     if (context->ContextFlags & (CONTEXT_CONTROL & ~CONTEXT_i386))
-        TRACE( "%p: ebp=%08x esp=%08x eip=%08x cs=%04x ss=%04x flags=%08x\n", handle,
+        TRACE( "%p: ebp=%08lx esp=%08lx eip=%08lx cs=%04lx ss=%04lx flags=%08lx\n", handle,
                context->Ebp, context->Esp, context->Eip, context->SegCs, context->SegSs, context->EFlags );
     if (context->ContextFlags & (CONTEXT_SEGMENTS & ~CONTEXT_i386))
-        TRACE( "%p: ds=%04x es=%04x fs=%04x gs=%04x\n", handle,
+        TRACE( "%p: ds=%04lx es=%04lx fs=%04lx gs=%04lx\n", handle,
                context->SegDs, context->SegEs, context->SegFs, context->SegGs );
     if (context->ContextFlags & (CONTEXT_DEBUG_REGISTERS & ~CONTEXT_i386))
-        TRACE( "%p: dr0=%08x dr1=%08x dr2=%08x dr3=%08x dr6=%08x dr7=%08x\n", handle,
+        TRACE( "%p: dr0=%08lx dr1=%08lx dr2=%08lx dr3=%08lx dr6=%08lx dr7=%08lx\n", handle,
                context->Dr0, context->Dr1, context->Dr2, context->Dr3, context->Dr6, context->Dr7 );
 
     return STATUS_SUCCESS;
@@ -1296,7 +1311,7 @@ static inline BOOL check_invalid_gs( ucontext_t *sigcontext, CONTEXT *context )
         instr++;
         continue;
     case 0x65:  /* %gs: */
-        TRACE( "%04x/%04x at %p, fixing up\n", context->SegGs, system_gs, instr );
+        TRACE( "%04lx/%04x at %p, fixing up\n", context->SegGs, system_gs, instr );
         GS_sig(sigcontext) = system_gs;
         return TRUE;
     default:
@@ -1305,7 +1320,7 @@ static inline BOOL check_invalid_gs( ucontext_t *sigcontext, CONTEXT *context )
 }
 
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 union atl_thunk
 {
     struct
@@ -1347,7 +1362,7 @@ union atl_thunk
         WORD  inst2;
     } t5;
 };
-#pragma pack(pop)
+#include "poppack.h"
 
 /**********************************************************************
  *		check_atl_thunk
@@ -1766,7 +1781,7 @@ static BOOL handle_interrupt( unsigned int interrupt, ucontext_t *sigcontext, vo
     case 0x29:
         /* __fastfail: process state is corrupted */
         rec->ExceptionCode = STATUS_STACK_BUFFER_OVERRUN;
-        rec->ExceptionFlags = EXCEPTION_NONCONTINUABLE;
+        rec->ExceptionFlags = EH_NONCONTINUABLE;
         rec->NumberParameters = 1;
         rec->ExceptionInformation[0] = context->Ecx;
         NtRaiseException( rec, context, FALSE );
@@ -1814,32 +1829,39 @@ static BOOL handle_syscall_fault( ucontext_t *sigcontext, void *stack_ptr,
 
     if (!is_inside_syscall( sigcontext )) return FALSE;
 
-    TRACE( "code=%x flags=%x addr=%p ip=%08x\n",
+    TRACE( "code=%lx flags=%lx addr=%p ip=%08lx\n",
            rec->ExceptionCode, rec->ExceptionFlags, rec->ExceptionAddress, context->Eip );
     for (i = 0; i < rec->NumberParameters; i++)
         TRACE( " info[%d]=%08lx\n", i, rec->ExceptionInformation[i] );
-    TRACE(" eax=%08x ebx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x\n",
+    TRACE(" eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx\n",
           context->Eax, context->Ebx, context->Ecx,
           context->Edx, context->Esi, context->Edi );
-    TRACE(" ebp=%08x esp=%08x cs=%04x ds=%04x es=%04x fs=%04x gs=%04x flags=%08x\n",
+    TRACE(" ebp=%08lx esp=%08lx cs=%04lx ds=%04lx es=%04lx fs=%04lx gs=%04lx flags=%08lx\n",
           context->Ebp, context->Esp, context->SegCs, context->SegDs,
           context->SegEs, context->SegFs, context->SegGs, context->EFlags );
+
+    if (rec->ExceptionCode == STATUS_ACCESS_VIOLATION
+            && is_inside_syscall_stack_guard( (char *)rec->ExceptionInformation[1] ))
+        ERR_(seh)( "Syscall stack overrun.\n ");
 
     if (ntdll_get_thread_data()->jmp_buf)
     {
         TRACE( "returning to handler\n" );
-        /* push stack frame for calling longjmp */
+        /* push stack frame for calling __wine_longjmp */
         stack = stack_ptr;
         *(--stack) = 1;
         *(--stack) = (DWORD)ntdll_get_thread_data()->jmp_buf;
         *(--stack) = 0xdeadbabe;  /* return address */
         ESP_sig(sigcontext) = (DWORD)stack;
-        EIP_sig(sigcontext) = (DWORD)longjmp;
+        EIP_sig(sigcontext) = (DWORD)__wine_longjmp;
         ntdll_get_thread_data()->jmp_buf = NULL;
     }
     else
     {
-        TRACE( "returning to user mode ip=%08x ret=%08x\n", frame->eip, rec->ExceptionCode );
+        WINE_BACKTRACE_LOG( "--- Exception %#lx at %s.\n", rec->ExceptionCode,
+                            wine_debuginfostr_pc( rec->ExceptionAddress ));
+
+        TRACE( "returning to user mode ip=%08x ret=%08lx\n", frame->eip, rec->ExceptionCode );
         stack = (UINT *)frame;
         *(--stack) = rec->ExceptionCode;
         *(--stack) = (UINT)frame;
@@ -1905,6 +1927,7 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     struct xcontext xcontext;
     ucontext_t *ucontext = sigcontext;
     void *stack = setup_exception_record( sigcontext, &rec, &xcontext );
+    void *steamclient_addr = NULL;
 
     switch (TRAP_sig(ucontext))
     {
@@ -1939,10 +1962,17 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
         }
         break;
     case TRAP_x86_PAGEFLT:  /* Page fault */
+        if ((steamclient_addr = steamclient_handle_fault( siginfo->si_addr, (ERROR_sig(ucontext) >> 1) & 0x09 )))
+        {
+            EIP_sig(ucontext) = (intptr_t)steamclient_addr;
+            return;
+        }
+
         rec.NumberParameters = 2;
         rec.ExceptionInformation[0] = (ERROR_sig(ucontext) >> 1) & 0x09;
         rec.ExceptionInformation[1] = (ULONG_PTR)siginfo->si_addr;
-        if (!virtual_handle_fault( &rec, stack )) return;
+        rec.ExceptionCode = virtual_handle_fault( siginfo->si_addr, rec.ExceptionInformation[0], stack );
+        if (!rec.ExceptionCode) return;
         if (rec.ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
             rec.ExceptionInformation[0] == EXCEPTION_EXECUTE_FAULT)
         {
@@ -2098,7 +2128,7 @@ static void int_handler( int signal, siginfo_t *siginfo, void *sigcontext )
  */
 static void abrt_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
-    EXCEPTION_RECORD rec = { EXCEPTION_WINE_ASSERTION, EXCEPTION_NONCONTINUABLE };
+    EXCEPTION_RECORD rec = { EXCEPTION_WINE_ASSERTION, EH_NONCONTINUABLE };
 
     setup_exception( sigcontext, &rec );
 }
@@ -2331,7 +2361,7 @@ NTSTATUS get_thread_ldt_entry( HANDLE handle, void *data, ULONG len, ULONG *ret_
                 if (reply->flags)
                     info->Entry = ldt_make_entry( (void *)reply->base, reply->limit, reply->flags );
                 else
-                    status = STATUS_ACCESS_VIOLATION;
+                    status = STATUS_UNSUCCESSFUL;
             }
         }
         SERVER_END_REQ;
@@ -2353,6 +2383,8 @@ NTSTATUS WINAPI NtSetLdtEntries( ULONG sel1, LDT_ENTRY entry1, ULONG sel2, LDT_E
     sigset_t sigset;
 
     if (sel1 >> 16 || sel2 >> 16) return STATUS_INVALID_LDT_DESCRIPTOR;
+    if (sel1 && (sel1 >> 3) < first_ldt_entry) return STATUS_INVALID_LDT_DESCRIPTOR;
+    if (sel2 && (sel2 >> 3) < first_ldt_entry) return STATUS_INVALID_LDT_DESCRIPTOR;
 
     server_enter_uninterrupted_section( &ldt_mutex, &sigset );
     if (sel1) ldt_set_entry( sel1, entry1 );
@@ -2384,6 +2416,12 @@ void signal_init_threading(void)
 #endif
 }
 
+void set_thread_teb( TEB *teb )
+{
+    struct x86_thread_data *thread_data = (struct x86_thread_data *)&teb->GdiTebBatch;
+
+    ldt_set_fs( thread_data->fs, teb );
+}
 
 /**********************************************************************
  *		signal_alloc_thread
@@ -2527,6 +2565,15 @@ void call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, BOOL suspend, TEB
     {
         context.ContextFlags |= CONTEXT_EXCEPTION_REPORTING | CONTEXT_EXCEPTION_ACTIVE;
         wait_suspend( &context );
+        if (context.ContextFlags & CONTEXT_DEBUG_REGISTERS & ~CONTEXT_i386)
+        {
+            x86_thread_data()->dr0 = context.Dr0;
+            x86_thread_data()->dr1 = context.Dr1;
+            x86_thread_data()->dr2 = context.Dr2;
+            x86_thread_data()->dr3 = context.Dr3;
+            x86_thread_data()->dr6 = context.Dr6;
+            x86_thread_data()->dr7 = context.Dr7;
+        }
     }
 
     ctx = (CONTEXT *)((ULONG_PTR)context.Esp & ~3) - 1;
@@ -2604,7 +2651,7 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    __ASM_CFI(".cfi_adjust_cfa_offset 4\n\t")
                    "popl 0x04(%ecx)\n\t"           /* frame->eflags */
                    __ASM_CFI(".cfi_adjust_cfa_offset -4\n\t")
-                   __ASM_GLOBL(__ASM_NAME("__wine_syscall_dispatcher_prolog_end")) "\n"
+                   ".globl " __ASM_NAME("__wine_syscall_dispatcher_prolog_end") "\n"
                    __ASM_NAME("__wine_syscall_dispatcher_prolog_end") ":\n\t"
                    "movl %esp,0x0c(%ecx)\n\t"      /* frame->esp */
                    __ASM_CFI_CFA_IS_AT1(ecx, 0x0c)
@@ -2775,10 +2822,11 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    /* pop ebp-based kernel stack cfi */
                    __ASM_CFI("\t.cfi_restore_state\n")
 
-                   "6:\tmovl $0xc000001c,%eax\n\t" /* STATUS_INVALID_SYSTEM_SERVICE */
-                   "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_return") )
+                   "6:\tmovl $0xc000000d,%eax\n\t" /* STATUS_INVALID_PARAMETER */
+                   "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_return") "\n\t"
 
-__ASM_GLOBAL_FUNC( __wine_syscall_dispatcher_return,
+                   ".globl " __ASM_NAME("__wine_syscall_dispatcher_return") "\n"
+                   __ASM_NAME("__wine_syscall_dispatcher_return") ":\n\t"
                    "movl 8(%esp),%eax\n\t"
                    "movl 4(%esp),%esp\n\t"
                    "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_return") )
@@ -2793,7 +2841,7 @@ __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    "popl 0x08(%ecx)\n\t"       /* frame->eip */
                    __ASM_CFI(".cfi_adjust_cfa_offset -4\n\t")
                    __ASM_CFI_REG_IS_AT1(eip, ecx, 0x08)
-                   __ASM_GLOBL(__ASM_NAME("__wine_unix_call_dispatcher_prolog_end")) "\n"
+                   ".globl " __ASM_NAME("__wine_unix_call_dispatcher_prolog_end") "\n"
                    __ASM_NAME("__wine_unix_call_dispatcher_prolog_end") ":\n\t"
                    "leal 0x10(%esp),%edx\n\t"
                    "movl %edx,0x0c(%ecx)\n\t"  /* frame->esp */
@@ -2841,5 +2889,36 @@ __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    "pushl %ecx\n\t"
                    __ASM_CFI(".cfi_adjust_cfa_offset 4\n\t")
                    "ret" )
+
+
+/***********************************************************************
+ *           __wine_setjmpex
+ */
+__ASM_GLOBAL_FUNC( __wine_setjmpex,
+                   "movl 4(%esp),%ecx\n\t"   /* jmp_buf */
+                   "movl %ebp,0(%ecx)\n\t"   /* jmp_buf.Ebp */
+                   "movl %ebx,4(%ecx)\n\t"   /* jmp_buf.Ebx */
+                   "movl %edi,8(%ecx)\n\t"   /* jmp_buf.Edi */
+                   "movl %esi,12(%ecx)\n\t"  /* jmp_buf.Esi */
+                   "movl %esp,16(%ecx)\n\t"  /* jmp_buf.Esp */
+                   "movl 0(%esp),%eax\n\t"
+                   "movl %eax,20(%ecx)\n\t"  /* jmp_buf.Eip */
+                   "xorl %eax,%eax\n\t"
+                   "ret" )
+
+
+/***********************************************************************
+ *           __wine_longjmp
+ */
+__ASM_GLOBAL_FUNC( __wine_longjmp,
+                   "movl 4(%esp),%ecx\n\t"   /* jmp_buf */
+                   "movl 8(%esp),%eax\n\t"   /* retval */
+                   "movl 0(%ecx),%ebp\n\t"   /* jmp_buf.Ebp */
+                   "movl 4(%ecx),%ebx\n\t"   /* jmp_buf.Ebx */
+                   "movl 8(%ecx),%edi\n\t"   /* jmp_buf.Edi */
+                   "movl 12(%ecx),%esi\n\t"  /* jmp_buf.Esi */
+                   "movl 16(%ecx),%esp\n\t"  /* jmp_buf.Esp */
+                   "addl $4,%esp\n\t"        /* get rid of return address */
+                   "jmp *20(%ecx)\n\t"       /* jmp_buf.Eip */ )
 
 #endif  /* __i386__ */

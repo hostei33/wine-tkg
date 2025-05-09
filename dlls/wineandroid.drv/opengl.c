@@ -39,12 +39,13 @@
 #include <EGL/egl.h>
 #endif
 
-#include "ntstatus.h"
-#define WIN32_NO_STATUS
 #include "android.h"
 #include "winternl.h"
 
-#include "wine/opengl_driver.h"
+#define GLAPIENTRY /* nothing */
+#include "wine/wgl.h"
+#undef GLAPIENTRY
+#include "wine/wgl_driver.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(android);
@@ -67,12 +68,12 @@ DECL_FUNCPTR( eglSwapInterval );
 
 static const int egl_client_version = 2;
 
-struct egl_pixel_format
+struct wgl_pixel_format
 {
     EGLConfig config;
 };
 
-struct android_context
+struct wgl_context
 {
     struct list entry;
     EGLConfig  config;
@@ -91,21 +92,29 @@ struct gl_drawable
     ANativeWindow  *window;
     EGLSurface      surface;
     EGLSurface      pbuffer;
-    int             swap_interval;
 };
 
 static void *egl_handle;
 static void *opengl_handle;
-static struct egl_pixel_format *pixel_formats;
+static struct wgl_pixel_format *pixel_formats;
 static int nb_pixel_formats, nb_onscreen_formats;
 static EGLDisplay display;
+static int swap_interval;
 static char wgl_extensions[4096];
 static struct opengl_funcs egl_funcs;
 
 static struct list gl_contexts = LIST_INIT( gl_contexts );
 static struct list gl_drawables = LIST_INIT( gl_drawables );
 
+static void (*pglFinish)(void);
+static void (*pglFlush)(void);
+
 pthread_mutex_t drawable_mutex;
+
+static inline BOOL is_onscreen_pixel_format( int format )
+{
+    return format > 0 && format <= nb_onscreen_formats;
+}
 
 static struct gl_drawable *create_gl_drawable( HWND hwnd, HDC hdc, int format )
 {
@@ -160,7 +169,7 @@ void destroy_gl_drawable( HWND hwnd )
     pthread_mutex_unlock( &drawable_mutex );
 }
 
-static BOOL refresh_context( struct android_context *ctx )
+static BOOL refresh_context( struct wgl_context *ctx )
 {
     BOOL ret = InterlockedExchange( &ctx->refresh, FALSE );
 
@@ -176,19 +185,19 @@ static BOOL refresh_context( struct android_context *ctx )
 void update_gl_drawable( HWND hwnd )
 {
     struct gl_drawable *gl;
-    struct android_context *ctx;
+    struct wgl_context *ctx;
 
     if ((gl = get_gl_drawable( hwnd, 0 )))
     {
         if (!gl->surface &&
             (gl->surface = p_eglCreateWindowSurface( display, pixel_formats[gl->format - 1].config, gl->window, NULL )))
         {
-            LIST_FOR_EACH_ENTRY( ctx, &gl_contexts, struct android_context, entry )
+            LIST_FOR_EACH_ENTRY( ctx, &gl_contexts, struct wgl_context, entry )
             {
                 if (ctx->hwnd != hwnd) continue;
-                TRACE( "hwnd %p refreshing %p %scurrent\n", hwnd, ctx, NtCurrentTeb()->glReserved2 == ctx ? "" : "not " );
+                TRACE( "hwnd %p refreshing %p %scurrent\n", hwnd, ctx, NtCurrentTeb()->glContext == ctx ? "" : "not " );
                 ctx->surface = gl->surface;
-                if (NtCurrentTeb()->glReserved2 == ctx)
+                if (NtCurrentTeb()->glContext == ctx)
                     p_eglMakeCurrent( display, ctx->surface, ctx->surface, ctx->context );
                 else
                     InterlockedExchange( &ctx->refresh, TRUE );
@@ -199,35 +208,98 @@ void update_gl_drawable( HWND hwnd )
     }
 }
 
-static BOOL android_set_pixel_format( HWND hwnd, int old_format, int new_format, BOOL internal )
+static BOOL set_pixel_format( HDC hdc, int format, BOOL internal )
 {
     struct gl_drawable *gl;
+    HWND hwnd = NtUserWindowFromDC( hdc );
 
-    TRACE( "hwnd %p, old_format %d, new_format %d, internal %u\n", hwnd, old_format, new_format, internal );
+    if (!hwnd || hwnd == NtUserGetDesktopWindow())
+    {
+        WARN( "not a proper window DC %p/%p\n", hdc, hwnd );
+        return FALSE;
+    }
+    if (!is_onscreen_pixel_format( format ))
+    {
+        WARN( "Invalid format %d\n", format );
+        return FALSE;
+    }
+    TRACE( "%p/%p format %d\n", hdc, hwnd, format );
+
+    if (!internal)
+    {
+        /* cannot change it if already set */
+        int prev = win32u_get_window_pixel_format( hwnd );
+
+        if (prev)
+            return prev == format;
+    }
 
     if ((gl = get_gl_drawable( hwnd, 0 )))
     {
         if (internal)
         {
             EGLint pf;
-            p_eglGetConfigAttrib( display, pixel_formats[new_format - 1].config, EGL_NATIVE_VISUAL_ID, &pf );
+            p_eglGetConfigAttrib( display, pixel_formats[format - 1].config, EGL_NATIVE_VISUAL_ID, &pf );
             gl->window->perform( gl->window, NATIVE_WINDOW_SET_BUFFERS_FORMAT, pf );
-            gl->format = new_format;
+            gl->format = format;
         }
     }
-    else gl = create_gl_drawable( hwnd, 0, new_format );
+    else gl = create_gl_drawable( hwnd, 0, format );
+
     release_gl_drawable( gl );
 
-    return TRUE;
+    if (win32u_set_window_pixel_format( hwnd, format, internal )) return TRUE;
+    destroy_gl_drawable( hwnd );
+    return FALSE;
 }
 
-static BOOL android_context_create( HDC hdc, int format, void *share, const int *attribs, void **private )
+static struct wgl_context *create_context( HDC hdc, struct wgl_context *share, const int *attribs )
 {
-    struct android_context *ctx, *shared_ctx = share;
+    struct gl_drawable *gl;
+    struct wgl_context *ctx;
+
+    if (!(gl = get_gl_drawable( NtUserWindowFromDC( hdc ), hdc ))) return NULL;
+
+    ctx = malloc( sizeof(*ctx) );
+
+    ctx->config  = pixel_formats[gl->format - 1].config;
+    ctx->surface = 0;
+    ctx->refresh = FALSE;
+    ctx->context = p_eglCreateContext( display, ctx->config,
+                                       share ? share->context : EGL_NO_CONTEXT, attribs );
+    TRACE( "%p fmt %d ctx %p\n", hdc, gl->format, ctx->context );
+    list_add_head( &gl_contexts, &ctx->entry );
+    release_gl_drawable( gl );
+    return ctx;
+}
+
+/***********************************************************************
+ *		android_wglGetExtensionsStringARB
+ */
+static const char *android_wglGetExtensionsStringARB( HDC hdc )
+{
+    TRACE( "() returning \"%s\"\n", wgl_extensions );
+    return wgl_extensions;
+}
+
+/***********************************************************************
+ *		android_wglGetExtensionsStringEXT
+ */
+static const char *android_wglGetExtensionsStringEXT(void)
+{
+    TRACE( "() returning \"%s\"\n", wgl_extensions );
+    return wgl_extensions;
+}
+
+/***********************************************************************
+ *		android_wglCreateContextAttribsARB
+ */
+static struct wgl_context *android_wglCreateContextAttribsARB( HDC hdc, struct wgl_context *share,
+                                                               const int *attribs )
+{
     int count = 0, egl_attribs[3];
     BOOL opengl_es = FALSE;
 
-    if (!attribs) opengl_es = TRUE;
     while (attribs && *attribs && count < 2)
     {
         switch (*attribs)
@@ -248,7 +320,7 @@ static BOOL android_context_create( HDC hdc, int format, void *share, const int 
     if (!opengl_es)
     {
         WARN("Requested creation of an OpenGL (non ES) context, that's not supported.\n");
-        return FALSE;
+        return NULL;
     }
     if (!count)  /* FIXME: force version if not specified */
     {
@@ -256,29 +328,140 @@ static BOOL android_context_create( HDC hdc, int format, void *share, const int 
         egl_attribs[count++] = egl_client_version;
     }
     egl_attribs[count] = EGL_NONE;
-    attribs = egl_attribs;
 
-    ctx = malloc( sizeof(*ctx) );
+    return create_context( hdc, share, egl_attribs );
+}
 
-    ctx->config  = pixel_formats[format - 1].config;
-    ctx->surface = 0;
-    ctx->refresh = FALSE;
-    ctx->context = p_eglCreateContext( display, ctx->config, shared_ctx ? shared_ctx->context : EGL_NO_CONTEXT, attribs );
-    TRACE( "%p fmt %d ctx %p\n", hdc, format, ctx->context );
-    list_add_head( &gl_contexts, &ctx->entry );
+/***********************************************************************
+ *		android_wglMakeContextCurrentARB
+ */
+static BOOL android_wglMakeContextCurrentARB( HDC draw_hdc, HDC read_hdc, struct wgl_context *ctx )
+{
+    BOOL ret = FALSE;
+    struct gl_drawable *draw_gl, *read_gl = NULL;
+    EGLSurface draw_surface, read_surface;
+    HWND draw_hwnd;
 
-    *private = ctx;
+    TRACE( "%p %p %p\n", draw_hdc, read_hdc, ctx );
+
+    if (!ctx)
+    {
+        p_eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
+        NtCurrentTeb()->glContext = NULL;
+        return TRUE;
+    }
+
+    draw_hwnd = NtUserWindowFromDC( draw_hdc );
+    if ((draw_gl = get_gl_drawable( draw_hwnd, draw_hdc )))
+    {
+        read_gl = get_gl_drawable( NtUserWindowFromDC( read_hdc ), read_hdc );
+        draw_surface = draw_gl->surface ? draw_gl->surface : draw_gl->pbuffer;
+        read_surface = read_gl->surface ? read_gl->surface : read_gl->pbuffer;
+        TRACE( "%p/%p context %p surface %p/%p\n",
+               draw_hdc, read_hdc, ctx->context, draw_surface, read_surface );
+        ret = p_eglMakeCurrent( display, draw_surface, read_surface, ctx->context );
+        if (ret)
+        {
+            ctx->surface = draw_gl->surface;
+            ctx->hwnd    = draw_hwnd;
+            ctx->refresh = FALSE;
+            NtCurrentTeb()->glContext = ctx;
+            goto done;
+        }
+    }
+    RtlSetLastWin32Error( ERROR_INVALID_HANDLE );
+
+done:
+    release_gl_drawable( read_gl );
+    release_gl_drawable( draw_gl );
+    return ret;
+}
+
+/***********************************************************************
+ *		android_wglSwapIntervalEXT
+ */
+static BOOL android_wglSwapIntervalEXT( int interval )
+{
+    BOOL ret = TRUE;
+
+    TRACE("(%d)\n", interval);
+
+    if (interval < 0)
+    {
+        RtlSetLastWin32Error( ERROR_INVALID_DATA );
+        return FALSE;
+    }
+
+    ret = p_eglSwapInterval( display, interval );
+
+    if (ret)
+        swap_interval = interval;
+    else
+        RtlSetLastWin32Error( ERROR_DC_NOT_FOUND );
+
+    return ret;
+}
+
+/***********************************************************************
+ *		android_wglGetSwapIntervalEXT
+ */
+static int android_wglGetSwapIntervalEXT(void)
+{
+    return swap_interval;
+}
+
+/***********************************************************************
+ *		android_wglSetPixelFormatWINE
+ */
+static BOOL android_wglSetPixelFormatWINE( HDC hdc, int format )
+{
+    return set_pixel_format( hdc, format, TRUE );
+}
+
+/***********************************************************************
+ *		android_wglCopyContext
+ */
+static BOOL android_wglCopyContext( struct wgl_context *src, struct wgl_context *dst, UINT mask )
+{
+    FIXME( "%p -> %p mask %#x unsupported\n", src, dst, mask );
+    return FALSE;
+}
+
+/***********************************************************************
+ *		android_wglCreateContext
+ */
+static struct wgl_context *android_wglCreateContext( HDC hdc )
+{
+    int egl_attribs[3] = { EGL_CONTEXT_CLIENT_VERSION, egl_client_version, EGL_NONE };
+
+    return create_context( hdc, NULL, egl_attribs );
+}
+
+/***********************************************************************
+ *		android_wglDeleteContext
+ */
+static BOOL android_wglDeleteContext( struct wgl_context *ctx )
+{
+    pthread_mutex_lock( &drawable_mutex );
+    list_remove( &ctx->entry );
+    pthread_mutex_unlock( &drawable_mutex );
+    p_eglDestroyContext( display, ctx->context );
+    free( ctx );
     return TRUE;
 }
 
-static BOOL android_describe_pixel_format( int format, struct wgl_pixel_format *desc )
+/***********************************************************************
+ *		android_wglDescribePixelFormat
+ */
+static int android_wglDescribePixelFormat( HDC hdc, int fmt, UINT size, PIXELFORMATDESCRIPTOR *pfd )
 {
-    struct egl_pixel_format *fmt = pixel_formats + format - 1;
-    PIXELFORMATDESCRIPTOR *pfd = &desc->pfd;
     EGLint val;
-    EGLConfig config = fmt->config;
+    EGLConfig config;
 
-    if (format <= 0 || format > nb_pixel_formats) return FALSE;
+    if (!pfd) return nb_onscreen_formats;
+    if (!is_onscreen_pixel_format( fmt )) return 0;
+    if (size < sizeof(*pfd)) return 0;
+    config = pixel_formats[fmt - 1].config;
 
     memset( pfd, 0, sizeof(*pfd) );
     pfd->nSize = sizeof(*pfd);
@@ -306,131 +489,140 @@ static BOOL android_describe_pixel_format( int format, struct wgl_pixel_format *
     pfd->cBlueShift = pfd->cAlphaShift + pfd->cAlphaBits;
     pfd->cGreenShift = pfd->cBlueShift + pfd->cBlueBits;
     pfd->cRedShift = pfd->cGreenShift + pfd->cGreenBits;
-    return TRUE;
+
+    TRACE( "fmt %u color %u %u/%u/%u/%u depth %u stencil %u\n",
+           fmt, pfd->cColorBits, pfd->cRedBits, pfd->cGreenBits, pfd->cBlueBits,
+           pfd->cAlphaBits, pfd->cDepthBits, pfd->cStencilBits );
+    return nb_onscreen_formats;
 }
 
-static BOOL android_context_make_current( HDC draw_hdc, HDC read_hdc, void *private )
+/***********************************************************************
+ *		android_wglGetPixelFormat
+ */
+static int android_wglGetPixelFormat( HDC hdc )
 {
-    struct android_context *ctx = private;
+    struct gl_drawable *gl;
+    int ret = 0;
+    HWND hwnd;
+
+    if ((hwnd = NtUserWindowFromDC( hdc )))
+        return win32u_get_window_pixel_format( hwnd );
+
+    /* This code is currently dead, but will be necessary if WGL_ARB_pbuffer
+     * support is introduced. */
+    if ((gl = get_gl_drawable( NULL, hdc )))
+    {
+        ret = gl->format;
+        /* offscreen formats can't be used with traditional WGL calls */
+        if (!is_onscreen_pixel_format( ret )) ret = 1;
+        release_gl_drawable( gl );
+    }
+    return ret;
+}
+
+/***********************************************************************
+ *		android_wglGetProcAddress
+ */
+static PROC android_wglGetProcAddress( LPCSTR name )
+{
+    PROC ret;
+    if (!strncmp( name, "wgl", 3 )) return NULL;
+    ret = (PROC)p_eglGetProcAddress( name );
+    TRACE( "%s -> %p\n", name, ret );
+    return ret;
+}
+
+/***********************************************************************
+ *		android_wglMakeCurrent
+ */
+static BOOL android_wglMakeCurrent( HDC hdc, struct wgl_context *ctx )
+{
     BOOL ret = FALSE;
-    struct gl_drawable *draw_gl, *read_gl = NULL;
-    EGLSurface draw_surface, read_surface;
-    HWND draw_hwnd;
+    struct gl_drawable *gl;
+    HWND hwnd;
 
-    TRACE( "%p %p %p\n", draw_hdc, read_hdc, ctx );
+    TRACE( "%p %p\n", hdc, ctx );
 
-    if (!private)
+    if (!ctx)
     {
         p_eglMakeCurrent( display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
-        NtCurrentTeb()->glReserved2 = NULL;
+        NtCurrentTeb()->glContext = NULL;
         return TRUE;
     }
 
-    draw_hwnd = NtUserWindowFromDC( draw_hdc );
-    if ((draw_gl = get_gl_drawable( draw_hwnd, draw_hdc )))
+    hwnd = NtUserWindowFromDC( hdc );
+    if ((gl = get_gl_drawable( hwnd, hdc )))
     {
-        read_gl = get_gl_drawable( NtUserWindowFromDC( read_hdc ), read_hdc );
-        draw_surface = draw_gl->surface ? draw_gl->surface : draw_gl->pbuffer;
-        read_surface = read_gl->surface ? read_gl->surface : read_gl->pbuffer;
-        TRACE( "%p/%p context %p surface %p/%p\n",
-               draw_hdc, read_hdc, ctx->context, draw_surface, read_surface );
-        ret = p_eglMakeCurrent( display, draw_surface, read_surface, ctx->context );
+        EGLSurface surface = gl->surface ? gl->surface : gl->pbuffer;
+        TRACE( "%p hwnd %p context %p surface %p\n", hdc, gl->hwnd, ctx->context, surface );
+        ret = p_eglMakeCurrent( display, surface, surface, ctx->context );
         if (ret)
         {
-            ctx->surface = draw_gl->surface;
-            ctx->hwnd    = draw_hwnd;
+            ctx->surface = gl->surface;
+            ctx->hwnd    = hwnd;
             ctx->refresh = FALSE;
-            NtCurrentTeb()->glReserved2 = ctx;
+            NtCurrentTeb()->glContext = ctx;
             goto done;
         }
     }
     RtlSetLastWin32Error( ERROR_INVALID_HANDLE );
 
 done:
-    release_gl_drawable( read_gl );
-    release_gl_drawable( draw_gl );
+    release_gl_drawable( gl );
     return ret;
 }
 
 /***********************************************************************
- *		android_wglCopyContext
+ *		android_wglSetPixelFormat
  */
-static BOOL android_context_copy( void *src, void *dst, UINT mask )
+static BOOL android_wglSetPixelFormat( HDC hdc, int format, const PIXELFORMATDESCRIPTOR *pfd )
 {
-    FIXME( "%p -> %p mask %#x unsupported\n", src, dst, mask );
-    return FALSE;
+    return set_pixel_format( hdc, format, FALSE );
 }
 
 /***********************************************************************
- *		android_wglDeleteContext
+ *		android_wglShareLists
  */
-static BOOL android_context_destroy( void *private )
-{
-    struct android_context *ctx = private;
-    pthread_mutex_lock( &drawable_mutex );
-    list_remove( &ctx->entry );
-    pthread_mutex_unlock( &drawable_mutex );
-    p_eglDestroyContext( display, ctx->context );
-    free( ctx );
-    return TRUE;
-}
-
-static void *android_get_proc_address( const char *name )
-{
-    void *ptr;
-    if ((ptr = dlsym( opengl_handle, name ))) return ptr;
-    return p_eglGetProcAddress( name );
-}
-
-static BOOL android_context_share( void *org, void *dest )
+static BOOL android_wglShareLists( struct wgl_context *org, struct wgl_context *dest )
 {
     FIXME( "%p %p\n", org, dest );
     return FALSE;
 }
 
-static void set_swap_interval( struct gl_drawable *gl, int interval )
+/***********************************************************************
+ *		android_wglSwapBuffers
+ */
+static BOOL android_wglSwapBuffers( HDC hdc )
 {
-    if (interval < 0) interval = -interval;
-    if (gl->swap_interval == interval) return;
-    p_eglSwapInterval( display, interval );
-    gl->swap_interval = interval;
-}
-
-static BOOL android_swap_buffers( void *private, HWND hwnd, HDC hdc, int interval )
-{
-    struct android_context *ctx = private;
-    struct gl_drawable *gl;
+    struct wgl_context *ctx = NtCurrentTeb()->glContext;
 
     if (!ctx) return FALSE;
 
     TRACE( "%p hwnd %p context %p surface %p\n", hdc, ctx->hwnd, ctx->context, ctx->surface );
 
     if (refresh_context( ctx )) return TRUE;
-
-    if ((gl = get_gl_drawable( hwnd, hdc )))
-    {
-        set_swap_interval( gl, interval );
-        release_gl_drawable( gl );
-    }
-
     if (ctx->surface) p_eglSwapBuffers( display, ctx->surface );
     return TRUE;
 }
 
-static BOOL android_context_flush( void *private, HWND hwnd, HDC hdc, int interval, BOOL finish )
+static void wglFinish(void)
 {
-    struct android_context *ctx = private;
-    struct gl_drawable *gl;
+    struct wgl_context *ctx = NtCurrentTeb()->glContext;
 
+    if (!ctx) return;
     TRACE( "hwnd %p context %p\n", ctx->hwnd, ctx->context );
     refresh_context( ctx );
+    pglFinish();
+}
 
-    if ((gl = get_gl_drawable( hwnd, hdc )))
-    {
-        set_swap_interval( gl, interval );
-        release_gl_drawable( gl );
-    }
-    return FALSE;
+static void wglFlush(void)
+{
+    struct wgl_context *ctx = NtCurrentTeb()->glContext;
+
+    if (!ctx) return;
+    TRACE( "hwnd %p context %p\n", ctx->hwnd, ctx->context );
+    refresh_context( ctx );
+    pglFlush();
 }
 
 static void register_extension( const char *ext )
@@ -440,23 +632,43 @@ static void register_extension( const char *ext )
     TRACE( "%s\n", ext );
 }
 
-static const char *android_init_wgl_extensions(void)
-{
-    register_extension("WGL_EXT_framebuffer_sRGB");
-    return wgl_extensions;
-}
-
-static void init_opengl_funcs(void)
+static void init_extensions(void)
 {
     void *ptr;
 
+    register_extension("WGL_ARB_create_context");
+    register_extension("WGL_ARB_create_context_profile");
+    egl_funcs.ext.p_wglCreateContextAttribsARB = android_wglCreateContextAttribsARB;
+
+    register_extension("WGL_ARB_extensions_string");
+    egl_funcs.ext.p_wglGetExtensionsStringARB = android_wglGetExtensionsStringARB;
+
+    register_extension("WGL_ARB_make_current_read");
+    egl_funcs.ext.p_wglGetCurrentReadDCARB   = (void *)1;  /* never called */
+    egl_funcs.ext.p_wglMakeContextCurrentARB = android_wglMakeContextCurrentARB;
+
+    register_extension("WGL_EXT_extensions_string");
+    egl_funcs.ext.p_wglGetExtensionsStringEXT = android_wglGetExtensionsStringEXT;
+
+    register_extension("WGL_EXT_swap_control");
+    egl_funcs.ext.p_wglSwapIntervalEXT = android_wglSwapIntervalEXT;
+    egl_funcs.ext.p_wglGetSwapIntervalEXT = android_wglGetSwapIntervalEXT;
+
+    register_extension("WGL_EXT_framebuffer_sRGB");
+
+    /* In WineD3D we need the ability to set the pixel format more than once (e.g. after a device reset).
+     * The default wglSetPixelFormat doesn't allow this, so add our own which allows it.
+     */
+    register_extension("WGL_WINE_pixel_format_passthrough");
+    egl_funcs.ext.p_wglSetPixelFormatWINE = android_wglSetPixelFormatWINE;
+
     /* load standard functions and extensions exported from the OpenGL library */
 
-#define USE_GL_FUNC(func) if ((ptr = dlsym( opengl_handle, #func ))) egl_funcs.p_##func = ptr;
-    ALL_GL_FUNCS
+#define USE_GL_FUNC(func) if ((ptr = dlsym( opengl_handle, #func ))) egl_funcs.gl.p_##func = ptr;
+    ALL_WGL_FUNCS
 #undef USE_GL_FUNC
 
-#define LOAD_FUNCPTR(func) egl_funcs.p_##func = dlsym( opengl_handle, #func )
+#define LOAD_FUNCPTR(func) egl_funcs.ext.p_##func = dlsym( opengl_handle, #func )
     LOAD_FUNCPTR( glActiveShaderProgram );
     LOAD_FUNCPTR( glActiveTexture );
     LOAD_FUNCPTR( glAttachShader );
@@ -731,12 +943,58 @@ static void init_opengl_funcs(void)
     LOAD_FUNCPTR( glVertexBindingDivisor );
     LOAD_FUNCPTR( glWaitSync );
 #undef LOAD_FUNCPTR
+
+    /* redirect some standard OpenGL functions */
+
+#define REDIRECT(func) \
+    do { p##func = egl_funcs.gl.p_##func; egl_funcs.gl.p_##func = w##func; } while(0)
+    REDIRECT(glFinish);
+    REDIRECT(glFlush);
+#undef REDIRECT
 }
 
-static UINT android_init_pixel_formats( UINT *onscreen_count )
+static BOOL egl_init(void)
 {
+    static int retval = -1;
     EGLConfig *configs;
-    EGLint count, i, pass;
+    EGLint major, minor, count, i, pass;
+
+    if (retval != -1) return retval;
+    retval = 0;
+
+    if (!(egl_handle = dlopen( SONAME_LIBEGL, RTLD_NOW|RTLD_GLOBAL )))
+    {
+        ERR( "failed to load %s: %s\n", SONAME_LIBEGL, dlerror() );
+        return FALSE;
+    }
+    if (!(opengl_handle = dlopen( SONAME_LIBGLESV2, RTLD_NOW|RTLD_GLOBAL )))
+    {
+        ERR( "failed to load %s: %s\n", SONAME_LIBGLESV2, dlerror() );
+        return FALSE;
+    }
+
+#define LOAD_FUNCPTR(func) do { \
+        if (!(p_##func = dlsym( egl_handle, #func ))) \
+        { ERR( "can't find symbol %s\n", #func); return FALSE; }    \
+    } while(0)
+    LOAD_FUNCPTR( eglCreateContext );
+    LOAD_FUNCPTR( eglCreateWindowSurface );
+    LOAD_FUNCPTR( eglCreatePbufferSurface );
+    LOAD_FUNCPTR( eglDestroyContext );
+    LOAD_FUNCPTR( eglDestroySurface );
+    LOAD_FUNCPTR( eglGetConfigAttrib );
+    LOAD_FUNCPTR( eglGetConfigs );
+    LOAD_FUNCPTR( eglGetDisplay );
+    LOAD_FUNCPTR( eglGetProcAddress );
+    LOAD_FUNCPTR( eglInitialize );
+    LOAD_FUNCPTR( eglMakeCurrent );
+    LOAD_FUNCPTR( eglSwapBuffers );
+    LOAD_FUNCPTR( eglSwapInterval );
+#undef LOAD_FUNCPTR
+
+    display = p_eglGetDisplay( EGL_DEFAULT_DISPLAY );
+    if (!p_eglInitialize( display, &major, &minor )) return 0;
+    TRACE( "display %p version %u.%u\n", display, major, minor );
 
     p_eglGetConfigs( display, NULL, 0, &count );
     configs = malloc( count * sizeof(*configs) );
@@ -778,76 +1036,9 @@ static UINT android_init_pixel_formats( UINT *onscreen_count )
         if (!pass) nb_onscreen_formats = nb_pixel_formats;
     }
 
-    *onscreen_count = nb_onscreen_formats;
-    return nb_pixel_formats;
-}
-
-static const struct opengl_driver_funcs android_driver_funcs =
-{
-    .p_get_proc_address = android_get_proc_address,
-    .p_init_pixel_formats = android_init_pixel_formats,
-    .p_describe_pixel_format = android_describe_pixel_format,
-    .p_init_wgl_extensions = android_init_wgl_extensions,
-    .p_set_pixel_format = android_set_pixel_format,
-    .p_swap_buffers = android_swap_buffers,
-    .p_context_create = android_context_create,
-    .p_context_destroy = android_context_destroy,
-    .p_context_copy = android_context_copy,
-    .p_context_share = android_context_share,
-    .p_context_flush = android_context_flush,
-    .p_context_make_current = android_context_make_current,
-};
-
-/**********************************************************************
- *           ANDROID_OpenGLInit
- */
-UINT ANDROID_OpenGLInit( UINT version, struct opengl_funcs **funcs, const struct opengl_driver_funcs **driver_funcs )
-{
-    EGLint major, minor;
-
-    if (version != WINE_OPENGL_DRIVER_VERSION)
-    {
-        ERR( "version mismatch, opengl32 wants %u but driver has %u\n", version, WINE_OPENGL_DRIVER_VERSION );
-        return STATUS_INVALID_PARAMETER;
-    }
-    if (!(egl_handle = dlopen( SONAME_LIBEGL, RTLD_NOW|RTLD_GLOBAL )))
-    {
-        ERR( "failed to load %s: %s\n", SONAME_LIBEGL, dlerror() );
-        return STATUS_NOT_SUPPORTED;
-    }
-    if (!(opengl_handle = dlopen( SONAME_LIBGLESV2, RTLD_NOW|RTLD_GLOBAL )))
-    {
-        ERR( "failed to load %s: %s\n", SONAME_LIBGLESV2, dlerror() );
-        return STATUS_NOT_SUPPORTED;
-    }
-
-#define LOAD_FUNCPTR(func) do { \
-        if (!(p_##func = dlsym( egl_handle, #func ))) \
-        { ERR( "can't find symbol %s\n", #func); return FALSE; }    \
-    } while(0)
-    LOAD_FUNCPTR( eglCreateContext );
-    LOAD_FUNCPTR( eglCreateWindowSurface );
-    LOAD_FUNCPTR( eglCreatePbufferSurface );
-    LOAD_FUNCPTR( eglDestroyContext );
-    LOAD_FUNCPTR( eglDestroySurface );
-    LOAD_FUNCPTR( eglGetConfigAttrib );
-    LOAD_FUNCPTR( eglGetConfigs );
-    LOAD_FUNCPTR( eglGetDisplay );
-    LOAD_FUNCPTR( eglGetProcAddress );
-    LOAD_FUNCPTR( eglInitialize );
-    LOAD_FUNCPTR( eglMakeCurrent );
-    LOAD_FUNCPTR( eglSwapBuffers );
-    LOAD_FUNCPTR( eglSwapInterval );
-#undef LOAD_FUNCPTR
-
-    display = p_eglGetDisplay( EGL_DEFAULT_DISPLAY );
-    if (!p_eglInitialize( display, &major, &minor )) return 0;
-    TRACE( "display %p version %u.%u\n", display, major, minor );
-
-    init_opengl_funcs();
-    *funcs = &egl_funcs;
-    *driver_funcs = &android_driver_funcs;
-    return STATUS_SUCCESS;
+    init_extensions();
+    retval = 1;
+    return TRUE;
 }
 
 
@@ -861,12 +1052,35 @@ static void glstub_##name(void) \
     ExitProcess( 1 ); \
 }
 
-ALL_GL_FUNCS
+ALL_WGL_FUNCS
 #undef USE_GL_FUNC
 
 static struct opengl_funcs egl_funcs =
 {
-#define USE_GL_FUNC(name) .p_##name = (void *)glstub_##name,
-    ALL_GL_FUNCS
+    {
+        android_wglCopyContext,
+        android_wglCreateContext,
+        android_wglDeleteContext,
+        android_wglDescribePixelFormat,
+        android_wglGetPixelFormat,
+        android_wglGetProcAddress,
+        android_wglMakeCurrent,
+        android_wglSetPixelFormat,
+        android_wglShareLists,
+        android_wglSwapBuffers,
+    },
+#define USE_GL_FUNC(name) (void *)glstub_##name,
+    { ALL_WGL_FUNCS }
 #undef USE_GL_FUNC
 };
+
+struct opengl_funcs *get_wgl_driver( UINT version )
+{
+    if (version != WINE_WGL_DRIVER_VERSION)
+    {
+        ERR( "version mismatch, opengl32 wants %u but driver has %u\n", version, WINE_WGL_DRIVER_VERSION );
+        return NULL;
+    }
+    if (!egl_init()) return NULL;
+    return &egl_funcs;
+}

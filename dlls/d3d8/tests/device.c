@@ -2174,19 +2174,6 @@ static void test_scene(void)
     hr = IDirect3DDevice8_EndScene(device);
     ok(hr == D3DERR_INVALIDCALL, "Got hr %#lx.\n", hr);
 
-    /* Calling Reset clears scene state. */
-    hr = IDirect3DDevice8_BeginScene(device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
-    reset_device(device, NULL);
-    hr = IDirect3DDevice8_EndScene(device);
-    ok(hr == D3DERR_INVALIDCALL, "Got hr %#lx.\n", hr);
-
-    hr = IDirect3DDevice8_BeginScene(device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-    hr = IDirect3DDevice8_EndScene(device);
-    ok(hr == S_OK, "Got hr %#lx.\n", hr);
-
     /* StretchRect does not exit in Direct3D8, so no equivalent to the d3d9 stretchrect tests */
 
     refcount = IDirect3DDevice8_Release(device);
@@ -2773,6 +2760,7 @@ struct wndproc_thread_param
     HWND dummy_window;
     HANDLE window_created;
     HANDLE test_finished;
+    BOOL running_in_foreground;
 };
 
 static LRESULT CALLBACK test_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
@@ -2848,9 +2836,10 @@ static DWORD WINAPI wndproc_thread(void *param)
     DWORD res;
     BOOL ret;
 
-    p->dummy_window = CreateWindowA("static", "d3d9_test", WS_VISIBLE | WS_CAPTION,
-            100, 100, 200, 200, 0, 0, 0, 0);
-    flush_events();
+    p->dummy_window = CreateWindowA("d3d8_test_wndproc_wc", "d3d8_test",
+            WS_MAXIMIZE | WS_VISIBLE | WS_CAPTION, 0, 0, registry_mode.dmPelsWidth,
+            registry_mode.dmPelsHeight, 0, 0, 0, 0);
+    p->running_in_foreground = SetForegroundWindow(p->dummy_window);
 
     ret = SetEvent(p->window_created);
     ok(ret, "SetEvent failed, last error %#lx.\n", GetLastError());
@@ -3108,14 +3097,11 @@ static void test_wndproc(void)
             WS_MAXIMIZE | WS_VISIBLE | WS_CAPTION , 0, 0, user32_width, user32_height, 0, 0, 0, 0);
     device_window = CreateWindowA("d3d8_test_wndproc_wc", "d3d8_test",
             WS_MAXIMIZE | WS_VISIBLE | WS_CAPTION , 0, 0, user32_width, user32_height, 0, 0, 0, 0);
-    flush_events();
-
     thread = CreateThread(NULL, 0, wndproc_thread, &thread_params, 0, &tid);
     ok(!!thread, "Failed to create thread, last error %#lx.\n", GetLastError());
 
     res = WaitForSingleObject(thread_params.window_created, INFINITE);
     ok(res == WAIT_OBJECT_0, "Wait failed (%#lx), last error %#lx.\n", res, GetLastError());
-    flush_events();
 
     proc = GetWindowLongPtrA(device_window, GWLP_WNDPROC);
     ok(proc == (LONG_PTR)test_proc, "Expected wndproc %#Ix, got %#Ix.\n",
@@ -3128,10 +3114,15 @@ static void test_wndproc(void)
             device_window, focus_window, thread_params.dummy_window);
 
     tmp = GetFocus();
-    ok(tmp == NULL, "Expected focus %p, got %p.\n", NULL, tmp);
-    tmp = GetForegroundWindow();
-    ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
-            thread_params.dummy_window, tmp);
+    ok(tmp == device_window, "Expected focus %p, got %p.\n", device_window, tmp);
+    if (thread_params.running_in_foreground)
+    {
+        tmp = GetForegroundWindow();
+        ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
+                thread_params.dummy_window, tmp);
+    }
+    else
+        skip("Not running in foreground, skip foreground window test\n");
 
     flush_events();
 
@@ -3152,10 +3143,13 @@ static void test_wndproc(void)
             expect_messages->message, expect_messages->window);
     expect_messages = NULL;
 
-    tmp = GetFocus();
-    ok(tmp == focus_window, "Expected focus %p, got %p.\n", focus_window, tmp);
-    tmp = GetForegroundWindow();
-    ok(tmp == focus_window, "Expected foreground window %p, got %p.\n", focus_window, tmp);
+    if (0) /* Disabled until we can make this work in a reliable way on Wine. */
+    {
+        tmp = GetFocus();
+        ok(tmp == focus_window, "Expected focus %p, got %p.\n", focus_window, tmp);
+        tmp = GetForegroundWindow();
+        ok(tmp == focus_window, "Expected foreground window %p, got %p.\n", focus_window, tmp);
+    }
     SetForegroundWindow(focus_window);
     flush_events();
 
@@ -3532,14 +3526,11 @@ static void test_wndproc_windowed(void)
     device_window = CreateWindowA("d3d8_test_wndproc_wc", "d3d8_test",
             WS_MAXIMIZE | WS_VISIBLE | WS_CAPTION, 0, 0, registry_mode.dmPelsWidth,
             registry_mode.dmPelsHeight, 0, 0, 0, 0);
-    flush_events();
-
     thread = CreateThread(NULL, 0, wndproc_thread, &thread_params, 0, &tid);
     ok(!!thread, "Failed to create thread, last error %#lx.\n", GetLastError());
 
     res = WaitForSingleObject(thread_params.window_created, INFINITE);
     ok(res == WAIT_OBJECT_0, "Wait failed (%#lx), last error %#lx.\n", res, GetLastError());
-    flush_events();
 
     proc = GetWindowLongPtrA(device_window, GWLP_WNDPROC);
     ok(proc == (LONG_PTR)test_proc, "Expected wndproc %#Ix, got %#Ix.\n",
@@ -3552,10 +3543,15 @@ static void test_wndproc_windowed(void)
             device_window, focus_window, thread_params.dummy_window);
 
     tmp = GetFocus();
-    ok(tmp == NULL, "Expected focus %p, got %p.\n", NULL, tmp);
-    tmp = GetForegroundWindow();
-    ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
-            thread_params.dummy_window, tmp);
+    ok(tmp == device_window, "Expected focus %p, got %p.\n", device_window, tmp);
+    if (thread_params.running_in_foreground)
+    {
+        tmp = GetForegroundWindow();
+        ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
+                thread_params.dummy_window, tmp);
+    }
+    else
+        skip("Not running in foreground, skip foreground window test\n");
 
     filter_messages = focus_window;
 
@@ -3571,7 +3567,7 @@ static void test_wndproc_windowed(void)
     }
 
     tmp = GetFocus();
-    ok(tmp == NULL, "Expected focus %p, got %p.\n", NULL, tmp);
+    ok(tmp == device_window, "Expected focus %p, got %p.\n", device_window, tmp);
     tmp = GetForegroundWindow();
     ok(tmp == thread_params.dummy_window, "Expected foreground window %p, got %p.\n",
             thread_params.dummy_window, tmp);
@@ -3705,34 +3701,28 @@ done:
     UnregisterClassA("d3d8_test_wndproc_wc", GetModuleHandleA(NULL));
 }
 
-static const GUID d3d8_private_data_test_guid =
-{
-    0xfdb37466,
-    0x428f,
-    0x4edf,
-    {0xa3,0x7f,0x9b,0x1d,0xf4,0x88,0xc5,0xfc}
-};
-
-#if defined(__i386__) || (defined(__x86_64__) && !defined(__arm64ec__) && (defined(__GNUC__) || defined(__clang__)))
-
 static inline void set_fpu_cw(WORD cw)
 {
-#if defined(_MSC_VER) && defined(__i386__)
-    __asm fnclex;
-    __asm fldcw cw;
-#else
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+#define D3D8_TEST_SET_FPU_CW 1
     __asm__ volatile ("fnclex");
     __asm__ volatile ("fldcw %0" : : "m" (cw));
+#elif defined(__i386__) && defined(_MSC_VER)
+#define D3D8_TEST_SET_FPU_CW 1
+    __asm fnclex;
+    __asm fldcw cw;
 #endif
 }
 
 static inline WORD get_fpu_cw(void)
 {
     WORD cw = 0;
-#if defined(_MSC_VER) && defined(__i386__)
-    __asm fnstcw cw;
-#else
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+#define D3D8_TEST_GET_FPU_CW 1
     __asm__ volatile ("fnstcw %0" : "=m" (cw));
+#elif defined(__i386__) && defined(_MSC_VER)
+#define D3D8_TEST_GET_FPU_CW 1
+    __asm fnstcw cw;
 #endif
     return cw;
 }
@@ -3769,8 +3759,17 @@ static const IUnknownVtbl dummy_object_vtbl =
     dummy_object_Release,
 };
 
+static const GUID d3d8_private_data_test_guid =
+{
+    0xfdb37466,
+    0x428f,
+    0x4edf,
+    {0xa3,0x7f,0x9b,0x1d,0xf4,0x88,0xc5,0xfc}
+};
+
 static void test_fpu_setup(void)
 {
+#if defined(D3D8_TEST_SET_FPU_CW) && defined(D3D8_TEST_GET_FPU_CW)
     struct device_desc device_desc;
     IDirect3DDevice8 *device;
     IDirect3D8 *d3d8;
@@ -3870,15 +3869,8 @@ static void test_fpu_setup(void)
 done:
     DestroyWindow(window);
     IDirect3D8_Release(d3d8);
-}
-
-#else
-
-static void test_fpu_setup(void)
-{
-}
-
 #endif
+}
 
 static void test_ApplyStateBlock(void)
 {

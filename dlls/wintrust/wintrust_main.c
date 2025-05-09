@@ -277,7 +277,10 @@ static LONG WINTRUST_DefaultVerify(HWND hwnd, GUID *actionID,
     if (WVT_ISINSTRUCT(WINTRUST_DATA, data->cbStruct, pSignatureSettings))
         provData->pSigSettings = data->pSignatureSettings;
 
-    provData->hWndParent = hwnd;
+    if (hwnd == INVALID_HANDLE_VALUE)
+        provData->hWndParent = GetDesktopWindow();
+    else
+        provData->hWndParent = hwnd;
     provData->pgActionID = actionID;
     WintrustGetRegPolicyFlags(&provData->dwRegPolicySettings);
 
@@ -465,7 +468,10 @@ static LONG WINTRUST_CertVerify(HWND hwnd, GUID *actionID,
 
     data->hWVTStateData = provData;
     provData->pWintrustData = data;
-    provData->hWndParent = hwnd;
+    if (hwnd == INVALID_HANDLE_VALUE)
+        provData->hWndParent = GetDesktopWindow();
+    else
+        provData->hWndParent = hwnd;
     provData->pgActionID = actionID;
     WintrustGetRegPolicyFlags(&provData->dwRegPolicySettings);
 
@@ -759,7 +765,7 @@ CRYPT_PROVIDER_CERT * WINAPI WTHelperGetProvCertFromChain(
 
     TRACE("(%p %ld)\n", pSgnr, idxCert);
 
-    if (!pSgnr || idxCert >= pSgnr->csCertChain || !pSgnr->pasCertChain)
+    if (idxCert >= pSgnr->csCertChain || !pSgnr->pasCertChain)
         return NULL;
     cert = &pSgnr->pasCertChain[idxCert];
     TRACE("returning %p\n", cert);
@@ -1082,7 +1088,7 @@ BOOL WINAPI WINTRUST_AddPrivData(CRYPT_PROVIDER_DATA *data,
         return FALSE;
     }
     data->pasProvPrivData = realloc(data->pasProvPrivData,
-     (data->csProvPrivData + 1) * sizeof(*data->pasProvPrivData));
+     (data->csProvPrivData + 1) * sizeof(CRYPT_PROVIDER_SGNR));
     if (data->pasProvPrivData)
     {
         DWORD i;

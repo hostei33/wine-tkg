@@ -25,6 +25,7 @@
 #include "config.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -116,9 +117,13 @@ static inline struct base_device *impl_from_unix_device(struct unix_device *ifac
     return CONTAINING_RECORD(iface, struct base_device, unix_device);
 }
 
+#define QUIRK_DS4_BT 0x1
+#define QUIRK_DUALSENSE_BT 0x2
+
 struct hidraw_device
 {
     struct base_device base;
+    DWORD quirks;
 };
 
 static inline struct hidraw_device *hidraw_impl_from_unix_device(struct unix_device *iface)
@@ -188,7 +193,11 @@ struct lnxev_device
     BYTE hat_map[8];
     BYTE button_map[KEY_MAX];
 
-    int haptic_effect_id;
+    int haptics_state;
+    pthread_cond_t haptics_cond;
+    pthread_t haptics_thread;
+    struct ff_effect haptics;
+
     int effect_ids[256];
     LONG effect_flags;
 };
@@ -335,7 +344,77 @@ static void hidraw_device_read_report(struct unix_device *iface)
     else if (size == 0)
         TRACE("Failed to read report\n");
     else
+    {
+        /* As described in the Linux kernel driver, when connected over bluetooth, DS4 controllers
+         * start sending input through report #17 as soon as they receive a feature report #2, which
+         * the kernel sends anyway for calibration.
+         *
+         * Input report #17 is the same as the default input report #1, with additional gyro data and
+         * two additional bytes in front, but is only described as vendor specific in the report descriptor,
+         * and applications aren't expecting it.
+         *
+         * We have to translate it to input report #1, like native driver does.
+         */
+        if ((impl->quirks & QUIRK_DS4_BT) && report_buffer[0] == 0x11 && size >= 12)
+        {
+            size = 10;
+            buff += 2;
+            buff[0] = 1;
+        }
+
+        /* The behavior of DualSense is very similar to DS4 described above with a few exceptions.
+         *
+         * The report number #41 is used for the extended bluetooth input report. The report comes
+         * with only one extra byte in front and the format is not exactly the same as the one used
+         * for the report #1 so we need to shuffle a few bytes around.
+         *
+         * Basic #1 report:
+         *   X  Y  Z  RZ  Buttons[3]  TriggerLeft  TriggerRight
+         *
+         * Extended #41 report:
+         *   Prefix X  Y  Z  Rz  TriggerLeft  TriggerRight  Counter  Buttons[3] ...
+         */
+        if ((impl->quirks & QUIRK_DUALSENSE_BT) && report_buffer[0] == 0x31 && size >= 11)
+        {
+            BYTE trigger[2];
+            size = 10;
+            buff += 1;
+
+            buff[0] = 1; /* fake report #1 */
+
+            trigger[0] = buff[5]; /* TriggerLeft*/
+            trigger[1] = buff[6]; /* TriggerRight */
+
+            buff[5] = buff[8];    /* Buttons[0] */
+            buff[6] = buff[9];    /* Buttons[1] */
+            buff[7] = buff[10];   /* Buttons[2] */
+            buff[8] = trigger[0]; /* TriggerLeft */
+            buff[9] = trigger[1]; /* TirggerRight */
+        }
+
         bus_event_queue_input_report(&event_queue, iface, buff, size);
+    }
+}
+
+static void hidraw_disable_sony_quirks(struct unix_device *iface)
+{
+    struct hidraw_device *impl = hidraw_impl_from_unix_device(iface);
+
+    /* FIXME: we may want to validate CRC at the end of the outbound HID reports,
+     * as controllers do not switch modes if it is incorrect.
+     */
+
+    if ((impl->quirks & QUIRK_DS4_BT))
+    {
+        TRACE("Disabling report quirk for Bluetooth DualShock4 controller iface %p\n", iface);
+        impl->quirks &= ~QUIRK_DS4_BT;
+    }
+
+    if ((impl->quirks & QUIRK_DUALSENSE_BT))
+    {
+        TRACE("Disabling report quirk for Bluetooth DualSense controller iface %p\n", iface);
+        impl->quirks &= ~QUIRK_DUALSENSE_BT;
+    }
 }
 
 static void hidraw_device_set_output_report(struct unix_device *iface, HID_XFER_PACKET *packet, IO_STATUS_BLOCK *io)
@@ -357,6 +436,7 @@ static void hidraw_device_set_output_report(struct unix_device *iface, HID_XFER_
 
     if (count > 0)
     {
+        hidraw_disable_sony_quirks(iface);
         io->Information = count;
         io->Status = STATUS_SUCCESS;
     }
@@ -389,6 +469,7 @@ static void hidraw_device_get_feature_report(struct unix_device *iface, HID_XFER
 
     if (count > 0)
     {
+        hidraw_disable_sony_quirks(iface);
         io->Information = count;
         io->Status = STATUS_SUCCESS;
     }
@@ -425,6 +506,7 @@ static void hidraw_device_set_feature_report(struct unix_device *iface, HID_XFER
 
     if (count > 0)
     {
+        hidraw_disable_sony_quirks(iface);
         io->Information = count;
         io->Status = STATUS_SUCCESS;
     }
@@ -453,7 +535,326 @@ static const struct raw_device_vtbl hidraw_device_vtbl =
 
 #ifdef HAS_PROPER_INPUT_HEADER
 
+static const char *get_device_syspath(struct udev_device *dev)
+{
+    struct udev_device *parent;
+
+    if ((parent = udev_device_get_parent_with_subsystem_devtype(dev, "hid", NULL)))
+        return udev_device_get_syspath(parent);
+
+    if ((parent = udev_device_get_parent_with_subsystem_devtype(dev, "usb", "usb_device")))
+        return udev_device_get_syspath(parent);
+
+    return udev_device_get_syspath(dev);
+}
+
+static struct base_device *find_device_from_syspath(const char *path)
+{
+    struct base_device *impl;
+
+    LIST_FOR_EACH_ENTRY(impl, &device_list, struct base_device, unix_device.entry)
+        if (!strcmp(get_device_syspath(impl->udev_device), path)) return impl;
+
+    return NULL;
+}
+
 #define test_bit(arr,bit) (((BYTE*)(arr))[(bit)>>3]&(1<<((bit)&7)))
+
+/* Minimal compatibility with code taken from steam-runtime-tools */
+typedef int gboolean;
+#define g_debug(fmt, ...) TRACE(fmt "\n", ## __VA_ARGS__)
+#define G_N_ELEMENTS(arr) (sizeof(arr)/sizeof(arr[0]))
+
+typedef enum
+{
+  SRT_INPUT_DEVICE_TYPE_FLAGS_JOYSTICK = (1 << 0),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_ACCELEROMETER = (1 << 1),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_KEYBOARD = (1 << 2),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_HAS_KEYS = (1 << 3),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_MOUSE = (1 << 4),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_TOUCHPAD = (1 << 5),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_TOUCHSCREEN = (1 << 6),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_TABLET = (1 << 7),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_TABLET_PAD = (1 << 8),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_POINTING_STICK = (1 << 9),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_SWITCH = (1 << 10),
+  SRT_INPUT_DEVICE_TYPE_FLAGS_NONE = 0
+} SrtInputDeviceTypeFlags;
+
+#define BITS_PER_LONG           (sizeof (unsigned long) * CHAR_BIT)
+#define LONGS_FOR_BITS(x)       ((((x)-1)/BITS_PER_LONG)+1)
+typedef struct
+{
+  unsigned long ev[LONGS_FOR_BITS (EV_MAX)];
+  unsigned long keys[LONGS_FOR_BITS (KEY_MAX)];
+  unsigned long abs[LONGS_FOR_BITS (ABS_MAX)];
+  unsigned long rel[LONGS_FOR_BITS (REL_MAX)];
+  unsigned long ff[LONGS_FOR_BITS (FF_MAX)];
+  unsigned long props[LONGS_FOR_BITS (INPUT_PROP_MAX)];
+} SrtEvdevCapabilities;
+
+static gboolean
+_srt_get_caps_from_evdev (int fd,
+                          unsigned int type,
+                          unsigned long *bitmask,
+                          size_t bitmask_len_longs)
+{
+  size_t bitmask_len_bytes = bitmask_len_longs * sizeof (*bitmask);
+
+  memset (bitmask, 0, bitmask_len_bytes);
+
+  if (ioctl (fd, EVIOCGBIT (type, bitmask_len_bytes), bitmask) < 0)
+    return FALSE;
+
+  return TRUE;
+}
+
+static gboolean
+_srt_evdev_capabilities_set_from_evdev (SrtEvdevCapabilities *caps,
+                                        int fd)
+{
+  if (_srt_get_caps_from_evdev (fd, 0, caps->ev, G_N_ELEMENTS (caps->ev)))
+    {
+      _srt_get_caps_from_evdev (fd, EV_KEY, caps->keys, G_N_ELEMENTS (caps->keys));
+      _srt_get_caps_from_evdev (fd, EV_ABS, caps->abs, G_N_ELEMENTS (caps->abs));
+      _srt_get_caps_from_evdev (fd, EV_REL, caps->rel, G_N_ELEMENTS (caps->rel));
+      _srt_get_caps_from_evdev (fd, EV_FF, caps->ff, G_N_ELEMENTS (caps->ff));
+      ioctl (fd, EVIOCGPROP (sizeof (caps->props)), caps->props);
+      return TRUE;
+    }
+
+  memset (caps, 0, sizeof (*caps));
+  return FALSE;
+}
+
+#define JOYSTICK_ABS_AXES \
+  ((1 << ABS_X) | (1 << ABS_Y) \
+   | (1 << ABS_RX) | (1 << ABS_RY) \
+   | (1 << ABS_THROTTLE) | (1 << ABS_RUDDER) \
+   | (1 << ABS_WHEEL) | (1 << ABS_GAS) | (1 << ABS_BRAKE) \
+   | (1 << ABS_HAT0X) | (1 << ABS_HAT0Y) \
+   | (1 << ABS_HAT1X) | (1 << ABS_HAT1Y) \
+   | (1 << ABS_HAT2X) | (1 << ABS_HAT2Y) \
+   | (1 << ABS_HAT3X) | (1 << ABS_HAT3Y))
+
+static const unsigned int first_mouse_button = BTN_MOUSE;
+static const unsigned int last_mouse_button = BTN_JOYSTICK - 1;
+
+static const unsigned int first_joystick_button = BTN_JOYSTICK;
+static const unsigned int last_joystick_button = BTN_GAMEPAD - 1;
+
+static const unsigned int first_gamepad_button = BTN_GAMEPAD;
+static const unsigned int last_gamepad_button = BTN_DIGI - 1;
+
+static const unsigned int first_dpad_button = BTN_DPAD_UP;
+static const unsigned int last_dpad_button = BTN_DPAD_RIGHT;
+
+static const unsigned int first_extra_joystick_button = BTN_TRIGGER_HAPPY;
+static const unsigned int last_extra_joystick_button = BTN_TRIGGER_HAPPY40;
+
+SrtInputDeviceTypeFlags
+_srt_evdev_capabilities_guess_type (const SrtEvdevCapabilities *caps)
+{
+  SrtInputDeviceTypeFlags flags = SRT_INPUT_DEVICE_TYPE_FLAGS_NONE;
+  unsigned int i;
+  gboolean has_joystick_axes = FALSE;
+  gboolean has_joystick_buttons = FALSE;
+
+  /* Some properties let us be fairly sure about a device */
+  if (test_bit (caps->props, INPUT_PROP_ACCELEROMETER))
+    {
+      g_debug ("INPUT_PROP_ACCELEROMETER => is accelerometer");
+      flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_ACCELEROMETER;
+    }
+
+  if (test_bit (caps->props, INPUT_PROP_POINTING_STICK))
+    {
+      g_debug ("INPUT_PROP_POINTING_STICK => is pointing stick");
+      flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_POINTING_STICK;
+    }
+
+  if (test_bit (caps->props, INPUT_PROP_BUTTONPAD)
+      || test_bit (caps->props, INPUT_PROP_TOPBUTTONPAD))
+    {
+      g_debug ("INPUT_PROP_[TOP]BUTTONPAD => is touchpad");
+      flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_TOUCHPAD;
+    }
+
+  /* Devices with a stylus or pen are assumed to be graphics tablets */
+  if (test_bit (caps->keys, BTN_STYLUS)
+      || test_bit (caps->keys, BTN_TOOL_PEN))
+    {
+      g_debug ("Stylus or pen => is tablet");
+      flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_TABLET;
+    }
+
+  /* Devices that accept a finger touch are assumed to be touchpads or
+   * touchscreens.
+   *
+   * In Steam we mostly only care about these as a way to
+   * reject non-joysticks, so we're not very precise here yet.
+   *
+   * SDL assumes that TOUCH means a touchscreen and FINGER
+   * means a touchpad. */
+  if (flags == SRT_INPUT_DEVICE_TYPE_FLAGS_NONE
+      && (test_bit (caps->keys, BTN_TOOL_FINGER)
+          || test_bit (caps->keys, BTN_TOUCH)
+          || test_bit (caps->props, INPUT_PROP_SEMI_MT)))
+    {
+      g_debug ("Finger or touch or semi-MT => is touchpad or touchscreen");
+
+      if (test_bit (caps->props, INPUT_PROP_POINTER))
+        flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_TOUCHPAD;
+      else
+        flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_TOUCHSCREEN;
+    }
+
+  /* Devices with mouse buttons are ... probably mice? */
+  if (flags == SRT_INPUT_DEVICE_TYPE_FLAGS_NONE)
+    {
+      for (i = first_mouse_button; i <= last_mouse_button; i++)
+        {
+          if (test_bit (caps->keys, i))
+            {
+              g_debug ("Mouse button => mouse");
+              flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_MOUSE;
+            }
+        }
+    }
+
+  if (flags == SRT_INPUT_DEVICE_TYPE_FLAGS_NONE)
+    {
+      for (i = ABS_X; i < ABS_Z; i++)
+        {
+          if (!test_bit (caps->abs, i))
+            break;
+        }
+
+      /* If it has 3 axes and no buttons it's probably an accelerometer. */
+      if (i == ABS_Z && !test_bit (caps->ev, EV_KEY))
+        {
+          g_debug ("3 left axes and no buttons => accelerometer");
+          flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_ACCELEROMETER;
+        }
+
+      /* Same for RX..RZ (e.g. Wiimote) */
+      for (i = ABS_RX; i < ABS_RZ; i++)
+        {
+          if (!test_bit (caps->abs, i))
+            break;
+        }
+
+      if (i == ABS_RZ && !test_bit (caps->ev, EV_KEY))
+        {
+          g_debug ("3 right axes and no buttons => accelerometer");
+          flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_ACCELEROMETER;
+        }
+    }
+
+  /* Bits 1 to 31 are ESC, numbers and Q to D, which SDL and udev both
+   * consider to be enough to count as a fully-functioned keyboard. */
+  if ((caps->keys[0] & 0xfffffffe) == 0xfffffffe)
+    {
+      g_debug ("First few keys => keyboard");
+      flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_KEYBOARD;
+    }
+
+  /* If we have *any* keys, consider it to be something a bit
+   * keyboard-like. Bits 0 to 63 are all keyboard keys.
+   * Make sure we stop before reaching KEY_UP which is sometimes
+   * used on game controller mappings, e.g. for the Wiimote. */
+  for (i = 0; i < (64 / BITS_PER_LONG); i++)
+    {
+      if (caps->keys[i] != 0)
+        flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_HAS_KEYS;
+    }
+
+  if (caps->abs[0] & JOYSTICK_ABS_AXES)
+    has_joystick_axes = TRUE;
+
+  /* Flight stick buttons */
+  for (i = first_joystick_button; i <= last_joystick_button; i++)
+    {
+      if (test_bit (caps->keys, i))
+        has_joystick_buttons = TRUE;
+    }
+
+  /* Gamepad buttons (Xbox, PS3, etc.) */
+  for (i = first_gamepad_button; i <= last_gamepad_button; i++)
+    {
+      if (test_bit (caps->keys, i))
+        has_joystick_buttons = TRUE;
+    }
+
+  /* Gamepad digital dpad */
+  for (i = first_dpad_button; i <= last_dpad_button; i++)
+    {
+      if (test_bit (caps->keys, i))
+        has_joystick_buttons = TRUE;
+    }
+
+  /* Steering wheel gear-change buttons */
+  for (i = BTN_GEAR_DOWN; i <= BTN_GEAR_UP; i++)
+    {
+      if (test_bit (caps->keys, i))
+        has_joystick_buttons = TRUE;
+    }
+
+  /* Reserved space for extra game-controller buttons, e.g. on Corsair
+   * gaming keyboards */
+  for (i = first_extra_joystick_button; i <= last_extra_joystick_button; i++)
+    {
+      if (test_bit (caps->keys, i))
+        has_joystick_buttons = TRUE;
+    }
+
+  if (test_bit (caps->keys, last_mouse_button))
+    {
+      /* Mice with a very large number of buttons can apparently
+       * overflow into the joystick-button space, but they're still not
+       * joysticks. */
+      has_joystick_buttons = FALSE;
+    }
+
+  /* TODO: Do we want to consider BTN_0 up to BTN_9 to be joystick buttons?
+   * libmanette and SDL look for BTN_1, udev does not.
+   *
+   * They're used by some game controllers, like BTN_1 and BTN_2 for the
+   * Wiimote, BTN_1..BTN_9 for the SpaceTec SpaceBall and BTN_0..BTN_3
+   * for Playstation dance pads, but they're also used by
+   * non-game-controllers like Logitech mice. For now we entirely ignore
+   * these buttons: they are not evidence that it's a joystick, but
+   * neither are they evidence that it *isn't* a joystick. */
+
+  /* We consider it to be a joystick if there is some evidence that it is,
+   * and no evidence that it's something else.
+   *
+   * Unlike SDL, we accept devices with only axes and no buttons as a
+   * possible joystick, unless they have X/Y/Z axes in which case we
+   * assume they're accelerometers. */
+  if ((has_joystick_buttons || has_joystick_axes)
+      && (flags == SRT_INPUT_DEVICE_TYPE_FLAGS_NONE))
+    {
+      g_debug ("Looks like a joystick");
+      flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_JOYSTICK;
+    }
+
+  /* If we have *any* keys below BTN_MISC, consider it to be something
+   * a bit keyboard-like, but don't rule out *also* being considered
+   * to be a joystick (again for e.g. the Wiimote). */
+  for (i = 0; i < (BTN_MISC / BITS_PER_LONG); i++)
+    {
+      if (caps->keys[i] != 0)
+        flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_HAS_KEYS;
+    }
+
+  /* Also non-exclusive: don't rule out a device being a joystick and
+   * having a switch */
+  if (test_bit (caps->ev, EV_SW))
+    flags |= SRT_INPUT_DEVICE_TYPE_FLAGS_SWITCH;
+
+  return flags;
+}
 
 static const USAGE_AND_PAGE *what_am_I(struct udev_device *dev, int fd)
 {
@@ -465,6 +866,7 @@ static const USAGE_AND_PAGE *what_am_I(struct udev_device *dev, int fd)
     static const USAGE_AND_PAGE Tablet      = {.UsagePage = HID_USAGE_PAGE_DIGITIZER, .Usage = HID_USAGE_DIGITIZER_PEN};
     static const USAGE_AND_PAGE Touchscreen = {.UsagePage = HID_USAGE_PAGE_DIGITIZER, .Usage = HID_USAGE_DIGITIZER_TOUCH_SCREEN};
     static const USAGE_AND_PAGE Touchpad    = {.UsagePage = HID_USAGE_PAGE_DIGITIZER, .Usage = HID_USAGE_DIGITIZER_TOUCH_PAD};
+    SrtEvdevCapabilities caps;
 
     struct udev_device *parent = dev;
 
@@ -489,11 +891,56 @@ static const USAGE_AND_PAGE *what_am_I(struct udev_device *dev, int fd)
         parent = udev_device_get_parent_with_subsystem_devtype(parent, "input", NULL);
     }
 
+    /* In a container, udev properties might not be available. Fall back to deriving the device
+     * type from the fd's evdev capabilities. */
+    if (_srt_evdev_capabilities_set_from_evdev (&caps, fd))
+    {
+        SrtInputDeviceTypeFlags guessed_type;
+
+        guessed_type = _srt_evdev_capabilities_guess_type (&caps);
+
+        if (guessed_type & (SRT_INPUT_DEVICE_TYPE_FLAGS_MOUSE
+                            | SRT_INPUT_DEVICE_TYPE_FLAGS_POINTING_STICK))
+            return &Mouse;
+        else if (guessed_type & SRT_INPUT_DEVICE_TYPE_FLAGS_KEYBOARD)
+            return &Keyboard;
+        else if (guessed_type & SRT_INPUT_DEVICE_TYPE_FLAGS_JOYSTICK)
+            return &Gamepad;
+        else if (guessed_type & SRT_INPUT_DEVICE_TYPE_FLAGS_HAS_KEYS)
+            return &Keypad;
+        else if (guessed_type & SRT_INPUT_DEVICE_TYPE_FLAGS_TOUCHPAD)
+            return &Touchpad;
+        else if (guessed_type & SRT_INPUT_DEVICE_TYPE_FLAGS_TOUCHSCREEN)
+            return &Touchscreen;
+        else if (guessed_type & SRT_INPUT_DEVICE_TYPE_FLAGS_TABLET)
+            return &Tablet;
+
+        /* Mapped to Unknown: ACCELEROMETER, TABLET_PAD, SWITCH. */
+    }
+
     return &Unknown;
 }
 
 static INT count_buttons(int device_fd, BYTE *map)
 {
+    static const UINT gamepad_buttons[] =
+    {
+        BTN_A,
+        BTN_B,
+        BTN_X,
+        BTN_Y,
+        BTN_TL,
+        BTN_TR,
+        BTN_SELECT,
+        BTN_START,
+        BTN_THUMBL,
+        BTN_THUMBR,
+        BTN_MODE,
+        BTN_C,
+        BTN_Z,
+        BTN_TL2,
+        BTN_TR2,
+    };
     int i;
     int button_count = 0;
     BYTE keybits[(KEY_MAX+7)/8];
@@ -504,7 +951,16 @@ static INT count_buttons(int device_fd, BYTE *map)
         return FALSE;
     }
 
-    for (i = BTN_MISC; i < KEY_MAX; i++)
+    for (i = 0; i < ARRAY_SIZE(gamepad_buttons); i++)
+    {
+        if (test_bit(keybits, gamepad_buttons[i]))
+        {
+            if (map) map[gamepad_buttons[i]] = button_count;
+            button_count++;
+        }
+    }
+
+    for (i = BTN_DIGI; i < KEY_MAX; i++)
     {
         if (test_bit(keybits, i))
         {
@@ -538,7 +994,6 @@ static NTSTATUS build_report_descriptor(struct unix_device *iface, struct udev_d
     BYTE absbits[(ABS_MAX+7)/8];
     BYTE relbits[(REL_MAX+7)/8];
     BYTE ffbits[(FF_MAX+7)/8];
-    struct ff_effect effect;
     USAGE_AND_PAGE usage;
     USHORT count = 0;
     USAGE usages[16];
@@ -614,24 +1069,11 @@ static NTSTATUS build_report_descriptor(struct unix_device *iface, struct udev_d
     if (!hid_device_end_input_report(iface))
         return STATUS_NO_MEMORY;
 
-    impl->haptic_effect_id = -1;
+    impl->haptics.id = -1;
     for (i = 0; i < ARRAY_SIZE(impl->effect_ids); ++i) impl->effect_ids[i] = -1;
 
-    if (test_bit(ffbits, FF_RUMBLE))
-    {
-        effect.id = -1;
-        effect.type = FF_RUMBLE;
-        effect.replay.length = 0;
-        effect.u.rumble.strong_magnitude = 0;
-        effect.u.rumble.weak_magnitude = 0;
-
-        if (ioctl(impl->base.device_fd, EVIOCSFF, &effect) == -1)
-            WARN("couldn't allocate rumble effect for haptics: %d %s\n", errno, strerror(errno));
-        else if (!hid_device_add_haptics(iface))
-            return FALSE;
-        else
-            impl->haptic_effect_id = effect.id;
-    }
+    if (test_bit(ffbits, FF_RUMBLE) && !hid_device_add_haptics(iface))
+        return STATUS_NO_MEMORY;
 
     for (i = 0; i < FF_MAX; ++i) if (test_bit(ffbits, i)) break;
     if (i != FF_MAX)
@@ -648,7 +1090,7 @@ static NTSTATUS build_report_descriptor(struct unix_device *iface, struct udev_d
         if (test_bit(ffbits, FF_CONSTANT)) usages[count++] = PID_USAGE_ET_CONSTANT_FORCE;
         if (test_bit(ffbits, FF_RAMP)) usages[count++] = PID_USAGE_ET_RAMP;
 
-        if (!hid_device_add_physical(iface, usages, count, 2))
+        if (!hid_device_add_physical(iface, usages, count))
             return STATUS_NO_MEMORY;
     }
 
@@ -726,11 +1168,58 @@ static void lnxev_device_destroy(struct unix_device *iface)
     udev_device_unref(impl->base.udev_device);
 }
 
+static void *lnxev_device_haptics_thread(void *args)
+{
+    struct lnxev_device *impl = lnxev_impl_from_unix_device(args);
+
+    pthread_mutex_lock(&udev_cs);
+
+    for (;;)
+    {
+        struct ff_effect effect;
+
+        while (impl->haptics_state == 1) pthread_cond_wait(&impl->haptics_cond, &udev_cs);
+        if (!impl->haptics_state) break;
+
+        effect = impl->haptics;
+        impl->haptics_state = 1;
+        pthread_mutex_unlock(&udev_cs);
+
+        if (effect.type && (effect.id == -1 || ioctl(impl->base.device_fd, EVIOCSFF, &effect) == -1))
+        {
+            effect.id = -1;
+            ioctl(impl->base.device_fd, EVIOCSFF, &effect);
+        }
+
+        if (effect.id != -1)
+        {
+            struct input_event event = {.type = EV_FF, .code = effect.id, .value = !!effect.type};
+            write(impl->base.device_fd, &event, sizeof(event));
+        }
+
+        pthread_mutex_lock(&udev_cs);
+        impl->haptics.id = effect.id;
+    }
+
+    pthread_mutex_unlock(&udev_cs);
+    return NULL;
+}
+
 static NTSTATUS lnxev_device_start(struct unix_device *iface)
 {
+    struct lnxev_device *impl = lnxev_impl_from_unix_device(iface);
+    NTSTATUS status;
+
+    if ((status = build_report_descriptor(iface, impl->base.udev_device)))
+        return status;
+
     pthread_mutex_lock(&udev_cs);
     start_polling_device(iface);
+    impl->haptics_state = 1;
     pthread_mutex_unlock(&udev_cs);
+
+    pthread_cond_init(&impl->haptics_cond, NULL);
+    pthread_create(&impl->haptics_thread, NULL, lnxev_device_haptics_thread, iface);
     return STATUS_SUCCESS;
 }
 
@@ -741,7 +1230,12 @@ static void lnxev_device_stop(struct unix_device *iface)
     pthread_mutex_lock(&udev_cs);
     stop_polling_device(iface);
     list_remove(&impl->base.unix_device.entry);
+    impl->haptics_state = 0;
     pthread_mutex_unlock(&udev_cs);
+    pthread_cond_signal(&impl->haptics_cond);
+
+    pthread_join(impl->haptics_thread, NULL);
+    pthread_cond_destroy(&impl->haptics_cond);
 }
 
 static void lnxev_device_read_report(struct unix_device *iface)
@@ -765,39 +1259,18 @@ static NTSTATUS lnxev_device_haptics_start(struct unix_device *iface, UINT durat
                                            USHORT left_intensity, USHORT right_intensity)
 {
     struct lnxev_device *impl = lnxev_impl_from_unix_device(iface);
-    struct ff_effect effect =
-    {
-        .id = impl->haptic_effect_id,
-        .type = FF_RUMBLE,
-    };
-    struct input_event event;
 
     TRACE("iface %p, duration_ms %u, rumble_intensity %u, buzz_intensity %u, left_intensity %u, right_intensity %u.\n",
           iface, duration_ms, rumble_intensity, buzz_intensity, left_intensity, right_intensity);
 
-    effect.replay.length = duration_ms;
-    effect.u.rumble.strong_magnitude = rumble_intensity;
-    effect.u.rumble.weak_magnitude = buzz_intensity;
-
-    if (ioctl(impl->base.device_fd, EVIOCSFF, &effect) == -1)
-    {
-        effect.id = -1;
-        if (ioctl(impl->base.device_fd, EVIOCSFF, &effect) == 1)
-        {
-            WARN("couldn't re-allocate rumble effect for haptics: %d %s\n", errno, strerror(errno));
-            return STATUS_UNSUCCESSFUL;
-        }
-        impl->haptic_effect_id = effect.id;
-    }
-
-    event.type = EV_FF;
-    event.code = effect.id;
-    event.value = 1;
-    if (write(impl->base.device_fd, &event, sizeof(event)) == -1)
-    {
-        WARN("couldn't start haptics rumble effect: %d %s\n", errno, strerror(errno));
-        return STATUS_UNSUCCESSFUL;
-    }
+    pthread_mutex_lock(&udev_cs);
+    impl->haptics.type = FF_RUMBLE;
+    impl->haptics.replay.length = duration_ms;
+    impl->haptics.u.rumble.strong_magnitude = rumble_intensity;
+    impl->haptics.u.rumble.weak_magnitude = buzz_intensity;
+    impl->haptics_state = 2;
+    pthread_mutex_unlock(&udev_cs);
+    pthread_cond_signal(&impl->haptics_cond);
 
     return STATUS_SUCCESS;
 }
@@ -805,22 +1278,17 @@ static NTSTATUS lnxev_device_haptics_start(struct unix_device *iface, UINT durat
 static NTSTATUS lnxev_device_haptics_stop(struct unix_device *iface)
 {
     struct lnxev_device *impl = lnxev_impl_from_unix_device(iface);
-    struct ff_effect effect =
-    {
-        .id = impl->haptic_effect_id,
-        .type = FF_RUMBLE,
-    };
-    struct input_event event;
 
     TRACE("iface %p.\n", iface);
 
-    if (effect.id == -1) return STATUS_SUCCESS;
-
-    event.type = EV_FF;
-    event.code = effect.id;
-    event.value = 0;
-    if (write(impl->base.device_fd, &event, sizeof(event)) == -1)
-        WARN("couldn't stop haptics rumble effect: %d %s\n", errno, strerror(errno));
+    pthread_mutex_lock(&udev_cs);
+    impl->haptics.type = 0;
+    impl->haptics.replay.length = 0;
+    impl->haptics.u.rumble.strong_magnitude = 0;
+    impl->haptics.u.rumble.weak_magnitude = 0;
+    impl->haptics_state = 2;
+    pthread_mutex_unlock(&udev_cs);
+    pthread_cond_signal(&impl->haptics_cond);
 
     return STATUS_SUCCESS;
 }
@@ -842,24 +1310,6 @@ static NTSTATUS lnxev_device_physical_effect_run(struct lnxev_device *impl, BYTE
         WARN("couldn't stop effect, write failed %d %s\n", errno, strerror(errno));
         return STATUS_UNSUCCESSFUL;
     }
-
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS lnxev_device_physical_device_set_autocenter(struct unix_device *iface, BYTE percent)
-{
-    struct lnxev_device *impl = lnxev_impl_from_unix_device(iface);
-    struct input_event ie =
-    {
-        .type = EV_FF,
-        .code = FF_AUTOCENTER,
-        .value = 0xffff * percent / 100,
-    };
-
-    TRACE("iface %p, percent %#x.\n", iface, percent);
-
-    if (write(impl->base.device_fd, &ie, sizeof(ie)) == -1)
-        WARN("write failed %d %s\n", errno, strerror(errno));
 
     return STATUS_SUCCESS;
 }
@@ -907,7 +1357,6 @@ static NTSTATUS lnxev_device_physical_device_control(struct unix_device *iface, 
             if (impl->effect_ids[i] < 0) continue;
             lnxev_device_physical_effect_run(impl, i, 0);
         }
-        lnxev_device_physical_device_set_autocenter(iface, 0);
         return STATUS_SUCCESS;
     case PID_USAGE_DC_DEVICE_RESET:
         for (i = 0; i < ARRAY_SIZE(impl->effect_ids); ++i)
@@ -917,7 +1366,6 @@ static NTSTATUS lnxev_device_physical_device_control(struct unix_device *iface, 
                 WARN("couldn't free effect, EVIOCRMFF ioctl failed: %d %s\n", errno, strerror(errno));
             impl->effect_ids[i] = -1;
         }
-        lnxev_device_physical_device_set_autocenter(iface, 100);
         return STATUS_SUCCESS;
     case PID_USAGE_DC_DEVICE_PAUSE:
         WARN("device pause not supported\n");
@@ -1132,14 +1580,14 @@ static const struct hid_device_vtbl lnxev_device_vtbl =
 };
 #endif /* HAS_PROPER_INPUT_HEADER */
 
-static void get_device_subsystem_info(struct udev_device *dev, const char *subsystem, const char *devtype,
-                                      struct device_desc *desc, int *bus)
+static void get_device_subsystem_info(struct udev_device *dev, char const *subsystem, struct device_desc *desc,
+                                      int *bus)
 {
     struct udev_device *parent = NULL;
     const char *ptr, *next, *tmp;
     char buffer[MAX_PATH];
 
-    if (!(parent = udev_device_get_parent_with_subsystem_devtype(dev, subsystem, devtype))) return;
+    if (!(parent = udev_device_get_parent_with_subsystem_devtype(dev, subsystem, NULL))) return;
 
     if ((next = udev_device_get_sysattr_value(parent, "uevent")))
     {
@@ -1171,36 +1619,41 @@ static void get_device_subsystem_info(struct udev_device *dev, const char *subsy
                 if (*bus || desc->vid || desc->pid) continue;
                 sscanf(ptr, "HID_ID=%x:%x:%x\n", bus, &desc->vid, &desc->pid);
             }
-
-            if (!strcmp(subsystem, "input"))
+            if (!strncmp(ptr, "PRODUCT=", 8) && *bus != BUS_BLUETOOTH)
             {
-                if (!strncmp(ptr, "PRODUCT=", 8))
-                    sscanf(ptr, "PRODUCT=%x/%x/%x/%x\n", bus, &desc->vid, &desc->pid, &desc->version);
-            }
-
-            if (!strcmp(subsystem, "usb") && *bus != BUS_BLUETOOTH)
-            {
-                if (!strncmp(ptr, "PRODUCT=", 8))
+                if (desc->version) continue;
+                if (!strcmp(subsystem, "usb"))
                     sscanf(ptr, "PRODUCT=%x/%x/%x\n", &desc->vid, &desc->pid, &desc->version);
+                else
+                    sscanf(ptr, "PRODUCT=%x/%x/%x/%x\n", bus, &desc->vid, &desc->pid, &desc->version);
             }
         }
     }
 
-    if (!strcmp(subsystem, "usb") && *bus != BUS_BLUETOOTH)
-    {
-        if ((tmp = udev_device_get_sysattr_value(parent, "manufacturer")))
-            ntdll_umbstowcs(tmp, strlen(tmp) + 1, desc->manufacturer, ARRAY_SIZE(desc->manufacturer));
+    if (!desc->manufacturer[0] && (tmp = udev_device_get_sysattr_value(dev, "manufacturer")))
+        ntdll_umbstowcs(tmp, strlen(tmp) + 1, desc->manufacturer, ARRAY_SIZE(desc->manufacturer));
 
-        if ((tmp = udev_device_get_sysattr_value(parent, "product")))
-            ntdll_umbstowcs(tmp, strlen(tmp) + 1, desc->product, ARRAY_SIZE(desc->product));
+    if (!desc->product[0] && (tmp = udev_device_get_sysattr_value(dev, "product")))
+        ntdll_umbstowcs(tmp, strlen(tmp) + 1, desc->product, ARRAY_SIZE(desc->product));
 
-        if ((tmp = udev_device_get_sysattr_value(parent, "serial")))
-            ntdll_umbstowcs(tmp, strlen(tmp) + 1, desc->serialnumber, ARRAY_SIZE(desc->serialnumber));
-    }
+    if (!desc->serialnumber[0] && (tmp = udev_device_get_sysattr_value(dev, "serial")))
+        ntdll_umbstowcs(tmp, strlen(tmp) + 1, desc->serialnumber, ARRAY_SIZE(desc->serialnumber));
+}
+
+static void hidraw_set_quirks(struct hidraw_device *impl, DWORD bus_type, WORD vid, WORD pid)
+{
+    if (bus_type == BUS_BLUETOOTH && is_dualshock4_gamepad(vid, pid))
+        impl->quirks |= QUIRK_DS4_BT;
+
+    if (bus_type == BUS_BLUETOOTH && is_dualsense_gamepad(vid, pid))
+        impl->quirks |= QUIRK_DUALSENSE_BT;
 }
 
 static void udev_add_device(struct udev_device *dev, int fd)
 {
+    const char *env = getenv("PROTON_EXPOSE_STEAM_CONTROLLER");
+    BOOL expose_steam_controller = env && atoi(env) == 1;
+
     struct device_desc desc =
     {
         .input = -1,
@@ -1209,6 +1662,7 @@ static void udev_add_device(struct udev_device *dev, int fd)
     const char *subsystem;
     const char *devnode;
     int bus = 0;
+    int axes = -1, buttons = -1;
 
     if (!(devnode = udev_device_get_devnode(dev)))
     {
@@ -1224,10 +1678,21 @@ static void udev_add_device(struct udev_device *dev, int fd)
 
     TRACE("udev %s syspath %s\n", debugstr_a(devnode), udev_device_get_syspath(dev));
 
-    get_device_subsystem_info(dev, "hid", NULL, &desc, &bus);
-    get_device_subsystem_info(dev, "input", NULL, &desc, &bus);
-    get_device_subsystem_info(dev, "usb", "usb_device", &desc, &bus);
-    if (bus == BUS_BLUETOOTH) desc.is_bluetooth = TRUE;
+#ifdef HAS_PROPER_INPUT_HEADER
+    if ((impl = find_device_from_syspath(get_device_syspath(dev))))
+    {
+        TRACE("duplicate device found, not adding the new one\n");
+        close(fd);
+        return;
+    }
+
+    axes = count_abs_axis(fd);
+    buttons = count_buttons(fd, NULL);
+#endif
+
+    get_device_subsystem_info(dev, "hid", &desc, &bus);
+    get_device_subsystem_info(dev, "input", &desc, &bus);
+    get_device_subsystem_info(dev, "usb", &desc, &bus);
 
     subsystem = udev_device_get_subsystem(dev);
     if (!strcmp(subsystem, "hidraw"))
@@ -1238,7 +1703,6 @@ static void udev_add_device(struct udev_device *dev, int fd)
 #endif
 
         if (!desc.manufacturer[0]) memcpy(desc.manufacturer, hidraw, sizeof(hidraw));
-        desc.is_hidraw = TRUE;
 
 #ifdef HAVE_LINUX_HIDRAW_H
         if (!desc.product[0] && ioctl(fd, HIDIOCGRAWNAME(sizeof(product) - 1), product) >= 0)
@@ -1264,7 +1728,17 @@ static void udev_add_device(struct udev_device *dev, int fd)
         if (!desc.manufacturer[0]) memcpy(desc.manufacturer, evdev, sizeof(evdev));
 
         if (!desc.product[0] && ioctl(fd, EVIOCGNAME(sizeof(buffer) - 1), buffer) > 0)
+        {
+            /* CW-Bug-Id: #20528 Check steam virtual controller indexes to keep them ordered */
+            /* CW-Bug-Id: #23185 Emulate Steam Input native hooks for native SDL */
+            if (sscanf(buffer, "Microsoft X-Box 360 pad %u", &desc.input) == 1)
+            {
+                if (!expose_steam_controller) desc.input++;
+                desc.version = 0; /* keep version fixed as 0 so we can hardcode it in ntdll rawinput pipe redirection */
+            }
+
             ntdll_umbstowcs(buffer, strlen(buffer) + 1, desc.product, ARRAY_SIZE(desc.product));
+        }
 
         if (!desc.serialnumber[0] && ioctl(fd, EVIOCGUNIQ(sizeof(buffer)), buffer) >= 0)
             ntdll_umbstowcs(buffer, strlen(buffer) + 1, desc.serialnumber, ARRAY_SIZE(desc.serialnumber));
@@ -1277,16 +1751,47 @@ static void udev_add_device(struct udev_device *dev, int fd)
         memcpy(desc.serialnumber, zeros, sizeof(zeros));
     }
 
-    if (is_xbox_gamepad(desc.vid, desc.pid))
-        desc.is_gamepad = TRUE;
-#ifdef HAS_PROPER_INPUT_HEADER
-    else if (!strcmp(subsystem, "input"))
+    if (desc.vid == 0x28de && desc.pid == 0x11ff)
     {
-        int axes=0, buttons=0;
-        axes = count_abs_axis(fd);
-        buttons = count_buttons(fd, NULL);
-        desc.is_gamepad = (axes == 6 && buttons >= 14);
+        if (!strcmp(subsystem, "hidraw"))
+        {
+            TRACE("hidraw %s: deferring %s to a different backend\n", debugstr_a(devnode), debugstr_device_desc(&desc));
+            close(fd);
+            return;
+        }
+
+        TRACE("evdev %s: detected steam input virtual controller\n", debugstr_a(devnode));
+        desc.is_gamepad = TRUE;
+
+        if (!expose_steam_controller)
+        {
+            TRACE("pretending it's an Xbox 360 controller\n");
+            desc.vid = 0x045e;
+            desc.pid = 0x028e;
+        }
     }
+    else if (!is_hidraw_enabled(desc.vid, desc.pid, axes, buttons))
+    {
+        TRACE("hidraw %s: deferring %s to a different backend\n", debugstr_a(devnode), debugstr_device_desc(&desc));
+        close(fd);
+        return;
+    }
+    else if (is_sdl_blacklisted(desc.vid, desc.pid))
+    {
+        /* this device is blacklisted */
+        TRACE("hidraw %s: ignoring %s, in SDL blacklist\n", debugstr_a(devnode), debugstr_device_desc(&desc));
+        close(fd);
+        return;
+    }
+    else if (strcmp(subsystem, "hidraw"))
+    {
+        TRACE("evdev %s: deferring %s to a different backend\n", debugstr_a(devnode), debugstr_device_desc(&desc));
+        close(fd);
+        return;
+    }
+#ifdef HAS_PROPER_INPUT_HEADER
+    else
+        desc.is_gamepad = (axes == 6 && buttons >= 14);
 #endif
 
     TRACE("dev %p, node %s, desc %s.\n", dev, debugstr_a(devnode), debugstr_device_desc(&desc));
@@ -1299,6 +1804,7 @@ static void udev_add_device(struct udev_device *dev, int fd)
         impl->udev_device = udev_device_ref(dev);
         strcpy(impl->devnode, devnode);
         impl->device_fd = fd;
+        hidraw_set_quirks((struct hidraw_device *)impl, bus, desc.vid, desc.pid);
 
         bus_event_queue_device_created(&event_queue, &impl->unix_device, &desc);
     }
@@ -1311,13 +1817,6 @@ static void udev_add_device(struct udev_device *dev, int fd)
         impl->udev_device = udev_device_ref(dev);
         strcpy(impl->devnode, devnode);
         impl->device_fd = fd;
-
-        if (build_report_descriptor(&impl->unix_device, impl->udev_device))
-        {
-            list_remove(&impl->unix_device.entry);
-            impl->unix_device.vtbl->destroy(&impl->unix_device);
-            return;
-        }
 
         bus_event_queue_device_created(&event_queue, &impl->unix_device, &desc);
     }
@@ -1629,38 +2128,26 @@ static void process_monitor_event(struct udev_monitor *monitor)
 {
     struct base_device *impl;
     struct udev_device *dev;
-    const char *action, *devnode, *syspath;
+    const char *action;
 
     dev = udev_monitor_receive_device(monitor);
     if (!dev)
     {
-        ERR("Failed to get device that has changed\n");
+        FIXME("Failed to get device that has changed\n");
         return;
     }
 
     action = udev_device_get_action(dev);
-    syspath = udev_device_get_syspath(dev);
-    devnode = udev_device_get_devnode(dev);
-    TRACE("Received action %s for udev device %s (%p) devnode %s\n",
-          debugstr_a(action), debugstr_a(syspath), dev, debugstr_a(devnode));
+    TRACE("Received action %s for udev device %s\n", debugstr_a(action),
+          debugstr_a(udev_device_get_devnode(dev)));
 
-    if (!syspath)
-        ERR("udev device %p does not have syspath!\n", dev);
-    else if (!action)
-        ERR("event for udev device %s does not have any action!\n", syspath);
-    else if (!devnode)
-    {
-        /* Pretty normal case, not all devices have associated
-         * devnodes. For example root input devices do not, but
-         * related/child mouse and event devices do.
-         */
-        TRACE("udev device %s does not have devnode, ignoring\n", syspath);
-    }
+    if (!action)
+        WARN("No action received\n");
     else if (strcmp(action, "remove"))
         udev_add_device(dev, -1);
     else
     {
-        impl = find_device_from_devnode(devnode);
+        impl = find_device_from_devnode(udev_device_get_devnode(dev));
         if (impl) bus_event_queue_device_removed(&event_queue, &impl->unix_device);
         else WARN("failed to find device for udev device %p\n", dev);
     }
@@ -1686,6 +2173,12 @@ NTSTATUS udev_bus_init(void *args)
     {
         ERR("UDEV object creation failed\n");
         goto error;
+    }
+
+    if (access("/run/pressure-vessel", R_OK) || access("/.flatpak-info", R_OK))
+    {
+        TRACE("Container detected, bypassing udevd by default\n");
+        options.disable_udevd = TRUE;
     }
 
 #ifdef HAVE_SYS_INOTIFY_H

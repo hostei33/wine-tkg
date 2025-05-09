@@ -559,23 +559,6 @@ static BOOL GetFileDialog95(FileOpenDlgInfos *info, UINT dlg_type)
         ret = FALSE;
     }
 
-    /* set the lpstrFileTitle */
-    if (ret && info->ofnInfos->lpstrFile && info->ofnInfos->lpstrFileTitle)
-    {
-        if (info->unicode)
-        {
-            LPOPENFILENAMEW ofn = info->ofnInfos;
-            WCHAR *file_title = PathFindFileNameW(ofn->lpstrFile);
-            lstrcpynW(ofn->lpstrFileTitle, file_title, ofn->nMaxFileTitle);
-        }
-        else
-        {
-            LPOPENFILENAMEA ofn = (LPOPENFILENAMEA)info->ofnInfos;
-            char *file_title = PathFindFileNameA(ofn->lpstrFile);
-            lstrcpynA(ofn->lpstrFileTitle, file_title, ofn->nMaxFileTitle);
-        }
-    }
-
     if (current_dir)
     {
         SetCurrentDirectoryW(current_dir);
@@ -2886,6 +2869,23 @@ BOOL FILEDLG95_OnOpen(HWND hwnd)
               fodInfos->ofnInfos->nFileExtension = (*lpszTemp) ? (lpszTemp - tempFileA) + 1 : 0;
           }
 
+          /* set the lpstrFileTitle */
+          if(fodInfos->ofnInfos->lpstrFileTitle)
+	  {
+            LPWSTR lpstrFileTitle = PathFindFileNameW(lpstrPathAndFile);
+            if(fodInfos->unicode)
+            {
+              LPOPENFILENAMEW ofn = fodInfos->ofnInfos;
+	      lstrcpynW(ofn->lpstrFileTitle, lpstrFileTitle, ofn->nMaxFileTitle);
+            }
+            else
+            {
+              LPOPENFILENAMEA ofn = (LPOPENFILENAMEA)fodInfos->ofnInfos;
+              WideCharToMultiByte(CP_ACP, 0, lpstrFileTitle, -1,
+                    ofn->lpstrFileTitle, ofn->nMaxFileTitle, NULL, NULL);
+            }
+	  }
+
           /* copy currently selected filter to lpstrCustomFilter */
           if (fodInfos->ofnInfos->lpstrCustomFilter)
           {
@@ -3834,6 +3834,38 @@ ret:
     COMCTL32_ReleaseStgMedium(medium);
 }
 
+
+/* copied from shell32 to avoid linking to it
+ * Although shell32 is already linked the behaviour of exported StrRetToStrN
+ * is dependent on whether emulated OS is unicode or not.
+ */
+static HRESULT COMDLG32_StrRetToStrNW (LPWSTR dest, DWORD len, LPSTRRET src, const ITEMIDLIST *pidl)
+{
+	switch (src->uType)
+	{
+	  case STRRET_WSTR:
+	    lstrcpynW(dest, src->pOleStr, len);
+	    CoTaskMemFree(src->pOleStr);
+	    break;
+
+	  case STRRET_CSTR:
+            if (!MultiByteToWideChar( CP_ACP, 0, src->cStr, -1, dest, len ) && len)
+                  dest[len-1] = 0;
+	    break;
+
+	  case STRRET_OFFSET:
+            if (!MultiByteToWideChar( CP_ACP, 0, ((LPCSTR)&pidl->mkid)+src->uOffset, -1, dest, len ) && len)
+                  dest[len-1] = 0;
+	    break;
+
+	  default:
+	    FIXME("unknown type %x!\n", src->uType);
+	    if (len) *dest = '\0';
+	    return E_FAIL;
+	}
+	return S_OK;
+}
+
 /***********************************************************************
  * FILEDLG95_FILENAME_GetFileNames
  *
@@ -3973,7 +4005,7 @@ static HRESULT GetName(LPSHELLFOLDER lpsf, LPITEMIDLIST pidl,DWORD dwFlags,LPWST
   /* Get the display name of the pidl relative to the folder */
   if (SUCCEEDED(hRes = IShellFolder_GetDisplayNameOf(lpsf, pidl, dwFlags, &str)))
   {
-      return StrRetToBufW(&str, pidl, lpstrFileName, MAX_PATH);
+      return COMDLG32_StrRetToStrNW(lpstrFileName, MAX_PATH, &str, pidl);
   }
   return E_FAIL;
 }

@@ -40,8 +40,6 @@
 #include "wine/debug.h"
 #include "unixlib.h"
 
-static ULONG_PTR zero_bits = 0;
-
 WINE_DEFAULT_DEBUG_CHANNEL(wpcap);
 
 static NTSTATUS wrap_activate( void *args )
@@ -147,25 +145,13 @@ static NTSTATUS wrap_datalink_val_to_name( void *args )
 static NTSTATUS wrap_dump( void *args )
 {
     const struct dump_params *params = args;
+    struct pcap_pkthdr hdr_unix;
 
-    if (sizeof(void *) == 4)
-    {
-        struct pcap_pkthdr_win32 hdr32;
-        hdr32.ts.tv_sec  = params->hdr->ts.tv_sec;
-        hdr32.ts.tv_usec = params->hdr->ts.tv_usec;
-        hdr32.caplen     = params->hdr->caplen;
-        hdr32.len        = params->hdr->len;
-        pcap_dump( (unsigned char *)(ULONG_PTR)params->handle, (const struct pcap_pkthdr *)&hdr32, params->packet );
-    }
-    else
-    {
-        struct pcap_pkthdr hdr64;
-        hdr64.ts.tv_sec  = params->hdr->ts.tv_sec;
-        hdr64.ts.tv_usec = params->hdr->ts.tv_usec;
-        hdr64.caplen     = params->hdr->caplen;
-        hdr64.len        = params->hdr->len;
-        pcap_dump( (unsigned char *)(ULONG_PTR)params->handle, &hdr64, params->packet );
-    }
+    hdr_unix.ts.tv_sec  = params->hdr->ts.tv_sec;
+    hdr_unix.ts.tv_usec = params->hdr->ts.tv_usec;
+    hdr_unix.caplen     = params->hdr->caplen;
+    hdr_unix.len        = params->hdr->len;
+    pcap_dump( params->user, &hdr_unix, params->packet );
     return STATUS_SUCCESS;
 }
 
@@ -178,9 +164,8 @@ static NTSTATUS wrap_dump_close( void *args )
 
 static NTSTATUS wrap_dump_open( void *args )
 {
-    struct dump_open_params *params = args;
-    if (!(*params->ret_handle = (ULONG_PTR)pcap_dump_open( (pcap_t *)(ULONG_PTR)params->handle, params->name )))
-        return STATUS_NO_MEMORY;
+    const struct dump_open_params *params = args;
+    *params->ret_handle = (ULONG_PTR)pcap_dump_open( (pcap_t *)(ULONG_PTR)params->handle, params->name );
     return STATUS_SUCCESS;
 }
 
@@ -315,51 +300,16 @@ static NTSTATUS wrap_minor_version( void *args )
 static NTSTATUS wrap_next_ex( void *args )
 {
     struct next_ex_params *params = args;
+    struct pcap_pkthdr *hdr_unix;
     int ret;
 
-    if (sizeof(void *) == 4)
+    if ((ret = pcap_next_ex( (pcap_t *)(ULONG_PTR)params->handle, &hdr_unix, params->data )) == 1)
     {
-        struct pcap_pkthdr_win32 *hdr32;
-
-        if ((ret = pcap_next_ex( (pcap_t *)(ULONG_PTR)params->handle, (struct pcap_pkthdr **)&hdr32, &params->data )) == 1)
-        {
-            params->hdr->ts.tv_sec  = hdr32->ts.tv_sec;
-            params->hdr->ts.tv_usec = hdr32->ts.tv_usec;
-            params->hdr->caplen     = hdr32->caplen;
-            params->hdr->len        = hdr32->len;
-        }
-    }
-    else
-    {
-        struct pcap_pkthdr *hdr64;
-        const unsigned char *data;
-
-        if ((ret = pcap_next_ex( (pcap_t *)(ULONG_PTR)params->handle, &hdr64, &data )) == 1)
-        {
-            SIZE_T size;
-
-            if (hdr64->ts.tv_sec > INT_MAX || hdr64->ts.tv_usec > INT_MAX) WARN( "truncating timeval values(s)\n" );
-            params->hdr->ts.tv_sec  = hdr64->ts.tv_sec;
-            params->hdr->ts.tv_usec = hdr64->ts.tv_usec;
-            params->hdr->caplen     = hdr64->caplen;
-            params->hdr->len        = hdr64->len;
-
-            if (zero_bits && (ULONG_PTR)data > zero_bits)
-            {
-                if (params->buf && params->bufsize < hdr64->caplen)
-                {
-                    size = 0;
-                    NtFreeVirtualMemory( GetCurrentProcess(), (void **)&params->buf, &size, MEM_RELEASE );
-                }
-                size = hdr64->caplen;
-                if (NtAllocateVirtualMemory( GetCurrentProcess(), (void **)&params->buf, zero_bits, &size,
-                                             MEM_COMMIT, PAGE_READWRITE )) return PCAP_ERROR;
-                params->bufsize = size;
-                memcpy( params->buf, data, hdr64->caplen );
-                params->data = params->buf;
-            }
-            else params->data = data;
-        }
+        if (hdr_unix->ts.tv_sec > INT_MAX || hdr_unix->ts.tv_usec > INT_MAX) WARN( "truncating timeval values(s)\n" );
+        params->hdr->ts.tv_sec  = hdr_unix->ts.tv_sec;
+        params->hdr->ts.tv_usec = hdr_unix->ts.tv_usec;
+        params->hdr->caplen     = hdr_unix->caplen;
+        params->hdr->len        = hdr_unix->len;
     }
     return ret;
 }
@@ -388,12 +338,6 @@ static NTSTATUS wrap_set_datalink( void *args )
 {
     const struct set_datalink_params *params = args;
     return pcap_set_datalink( (pcap_t *)(ULONG_PTR)params->handle, params->link );
-}
-
-static NTSTATUS wrap_set_immediate_mode( void *args )
-{
-    const struct set_immediate_mode_params *params = args;
-    return pcap_set_immediate_mode( (pcap_t *)(ULONG_PTR)params->handle, params->mode );
 }
 
 static NTSTATUS wrap_set_promisc( void *args )
@@ -507,22 +451,8 @@ static NTSTATUS wrap_tstamp_type_val_to_name( void *args )
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS process_attach( void *args )
-{
-#ifdef _WIN64
-    if (NtCurrentTeb()->WowTebOffset)
-    {
-        SYSTEM_BASIC_INFORMATION info;
-        NtQuerySystemInformation( SystemEmulationBasicInformation, &info, sizeof(info), NULL );
-        zero_bits = (ULONG_PTR)info.HighestUserAddress | 0x7fffffff;
-    }
-#endif
-    return STATUS_SUCCESS;
-}
-
 const unixlib_entry_t __wine_unix_call_funcs[] =
 {
-    process_attach,
     wrap_activate,
     wrap_breakloop,
     wrap_bufsize,
@@ -553,7 +483,6 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     wrap_sendpacket,
     wrap_set_buffer_size,
     wrap_set_datalink,
-    wrap_set_immediate_mode,
     wrap_set_promisc,
     wrap_set_rfmon,
     wrap_set_snaplen,
@@ -671,14 +600,14 @@ static NTSTATUS wow64_dump( void *args )
 {
     struct
     {
-        UINT64 handle;
+        PTR32 user;
         PTR32 hdr;
         PTR32 packet;
     } const *params32 = args;
 
     struct dump_params params =
     {
-        params32->handle,
+        ULongToPtr(params32->user),
         ULongToPtr(params32->hdr),
         ULongToPtr(params32->packet)
     };
@@ -694,7 +623,7 @@ static NTSTATUS wow64_dump_open( void *args )
         PTR32 ret_handle;
     } const *params32 = args;
 
-    struct dump_open_params params =
+    struct datalink_val_to_name_params params =
     {
         params32->handle,
         ULongToPtr(params32->name),
@@ -843,31 +772,20 @@ static NTSTATUS wow64_lookupnet( void *args )
 
 static NTSTATUS wow64_next_ex( void *args )
 {
-    NTSTATUS ret;
-
     struct
     {
         UINT64 handle;
         PTR32 hdr;
         PTR32 data;
-        PTR32 buf;
-        UINT32 bufsize;
-    } *params32 = args;
+    } const *params32 = args;
 
     struct next_ex_params params =
     {
         params32->handle,
         ULongToPtr(params32->hdr),
-        ULongToPtr(params32->data),
-        ULongToPtr(params32->buf),
-        params32->bufsize
+        ULongToPtr(params32->data)
     };
-    ret = wrap_next_ex( &params );
-
-    params32->data = PtrToUlong( params.data );
-    params32->buf = PtrToUlong( params.buf );
-    params32->bufsize = params.bufsize;
-    return ret;
+    return wrap_next_ex( &params );
 }
 
 static NTSTATUS wow64_open_live( void *args )
@@ -1000,7 +918,6 @@ static NTSTATUS wow64_tstamp_type_val_to_name( void *args )
 
 const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 {
-    process_attach,
     wrap_activate,
     wrap_breakloop,
     wrap_bufsize,
@@ -1031,7 +948,6 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     wow64_sendpacket,
     wrap_set_buffer_size,
     wrap_set_datalink,
-    wrap_set_immediate_mode,
     wrap_set_promisc,
     wrap_set_rfmon,
     wrap_set_snaplen,

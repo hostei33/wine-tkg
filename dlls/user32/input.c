@@ -26,11 +26,12 @@
 
 #include "user_private.h"
 #include "dbt.h"
+#include "wine/server.h"
 #include "wine/debug.h"
-#include "wine/plugplay.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(win);
 WINE_DECLARE_DEBUG_CHANNEL(keyboard);
+WINE_DECLARE_DEBUG_CHANNEL(rawinput);
 
 /***********************************************************************
  *           get_locale_kbd_layout
@@ -38,6 +39,7 @@ WINE_DECLARE_DEBUG_CHANNEL(keyboard);
 static HKL get_locale_kbd_layout(void)
 {
     ULONG_PTR layout;
+    LANGID langid;
 
     /* FIXME:
      *
@@ -51,7 +53,19 @@ static HKL get_locale_kbd_layout(void)
      */
 
     layout = GetUserDefaultLCID();
-    layout = MAKELONG( layout, layout );
+
+    /*
+     * Microsoft Office expects this value to be something specific
+     * for Japanese and Korean Windows with an IME the value is 0xe001
+     * We should probably check to see if an IME exists and if so then
+     * set this word properly.
+     */
+    langid = PRIMARYLANGID( LANGIDFROMLCID( layout ) );
+    if (langid == LANG_CHINESE || langid == LANG_JAPANESE || langid == LANG_KOREAN)
+        layout = MAKELONG( layout, 0xe001 ); /* IME */
+    else
+        layout = MAKELONG( layout, layout );
+
     return (HKL)layout;
 }
 
@@ -103,11 +117,49 @@ BOOL WINAPI DECLSPEC_HOTPATCH GetCursorPos( POINT *pt )
 
 
 /**********************************************************************
+ *		ReleaseCapture (USER32.@)
+ */
+BOOL WINAPI DECLSPEC_HOTPATCH ReleaseCapture(void)
+{
+    return NtUserReleaseCapture();
+}
+
+
+/**********************************************************************
  *		GetCapture (USER32.@)
  */
 HWND WINAPI GetCapture(void)
 {
-    return (HWND)NtUserGetThreadState( UserThreadStateCaptureWindow );
+    GUITHREADINFO info;
+    info.cbSize = sizeof(info);
+    return NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info ) ? info.hwndCapture : 0;
+}
+
+
+/*****************************************************************
+ *		DestroyCaret (USER32.@)
+ */
+BOOL WINAPI DestroyCaret(void)
+{
+    return NtUserDestroyCaret();
+}
+
+
+/*****************************************************************
+ *		SetCaretPos (USER32.@)
+ */
+BOOL WINAPI SetCaretPos( int x, int y )
+{
+    return NtUserSetCaretPos( x, y );
+}
+
+
+/*****************************************************************
+ *		SetCaretBlinkTime (USER32.@)
+ */
+BOOL WINAPI SetCaretBlinkTime( unsigned int time )
+{
+    return NtUserSetCaretBlinkTime( time );
 }
 
 
@@ -116,7 +168,7 @@ HWND WINAPI GetCapture(void)
  */
 BOOL WINAPI GetInputState(void)
 {
-    return NtUserGetThreadState( UserThreadStateInputState );
+    return NtUserGetInputState();
 }
 
 
@@ -125,6 +177,8 @@ BOOL WINAPI GetInputState(void)
  */
 BOOL WINAPI GetLastInputInfo(PLASTINPUTINFO plii)
 {
+    BOOL ret;
+
     TRACE("%p\n", plii);
 
     if (plii->cbSize != sizeof (*plii) )
@@ -132,8 +186,15 @@ BOOL WINAPI GetLastInputInfo(PLASTINPUTINFO plii)
         SetLastError(ERROR_INVALID_PARAMETER);
         return FALSE;
     }
-    plii->dwTime = NtUserGetLastInputTime();
-    return TRUE;
+
+    SERVER_START_REQ( get_last_input_time )
+    {
+        ret = !wine_server_call_err( req );
+        if (ret)
+            plii->dwTime = reply->time;
+    }
+    SERVER_END_REQ;
+    return ret;
 }
 
 
@@ -430,17 +491,6 @@ HKL WINAPI LoadKeyboardLayoutA(LPCSTR pwszKLID, UINT Flags)
 
 
 /***********************************************************************
- *		LoadKeyboardLayoutEx (USER32.@)
- */
-HKL WINAPI LoadKeyboardLayoutEx( HKL layout, const WCHAR *name, UINT flags )
-{
-    FIXME_(keyboard)( "layout %p, name %s, flags %x, semi-stub!\n", layout, debugstr_w( name ), flags );
-
-    if (!layout) return NULL;
-    return LoadKeyboardLayoutW( name, flags );
-}
-
-/***********************************************************************
  *		UnloadKeyboardLayout (USER32.@)
  */
 BOOL WINAPI UnloadKeyboardLayout( HKL layout )
@@ -450,8 +500,10 @@ BOOL WINAPI UnloadKeyboardLayout( HKL layout )
     return FALSE;
 }
 
+
 static DWORD CALLBACK devnotify_window_callbackW(HANDLE handle, DWORD flags, DEV_BROADCAST_HDR *header)
 {
+    TRACE_(rawinput)("handle %p, flags %#lx, header %p\n", handle, flags, header);
     SendMessageTimeoutW(handle, WM_DEVICECHANGE, flags, (LPARAM)header, SMTO_ABORTIFHUNG, 2000, NULL);
     return 0;
 }
@@ -483,30 +535,12 @@ static DWORD CALLBACK devnotify_window_callbackA(HANDLE handle, DWORD flags, DEV
             return 0;
         }
 
-        case DBT_DEVTYP_HANDLE:
-        {
-            const DEV_BROADCAST_HANDLE *handleW = (const DEV_BROADCAST_HANDLE *)header;
-            UINT sizeW = handleW->dbch_size - offsetof(DEV_BROADCAST_HANDLE, dbch_data[0]), len, offset;
-            DEV_BROADCAST_HANDLE *handleA;
-
-            if (!(handleA = malloc( offsetof(DEV_BROADCAST_HANDLE, dbch_data[sizeW * 3 + 1]) ))) return 0;
-            memcpy( handleA, handleW, offsetof(DEV_BROADCAST_HANDLE, dbch_data[0]) );
-            offset = min( sizeW, handleW->dbch_nameoffset );
-
-            memcpy( handleA->dbch_data, handleW->dbch_data, offset );
-            len = WideCharToMultiByte( CP_ACP, 0, (WCHAR *)(handleW->dbch_data + offset), (sizeW - offset) / sizeof(WCHAR),
-                                       (char *)handleA->dbch_data + offset, sizeW * 3 + 1 - offset, NULL, NULL );
-            handleA->dbch_size = offsetof(DEV_BROADCAST_HANDLE, dbch_data[offset + len + 1]);
-
-            SendMessageTimeoutA( handle, WM_DEVICECHANGE, flags, (LPARAM)handleA, SMTO_ABORTIFHUNG, 2000, NULL );
-            free( handleA );
-            return 0;
-        }
-
-        case DBT_DEVTYP_OEM:
-            break;
         default:
             FIXME( "unimplemented W to A mapping for %#lx\n", header->dbch_devicetype );
+            /* fall through */
+        case DBT_DEVTYP_HANDLE:
+        case DBT_DEVTYP_OEM:
+            break;
         }
     }
 
@@ -519,6 +553,21 @@ static DWORD CALLBACK devnotify_service_callback(HANDLE handle, DWORD flags, DEV
     FIXME("Support for service handles is not yet implemented!\n");
     return 0;
 }
+
+struct device_notification_details
+{
+    DWORD (CALLBACK *cb)(HANDLE handle, DWORD flags, DEV_BROADCAST_HDR *header);
+    HANDLE handle;
+    union
+    {
+        DEV_BROADCAST_HDR header;
+        DEV_BROADCAST_DEVICEINTERFACE_W iface;
+    } filter;
+};
+
+extern HDEVNOTIFY WINAPI I_ScRegisterDeviceNotification( struct device_notification_details *details,
+        void *filter, DWORD flags );
+extern BOOL WINAPI I_ScUnregisterDeviceNotification( HDEVNOTIFY handle );
 
 /***********************************************************************
  *		RegisterDeviceNotificationA (USER32.@)
@@ -535,10 +584,10 @@ HDEVNOTIFY WINAPI RegisterDeviceNotificationA( HANDLE handle, void *filter, DWOR
  */
 HDEVNOTIFY WINAPI RegisterDeviceNotificationW( HANDLE handle, void *filter, DWORD flags )
 {
+    struct device_notification_details details;
     DEV_BROADCAST_HDR *header = filter;
-    device_notify_callback callback;
 
-    TRACE("handle %p, filter %p, flags %#lx\n", handle, filter, flags);
+    TRACE_(rawinput)("handle %p, filter %p, flags %#lx\n", handle, filter, flags);
 
     if (flags & ~(DEVICE_NOTIFY_SERVICE_HANDLE | DEVICE_NOTIFY_ALL_INTERFACE_CLASSES))
     {
@@ -552,35 +601,38 @@ HDEVNOTIFY WINAPI RegisterDeviceNotificationW( HANDLE handle, void *filter, DWOR
         return NULL;
     }
 
-    if (flags & DEVICE_NOTIFY_SERVICE_HANDLE)
-        callback = devnotify_service_callback;
-    else if (IsWindowUnicode( handle ))
-        callback = devnotify_window_callbackW;
-    else
-        callback = devnotify_window_callbackA;
-
-    if (!header)
+    if (!header) details.filter.header.dbch_devicetype = 0;
+    else if (header->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
     {
-        DEV_BROADCAST_HDR dummy = {0};
-        return I_ScRegisterDeviceNotification( handle, &dummy, callback );
-    }
-    if (header->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
-    {
-        DEV_BROADCAST_DEVICEINTERFACE_W iface = *(DEV_BROADCAST_DEVICEINTERFACE_W *)header;
+        DEV_BROADCAST_DEVICEINTERFACE_W *iface = (DEV_BROADCAST_DEVICEINTERFACE_W *)header;
+        details.filter.iface = *iface;
 
         if (flags & DEVICE_NOTIFY_ALL_INTERFACE_CLASSES)
-            iface.dbcc_size = offsetof( DEV_BROADCAST_DEVICEINTERFACE_W, dbcc_classguid );
+            details.filter.iface.dbcc_size = offsetof( DEV_BROADCAST_DEVICEINTERFACE_W, dbcc_classguid );
         else
-            iface.dbcc_size = offsetof( DEV_BROADCAST_DEVICEINTERFACE_W, dbcc_name );
-
-        return I_ScRegisterDeviceNotification( handle, (DEV_BROADCAST_HDR *)&iface, callback );
+            details.filter.iface.dbcc_size = offsetof( DEV_BROADCAST_DEVICEINTERFACE_W, dbcc_name );
     }
-    if (header->dbch_devicetype == DBT_DEVTYP_HANDLE)
-        return I_ScRegisterDeviceNotification( handle, header, callback );
+    else if (header->dbch_devicetype == DBT_DEVTYP_HANDLE)
+    {
+        FIXME( "DBT_DEVTYP_HANDLE filter type not implemented\n" );
+        details.filter.header.dbch_devicetype = 0;
+    }
+    else
+    {
+        SetLastError( ERROR_INVALID_DATA );
+        return NULL;
+    }
 
-    FIXME( "type %#lx not implemented\n", header->dbch_devicetype );
-    SetLastError( ERROR_INVALID_DATA );
-    return NULL;
+    details.handle = handle;
+
+    if (flags & DEVICE_NOTIFY_SERVICE_HANDLE)
+        details.cb = devnotify_service_callback;
+    else if (IsWindowUnicode( handle ))
+        details.cb = devnotify_window_callbackW;
+    else
+        details.cb = devnotify_window_callbackA;
+
+    return I_ScRegisterDeviceNotification( &details, filter, 0 );
 }
 
 /***********************************************************************
@@ -645,28 +697,8 @@ LRESULT WINAPI DefRawInputProc( RAWINPUT **data, INT data_count, UINT header_siz
  */
 BOOL WINAPI CloseTouchInputHandle( HTOUCHINPUT handle )
 {
-    FIXME( "handle %p stub!\n", handle );
-    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
-    return FALSE;
-}
-
-/*****************************************************************************
- * GetTouchInputInfo (USER32.@)
- */
-BOOL WINAPI GetTouchInputInfo( HTOUCHINPUT handle, UINT count, TOUCHINPUT *ptr, int size )
-{
-    FIXME( "handle %p, count %u, ptr %p, size %u stub!\n", handle, count, ptr, size );
-    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
-    return FALSE;
-}
-
-/**********************************************************************
- * IsTouchWindow (USER32.@)
- */
-BOOL WINAPI IsTouchWindow( HWND hwnd, ULONG *flags )
-{
-    FIXME( "hwnd %p, flags %p stub!\n", hwnd, flags );
-    return FALSE;
+    TRACE( "handle %p.\n", handle );
+    return TRUE;
 }
 
 /*****************************************************************************
@@ -674,8 +706,8 @@ BOOL WINAPI IsTouchWindow( HWND hwnd, ULONG *flags )
  */
 BOOL WINAPI RegisterTouchWindow( HWND hwnd, ULONG flags )
 {
-    FIXME( "hwnd %p, flags %#lx stub!\n", hwnd, flags );
-    return TRUE;
+    TRACE( "hwnd %p, flags %#lx.\n", hwnd, flags );
+    return NtUserCallTwoParam( (ULONG_PTR)hwnd, flags, NtUserCallTwoParam_RegisterTouchWindow );
 }
 
 /*****************************************************************************
@@ -683,8 +715,8 @@ BOOL WINAPI RegisterTouchWindow( HWND hwnd, ULONG flags )
  */
 BOOL WINAPI UnregisterTouchWindow( HWND hwnd )
 {
-    FIXME( "hwnd %p stub!\n", hwnd );
-    return TRUE;
+    TRACE( "hwnd %p.\n", hwnd );
+    return NtUserCallOneParam( (ULONG_PTR)hwnd, NtUserCallOneParam_UnregisterTouchWindow );
 }
 
 /*****************************************************************************
@@ -757,11 +789,22 @@ BOOL WINAPI GetPointerTouchInfoHistory( UINT32 id, UINT32 *count, POINTER_TOUCH_
 
 
 /*******************************************************************
+ *           SetForegroundWindow  (USER32.@)
+ */
+BOOL WINAPI SetForegroundWindow( HWND hwnd )
+{
+    return NtUserSetForegroundWindow( hwnd );
+}
+
+
+/*******************************************************************
  *           GetActiveWindow  (USER32.@)
  */
 HWND WINAPI GetActiveWindow(void)
 {
-    return (HWND)NtUserGetThreadState( UserThreadStateActiveWindow );
+    GUITHREADINFO info;
+    info.cbSize = sizeof(info);
+    return NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info ) ? info.hwndActive : 0;
 }
 
 
@@ -770,7 +813,9 @@ HWND WINAPI GetActiveWindow(void)
  */
 HWND WINAPI GetFocus(void)
 {
-    return (HWND)NtUserGetThreadState( UserThreadStateFocusWindow );
+    GUITHREADINFO info;
+    info.cbSize = sizeof(info);
+    return NtUserGetGUIThreadInfo( GetCurrentThreadId(), &info ) ? info.hwndFocus : 0;
 }
 
 
@@ -793,6 +838,15 @@ HWND WINAPI GetShellWindow(void)
 
 
 /***********************************************************************
+ *           SetProgmanWindow (USER32.@)
+ */
+HWND WINAPI SetProgmanWindow( HWND hwnd )
+{
+    return NtUserSetProgmanWindow( hwnd );
+}
+
+
+/***********************************************************************
  *           GetProgmanWindow (USER32.@)
  */
 HWND WINAPI GetProgmanWindow(void)
@@ -802,16 +856,17 @@ HWND WINAPI GetProgmanWindow(void)
 
 
 /***********************************************************************
+ *           SetTaskmanWindow (USER32.@)
+ */
+HWND WINAPI SetTaskmanWindow( HWND hwnd )
+{
+    return NtUserSetTaskmanWindow( hwnd );
+}
+
+/***********************************************************************
  *           GetTaskmanWindow (USER32.@)
  */
 HWND WINAPI GetTaskmanWindow(void)
 {
     return NtUserGetTaskmanWindow();
-}
-
-HSYNTHETICPOINTERDEVICE WINAPI CreateSyntheticPointerDevice(POINTER_INPUT_TYPE type, ULONG max_count, POINTER_FEEDBACK_MODE mode)
-{
-    FIXME( "type %ld, max_count %ld, mode %d stub!\n", type, max_count, mode);
-    SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
-    return NULL;
 }

@@ -67,8 +67,6 @@ typedef struct
 {
     TIFFPredictorState predict;
     z_stream stream;
-    int read_error; /* whether a read error has occurred, and which should cause
-                       further reads in the same strip/tile to be aborted */
     int zipquality; /* compression level */
     int state;      /* state flags */
     int subcodec;   /* DEFLATE_SUBCODEC_ZLIB or DEFLATE_SUBCODEC_LIBDEFLATE */
@@ -85,9 +83,9 @@ typedef struct
     TIFFVSetMethod vsetparent; /* super-class method */
 } ZIPState;
 
-#define GetZIPState(tif) ((ZIPState *)(tif)->tif_data)
-#define ZIPDecoderState(tif) GetZIPState(tif)
-#define ZIPEncoderState(tif) GetZIPState(tif)
+#define ZState(tif) ((ZIPState *)(tif)->tif_data)
+#define DecoderState(tif) ZState(tif)
+#define EncoderState(tif) ZState(tif)
 
 static int ZIPEncode(TIFF *tif, uint8_t *bp, tmsize_t cc, uint16_t s);
 static int ZIPDecode(TIFF *tif, uint8_t *op, tmsize_t occ, uint16_t s);
@@ -101,7 +99,7 @@ static int ZIPFixupTags(TIFF *tif)
 static int ZIPSetupDecode(TIFF *tif)
 {
     static const char module[] = "ZIPSetupDecode";
-    ZIPState *sp = ZIPDecoderState(tif);
+    ZIPState *sp = DecoderState(tif);
 
     assert(sp != NULL);
 
@@ -133,7 +131,7 @@ static int ZIPSetupDecode(TIFF *tif)
  */
 static int ZIPPreDecode(TIFF *tif, uint16_t s)
 {
-    ZIPState *sp = ZIPDecoderState(tif);
+    ZIPState *sp = DecoderState(tif);
 
     (void)s;
     assert(sp != NULL);
@@ -152,32 +150,17 @@ static int ZIPPreDecode(TIFF *tif, uint16_t s)
     sp->stream.avail_in = (uint64_t)tif->tif_rawcc < 0xFFFFFFFFU
                               ? (uInt)tif->tif_rawcc
                               : 0xFFFFFFFFU;
-    if (inflateReset(&sp->stream) == Z_OK)
-    {
-        sp->read_error = 0;
-        return 1;
-    }
-    return 0;
+    return (inflateReset(&sp->stream) == Z_OK);
 }
 
 static int ZIPDecode(TIFF *tif, uint8_t *op, tmsize_t occ, uint16_t s)
 {
     static const char module[] = "ZIPDecode";
-    ZIPState *sp = ZIPDecoderState(tif);
+    ZIPState *sp = DecoderState(tif);
 
     (void)s;
     assert(sp != NULL);
     assert(sp->state == ZSTATE_INIT_DECODE);
-
-    if (sp->read_error)
-    {
-        memset(op, 0, (size_t)occ);
-        TIFFErrorExtR(tif, module,
-                      "ZIPDecode: Scanline %" PRIu32 " cannot be read due to "
-                      "previous error",
-                      tif->tif_row);
-        return 0;
-    }
 
 #if LIBDEFLATE_SUPPORT
     if (sp->libdeflate_state == 1)
@@ -244,10 +227,8 @@ static int ZIPDecode(TIFF *tif, uint8_t *op, tmsize_t occ, uint16_t s)
             if (res != LIBDEFLATE_SUCCESS &&
                 res != LIBDEFLATE_INSUFFICIENT_SPACE)
             {
-                memset(op, 0, (size_t)occ);
                 TIFFErrorExtR(tif, module, "Decoding error at scanline %lu",
                               (unsigned long)tif->tif_row);
-                sp->read_error = 1;
                 return 0;
             }
 
@@ -282,17 +263,13 @@ static int ZIPDecode(TIFF *tif, uint8_t *op, tmsize_t occ, uint16_t s)
             break;
         if (state == Z_DATA_ERROR)
         {
-            memset(sp->stream.next_out, 0, sp->stream.avail_out);
             TIFFErrorExtR(tif, module, "Decoding error at scanline %lu, %s",
                           (unsigned long)tif->tif_row, SAFE_MSG(sp));
-            sp->read_error = 1;
             return (0);
         }
         if (state != Z_OK)
         {
-            memset(sp->stream.next_out, 0, sp->stream.avail_out);
             TIFFErrorExtR(tif, module, "ZLib error: %s", SAFE_MSG(sp));
-            sp->read_error = 1;
             return (0);
         }
     } while (occ > 0);
@@ -302,8 +279,6 @@ static int ZIPDecode(TIFF *tif, uint8_t *op, tmsize_t occ, uint16_t s)
                       "Not enough data at scanline %lu (short %" PRIu64
                       " bytes)",
                       (unsigned long)tif->tif_row, (uint64_t)occ);
-        memset(sp->stream.next_out, 0, sp->stream.avail_out);
-        sp->read_error = 1;
         return (0);
     }
 
@@ -315,7 +290,7 @@ static int ZIPDecode(TIFF *tif, uint8_t *op, tmsize_t occ, uint16_t s)
 static int ZIPSetupEncode(TIFF *tif)
 {
     static const char module[] = "ZIPSetupEncode";
-    ZIPState *sp = ZIPEncoderState(tif);
+    ZIPState *sp = EncoderState(tif);
     int cappedQuality;
 
     assert(sp != NULL);
@@ -346,7 +321,7 @@ static int ZIPSetupEncode(TIFF *tif)
  */
 static int ZIPPreEncode(TIFF *tif, uint16_t s)
 {
-    ZIPState *sp = ZIPEncoderState(tif);
+    ZIPState *sp = EncoderState(tif);
 
     (void)s;
     assert(sp != NULL);
@@ -373,7 +348,7 @@ static int ZIPPreEncode(TIFF *tif, uint16_t s)
 static int ZIPEncode(TIFF *tif, uint8_t *bp, tmsize_t cc, uint16_t s)
 {
     static const char module[] = "ZIPEncode";
-    ZIPState *sp = ZIPEncoderState(tif);
+    ZIPState *sp = EncoderState(tif);
 
     assert(sp != NULL);
     assert(sp->state == ZSTATE_INIT_ENCODE);
@@ -512,7 +487,7 @@ static int ZIPEncode(TIFF *tif, uint8_t *bp, tmsize_t cc, uint16_t s)
 static int ZIPPostEncode(TIFF *tif)
 {
     static const char module[] = "ZIPPostEncode";
-    ZIPState *sp = ZIPEncoderState(tif);
+    ZIPState *sp = EncoderState(tif);
     int state;
 
 #if LIBDEFLATE_SUPPORT
@@ -551,7 +526,7 @@ static int ZIPPostEncode(TIFF *tif)
 
 static void ZIPCleanup(TIFF *tif)
 {
-    ZIPState *sp = GetZIPState(tif);
+    ZIPState *sp = ZState(tif);
 
     assert(sp != 0);
 
@@ -587,7 +562,7 @@ static void ZIPCleanup(TIFF *tif)
 static int ZIPVSetField(TIFF *tif, uint32_t tag, va_list ap)
 {
     static const char module[] = "ZIPVSetField";
-    ZIPState *sp = GetZIPState(tif);
+    ZIPState *sp = ZState(tif);
 
     switch (tag)
     {
@@ -653,7 +628,7 @@ static int ZIPVSetField(TIFF *tif, uint32_t tag, va_list ap)
 
 static int ZIPVGetField(TIFF *tif, uint32_t tag, va_list ap)
 {
-    ZIPState *sp = GetZIPState(tif);
+    ZIPState *sp = ZState(tif);
 
     switch (tag)
     {
@@ -677,25 +652,6 @@ static const TIFFField zipFields[] = {
     {TIFFTAG_DEFLATE_SUBCODEC, 0, 0, TIFF_ANY, 0, TIFF_SETGET_INT,
      TIFF_SETGET_UNDEFINED, FIELD_PSEUDO, TRUE, FALSE, "", NULL},
 };
-
-static void *TIFF_zalloc(void *opaque, unsigned int items, unsigned int size)
-{
-    static const char module[] = "TIFF_zalloc";
-    TIFF *tif = opaque;
-
-    if (items > ~(size_t)0 / size)
-    {
-        TIFFErrorExtR(tif, module, "Overflow");
-        return NULL;
-    }
-
-    return _TIFFmallocExt(tif, items * size);
-}
-
-static void TIFF_zfree(void *opaque, void *ptr)
-{
-    _TIFFfreeExt((TIFF *)opaque, ptr);
-}
 
 int TIFFInitZIP(TIFF *tif, int scheme)
 {
@@ -724,10 +680,10 @@ int TIFFInitZIP(TIFF *tif, int scheme)
     tif->tif_data = (uint8_t *)_TIFFcallocExt(tif, sizeof(ZIPState), 1);
     if (tif->tif_data == NULL)
         goto bad;
-    sp = GetZIPState(tif);
-    sp->stream.zalloc = TIFF_zalloc;
-    sp->stream.zfree = TIFF_zfree;
-    sp->stream.opaque = tif;
+    sp = ZState(tif);
+    sp->stream.zalloc = NULL;
+    sp->stream.zfree = NULL;
+    sp->stream.opaque = NULL;
     sp->stream.data_type = Z_BINARY;
 
     /*

@@ -205,11 +205,7 @@ static void ime_ui_paint( HIMC himc, HWND hwnd )
     WCHAR *str;
     UINT len;
 
-    if (!(ctx = ImmLockIMC( himc )))
-    {
-        ValidateRect( hwnd, NULL );
-        return;
-    }
+    if (!(ctx = ImmLockIMC( himc ))) return;
 
     hdc = BeginPaint( hwnd, &ps );
 
@@ -437,7 +433,7 @@ static LRESULT WINAPI ime_ui_window_proc( HWND hwnd, UINT msg, WPARAM wparam, LP
     case WM_IME_CONTROL:
         FIXME( "hwnd %p, himc %p, msg %s, wparam %s, lparam %#Ix stub!\n", hwnd, himc,
                debugstr_wm_ime(msg), debugstr_imc(wparam), lparam );
-        return 1;
+        return 0;
     }
 
     return DefWindowProcW( hwnd, msg, wparam, lparam );
@@ -533,7 +529,6 @@ UINT WINAPI ImeToAsciiEx( UINT vkey, UINT vsc, BYTE *state, TRANSMSGLIST *msgs, 
     UINT size, count = 0;
     INPUTCONTEXT *ctx;
     NTSTATUS status;
-    BOOL key_consumed = TRUE;
 
     TRACE( "vkey %#x, vsc %#x, state %p, msgs %p, flags %#x, himc %p\n",
            vkey, vsc, state, msgs, flags, himc );
@@ -552,7 +547,6 @@ UINT WINAPI ImeToAsciiEx( UINT vkey, UINT vsc, BYTE *state, TRANSMSGLIST *msgs, 
         if (!(compstr = ImmLockIMCC( (ctx->hCompStr = himcc) ))) goto done;
 
         params.compstr = compstr;
-        params.key_consumed = &key_consumed;
         status = NtUserMessageCall( ctx->hWnd, WINE_IME_TO_ASCII_EX, vkey, vsc, &params,
                                     NtUserImeDriverCall, FALSE );
         size = compstr->dwSize;
@@ -561,17 +555,14 @@ UINT WINAPI ImeToAsciiEx( UINT vkey, UINT vsc, BYTE *state, TRANSMSGLIST *msgs, 
     if (status) WARN( "WINE_IME_TO_ASCII_EX returned status %#lx\n", status );
     else
     {
-        if (compstr->dwCompStrOffset || compstr->dwResultStrLen)
-        {
-            TRANSMSG msg = {.message = ime_set_composition_status( himc, TRUE )};
-            if (msg.message == WM_IME_STARTCOMPOSITION) msgs->TransMsg[count++] = msg;
-        }
+        TRANSMSG status_msg = {.message = ime_set_composition_status( himc, !!compstr->dwCompStrOffset )};
+        if (status_msg.message) msgs->TransMsg[count++] = status_msg;
 
-        if (compstr->dwResultStrLen)
+        if (compstr->dwResultStrOffset)
         {
             const WCHAR *result = (WCHAR *)((BYTE *)compstr + compstr->dwResultStrOffset);
             TRANSMSG msg = {.message = WM_IME_COMPOSITION, .wParam = result[0], .lParam = GCS_RESULTSTR};
-            if (compstr->dwResultClauseLen) msg.lParam |= GCS_RESULTCLAUSE;
+            if (compstr->dwResultClauseOffset) msg.lParam |= GCS_RESULTCLAUSE;
             msgs->TransMsg[count++] = msg;
         }
 
@@ -582,18 +573,6 @@ UINT WINAPI ImeToAsciiEx( UINT vkey, UINT vsc, BYTE *state, TRANSMSGLIST *msgs, 
             if (compstr->dwCompAttrOffset) msg.lParam |= GCS_COMPATTR;
             if (compstr->dwCompClauseOffset) msg.lParam |= GCS_COMPCLAUSE;
             else msg.lParam |= CS_INSERTCHAR|CS_NOMOVECARET;
-            msgs->TransMsg[count++] = msg;
-        }
-
-        if (!compstr->dwCompStrLen)
-        {
-            TRANSMSG msg = {.message = ime_set_composition_status( himc, FALSE )};
-            if (msg.message == WM_IME_ENDCOMPOSITION) msgs->TransMsg[count++] = msg;
-        }
-
-        if (!key_consumed)
-        {
-            TRANSMSG msg = {.message = WM_IME_KEYDOWN, .wParam = vkey, .lParam = vsc};
             msgs->TransMsg[count++] = msg;
         }
     }
@@ -674,7 +653,11 @@ BOOL WINAPI NotifyIME( HIMC himc, DWORD action, DWORD index, DWORD value )
             }
             break;
         case IMC_SETOPENSTATUS:
-            if (!ctx->fOpen) ImmNotifyIME( himc, NI_COMPOSITIONSTR, CPS_COMPLETE, 0 );
+            if (!ctx->fOpen)
+            {
+                input_context_set_comp_str( ctx, NULL, 0 );
+                if ((msg = ime_set_composition_status( himc, FALSE ))) ime_send_message( himc, msg, 0, 0 );
+            }
             NtUserNotifyIMEStatus( ctx->hWnd, ctx->fOpen );
             break;
         }
@@ -708,12 +691,13 @@ BOOL WINAPI NotifyIME( HIMC himc, DWORD action, DWORD index, DWORD value )
                 if (flags) ime_send_message( himc, WM_IME_COMPOSITION, wchr, flags );
             }
 
-            /* fallthrough */
+            ImmSetOpenStatus( himc, FALSE );
+            break;
         }
         case CPS_CANCEL:
             input_context_set_comp_str( ctx, NULL, 0 );
-            if ((msg = ime_set_composition_status( himc, FALSE )))
-                ime_send_message( himc, msg, 0, 0 );
+            if ((msg = ime_set_composition_status( himc, FALSE ))) ime_send_message( himc, msg, 0, 0 );
+            NtUserNotifyIMEStatus( ctx->hWnd, FALSE );
             break;
         default:
             FIXME( "himc %p, action %#lx, index %#lx, value %#lx stub!\n", himc, action, index, value );

@@ -886,15 +886,163 @@ UINT WINAPI SetDIBColorTable( HDC hdc, UINT start, UINT count, const RGBQUAD *co
     return NtGdiDoPalette( hdc, start, count, (void *)colors, NtGdiSetDIBColorTable, FALSE );
 }
 
+static HANDLE get_display_device_init_mutex( void )
+{
+    HANDLE mutex = CreateMutexW( NULL, FALSE, L"display_device_init" );
+
+    WaitForSingleObject( mutex, INFINITE );
+    return mutex;
+}
+
+static void release_display_device_init_mutex( HANDLE mutex )
+{
+    ReleaseMutex( mutex );
+    CloseHandle( mutex );
+}
+
 /***********************************************************************
  *           D3DKMTOpenAdapterFromGdiDisplayName    (GDI32.@)
  */
 NTSTATUS WINAPI D3DKMTOpenAdapterFromGdiDisplayName( D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME *desc )
 {
+    WCHAR *end, key_nameW[MAX_PATH], bufferW[MAX_PATH];
+    HDEVINFO devinfo = INVALID_HANDLE_VALUE;
+    NTSTATUS status = STATUS_UNSUCCESSFUL;
+    D3DKMT_OPENADAPTERFROMLUID luid_desc;
+    SP_DEVINFO_DATA device_data;
+    DWORD size, state_flags;
+    DEVPROPTYPE type;
+    HANDLE mutex;
+    int index;
+
     TRACE("(%p)\n", desc);
 
-    if (!desc) return STATUS_UNSUCCESSFUL;
-    return NtUserD3DKMTOpenAdapterFromGdiDisplayName( desc );
+    if (!desc)
+        return STATUS_UNSUCCESSFUL;
+
+    TRACE("DeviceName: %s\n", wine_dbgstr_w( desc->DeviceName ));
+    if (wcsnicmp( desc->DeviceName, L"\\\\.\\DISPLAY", lstrlenW(L"\\\\.\\DISPLAY") ))
+        return STATUS_UNSUCCESSFUL;
+
+    index = wcstol( desc->DeviceName + lstrlenW(L"\\\\.\\DISPLAY"), &end, 10 ) - 1;
+    if (*end)
+        return STATUS_UNSUCCESSFUL;
+
+    /* Get adapter LUID from SetupAPI */
+    mutex = get_display_device_init_mutex();
+
+    size = sizeof( bufferW );
+    swprintf( key_nameW, MAX_PATH, L"\\Device\\Video%d", index );
+    if (RegGetValueW( HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\VIDEO", key_nameW,
+                      RRF_RT_REG_SZ, NULL, bufferW, &size ))
+        goto done;
+
+    /* Strip \Registry\Machine\ prefix and retrieve Wine specific data set by the display driver */
+    lstrcpyW( key_nameW, bufferW + 18 );
+    size = sizeof( state_flags );
+    if (RegGetValueW( HKEY_CURRENT_CONFIG, key_nameW, L"StateFlags", RRF_RT_REG_DWORD, NULL,
+                      &state_flags, &size ))
+        goto done;
+
+    if (!(state_flags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
+        goto done;
+
+    size = sizeof( bufferW );
+    if (RegGetValueW( HKEY_CURRENT_CONFIG, key_nameW, L"GPUID", RRF_RT_REG_SZ, NULL, bufferW, &size ))
+        goto done;
+
+    devinfo = SetupDiCreateDeviceInfoList( &GUID_DEVCLASS_DISPLAY, NULL );
+    device_data.cbSize = sizeof( device_data );
+    SetupDiOpenDeviceInfoW( devinfo, bufferW, NULL, 0, &device_data );
+    if (!SetupDiGetDevicePropertyW( devinfo, &device_data, &DEVPROPKEY_GPU_LUID, &type,
+                                    (BYTE *)&luid_desc.AdapterLuid, sizeof( luid_desc.AdapterLuid ),
+                                    NULL, 0))
+        goto done;
+
+    if ((status = NtGdiDdDDIOpenAdapterFromLuid( &luid_desc ))) goto done;
+
+    desc->hAdapter = luid_desc.hAdapter;
+    desc->AdapterLuid = luid_desc.AdapterLuid;
+    desc->VidPnSourceId = index;
+
+done:
+    SetupDiDestroyDeviceInfoList( devinfo );
+    release_display_device_init_mutex( mutex );
+    return status;
+}
+
+NTSTATUS WINAPI D3DKMTEnumAdapters2( D3DKMT_ENUMADAPTERS2 *enumAdapters )
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    SP_DEVINFO_DATA device_data;
+    DEVPROPTYPE type;
+    HDEVINFO devinfo;
+    UINT dev_count = 0;
+    HANDLE mutex;
+
+    TRACE("(%p)\n", enumAdapters);
+
+    mutex = get_display_device_init_mutex();
+    devinfo = SetupDiGetClassDevsW(&GUID_DEVCLASS_DISPLAY, L"PCI", NULL, 0);
+    device_data.cbSize = sizeof(device_data);
+
+    while(SetupDiEnumDeviceInfo(devinfo, dev_count++, &device_data))
+    {
+        D3DKMT_OPENADAPTERFROMLUID luid_desc;
+        UINT dev_idx = dev_count - 1;
+        D3DKMT_ADAPTERINFO *adapter;
+
+        TRACE("Device: %u\n", dev_idx);
+
+        /* If nothing to write, just pass through the loop */
+        if (!enumAdapters->pAdapters)
+            continue;
+
+        adapter = (D3DKMT_ADAPTERINFO*)(enumAdapters->pAdapters + dev_idx);
+
+        if (SetupDiGetDevicePropertyW(devinfo, &device_data, &DEVPROPKEY_GPU_LUID, &type,
+                (BYTE *)&luid_desc.AdapterLuid, sizeof(luid_desc.AdapterLuid), NULL, 0))
+        {
+            /* NumOfSources appears to be in reference to displays. This could mean connected
+             * displays, maximum number of "heads", surfaces for direct scanout, or something else
+             * entirely. It's not clear from the MSDN page what kind of value is actually expected
+             * here.
+             *
+             * bPrecisePresentRegionsPreferred sounds like a scanout-level optimization. Again, MSDN
+             * isn't very descriptive about what this really means. Given that it's typical for
+             * modern GPUs to scanout an entire surface at once, leave this falsey.
+             */
+            adapter->NumOfSources = 0;
+            adapter->bPrecisePresentRegionsPreferred = FALSE;
+            FIXME("NumOfSources and bPrecisePresentRegionsPreferred not set, need implementation.\n");
+
+            if ((status = NtGdiDdDDIOpenAdapterFromLuid(&luid_desc)))
+                break;
+
+            adapter->AdapterLuid = luid_desc.AdapterLuid;
+            adapter->hAdapter = luid_desc.hAdapter;
+
+            TRACE("hAdapter: %u AdapterLuid: %08lx:%08lx NumOfSources: %lu bPrecisePresentRegionsPreferred: %d\n",
+                  adapter->hAdapter,
+                  adapter->AdapterLuid.HighPart,
+                  adapter->AdapterLuid.LowPart,
+                  adapter->NumOfSources,
+                  adapter->bPrecisePresentRegionsPreferred);
+        }
+        else
+        {
+            TRACE("no known adapter\n");
+        }
+    }
+    /* decrement dev count to actual count */
+    dev_count--;
+    SetupDiDestroyDeviceInfoList(devinfo);
+    release_display_device_init_mutex(mutex);
+
+    TRACE("Devices enumerated: %u\n", dev_count);
+    enumAdapters->NumAdapters = dev_count;
+
+    return status;
 }
 
 /***********************************************************************

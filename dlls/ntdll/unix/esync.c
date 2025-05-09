@@ -24,10 +24,6 @@
 
 #include "config.h"
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -74,33 +70,33 @@ int do_esync(void)
 
 struct esync
 {
-    LONG type;
+    enum esync_type type;
     int fd;
     void *shm;
 };
 
 struct semaphore
 {
-    LONG max;
-    LONG count;
+    int max;
+    int count;
 };
 C_ASSERT(sizeof(struct semaphore) == 8);
 
 struct mutex
 {
-    LONG tid;
-    LONG count;    /* recursion count */
+    DWORD tid;
+    int count;    /* recursion count */
 };
 C_ASSERT(sizeof(struct mutex) == 8);
 
 struct event
 {
-    LONG signaled;
-    LONG locked;
+    int signaled;
+    int locked;
 };
 C_ASSERT(sizeof(struct event) == 8);
 
-static char shm_name[200];
+static char shm_name[29];
 static int shm_fd;
 static void **shm_addrs;
 static int shm_addrs_size;  /* length of the allocated shm_addrs array */
@@ -183,7 +179,7 @@ static struct esync *add_to_list( HANDLE handle, enum esync_type type, int fd, v
         }
     }
 
-    if (!InterlockedCompareExchange( &esync_list[entry][idx].type, type, 0 ))
+    if (!InterlockedCompareExchange( (LONG *)&esync_list[entry][idx].type, type, 0 ))
     {
         esync_list[entry][idx].fd = fd;
         esync_list[entry][idx].shm = shm;
@@ -207,7 +203,7 @@ static struct esync *get_cached_object( HANDLE handle )
  * message queue, etc.) */
 static NTSTATUS get_object( HANDLE handle, struct esync **obj )
 {
-    int ret = STATUS_SUCCESS;
+    NTSTATUS ret = STATUS_SUCCESS;
     enum esync_type type = 0;
     unsigned int shm_idx = 0;
     obj_handle_t fd_handle;
@@ -256,7 +252,7 @@ static NTSTATUS get_object( HANDLE handle, struct esync **obj )
 
     if (ret)
     {
-        WARN("Failed to retrieve fd for handle %p, status %#x.\n", handle, ret);
+        WARN("Failed to retrieve fd for handle %p, status %#x.\n", handle, (unsigned int)ret);
         *obj = NULL;
         return ret;
     }
@@ -275,7 +271,7 @@ NTSTATUS esync_close( HANDLE handle )
 
     if (entry < ESYNC_LIST_ENTRIES && esync_list[entry])
     {
-        if (InterlockedExchange(&esync_list[entry][idx].type, 0))
+        if (InterlockedExchange((LONG *)&esync_list[entry][idx].type, 0))
         {
             close( esync_list[entry][idx].fd );
             return STATUS_SUCCESS;
@@ -371,10 +367,10 @@ static NTSTATUS open_esync( enum esync_type type, HANDLE *handle,
 }
 
 extern NTSTATUS esync_create_semaphore(HANDLE *handle, ACCESS_MASK access,
-    const OBJECT_ATTRIBUTES *attr, int initial, int max)
+    const OBJECT_ATTRIBUTES *attr, LONG initial, LONG max)
 {
     TRACE("name %s, initial %d, max %d.\n",
-        attr ? debugstr_us(attr->ObjectName) : "<no name>", initial, max);
+        attr ? debugstr_us(attr->ObjectName) : "<no name>", (int)initial, (int)max);
 
     return create_esync( ESYNC_SEMAPHORE, handle, access, attr, initial, max );
 }
@@ -387,7 +383,7 @@ NTSTATUS esync_open_semaphore( HANDLE *handle, ACCESS_MASK access,
     return open_esync( ESYNC_SEMAPHORE, handle, access, attr );
 }
 
-NTSTATUS esync_release_semaphore( HANDLE handle, unsigned int count, ULONG *prev )
+NTSTATUS esync_release_semaphore( HANDLE handle, ULONG count, ULONG *prev )
 {
     struct esync *obj;
     struct semaphore *semaphore;
@@ -395,7 +391,7 @@ NTSTATUS esync_release_semaphore( HANDLE handle, unsigned int count, ULONG *prev
     ULONG current;
     NTSTATUS ret;
 
-    TRACE("%p, %d, %p.\n", handle, count, prev);
+    TRACE("%p, %d, %p.\n", handle, (int)count, prev);
 
     if ((ret = get_object( handle, &obj))) return ret;
     semaphore = obj->shm;
@@ -406,7 +402,7 @@ NTSTATUS esync_release_semaphore( HANDLE handle, unsigned int count, ULONG *prev
 
         if (count + current > semaphore->max)
             return STATUS_SEMAPHORE_LIMIT_EXCEEDED;
-    } while (InterlockedCompareExchange( &semaphore->count, count + current, current ) != current);
+    } while (InterlockedCompareExchange( (LONG *)&semaphore->count, count + current, current ) != current);
 
     if (prev) *prev = current;
 
@@ -535,7 +531,7 @@ NTSTATUS esync_set_event( HANDLE handle )
     if (obj->type == ESYNC_MANUAL_EVENT)
     {
         /* Acquire the spinlock. */
-        while (InterlockedCompareExchange( &event->locked, 1, 0 ))
+        while (InterlockedCompareExchange( (LONG *)&event->locked, 1, 0 ))
             small_pause();
     }
 
@@ -548,7 +544,7 @@ NTSTATUS esync_set_event( HANDLE handle )
      * eventfd is unsignaled (i.e. reset shm, set shm, set fd, reset fd), we
      * *must* signal the fd now, or any waiting threads will never wake up. */
 
-    if (!InterlockedExchange( &event->signaled, 1 ) || obj->type == ESYNC_AUTO_EVENT)
+    if (!InterlockedExchange( (LONG *)&event->signaled, 1 ) || obj->type == ESYNC_AUTO_EVENT)
     {
         if (write( obj->fd, &value, sizeof(value) ) == -1)
             ERR("write: %s\n", strerror(errno));
@@ -575,10 +571,13 @@ NTSTATUS esync_reset_event( HANDLE handle )
     if ((ret = get_object( handle, &obj ))) return ret;
     event = obj->shm;
 
+    if (obj->type != ESYNC_MANUAL_EVENT && obj->type != ESYNC_AUTO_EVENT)
+        return STATUS_OBJECT_TYPE_MISMATCH;
+
     if (obj->type == ESYNC_MANUAL_EVENT)
     {
         /* Acquire the spinlock. */
-        while (InterlockedCompareExchange( &event->locked, 1, 0 ))
+        while (InterlockedCompareExchange( (LONG *)&event->locked, 1, 0 ))
             small_pause();
     }
 
@@ -588,7 +587,7 @@ NTSTATUS esync_reset_event( HANDLE handle )
      * For auto-reset events, we have no guarantee that the previous "signaled"
      * state is actually correct. We need to leave both states unsignaled after
      * leaving this function, so we always have to read(). */
-    if (InterlockedExchange( &event->signaled, 0 ) || obj->type == ESYNC_AUTO_EVENT)
+    if (InterlockedExchange( (LONG *)&event->signaled, 0 ) || obj->type == ESYNC_AUTO_EVENT)
     {
         if (read( obj->fd, &value, sizeof(value) ) == -1 && errno != EWOULDBLOCK && errno != EAGAIN)
         {
@@ -615,6 +614,9 @@ NTSTATUS esync_pulse_event( HANDLE handle )
 
     if ((ret = get_object( handle, &obj ))) return ret;
 
+    if (obj->type != ESYNC_MANUAL_EVENT && obj->type != ESYNC_AUTO_EVENT)
+        return STATUS_OBJECT_TYPE_MISMATCH;
+
     /* This isn't really correct; an application could miss the write.
      * Unfortunately we can't really do much better. Fortunately this is rarely
      * used (and publicly deprecated). */
@@ -623,7 +625,7 @@ NTSTATUS esync_pulse_event( HANDLE handle )
 
     /* Try to give other threads a chance to wake up. Hopefully erring on this
      * side is the better thing to do... */
-    NtYieldExecution();
+    usleep(0);
 
     read( obj->fd, &value, sizeof(value) );
 
@@ -788,7 +790,7 @@ static BOOL update_grabbed_object( struct esync *obj )
          * fact that we were able to grab it at all means the count is nonzero,
          * and if someone else grabbed it then the count must have been >= 2,
          * etc. */
-        InterlockedExchangeAdd( &semaphore->count, -1 );
+        InterlockedExchangeAdd( (LONG *)&semaphore->count, -1 );
     }
     else if (obj->type == ESYNC_AUTO_EVENT)
     {
@@ -804,7 +806,7 @@ static BOOL update_grabbed_object( struct esync *obj )
 
 /* A value of STATUS_NOT_IMPLEMENTED returned from this function means that we
  * need to delegate to server_select(). */
-static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles, BOOLEAN wait_any,
+static NTSTATUS __esync_wait_objects( DWORD count, const HANDLE *handles, BOOLEAN wait_any,
                              BOOLEAN alertable, const LARGE_INTEGER *timeout )
 {
     static const LARGE_INTEGER zero;
@@ -875,7 +877,7 @@ static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles,
 
     if (TRACE_ON(esync))
     {
-        TRACE("Waiting for %s of %d handles:", wait_any ? "any" : "all", count);
+        TRACE("Waiting for %s of %d handles:", wait_any ? "any" : "all", (int)count);
         for (i = 0; i < count; i++)
             TRACE(" %p", handles[i]);
 
@@ -942,7 +944,7 @@ static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles,
                         if ((size = read( obj->fd, &value, sizeof(value) )) == sizeof(value))
                         {
                             TRACE("Woken up by handle %p [%d].\n", handles[i], i);
-                            InterlockedDecrement( &semaphore->count );
+                            InterlockedDecrement( (LONG *)&semaphore->count );
                             return i;
                         }
                     }
@@ -1165,10 +1167,22 @@ tryagain:
                         {
                             /* We were too slow. Put everything back. */
                             value = 1;
-                            for (j = i; j >= 0; j--)
+                            for (j = i - 1; j >= 0; j--)
                             {
-                                if (write( obj->fd, &value, sizeof(value) ) == -1)
+                                struct esync *obj = objs[j];
+
+                                if (obj->type == ESYNC_MUTEX)
+                                {
+                                    struct mutex *mutex = obj->shm;
+
+                                    if (mutex->tid == GetCurrentThreadId())
+                                        continue;
+                                }
+                                if (write( fds[j].fd, &value, sizeof(value) ) == -1)
+                                {
+                                    ERR("write failed.\n");
                                     return errno_to_status( errno );
+                                }
                             }
 
                             goto tryagain;  /* break out of two loops and a switch */
@@ -1317,13 +1331,13 @@ void esync_init(void)
 
     if (stat( config_dir, &st ) == -1)
         ERR("Cannot stat %s\n", config_dir);
-    
-    	if (st.st_ino != (unsigned long)st.st_ino)
-        	sprintf( shm_name, "/data/data/com.winlator/files/rootfs/tmp/wine-%lx%08lx-esync", (unsigned long)((unsigned long long)st.st_ino >> 32), (unsigned long)st.st_ino );
-    	else
-        	sprintf( shm_name, "/data/data/com.winlator/files/rootfs/tmp/wine-%lx-esync", (unsigned long)st.st_ino );
 
-   if ( (shm_fd = open( shm_name, O_RDWR, 0644 )) == -1 )
+    if (st.st_ino != (unsigned long)st.st_ino)
+        sprintf( shm_name, "/data/data/com.winlator/files/rootfs/tmp/wine-%lx%08lx-esync", (unsigned long)((unsigned long long)st.st_ino >> 32), (unsigned long)st.st_ino );
+    else
+        sprintf( shm_name, "/data/data/com.winlator/files/rootfs/tmp/wine-%lx-esync", (unsigned long)st.st_ino );
+
+    if ((shm_fd = shm_open( shm_name, O_RDWR, 0644 )) == -1)
     {
         /* probably the server isn't running with WINEESYNC, tell the user and bail */
         if (errno == ENOENT)

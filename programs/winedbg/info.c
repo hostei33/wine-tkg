@@ -688,103 +688,6 @@ WCHAR* fetch_thread_description(DWORD tid)
     return desc;
 }
 
-static BOOL read_process_memory(HANDLE process, const void *ptr, void *buffer, SIZE_T length)
-{
-    SIZE_T read;
-    return ReadProcessMemory(process, ptr, buffer, length, &read) && (read == length);
-}
-
-static BOOL get_process_cmdline(HANDLE process, PEB *peb, UNICODE_STRING *cmdline)
-{
-    RTL_USER_PROCESS_PARAMETERS *params;
-
-    if (!read_process_memory(process, &peb->ProcessParameters, &params, sizeof(params)))
-        return FALSE;
-
-    if (!read_process_memory(process, &params->CommandLine, cmdline, sizeof(*cmdline)))
-        return FALSE;
-
-    return TRUE;
-}
-
-static BOOL get_process_cmdline_wow64(HANDLE process, PEB *peb, UNICODE_STRING *cmdline)
-{
-    DWORD params;
-    struct
-    {
-        USHORT Length;
-        USHORT MaximumLength;
-        DWORD  Buffer;
-    } cmdline32;
-
-    /* &peb->ProcessParameters */
-    if (!read_process_memory(process, (char *)peb + 0x10, &params, sizeof(params)))
-        return FALSE;
-
-    /* &params->CommandLine */
-    if (!read_process_memory(process, (char *)(DWORD_PTR)params + 0x40, &cmdline32, sizeof(cmdline32)))
-        return FALSE;
-
-    cmdline->Length = cmdline32.Length;
-    cmdline->MaximumLength = cmdline32.MaximumLength;
-    cmdline->Buffer = (WCHAR *)(DWORD_PTR)cmdline32.Buffer;
-    return TRUE;
-}
-
-static char *get_process_args(DWORD pid)
-{
-    PROCESS_BASIC_INFORMATION info;
-    BOOL self_wow64, process_wow64;
-    UNICODE_STRING cmdline;
-    WCHAR *tempW = NULL;
-    char *args = NULL;
-    HANDLE process;
-    DWORD len;
-    BOOL ret;
-
-    if (!(process = OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, FALSE, pid)))
-        return FALSE;
-    if (NtQueryInformationProcess(process, ProcessBasicInformation, &info, sizeof(info), NULL))
-        goto done;
-
-    IsWow64Process(GetCurrentProcess(), &self_wow64);
-    if (!IsWow64Process(process, &process_wow64))
-        goto done;
-
-    if (process_wow64 == self_wow64)
-        ret = get_process_cmdline(process, info.PebBaseAddress, &cmdline);
-    else if (!self_wow64 && process_wow64)
-        ret = get_process_cmdline_wow64(process, info.PebBaseAddress, &cmdline);
-    else
-        ret = FALSE; /* can't read process args of 64-bit process with 32-bit winedbg */
-
-    if (!ret) goto done;
-
-    /* protect against malicious content */
-    if (cmdline.Length > 4096 || (cmdline.Length & 1))
-        goto done;
-
-    if (!(tempW = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cmdline.Length + 2)))
-        goto done;
-    if (!read_process_memory(process, cmdline.Buffer, tempW, cmdline.Length))
-        goto done;
-
-    if (!(len = WideCharToMultiByte(CP_ACP, 0, tempW, -1, NULL, 0, NULL, NULL)))
-        goto done;
-    if (!(args = HeapAlloc(GetProcessHeap(), 0, len)))
-        goto done;
-    if (!WideCharToMultiByte(CP_ACP, 0, tempW, -1, args, len, NULL, NULL))
-    {
-        HeapFree(GetProcessHeap(), 0, args);
-        args = NULL;
-    }
-
-done:
-    HeapFree(GetProcessHeap(), 0, tempW);
-    CloseHandle(process);
-    return args;
-}
-
 void info_win32_threads(void)
 {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
@@ -814,7 +717,6 @@ void info_win32_threads(void)
 		{
                     PROCESSENTRY32W pcs_entry;
                     const WCHAR* exename;
-                    char *args;
 
                     p = dbg_get_process(entry.th32OwnerProcessID);
                     if (p)
@@ -824,13 +726,8 @@ void info_win32_threads(void)
                     else
                         exename = L"";
 
-                    dbg_printf("%08lx%s %ls\n", entry.th32OwnerProcessID, p ? " (D)" : "", exename);
-                    args = get_process_args(entry.th32OwnerProcessID);
-                    if (args)
-                    {
-                        dbg_printf("\t[%s]\n", args);
-                        HeapFree(GetProcessHeap(), 0, args);
-                    }
+		    dbg_printf("%08lx%s %ls\n",
+                               entry.th32OwnerProcessID, p ? " (D)" : "", exename);
                     lastProcessId = entry.th32OwnerProcessID;
 		}
                 dbg_printf("\t%08lx %4ld%s ",
@@ -1016,6 +913,8 @@ void info_win32_virtual(DWORD pid)
         }
         dbg_printf("%0*Ix %0*Ix %s %s %s\n",
                    ADDRWIDTH, (DWORD_PTR)addr, ADDRWIDTH, (DWORD_PTR)addr + mbi.RegionSize - 1, state, type, prot);
+        if (addr + mbi.RegionSize < addr) /* wrap around ? */
+            break;
         addr += mbi.RegionSize;
     }
     if (pid != dbg_curr_pid) CloseHandle(hProc);
@@ -1023,10 +922,10 @@ void info_win32_virtual(DWORD pid)
 
 void info_wine_dbg_channel(BOOL turn_on, const char* cls, const char* name)
 {
-    PROCESS_BASIC_INFORMATION   info;
+    struct dbg_lvalue           lvalue;
     struct __wine_debug_channel channel;
-    unsigned char               mask = 0;
-    int                         done = 0, dynfail = 0;
+    unsigned char               mask;
+    int                         done = 0;
     BOOL                        bAll;
     void*                       addr;
 
@@ -1035,16 +934,14 @@ void info_wine_dbg_channel(BOOL turn_on, const char* cls, const char* name)
         dbg_printf("Cannot set/get debug channels while no process is loaded\n");
         return;
     }
-    if (NtQueryInformationProcess(dbg_curr_process->handle, ProcessBasicInformation, &info, sizeof(info), NULL ))
+
+    if (symbol_get_lvalue("debug_options", -1, &lvalue, FALSE) != sglv_found)
     {
-        dbg_printf("Cannot access process details\n");
         return;
     }
-    /* default Wine layout */
-    addr = (char*)info.PebBaseAddress + (dbg_curr_process->be_cpu->pointer_size == 8 ? 0x2000 : 0x1000);
+    addr = memory_to_linear_addr(&lvalue.addr);
 
-    if (!cls)                          mask = (1 << __WINE_DBCL_FIXME) | (1 << __WINE_DBCL_ERR) |
-                                              (1 << __WINE_DBCL_WARN)  | (1 << __WINE_DBCL_TRACE);
+    if (!cls)                          mask = ~0;
     else if (!strcmp(cls, "fixme"))    mask = (1 << __WINE_DBCL_FIXME);
     else if (!strcmp(cls, "err"))      mask = (1 << __WINE_DBCL_ERR);
     else if (!strcmp(cls, "warn"))     mask = (1 << __WINE_DBCL_WARN);
@@ -1056,27 +953,19 @@ void info_wine_dbg_channel(BOOL turn_on, const char* cls, const char* name)
     }
 
     bAll = !strcmp("all", name);
-    while (dbg_read_memory(addr, &channel, sizeof(channel)))
+    while (addr && dbg_read_memory(addr, &channel, sizeof(channel)))
     {
         if (!channel.name[0]) break;
         if (bAll || !strcmp( channel.name, name ))
         {
-            if (channel.flags & (1 << __WINE_DBCL_INIT))
-            {
-                if (turn_on) channel.flags |= mask;
-                else channel.flags &= ~mask;
-                if (dbg_write_memory(addr, &channel, sizeof(channel))) done++;
-            }
-            else
-            {
-                dbg_printf("Channel %s cannot be dynamically changed\n", channel.name);
-                dynfail++;
-            }
+            if (turn_on) channel.flags |= mask;
+            else channel.flags &= ~mask;
+            if (dbg_write_memory(addr, &channel, sizeof(channel))) done++;
         }
         addr = (struct __wine_debug_channel *)addr + 1;
     }
-    if (!done && !dynfail) dbg_printf("Unable to find debug channel %s\n", name);
-    else WINE_TRACE("Changed %d channel instances, and %d not dynamically settable\n", done, dynfail);
+    if (!done) dbg_printf("Unable to find debug channel %s\n", name);
+    else WINE_TRACE("Changed %d channel instances\n", done);
 }
 
 void info_win32_exception(void)
@@ -1206,7 +1095,7 @@ void info_win32_exception(void)
         dbg_printf("0x%08lx", rec->ExceptionCode);
         break;
     }
-    if (rec->ExceptionFlags & EXCEPTION_STACK_INVALID)
+    if (rec->ExceptionFlags & EH_STACK_INVALID)
         dbg_printf(", invalid program stack");
 
     switch (addr.Mode)

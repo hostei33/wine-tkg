@@ -41,11 +41,11 @@ ennen kaikkea Internetissä osoitteessa https://www.winehq.org/.
 
 Winen kääntämiseen tarvitaan jokin seuraavista:
 
-- Linuxin versio 2.6.22 tai uudempi
+- Linuxin versio 2.0.36 tai uudempi
 - FreeBSD 12.4 tai uudempi
 - Solaris x86 9 tai uudempi
 - NetBSD-current
-- macOS 10.12 tai uudempi
+- Mac OS X 10.8 tai uudempi
 
 Wine vaatii kerneliltä tuen säikeille. Tämän takia toistaiseksi vain yllä
 mainittuja käyttöjärjestelmiä tuetaan; tulevaisuudessa saatetaan lisätä tuki
@@ -82,7 +82,7 @@ muillekin käyttöjärjestelmille, joissa on tarvittava tuki säikeille.
 
 **Valinnaisia tukikirjastoja**:
   configure-skripti näyttää varoituksia, kun valinnaisia kirjastoja puuttuu.
-  Osoitteessa https://gitlab.winehq.org/wine/wine/-/wikis/Building-Wine on tietoa, mitkä
+  Osoitteessa https://wiki.winehq.org/Recommended_Packages on tietoa, mitkä
   paketit ovat hyödyksi. 64-bittisissä järjestelmissä täytyy varmistaa, että
   kirjastoista on asennettu 32-bittiset versiot.
 
@@ -104,7 +104,8 @@ kääntämiseen Unixissa.
 Komento `./configure --help` näyttää asetuksia ja valintoja, joita
 käännösprosessiin voi lisätä.
 
-Lisätietoja on osoitteessa https://gitlab.winehq.org/wine/wine/-/wikis/Building-Wine
+Lisätietoja on osoitteessa https://wiki.winehq.org/Building_Wine
+
 
 ## ASENNUS
 
@@ -147,15 +148,15 @@ mukaan, jos raportoi virheestä.
 	Täältä kannattaa yleensä aloittaa.
 
 - **Kysymyksiä**:
-	Sivulle https://gitlab.winehq.org/wine/wine/-/wikis/FAQ on koottu kysymyksiä ja vastauksia.
+	Sivulle https://www.winehq.org/FAQ on koottu kysymyksiä ja vastauksia.
 
-- **Wiki**: Wine Wiki on osoitteessa https://gitlab.winehq.org/wine/wine/-/wikis/
+- **Wiki**: Wine Wiki on osoitteessa https://wiki.winehq.org/.
 
 - **Gitlab**: Winen kehitykseen voi osallistua sivustolla https://gitlab.winehq.org
 
 - **Postituslistat**:
 	Winen käyttäjille ja kehittäjille on joitakin postituslistoja,
-	sivulla https://gitlab.winehq.org/wine/wine/-/wikis/Forums kerrotaan niistä lisää.
+	sivulla https://www.winehq.org/forums kerrotaan niistä lisää.
 
 - **Virheet**:
 	Ilmoita virheistä Winen Bugzillaan, https://bugs.winehq.org/.

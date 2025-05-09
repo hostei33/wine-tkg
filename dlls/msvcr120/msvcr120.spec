@@ -35,9 +35,9 @@
 @ cdecl -arch=arm ??0_NonReentrantPPLLock@details@Concurrency@@QAA@XZ(ptr) _NonReentrantPPLLock_ctor
 @ thiscall -arch=i386 ??0_NonReentrantPPLLock@details@Concurrency@@QAE@XZ(ptr) _NonReentrantPPLLock_ctor
 @ cdecl -arch=win64 ??0_NonReentrantPPLLock@details@Concurrency@@QEAA@XZ(ptr) _NonReentrantPPLLock_ctor
-@ cdecl -arch=arm ??0_ReaderWriterLock@details@Concurrency@@QAA@XZ(ptr) _ReaderWriterLock_ctor
-@ thiscall -arch=i386 ??0_ReaderWriterLock@details@Concurrency@@QAE@XZ(ptr) _ReaderWriterLock_ctor
-@ cdecl -arch=win64 ??0_ReaderWriterLock@details@Concurrency@@QEAA@XZ(ptr) _ReaderWriterLock_ctor
+@ stub -arch=arm ??0_ReaderWriterLock@details@Concurrency@@QAA@XZ
+@ stub -arch=i386 ??0_ReaderWriterLock@details@Concurrency@@QAE@XZ
+@ stub -arch=win64 ??0_ReaderWriterLock@details@Concurrency@@QEAA@XZ
 @ cdecl -arch=arm ??0_ReentrantBlockingLock@details@Concurrency@@QAA@XZ(ptr) _ReentrantBlockingLock_ctor
 @ thiscall -arch=i386 ??0_ReentrantBlockingLock@details@Concurrency@@QAE@XZ(ptr) _ReentrantBlockingLock_ctor
 @ cdecl -arch=win64 ??0_ReentrantBlockingLock@details@Concurrency@@QEAA@XZ(ptr) _ReentrantBlockingLock_ctor
@@ -80,7 +80,7 @@
 @ cdecl -arch=arm ??0bad_cast@std@@AAA@PBQBD@Z(ptr ptr) bad_cast_ctor
 @ thiscall -arch=i386 ??0bad_cast@std@@AAE@PBQBD@Z(ptr ptr) bad_cast_ctor
 @ cdecl -arch=win64 ??0bad_cast@std@@AEAA@PEBQEBD@Z(ptr ptr) bad_cast_ctor
-@ cdecl -arch=arm ??0bad_cast@std@@QAA@ABV01@@Z(ptr ptr) bad_cast_copy_ctor
+@ cdecl -arch=arm ??0bad_cast@std@@QAA@ABV01@@Z(ptr ptr) bad_cast_ctor
 @ thiscall -arch=i386 ??0bad_cast@std@@QAE@ABV01@@Z(ptr ptr) bad_cast_copy_ctor
 @ cdecl -arch=win64 ??0bad_cast@std@@QEAA@AEBV01@@Z(ptr ptr) bad_cast_copy_ctor
 @ cdecl -arch=arm ??0bad_cast@std@@QAA@PBD@Z(ptr str) bad_cast_ctor_charptr
@@ -496,11 +496,11 @@
 @ stub -arch=arm ?_CleanupToken@_StructuredTaskCollection@details@Concurrency@@AAAXXZ
 @ stub -arch=i386 ?_CleanupToken@_StructuredTaskCollection@details@Concurrency@@AAEXXZ
 @ stub -arch=win64 ?_CleanupToken@_StructuredTaskCollection@details@Concurrency@@AEAAXXZ
-@ stub -arch=win32 ?_ConcRT_Assert@details@Concurrency@@YAXPBD0H@Z
+@ stub -arch=i386 ?_ConcRT_Assert@details@Concurrency@@YAXPBD0H@Z
 @ stub -arch=win64 ?_ConcRT_Assert@details@Concurrency@@YAXPEBD0H@Z
 @ stub -arch=win32 ?_ConcRT_CoreAssert@details@Concurrency@@YAXPBD0H@Z
 @ stub -arch=win64 ?_ConcRT_CoreAssert@details@Concurrency@@YAXPEBD0H@Z
-@ stub -arch=win32 ?_ConcRT_DumpMessage@details@Concurrency@@YAXPB_WZZ
+@ stub -arch=i386 ?_ConcRT_DumpMessage@details@Concurrency@@YAXPB_WZZ
 @ stub -arch=win64 ?_ConcRT_DumpMessage@details@Concurrency@@YAXPEB_WZZ
 @ stub -arch=win32 ?_ConcRT_Trace@details@Concurrency@@YAXHPB_WZZ
 @ stub -arch=win64 ?_ConcRT_Trace@details@Concurrency@@YAXHPEB_WZZ
@@ -825,12 +825,12 @@
 @ cdecl -arch=i386 _CItanh()
 @ cdecl _CRT_RTC_INIT(ptr ptr long long long)
 @ cdecl _CRT_RTC_INITW(ptr ptr long long long)
-@ cdecl -norelay _Cbuild(double double)
+@ cdecl _Cbuild(ptr double double)
 @ cdecl _CreateFrameInfo(ptr ptr)
 @ stdcall _CxxThrowException(ptr ptr)
 @ cdecl -arch=i386 -norelay _EH_prolog()
 @ stub -arch=arm _FPE_Raise
-@ cdecl -norelay _FCbuild(float float)
+@ stub _FCbuild
 @ cdecl _FindAndUnlinkFrame(ptr)
 @ stub -arch=win64 _GetImageBase
 @ stub -arch=win64 _GetThrowImageBase
@@ -1422,7 +1422,7 @@
 @ cdecl _locking(long long long)
 @ cdecl _logb(double) logb
 @ cdecl -arch=!i386 _logbf(float) logbf
-@ cdecl -arch=i386 _longjmpex(ptr long) longjmp
+@ cdecl -arch=i386 _longjmpex(ptr long) MSVCRT_longjmp
 @ cdecl _lrotl(long long) MSVCRT__lrotl
 @ cdecl _lrotr(long long) MSVCRT__lrotr
 @ cdecl _lsearch(ptr ptr ptr long ptr)
@@ -1653,9 +1653,9 @@
 @ cdecl _set_printf_count_output(long)
 @ cdecl _set_purecall_handler(ptr)
 @ cdecl _seterrormode(long)
-@ cdecl -norelay _setjmp(ptr)
-@ cdecl -arch=i386 -norelay _setjmp3(ptr long)
-@ cdecl -arch=!i386 -norelay _setjmpex(ptr ptr)
+@ cdecl -norelay _setjmp(ptr) MSVCRT__setjmp
+@ cdecl -arch=i386 -norelay _setjmp3(ptr long) MSVCRT__setjmp3
+@ cdecl -arch=!i386 -norelay _setjmpex(ptr ptr) __wine_setjmpex
 @ cdecl _setmaxstdio(long)
 @ cdecl _setmbcp(long)
 @ cdecl _setmode(long long)
@@ -2076,8 +2076,8 @@
 @ stub cexp
 @ stub cexpf
 @ stub cexpl
-@ cdecl cimag(int128)
-@ cdecl cimagf(int64)
+@ stub cimag
+@ stub cimagf
 @ stub cimagl
 @ cdecl clearerr(ptr)
 @ cdecl clearerr_s(ptr)
@@ -2104,8 +2104,8 @@
 @ stub cproj
 @ stub cprojf
 @ stub cprojl
-@ cdecl creal(int128)
-@ cdecl crealf(int64)
+@ cdecl creal(int128) MSVCR120_creal
+@ stub crealf
 @ stub creall
 @ stub csin
 @ stub csinf
@@ -2148,7 +2148,7 @@
 @ cdecl fegetenv(ptr)
 @ cdecl fegetexceptflag(ptr long)
 @ cdecl fegetround()
-@ cdecl feholdexcept(ptr)
+@ stub feholdexcept
 @ cdecl feof(ptr)
 @ cdecl feraiseexcept(long)
 @ cdecl ferror(ptr)
@@ -2212,7 +2212,7 @@
 @ cdecl ilogbf(float)
 @ cdecl ilogbl(double) ilogb
 @ cdecl -ret64 imaxabs(int64)
-@ cdecl -norelay imaxdiv(int64 int64)
+@ stub imaxdiv
 @ cdecl is_wctype(long long) iswctype
 @ cdecl isalnum(long)
 @ cdecl isalpha(long)
@@ -2269,7 +2269,7 @@
 @ cdecl logb(double)
 @ cdecl logbf(float)
 @ cdecl logbl(double) logb
-@ cdecl longjmp(ptr long)
+@ cdecl longjmp(ptr long) MSVCRT_longjmp
 @ cdecl lrint(double)
 @ cdecl lrintf(float)
 @ cdecl lrintl(double) lrint
@@ -2349,7 +2349,7 @@
 @ varargs scanf(str)
 @ varargs scanf_s(str)
 @ cdecl setbuf(ptr ptr)
-@ cdecl -arch=arm,x86_64 -norelay -private setjmp(ptr ptr) _setjmp
+@ cdecl -arch=arm,x86_64 -norelay -private setjmp(ptr) MSVCRT__setjmp
 @ cdecl setlocale(long str)
 @ cdecl setvbuf(ptr str long long)
 @ cdecl signal(long long)

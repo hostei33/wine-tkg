@@ -67,8 +67,6 @@
 # define HAS_IRDA
 #endif
 
-#include <sys/un.h>
-
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "windef.h"
@@ -80,7 +78,6 @@
 #include "ws2tcpip.h"
 #include "wsipx.h"
 #include "af_irda.h"
-#include "afunix.h"
 #include "wine/afd.h"
 
 #include "unix_private.h"
@@ -109,7 +106,6 @@ union unix_sockaddr
 #ifdef HAS_IRDA
     struct sockaddr_irda irda;
 #endif
-    struct sockaddr_un un;
 };
 
 struct async_recv_ioctl
@@ -157,6 +153,8 @@ struct async_transmit_ioctl
     unsigned int tail_len;
     LARGE_INTEGER offset;
 };
+
+static int get_sock_type( HANDLE handle );
 
 static NTSTATUS sock_errno_to_status( int err )
 {
@@ -303,6 +301,8 @@ static socklen_t sockaddr_to_unix( const struct WS_sockaddr *wsaddr, int wsaddrl
 
 static int sockaddr_from_unix( const union unix_sockaddr *uaddr, struct WS_sockaddr *wsaddr, socklen_t wsaddrlen )
 {
+    memset( wsaddr, 0, wsaddrlen );
+
     switch (uaddr->addr.sa_family)
     {
     case AF_INET:
@@ -374,6 +374,7 @@ static int sockaddr_from_unix( const union unix_sockaddr *uaddr, struct WS_socka
     }
 }
 
+#ifndef HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS
 static WSACMSGHDR *fill_control_message( int level, int type, WSACMSGHDR *current, ULONG *maxsize, void *data, int len )
 {
     ULONG msgsize = sizeof(WSACMSGHDR) + WSA_CMSG_ALIGN(len);
@@ -515,6 +516,14 @@ error:
     control->len = 0;
     return 0;
 }
+#else
+static int convert_control_headers(struct msghdr *hdr, WSABUF *control)
+{
+    ERR( "Message control headers cannot be properly supported on this system.\n" );
+    control->len = 0;
+    return 0;
+}
+#endif /* HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS */
 
 struct cmsghdr_32
 {
@@ -715,7 +724,9 @@ static ssize_t fixup_icmp_over_dgram( struct msghdr *hdr, union unix_sockaddr *u
 
 static NTSTATUS try_recv( int fd, struct async_recv_ioctl *async, ULONG_PTR *size )
 {
+#ifndef HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS
     char control_buffer[512];
+#endif
     union unix_sockaddr unix_addr;
     struct msghdr hdr;
     NTSTATUS status;
@@ -729,9 +740,10 @@ static NTSTATUS try_recv( int fd, struct async_recv_ioctl *async, ULONG_PTR *siz
     }
     hdr.msg_iov = async->iov;
     hdr.msg_iovlen = async->count;
+#ifndef HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS
     hdr.msg_control = control_buffer;
     hdr.msg_controllen = sizeof(control_buffer);
-
+#endif
     while ((ret = virtual_locked_recvmsg( fd, &hdr, async->unix_flags )) < 0 && errno == EINTR);
 
     if (ret < 0)
@@ -880,7 +892,12 @@ static NTSTATUS sock_recv( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, voi
         status = try_recv( fd, async, &information );
         if (status == STATUS_DEVICE_NOT_READY && (force_async || !nonblocking))
             status = STATUS_PENDING;
-        set_async_direct_result( &wait_handle, options, io, status, information, FALSE );
+        if (!NT_ERROR(status) && status != STATUS_PENDING)
+        {
+            io->Status = status;
+            io->Information = information;
+        }
+        set_async_direct_result( &wait_handle, status, information, FALSE );
     }
 
     if (status != STATUS_PENDING)
@@ -1056,6 +1073,21 @@ static NTSTATUS try_send( int fd, struct async_send_ioctl *async )
     return STATUS_SUCCESS;
 }
 
+static void hack_update_status( HANDLE handle, unsigned int *status )
+{
+    /* HACK: VRChat relies on send() reporting STATUS_SUCCESS for dropped UDP sockets when the
+     * network is actually lost but network adapters are still up on Windows. Fix VRChat internal
+     * error bug when resuming from sleep */
+    const char *appid;
+
+    if (*status == STATUS_NETWORK_UNREACHABLE && get_sock_type( handle ) == SOCK_DGRAM
+        && (appid = getenv( "SteamAppId" )) && !strcmp( appid, "438100" ))
+    {
+        WARN( "Replacing STATUS_NETWORK_UNREACHABLE with STATUS_SUCCESS for VRChat.\n" );
+        *status = STATUS_SUCCESS;
+    }
+}
+
 static BOOL async_send_proc( void *user, ULONG_PTR *info, unsigned int *status )
 {
     struct async_send_ioctl *async = user;
@@ -1071,6 +1103,7 @@ static BOOL async_send_proc( void *user, ULONG_PTR *info, unsigned int *status )
 
         *status = try_send( fd, async );
         TRACE( "got status %#x\n", *status );
+        hack_update_status( async->io.handle, status );
 
         if (needs_close) close( fd );
 
@@ -1135,7 +1168,11 @@ static NTSTATUS sock_send( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, voi
 
     if (status == STATUS_ALERTED)
     {
+        ULONG_PTR information;
+
         status = try_send( fd, async );
+        hack_update_status( handle, &status );
+
         if (status == STATUS_DEVICE_NOT_READY && ((server_flags & SERVER_SOCKET_IO_FORCE_ASYNC) || !nonblocking))
             status = STATUS_PENDING;
 
@@ -1161,7 +1198,7 @@ static NTSTATUS sock_send( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, voi
 
             addr_size = max( 0, async->addr_len );
             async_size = offsetof( struct async_send_ioctl, iov[1] ) + data_size + addr_size
-                         + sizeof(IO_STATUS_BLOCK) + sizeof(IO_STATUS_BLOCK32);
+                         + sizeof(IO_STATUS_BLOCK);
             if (!(rem_async = (struct async_send_ioctl *)alloc_fileio( async_size, async_send_proc, handle )))
             {
                 status = STATUS_NO_MEMORY;
@@ -1188,8 +1225,6 @@ static NTSTATUS sock_send( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, voi
                 rem_async->sent_len = 0;
                 rem_io = (IO_STATUS_BLOCK *)p;
                 p += sizeof(IO_STATUS_BLOCK);
-                rem_io->Pointer = p;
-                p += sizeof(IO_STATUS_BLOCK32);
                 status = sock_send( handle, NULL, NULL, NULL, rem_io, fd, rem_async,
                                     SERVER_SOCKET_IO_FORCE_ASYNC | SERVER_SOCKET_IO_SYSTEM );
                 if (status == STATUS_PENDING) status = STATUS_SUCCESS;
@@ -1202,7 +1237,14 @@ static NTSTATUS sock_send( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, voi
             }
         }
 
-        set_async_direct_result( &wait_handle, options, io, status, async->sent_len, FALSE );
+        information = async->sent_len;
+        if (!NT_ERROR(status) && status != STATUS_PENDING)
+        {
+            io->Status = status;
+            io->Information = information;
+        }
+
+        set_async_direct_result( &wait_handle, status, information, FALSE );
     }
 
     if (status != STATUS_PENDING)
@@ -1258,7 +1300,6 @@ static NTSTATUS sock_ioctl_send( HANDLE handle, HANDLE event, PIO_APC_ROUTINE ap
 
     return sock_send( handle, event, apc, apc_user, io, fd, async, force_async ? SERVER_SOCKET_IO_FORCE_ASYNC : 0 );
 }
-
 
 NTSTATUS sock_write( HANDLE handle, int fd, HANDLE event, PIO_APC_ROUTINE apc,
                      void *apc_user, IO_STATUS_BLOCK *io, const void *buffer, ULONG length )
@@ -1463,7 +1504,13 @@ static NTSTATUS sock_transmit( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc,
             status = STATUS_PENDING;
 
         information = async->head_cursor + async->file_cursor + async->tail_cursor;
-        set_async_direct_result( &wait_handle, options, io, status, information, TRUE );
+        if (!NT_ERROR(status) && status != STATUS_PENDING)
+        {
+            io->Status = status;
+            io->Information = information;
+        }
+
+        set_async_direct_result( &wait_handle, status, information, TRUE );
     }
 
     if (status != STATUS_PENDING)
@@ -1479,6 +1526,18 @@ static NTSTATUS sock_transmit( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc,
 
     if (wait_handle) status = wait_async( wait_handle, options & FILE_SYNCHRONOUS_IO_ALERT );
     return status;
+}
+
+static void complete_async( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc_user,
+                            IO_STATUS_BLOCK *io, NTSTATUS status, ULONG_PTR information )
+{
+    ULONG_PTR iosb_ptr = iosb_client_ptr(io);
+
+    io->Status = status;
+    io->Information = information;
+    if (event) NtSetEvent( event, NULL );
+    if (apc) NtQueueApcThread( GetCurrentThread(), (PNTAPCFUNC)apc, (ULONG_PTR)apc_user, iosb_ptr, 0 );
+    if (apc_user) add_completion( handle, (ULONG_PTR)apc_user, status, information, FALSE );
 }
 
 
@@ -1536,15 +1595,10 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
                      UINT code, void *in_buffer, UINT in_size, void *out_buffer, UINT out_size )
 {
     int fd, needs_close = FALSE;
-    unsigned int options;
     NTSTATUS status;
 
     TRACE( "handle %p, code %#x, in_buffer %p, in_size %u, out_buffer %p, out_size %u\n",
            handle, code, in_buffer, in_size, out_buffer, out_size );
-
-    /* many of the below internal codes return success but don't completely
-     * fill the iosb or signal completion; such sockopts are only called
-     * synchronously by ws2_32 */
 
     switch (code)
     {
@@ -1602,10 +1656,6 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
                 break;
             }
 
-            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, NULL, &options )))
-                return status;
-            if (needs_close) close( fd );
-
             SERVER_START_REQ( socket_get_events )
             {
                 req->handle = wine_server_obj_handle( handle );
@@ -1616,7 +1666,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             }
             SERVER_END_REQ;
 
-            file_complete_async( handle, options, event, apc, apc_user, io, status, 0 );
+            complete_async( handle, event, apc, apc_user, io, status, 0 );
             return status;
         }
 
@@ -1759,25 +1809,17 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
 
         case IOCTL_AFD_WINE_COMPLETE_ASYNC:
         {
-            enum server_fd_type type;
-
             if (in_size != sizeof(NTSTATUS))
                 return STATUS_BUFFER_TOO_SMALL;
 
-            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, &type, &options )))
-                return status;
-            if (needs_close) close( fd );
-            if (type != FD_TYPE_SOCKET)
-                return STATUS_INVALID_DEVICE_REQUEST;
-
             status = *(NTSTATUS *)in_buffer;
-            file_complete_async( handle, options, event, apc, apc_user, io, status, 0 );
+            complete_async( handle, event, apc, apc_user, io, status, 0 );
             return status;
         }
 
         case IOCTL_AFD_WINE_FIONREAD:
         {
-            int value;
+            int value, ret;
 
             if (out_size < sizeof(int))
             {
@@ -1785,7 +1827,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
                 break;
             }
 
-            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, NULL, &options )))
+            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, NULL, NULL )))
                 return status;
 
 #ifdef linux
@@ -1797,30 +1839,29 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
                 {
                     *(int *)out_buffer = 0;
                     if (needs_close) close( fd );
-                    file_complete_async( handle, options, event, apc, apc_user, io, STATUS_SUCCESS, 0 );
+                    complete_async( handle, event, apc, apc_user, io, STATUS_SUCCESS, 0 );
                     return STATUS_SUCCESS;
                 }
             }
 #endif
 
-            if (ioctl( fd, FIONREAD, &value ) < 0)
+            if ((ret = ioctl( fd, FIONREAD, &value )) < 0)
             {
                 status = sock_errno_to_status( errno );
                 break;
             }
             *(int *)out_buffer = value;
             if (needs_close) close( fd );
-            file_complete_async( handle, options, event, apc, apc_user, io, STATUS_SUCCESS, 0 );
+            complete_async( handle, event, apc, apc_user, io, STATUS_SUCCESS, 0 );
             return STATUS_SUCCESS;
         }
 
         case IOCTL_AFD_WINE_SIOCATMARK:
         {
-            int value
-                ;
+            int value, ret;
             socklen_t len = sizeof(value);
 
-            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, NULL, &options )))
+            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, NULL, NULL )))
                 return status;
 
             if (out_size < sizeof(int))
@@ -1841,7 +1882,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             }
             else
             {
-                if (ioctl( fd, SIOCATMARK, &value ) < 0)
+                if ((ret = ioctl( fd, SIOCATMARK, &value )) < 0)
                 {
                     status = sock_errno_to_status( errno );
                     break;
@@ -1850,7 +1891,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
                 *(int *)out_buffer = !value;
             }
             if (needs_close) close( fd );
-            file_complete_async( handle, options, event, apc, apc_user, io, STATUS_SUCCESS, 0 );
+            complete_async( handle, event, apc, apc_user, io, STATUS_SUCCESS, 0 );
             return STATUS_SUCCESS;
         }
 
@@ -1862,13 +1903,10 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             unsigned int count = 0;
             ULONG ret_size;
 
-            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, NULL, &options )))
-                return status;
-            if (needs_close) close( fd );
-
             if (getifaddrs( &ifaddrs ) < 0)
             {
-                return sock_errno_to_status( errno );
+                status = sock_errno_to_status( errno );
+                break;
             }
 
             for (ifaddr = ifaddrs; ifaddr != NULL; ifaddr = ifaddr->ifa_next)
@@ -1880,7 +1918,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             if (out_size < ret_size)
             {
                 freeifaddrs( ifaddrs );
-                file_complete_async( handle, options, event, apc, apc_user, io, STATUS_BUFFER_TOO_SMALL, 0 );
+                complete_async( handle, event, apc, apc_user, io, STATUS_BUFFER_TOO_SMALL, 0 );
                 return STATUS_PENDING;
             }
 
@@ -1930,7 +1968,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             }
 
             freeifaddrs( ifaddrs );
-            file_complete_async( handle, options, event, apc, apc_user, io, STATUS_SUCCESS, ret_size );
+            complete_async( handle, event, apc, apc_user, io, STATUS_SUCCESS, ret_size );
             return STATUS_PENDING;
 #else
             FIXME( "Interface list queries are currently not supported on this platform.\n" );
@@ -1948,7 +1986,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
                 return STATUS_BUFFER_TOO_SMALL;
             keepalive = !!k->onoff;
 
-            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, NULL, &options )))
+            if ((status = server_get_unix_fd( handle, 0, &fd, &needs_close, NULL, NULL )))
                 return status;
 
             if (setsockopt( fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(int) ) < 0)
@@ -1985,7 +2023,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             }
 
             if (needs_close) close( fd );
-            file_complete_async( handle, options, event, apc, apc_user, io, STATUS_SUCCESS, 0 );
+            complete_async( handle, event, apc, apc_user, io, STATUS_SUCCESS, 0 );
             return STATUS_SUCCESS;
         }
 
@@ -2604,6 +2642,8 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
     }
 
     if (needs_close) close( fd );
+
+    if (status != STATUS_PENDING && !NT_ERROR(status)) io->Status = status;
 
     return status;
 }

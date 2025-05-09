@@ -147,9 +147,18 @@ async_test("iframe_location", function() {
     iframe.onload = function() {
         ok(iframe.contentWindow.location.pathname === "/emptyfile",
            "path = " + iframe.contentWindow.location.pathname);
+        ok(iframe.contentWindow.Image !== undefined, "Image is undefined");
+        ok(iframe.contentWindow.VBArray !== undefined, "VBArray is undefined");
+        iframe.contentWindow.Image = undefined;
+        iframe.contentWindow.VBArray = undefined;
+        iframe.contentWindow.foobar = 1234;
         iframe.onload = function () {
             ok(iframe.contentWindow.location.pathname === "/empty/file",
                "path = " + iframe.contentWindow.location.pathname);
+            ok(iframe.contentWindow.Image !== undefined, "Image is undefined (2)");
+            ok(iframe.contentWindow.VBArray !== undefined, "VBArray is undefined (2)");
+            ok(!Object.prototype.hasOwnProperty.call(iframe.contentWindow, "foobar"),
+               "contentWindow has foobar");
             next_test();
         }
         iframe.src = "empty/file";
@@ -331,30 +340,12 @@ sync_test("rects", function() {
     ok(rects.length === 1, "rect.length = " + rects.length);
     ok(rects[0].top === rect.top, "rects[0].top = " + rects[0].top + " rect.top = " + rect.top);
     ok(rects[0].bottom === rect.bottom, "rects[0].bottom = " + rects[0].bottom + " rect.bottom = " + rect.bottom);
-
-    ok("" + rects[0] === "[object ClientRect]", "rects[0] = " + rects[0]);
-    ok(rects.hasOwnProperty("0"), 'rects.hasOwnProperty("0") = ' + rects.hasOwnProperty("0"));
-    todo_wine.
-    ok(rects.hasOwnProperty("1"), 'rects.hasOwnProperty("1") = ' + rects.hasOwnProperty("1"));
-    var desc = Object.getOwnPropertyDescriptor(rects, "0");
-    ok(desc.writable === true, "writable = " + desc.writable);
-    todo_wine.
-    ok(desc.enumerable === true, "enumerable = " + desc.enumerable);
-    ok(desc.configurable === true, "configurable = " + desc.configurable);
-    ok("" + desc.value === "[object ClientRect]", "desc.value = " + desc.value);
-
     ok(rect.height === rect.bottom - rect.top, "rect.height = " + rect.height + " rect.bottom = " + rect.bottom + " rect.top = " + rect.top);
     ok(rect.width === rect.right - rect.left, "rect.width = " + rect.width + " rect.right = " + rect.right + " rect.left = " + rect.left);
 
     elem = document.createElement("style");
     rects = elem.getClientRects();
     ok(rects.length === 0, "rect.length = " + rects.length);
-});
-
-sync_test("document_lastModified", function() {
-    // actually it seems to be rounded up from about ~250ms above a sec, but be more conservative with the check
-    var diff = Date.parse(document.lastModified) - performance.timing.navigationStart;
-    ok(diff > -1000 && diff < 1000, "lastModified too far from navigationStart: " + diff);
 });
 
 sync_test("document_owner", function() {
@@ -411,20 +402,6 @@ sync_test("style_properties", function() {
     ok(val === "", "removeProperty() returned " + val);
     ok(style.testVal === "test", "testVal = " + style.testVal);
 
-    val = style.getPropertyValue("testVal");
-    ok(val === "", 'style.getPropertyValue("testVal") = ' + val);
-    ok(style.testVal === "test", "testVal = " + style.testVal);
-
-    style.setProperty("testVal", "1px");
-    val = style.getPropertyValue("testVal");
-    ok(val === "", 'style.getPropertyValue("testVal") = ' + val);
-    ok(style.testVal === "test", "testVal = " + style.testVal);
-
-    style.setProperty("test", "1px");
-    val = style.getPropertyValue("test");
-    ok(val === "", 'style.getPropertyValue("test") = ' + val);
-    ok(!("test" in style), "test in style");
-
     style["z-index"] = 1;
     ok(style.zIndex === 1, "zIndex = " + style.zIndex);
     ok(style["z-index"] === 1, "z-index = " + style["z-index"]);
@@ -470,35 +447,12 @@ sync_test("style_properties", function() {
     try {
         current_style.zIndex = 1;
         ok(false, "expected exception");
-    }catch(e) {
-        todo_wine.
-        ok(e.name === "NoModificationAllowedError", "setting current_style.zIndex threw " + e.name);
-    }
+    }catch(e) {}
 
     try {
         computed_style.zIndex = 1;
         ok(false, "expected exception");
-    }catch(e) {
-        todo_wine.
-        ok(e.name === "NoModificationAllowedError", "setting computed_style.zIndex threw " + e.name);
-    }
-
-    /* prop not found in any IHTMLCurrentStyle* interfaces, but exposed from common CSSStyleDeclarationPrototype */
-    try {
-        current_style.perspective = 1;
-        ok(false, "expected exception");
-    }catch(e) {
-        todo_wine.
-        ok(e.name === "NoModificationAllowedError", "setting current_style.perspective threw " + e.name);
-    }
-
-    try {
-        computed_style.perspective = 1;
-        ok(false, "expected exception");
-    }catch(e) {
-        todo_wine.
-        ok(e.name === "NoModificationAllowedError", "setting computed_style.perspective threw " + e.name);
-    }
+    }catch(e) {}
 
     elem = elem.nextSibling;
     computed_style = window.getComputedStyle(elem);
@@ -507,21 +461,6 @@ sync_test("style_properties", function() {
     ok(computed_style.zIndex === 4, "computed_style.zIndex = " + computed_style.zIndex);
 
     window.getComputedStyle(elem, null);
-
-    /* ms* prefixed styles alias */
-    var list = [
-        [ "transform", "translate(5px, 5px)" ],
-        [ "transition", "background-color 0.5s linear 0.1s" ]
-    ];
-    for(var i = 0; i < list.length; i++) {
-        var s = list[i][0], v = list[i][1], ms = "ms" + s[0].toUpperCase() + s.substring(1);
-        style[s] = v;
-        ok(style[s] === v, "style." + s + " = " + style[s] + ", expected " + v);
-        ok(style[ms] === v, "style." + ms + " = " + style[ms] + ", expected " + v);
-        elem.style[ms] = v;
-        ok(elem.style[s] === v, "elem.style." + s + " = " + elem.style[s] + ", expected " + v);
-        ok(elem.style[ms] === v, "elem.style." + ms + " = " + elem.style[ms] + ", expected " + v);
-    }
 });
 
 sync_test("stylesheets", function() {
@@ -595,7 +534,7 @@ sync_test("storage", function() {
 
     sessionStorage.setItem("foobar", 42);
     ok("foobar" in sessionStorage, "foobar not in sessionStorage");
-    ok(sessionStorage.hasOwnProperty("foobar"), "foobar not prop of sessionStorage");
+    ok(Object.prototype.hasOwnProperty.call(sessionStorage, "foobar"), "foobar not prop of sessionStorage");
     item = sessionStorage.getItem("foobar");
     ok(item === "42", "'foobar' item = " + item);
     item = sessionStorage["foobar"];
@@ -606,11 +545,141 @@ sync_test("storage", function() {
 
     sessionStorage["barfoo"] = true;
     ok("barfoo" in sessionStorage, "barfoo not in sessionStorage");
-    ok(sessionStorage.hasOwnProperty("barfoo"), "barfoo not prop of sessionStorage");
+    ok(Object.prototype.hasOwnProperty.call(sessionStorage, "barfoo"), "barfoo not prop of sessionStorage");
     item = sessionStorage["barfoo"];
     ok(item === "true", "[barfoo] item = " + item);
     item = sessionStorage.getItem("barfoo");
     ok(item === "true", "'barfoo' item = " + item);
+
+    Object.defineProperty(sessionStorage, "barfoo", {writable: false, enumerable: false, configurable: false, value: 1234});
+    var desc = Object.getOwnPropertyDescriptor(sessionStorage, "barfoo");
+    ok(desc.value === "1234", "barfoo desc.value = " + desc.value);
+    ok(desc.writable === true, "barfoo desc.writable = " + desc.writable);
+    ok(desc.enumerable === true, "barfoo desc.enumerable = " + desc.enumerable);
+    ok(desc.configurable === true, "barfoo desc.configurable = " + desc.configurable);
+
+    item = sessionStorage.barfoo;
+    ok(item === "1234", "'barfoo' prop after defineProperty = " + item);
+    item = sessionStorage.getItem("barfoo");
+    ok(item === "1234", "'barfoo' item after defineProperty = " + item);
+
+    sessionStorage.barfoo = 4321;
+    item = sessionStorage.barfoo;
+    ok(item === "4321", "'barfoo' prop after re-set = " + item);
+    item = sessionStorage.getItem("barfoo");
+    ok(item === "4321", "'barfoo' item after re-set = " + item);
+
+    ok((delete sessionStorage.barfoo) === true, "delete sessionStorage.barfoo returned false");
+    ok(!("barfoo" in sessionStorage), "barfoo in sessionStorage after defined prop deleted");
+    ok(!Object.prototype.hasOwnProperty.call(sessionStorage, "barfoo"), "barfoo prop of sessionStorage after defined prop deleted");
+    item = sessionStorage.barfoo;
+    ok(item === undefined, "[barfoo] item after second delete = " + item);
+    item = sessionStorage.getItem("barfoo");
+    ok(item === null, "'barfoo' item after second delete = " + item);
+
+    Object.defineProperty(sessionStorage, "winetest", {enumerable: false, configurable: true,
+            get: function() { return 42; }, set: function() { item = 1234; } });
+    desc = Object.getOwnPropertyDescriptor(sessionStorage, "winetest");
+    ok(desc.get() === 42, "winetest desc.get() = " + desc.get());
+    ok(desc.enumerable === false, "winetest desc.enumerable = " + desc.enumerable);
+    ok(desc.configurable === true, "winetest desc.configurable = " + desc.configurable);
+
+    item = sessionStorage.winetest;
+    ok(item === 42, "'winetest' prop = " + item);
+    item = sessionStorage.getItem("winetest");
+    ok(item === null, "'winetest' item = " + item);
+
+    sessionStorage.winetest = 0;
+    ok(item === 1234, "'winetest' item after setter = " + item);
+
+    sessionStorage.setItem("winetest", "test");
+    item = sessionStorage.winetest;
+    ok(item === "test", "'winetest' prop after setItem = " + item);
+    item = sessionStorage.getItem("winetest");
+    ok(item === "test", "'winetest' item after setItem = " + item);
+
+    desc = Object.getOwnPropertyDescriptor(sessionStorage, "winetest");
+    ok(desc.get() === 42, "winetest desc.get() after setItem = " + desc.get());
+    ok(desc.enumerable === false, "winetest desc.enumerable after setItem = " + desc.enumerable);
+    ok(desc.configurable === true, "winetest desc.configurable after setItem = " + desc.configurable);
+
+    item = sessionStorage.winetest;
+    ok(item === "test", "'winetest' prop before second setter = " + item);
+    sessionStorage.winetest = 0;
+    ok(item === 1234, "'winetest' item after second setter = " + item);
+    item = sessionStorage.winetest;
+    ok(item === "test", "'winetest' prop after second setter = " + item);
+
+    sessionStorage.removeItem("winetest");
+    item = sessionStorage.winetest;
+    ok(item === 42, "'winetest' prop after removeItem = " + item);
+    item = sessionStorage.getItem("winetest");
+    ok(item === null, "'winetest' item after removeItem = " + item);
+
+    sessionStorage.setItem("winetest", "wine");
+    item = sessionStorage.winetest;
+    ok(item === "wine", "'winetest' prop after second setItem = " + item);
+    item = sessionStorage.getItem("winetest");
+    ok(item === "wine", "'winetest' item after second setItem = " + item);
+
+    ok((delete sessionStorage.winetest) === true, "delete sessionStorage.winetest returned false");
+    ok("winetest" in sessionStorage, "'winetest' not in sessionStorage after delete");
+    ok(Object.prototype.hasOwnProperty.call(sessionStorage, "winetest"), "'winetest' not prop of sessionStorage after delete");
+    item = sessionStorage.winetest;
+    ok(item === 42, "'winetest' item after delete = " + item);
+    item = sessionStorage.getItem("winetest");
+    ok(item === null, "'winetest' item after delete = " + item);
+
+    ok((delete sessionStorage.winetest) === true, "second delete sessionStorage.winetest returned false");
+    ok("winetest" in sessionStorage, "'winetest' not in sessionStorage after second delete");
+    ok(Object.prototype.hasOwnProperty.call(sessionStorage, "winetest"), "'winetest' not prop of sessionStorage after second delete");
+    item = sessionStorage.winetest;
+    ok(item === 42, "'winetest' item after second delete = " + item);
+    item = sessionStorage.getItem("winetest");
+    ok(item === null, "'winetest' item after second delete = " + item);
+
+    Object.defineProperty(sessionStorage, "nonconf", {enumerable: false, configurable: false,
+            get: function() { return 1; }, set: function() {} });
+    desc = Object.getOwnPropertyDescriptor(sessionStorage, "nonconf");
+    ok(desc.get() === 1, "nonconf desc.get() = " + desc.get());
+    ok(desc.enumerable === false, "nonconf desc.enumerable = " + desc.enumerable);
+    ok(desc.configurable === false, "nonconf desc.configurable = " + desc.configurable);
+
+    sessionStorage.setItem("nonconf", "test");
+    item = sessionStorage.nonconf;
+    ok(item === "test", "'nonconf' prop after setItem = " + item);
+    item = sessionStorage.getItem("nonconf");
+    ok(item === "test", "'nonconf' item after setItem = " + item);
+
+    desc = Object.getOwnPropertyDescriptor(sessionStorage, "nonconf");
+    ok(desc.get() === 1, "nonconf desc.get() after setItem = " + desc.get());
+    ok(desc.enumerable === false, "nonconf desc.enumerable after setItem = " + desc.enumerable);
+    ok(desc.configurable === false, "nonconf desc.configurable after setItem = " + desc.configurable);
+
+    ok((delete sessionStorage.nonconf) === true, "delete sessionStorage.nonconf returned false");
+    ok("nonconf" in sessionStorage, "'nonconf' not in sessionStorage after delete");
+    ok(Object.prototype.hasOwnProperty.call(sessionStorage, "nonconf"), "'nonconf' not prop of sessionStorage after delete");
+    item = sessionStorage.nonconf;
+    ok(item === 1, "'nonconf' item after delete = " + item);
+    item = sessionStorage.getItem("nonconf");
+    ok(item === null, "'nonconf' item after delete = " + item);
+
+    sessionStorage.setItem("protoprop", "1111");
+    item = sessionStorage.protoprop;
+    ok(item === "1111", "'protoprop' = " + item);
+
+    var obj = Object.create(sessionStorage);
+    ok("protoprop" in obj, "'protoprop' not in object with sessionStorage prototype");
+    ok(!Object.prototype.hasOwnProperty.call(obj, "protoprop"), "'protoprop' prop of object with sessionStorage prototype");
+    item = obj.protoprop;
+    ok(item === "1111", "'protoprop' on obj = " + item);
+
+    var name = null;
+    for(name in obj)
+        ok(name === "protoprop", "got " + name + " prop enumerating");
+    ok(name === "protoprop", "protoprop not enumerated");
+
+    sessionStorage.clear();
 });
 
 async_test("animation", function() {

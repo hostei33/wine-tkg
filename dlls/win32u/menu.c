@@ -232,7 +232,7 @@ BOOL WINAPI NtUserDestroyAcceleratorTable( HACCEL handle )
 
 #define MENUFLAG(bit,text) \
   do { \
-      if (flags & (bit)) { flags &= ~(bit); len += snprintf(buf + len, sizeof(buf) - len, (text)); } \
+      if (flags & (bit)) { flags &= ~(bit); strcat(buf, (text)); } \
   } while (0)
 
 static const char *debugstr_menuitem( const struct menu_item *item )
@@ -243,17 +243,16 @@ static const char *debugstr_menuitem( const struct menu_item *item )
         "HBMMENU_POPUP_RESTORE", "HBMMENU_POPUP_MAXIMIZE", "HBMMENU_POPUP_MINIMIZE" };
     char buf[256];
     UINT flags;
-    int len;
 
     if (!item) return "NULL";
 
-    len = snprintf( buf, sizeof(buf), "{ ID=0x%lx", (long)item->wID );
-    if (item->hSubMenu) len += snprintf( buf + len, sizeof(buf) - len, ", Sub=%p", item->hSubMenu );
+    sprintf( buf, "{ ID=0x%lx", (long)item->wID );
+    if (item->hSubMenu) sprintf( buf + strlen(buf), ", Sub=%p", item->hSubMenu );
 
     flags = item->fType;
     if (flags)
     {
-        len += snprintf( buf + len, sizeof(buf) - len, ", fType=" );
+        strcat( buf, ", fType=" );
         MENUFLAG( MFT_SEPARATOR, "sep" );
         MENUFLAG( MFT_OWNERDRAW, "own" );
         MENUFLAG( MFT_BITMAP, "bit" );
@@ -264,13 +263,13 @@ static const char *debugstr_menuitem( const struct menu_item *item )
         MENUFLAG( MFT_RIGHTORDER, "rorder" );
         MENUFLAG( MF_SYSMENU, "sys" );
         MENUFLAG( MFT_RIGHTJUSTIFY, "right" );  /* same as MF_HELP */
-        if (flags) len += snprintf( buf + len, sizeof(buf) - len, "+0x%x", flags );
+        if (flags) sprintf( buf + strlen(buf), "+0x%x", flags );
     }
 
     flags = item->fState;
     if (flags)
     {
-        len += snprintf( buf + len, sizeof(buf) - len, ", State=" );
+        strcat( buf, ", State=" );
         MENUFLAG( MFS_GRAYED, "grey" );
         MENUFLAG( MFS_DEFAULT, "default" );
         MENUFLAG( MFS_DISABLED, "dis" );
@@ -278,20 +277,20 @@ static const char *debugstr_menuitem( const struct menu_item *item )
         MENUFLAG( MFS_HILITE, "hi" );
         MENUFLAG( MF_USECHECKBITMAPS, "usebit" );
         MENUFLAG( MF_MOUSESELECT, "mouse" );
-        if (flags) len += snprintf( buf + len, sizeof(buf) - len, "+0x%x", flags );
+        if (flags) sprintf( buf + strlen(buf), "+0x%x", flags );
     }
 
-    if (item->hCheckBit)   len += snprintf( buf + len, sizeof(buf) - len, ", Chk=%p", item->hCheckBit );
-    if (item->hUnCheckBit) len += snprintf( buf + len, sizeof(buf) - len, ", Unc=%p", item->hUnCheckBit );
-    if (item->text)        len += snprintf( buf + len, sizeof(buf) - len, ", Text=%s", debugstr_w(item->text) );
-    if (item->dwItemData)  len += snprintf( buf + len, sizeof(buf) - len, ", ItemData=0x%08lx", item->dwItemData );
+    if (item->hCheckBit)   sprintf( buf + strlen(buf), ", Chk=%p", item->hCheckBit );
+    if (item->hUnCheckBit) sprintf( buf + strlen(buf), ", Unc=%p", item->hUnCheckBit );
+    if (item->text)        sprintf( buf + strlen(buf), ", Text=%s", debugstr_w(item->text) );
+    if (item->dwItemData)  sprintf( buf + strlen(buf), ", ItemData=0x%08lx", item->dwItemData );
 
     if (item->hbmpItem)
     {
         if (IS_MAGIC_BITMAP( item->hbmpItem ))
-            len += snprintf( buf + len, sizeof(buf) - len, ", hbitmap=%s", hbmmenus[(INT_PTR)item->hbmpItem + 1] );
+            sprintf( buf + strlen(buf), ", hbitmap=%s", hbmmenus[(INT_PTR)item->hbmpItem + 1] );
         else
-            len += snprintf( buf + len, sizeof(buf) - len, ", hbitmap=%p", item->hbmpItem );
+            sprintf( buf + strlen(buf), ", hbitmap=%p", item->hbmpItem );
     }
     return wine_dbg_sprintf( "%s  }", buf );
 }
@@ -596,7 +595,7 @@ HMENU get_menu( HWND hwnd )
 }
 
 /* see CreateMenu and CreatePopupMenu */
-static HMENU create_menu( BOOL is_popup )
+HMENU create_menu( BOOL is_popup )
 {
     struct menu *menu;
     HMENU handle;
@@ -610,22 +609,6 @@ static HMENU create_menu( BOOL is_popup )
 
     TRACE( "return %p\n", handle );
     return handle;
-}
-
-/**********************************************************************
- *         NtUserCreateMenu   (win32u.@)
- */
-HMENU WINAPI NtUserCreateMenu(void)
-{
-    return create_menu( FALSE );
-}
-
-/**********************************************************************
- *         NtUserCreatePopupMenu   (win32u.@)
- */
-HMENU WINAPI NtUserCreatePopupMenu(void)
-{
-    return create_menu( TRUE );
 }
 
 /**********************************************************************
@@ -771,7 +754,7 @@ BOOL WINAPI NtUserEnableMenuItem( HMENU handle, UINT id, UINT flags )
         release_menu_ptr( parent_menu );
 
         /* Refresh the frame to reflect the change */
-        get_window_rect_rel( hwnd, COORDS_CLIENT, &rc, get_thread_dpi() );
+        get_window_rects( hwnd, COORDS_CLIENT, &rc, NULL, get_thread_dpi() );
         rc.bottom = 0;
         NtUserRedrawWindow( hwnd, &rc, 0, RDW_FRAME | RDW_INVALIDATE | RDW_NOCHILDREN );
     }
@@ -781,10 +764,8 @@ BOOL WINAPI NtUserEnableMenuItem( HMENU handle, UINT id, UINT flags )
     return oldflags;
 }
 
-/**********************************************************************
- *           NtUserDrawMenuBar    (win32u.@)
- */
-BOOL WINAPI NtUserDrawMenuBar( HWND hwnd )
+/* see DrawMenuBar */
+BOOL draw_menu_bar( HWND hwnd )
 {
     HMENU handle;
 
@@ -1434,7 +1415,7 @@ BOOL WINAPI NtUserSetMenuContextHelpId( HMENU handle, DWORD id )
 {
     struct menu *menu;
 
-    TRACE( "(%p 0x%08x)\n", handle, id );
+    TRACE( "(%p 0x%08x)\n", handle, (int)id );
 
     if (!(menu = grab_menu_ptr( handle ))) return FALSE;
     menu->dwContextHelpID = id;
@@ -1455,12 +1436,12 @@ static HMENU copy_sys_popup( BOOL mdi )
     struct menu *menu;
     void *ret_ptr;
     ULONG ret_len;
-    NTSTATUS status;
-    HMENU handle = 0;
+    HMENU handle;
 
     params.mdi = mdi;
-    status = KeUserModeCallback( NtUserLoadSysMenu, &params, sizeof(params), &ret_ptr, &ret_len );
-    if (!status && ret_len == sizeof(HMENU)) handle = *(HMENU *)ret_ptr;
+    handle = UlongToHandle( KeUserModeCallback( NtUserLoadSysMenu, &params, sizeof(params),
+                                                &ret_ptr, &ret_len ));
+
     if (!handle || !(menu = grab_menu_ptr( handle )))
     {
         ERR("Unable to load default system menu\n" );
@@ -1507,7 +1488,7 @@ static HMENU get_sys_menu( HWND hwnd, HMENU popup_menu )
     HMENU handle;
 
     TRACE("loading system menu, hwnd %p, popup_menu %p\n", hwnd, popup_menu);
-    if (!(handle = NtUserCreateMenu()))
+    if (!(handle = create_menu( FALSE )))
     {
         ERR("failed to load system menu!\n");
         return 0;
@@ -2045,8 +2026,8 @@ static void calc_menu_item_size( HDC hdc, struct menu_item *item, HWND owner, IN
         else
             item->rect.bottom += mis.itemHeight;
 
-        TRACE( "id=%04lx size=%dx%d\n", (long)item->wID, item->rect.right - item->rect.left,
-               item->rect.bottom - item->rect.top );
+        TRACE( "id=%04lx size=%dx%d\n", (long)item->wID, (int)(item->rect.right - item->rect.left),
+               (int)(item->rect.bottom - item->rect.top) );
         return;
     }
 
@@ -2346,7 +2327,7 @@ static void draw_bitmap_item( HWND hwnd, HDC hdc, struct menu_item *item, const 
             LOGFONTW logfont = { 0, 0, 0, 0, FW_NORMAL, 0, 0, 0, SYMBOL_CHARSET, 0, 0, 0, 0,
                                  {'M','a','r','l','e','t','t'}};
             logfont.lfHeight =  min( h, w) - 5 ;
-            TRACE( " height %d rect %s\n", logfont.lfHeight, wine_dbgstr_rect( rect ));
+            TRACE( " height %d rect %s\n", (int)logfont.lfHeight, wine_dbgstr_rect( rect ));
             hfont = NtGdiHfontCreate( &logfont, sizeof(logfont), 0, 0, NULL );
             prev_font = NtGdiSelectFont( hdc, hfont );
             NtGdiExtTextOutW( hdc, rect->left, rect->top + 2, 0, NULL, &bmchr, 1, NULL, 0 );
@@ -2855,7 +2836,7 @@ static void draw_popup_menu( HWND hwnd, HDC hdc, HMENU hmenu )
 
     TRACE( "wnd=%p dc=%p menu=%p\n", hwnd, hdc, hmenu );
 
-    get_client_rect( hwnd, &rect, get_thread_dpi() );
+    get_client_rect( hwnd, &rect );
 
     if (menu && menu->hbrBack) brush = menu->hbrBack;
     if ((prev_hrush = NtGdiSelectBrush( hdc, brush ))
@@ -2900,7 +2881,7 @@ static void draw_popup_menu( HWND hwnd, HDC hdc, HMENU hmenu )
     }
 }
 
-LRESULT popup_menu_window_proc( HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam, BOOL ansi )
+LRESULT popup_menu_window_proc( HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam )
 {
     TRACE( "hwnd=%p msg=0x%04x wp=0x%04lx lp=0x%08lx\n", hwnd, message, (long)wparam, lparam );
 
@@ -2956,7 +2937,7 @@ LRESULT popup_menu_window_proc( HWND hwnd, UINT message, WPARAM wparam, LPARAM l
         return get_window_long_ptr( hwnd, 0, FALSE );
 
     default:
-        return default_window_proc( hwnd, message, wparam, lparam, ansi );
+        return default_window_proc( hwnd, message, wparam, lparam, FALSE );
     }
     return 0;
 }
@@ -3064,9 +3045,10 @@ static BOOL show_popup( HWND owner, HMENU hmenu, UINT id, UINT flags,
                         int x, int y, INT xanchor, INT yanchor )
 {
     struct menu *menu;
+    HMONITOR monitor;
     MONITORINFO info;
     UINT max_height;
-    RECT rect;
+    POINT pt;
 
     TRACE( "owner=%p hmenu=%p id=0x%04x x=0x%04x y=0x%04x xa=0x%04x ya=0x%04x\n",
            owner, hmenu, id, x, y, xanchor, yanchor );
@@ -3081,8 +3063,11 @@ static BOOL show_popup( HWND owner, HMENU hmenu, UINT id, UINT flags,
     menu->nScrollPos = 0;
 
     /* FIXME: should use item rect */
-    SetRect( &rect, x, y, x, y );
-    info = monitor_info_from_rect( rect, get_thread_dpi() );
+    pt.x = x;
+    pt.y = y;
+    monitor = monitor_from_point( pt, MONITOR_DEFAULTTONEAREST, get_thread_dpi() );
+    info.cbSize = sizeof(info);
+    get_monitor_info( monitor, &info );
 
     max_height = info.rcWork.bottom - info.rcWork.top;
     if (menu->cyMax) max_height = min( max_height, menu->cyMax );
@@ -4304,7 +4289,7 @@ static BOOL track_menu( HMENU hmenu, UINT flags, int x, int y, HWND hwnd, const 
                     pos = find_item_by_key( mt.hOwnerWnd, mt.hCurrentMenu,
                                             LOWORD( msg.wParam ), FALSE );
                     if (pos == -2) exit_menu = TRUE;
-                    else if (pos == -1) NtUserMessageBeep( 0 );
+                    else if (pos == -1) message_beep( 0 );
                     else
                     {
                         select_item( mt.hOwnerWnd, mt.hCurrentMenu, pos, TRUE, 0 );
@@ -4469,7 +4454,7 @@ void track_keyboard_menu_bar( HWND hwnd, UINT wparam, WCHAR ch )
         item = find_item_by_key( hwnd, menu, ch, wparam & HTSYSMENU );
         if (item >= -2)
         {
-            if (item == -1) NtUserMessageBeep( 0 );
+            if (item == -1) message_beep( 0 );
             /* schedule end of menu tracking */
             flags |= TF_ENDMENU;
             goto track_menu;
@@ -4583,7 +4568,7 @@ BOOL WINAPI NtUserGetMenuBarInfo( HWND hwnd, LONG id, LONG item, MENUBARINFO *in
     struct menu *menu;
     ATOM class_atom;
 
-    TRACE( "(%p,0x%08x,0x%08x,%p)\n", hwnd, id, item, info );
+    TRACE( "(%p,0x%08x,0x%08x,%p)\n", hwnd, (int)id, (int)item, info );
 
     switch (id)
     {

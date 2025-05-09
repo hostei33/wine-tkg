@@ -16,12 +16,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-var tests = [];
 var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<a name=\"test\">wine</a>";
 
-async_test("async_xhr", function() {
+function test_xhr() {
     var xhr = new XMLHttpRequest();
     var complete_cnt = 0, loadstart = false;
+    var v = document.documentMode;
 
     xhr.onreadystatechange = function() {
         if(xhr.readyState != 4)
@@ -29,6 +29,28 @@ async_test("async_xhr", function() {
 
         ok(xhr.responseText === xml, "unexpected responseText " + xhr.responseText);
         ok(xhr.responseXML !== null, "unexpected null responseXML");
+
+        var x = xhr.responseXML, r = Object.prototype.toString.call(x);
+        ok(r === (v < 10 ? "[object Object]" : (v < 11 ? "[object Document]" : "[object XMLDocument]")),
+                "XML document Object.toString = " + r);
+
+        r = Object.getPrototypeOf(x);
+        if(v < 10)
+            ok(r === null, "prototype of returned XML document = " + r);
+        else if(v < 11)
+            ok(r === window.Document.prototype, "prototype of returned XML document = " + r);
+        else
+            ok(r === window.XMLDocument.prototype, "prototype of returned XML document" + r);
+
+        if(v < 10) {
+            ok(!("anchors" in x), "anchors is in returned XML document");
+            ok(Object.prototype.hasOwnProperty.call(x, "createElement"), "createElement not a prop of returned XML document");
+        }else {
+            ok("anchors" in x, "anchors not in returned XML document");
+            ok(!x.hasOwnProperty("createElement"), "createElement is a prop of returned XML document");
+            r = x.anchors;
+            ok(r.length === 0, "anchors.length of returned XML document = " + r.length);
+        }
 
         if(complete_cnt++ && !("onloadend" in xhr))
             next_test();
@@ -75,9 +97,9 @@ async_test("async_xhr", function() {
         xhr.withCredentials = false;
     }
     xhr.send(xml);
-});
+}
 
-async_test("sync_xhr", function() {
+function test_sync_xhr() {
     var async_xhr, async_xhr2, sync_xhr, sync_xhr_in_async, sync_xhr_nested, a = [ 0 ];
     var async_xhr_clicked = false, doc_dblclicked = false;
     function onmsg(e) { a.push("msg" + e.data); }
@@ -213,9 +235,32 @@ async_test("sync_xhr", function() {
         iframe.src = "xhr_iframe.html";
         document.body.appendChild(iframe);
     }, 0);
-});
+}
 
-async_test("content_types", function() {
+function test_xdr() {
+    if(!window.XDomainRequest) { next_test(); return; }
+
+    var xdr = new XDomainRequest();
+    xdr.open("POST", "echo.php");
+    // send() on native aborts with custom pluggable protocol handler even with the right
+    // response headers (`XDomainRequestAllowed: 1` and `Access-Control-Allow-Origin: *`).
+
+    // Only http/https schemes are allowed, and it must match with the origin's scheme
+    xdr = new XDomainRequest();
+    xdr.open("GET", "http://www.winehq.org/");
+
+    xdr = new XDomainRequest();
+    try {
+        xdr.open("GET", "https://www.winehq.org/");
+        ok(false, "xdr scheme mismatch did not throw exception");
+    }catch(ex) {
+        var n = ex.number >>> 0;
+        ok(n === 0x80070005, "xdr scheme mismatch threw " + n);
+    }
+    next_test();
+}
+
+function test_content_types() {
     var xhr = new XMLHttpRequest(), types, i = 0, override = false;
     var v = document.documentMode;
 
@@ -229,6 +274,7 @@ async_test("content_types", function() {
     var xml_types = [
         "text/xmL",
         "apPliCation/xml",
+        "application/xHtml+xml",
         "image/SvG+xml",
         "Wine/Test+xml",
         "++Xml",
@@ -237,9 +283,16 @@ async_test("content_types", function() {
 
     function onload() {
         ok(xhr.responseText === xml, "unexpected responseText " + xhr.responseText);
-        if(v < 10 || types === xml_types)
+        if(v < 10 || types === xml_types) {
             ok(xhr.responseXML !== null, "unexpected null responseXML for " + types[i]);
-        else
+            if(v >= 10) {
+                var r = xhr.responseXML.mimeType, e = "text/xml";
+                if(types[i] === "application/xHtml+xml" || types[i] === "image/SvG+xml")
+                    e = types[i].toLowerCase();
+                e = external.getExpectedMimeType(e);
+                ok(r === e, "XML document mimeType for " + types[i] + " = " + r + ", expected " + e);
+            }
+        }else
             ok(xhr.responseXML === null, "unexpected non-null responseXML for " + (override ? "overridden " : "") + types[i]);
 
         if(("overrideMimeType" in xhr) && !override) {
@@ -273,9 +326,9 @@ async_test("content_types", function() {
     xhr.open("POST", "echo.php?content-type=" + types[i], true);
     xhr.setRequestHeader("X-Test", "True");
     xhr.send(xml);
-});
+}
 
-async_test("abort", function() {
+function test_abort() {
     var xhr = new XMLHttpRequest();
     if(!("onabort" in xhr)) { next_test(); return; }
 
@@ -292,9 +345,9 @@ async_test("abort", function() {
     xhr.setRequestHeader("X-Test", "True");
     xhr.send("Abort Test");
     xhr.abort();
-});
+}
 
-async_test("timeout", function() {
+function test_timeout() {
     var xhr = new XMLHttpRequest();
     var v = document.documentMode;
 
@@ -332,9 +385,9 @@ async_test("timeout", function() {
     xhr.setRequestHeader("X-Test", "True");
     xhr.timeout = 10;
     xhr.send("Timeout Test");
-});
+}
 
-async_test("responseType", function() {
+function test_responseType() {
     var i, xhr = new XMLHttpRequest();
     if(!("responseType" in xhr)) { next_test(); return; }
 
@@ -386,9 +439,9 @@ async_test("responseType", function() {
     }
     xhr.onloadend = function() { next_test(); }
     xhr.send("responseType test");
-});
+}
 
-async_test("response", function() {
+function test_response() {
     var xhr = new XMLHttpRequest(), i = 0;
     if(!("response" in xhr)) { next_test(); return; }
 
@@ -402,6 +455,20 @@ async_test("response", function() {
         [ "arraybuffer", "image/png", function() {
             if(xhr.readyState < 4)
                 ok(xhr.response === undefined, "response for arraybuffer with state " + state + " = " + xhr.response);
+            else {
+                var buf = xhr.response;
+                ok(buf instanceof ArrayBuffer, "response for arraybuffer not instanceof ArrayBuffer");
+                ok(buf.byteLength === xml.length, "response for arraybuffer byteLength = " + buf.byteLength);
+                buf = new Uint8Array(buf);
+                for(var i = 0; i < buf.length; i++) {
+                    if(buf[i] !== xml.charCodeAt(i)) {
+                        var a = new Array(buf.length);
+                        for(var j = 0; j < a.length; j++) a[j] = buf[j];
+                        ok(false, "response for arraybuffer is wrong (first bad char at pos " + i + "): " + a);
+                        break;
+                    }
+                }
+            }
         }],
         [ "blob", "wine/test", function() {
             if(xhr.readyState < 4)
@@ -430,4 +497,15 @@ async_test("response", function() {
     xhr.setRequestHeader("X-Test", "True");
     xhr.responseType = types[i][0];
     xhr.send(xml);
-});
+}
+
+var tests = [
+    test_xhr,
+    test_sync_xhr,
+    test_xdr,
+    test_content_types,
+    test_abort,
+    test_timeout,
+    test_responseType,
+    test_response
+];

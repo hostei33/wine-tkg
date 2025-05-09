@@ -2104,48 +2104,30 @@ typedef struct tagMONITORINFO
     DWORD dwFlags;
 } MONITORINFO, *LPMONITORINFO;
 
-#ifdef __cplusplus
-
-struct tagMONITORINFOEXA : public tagMONITORINFO
-{
-    CHAR szDevice[CCHDEVICENAME];
-};
-
-struct tagMONITORINFOEXW : public tagMONITORINFO
-{
-    WCHAR szDevice[CCHDEVICENAME];
-};
-
-#else
-
-struct tagMONITORINFOEXA
+typedef struct tagMONITORINFOEXA
 {   /* the 4 first entries are the same as MONITORINFO */
     DWORD	cbSize;	
     RECT	rcMonitor;
     RECT	rcWork;
     DWORD	dwFlags;
     CHAR        szDevice[CCHDEVICENAME];
-};
+} MONITORINFOEXA, *LPMONITORINFOEXA;
 
-struct tagMONITORINFOEXW
+typedef struct tagMONITORINFOEXW
 {   /* the 4 first entries are the same as MONITORINFO */
     DWORD	cbSize;
     RECT	rcMonitor;
     RECT	rcWork;
     DWORD	dwFlags;
     WCHAR       szDevice[CCHDEVICENAME];
-};
+} MONITORINFOEXW, *LPMONITORINFOEXW;
 
-#endif
-
-typedef struct tagMONITORINFOEXA MONITORINFOEXA, *LPMONITORINFOEXA;
-typedef struct tagMONITORINFOEXW MONITORINFOEXW, *LPMONITORINFOEXW;
 DECL_WINELIB_TYPE_AW(MONITORINFOEX)
 DECL_WINELIB_TYPE_AW(LPMONITORINFOEX)
 
 typedef BOOL  (CALLBACK *MONITORENUMPROC)(HMONITOR,HDC,LPRECT,LPARAM);
 
-#pragma pack(push,2)
+#include <pshpack2.h>
 
 typedef struct tagDLGTEMPLATE
 {
@@ -2183,7 +2165,7 @@ typedef DLGITEMTEMPLATE *LPDLGITEMTEMPLATEA;
 typedef DLGITEMTEMPLATE *LPDLGITEMTEMPLATEW;
 DECL_WINELIB_TYPE_AW(LPDLGITEMTEMPLATE)
 
-#pragma pack(pop)
+#include <poppack.h>
 
   /* CBT hook values */
 #define HCBT_MOVESIZE	    0
@@ -3862,7 +3844,6 @@ WINUSERAPI BOOL        WINAPI EnumDisplaySettingsExW(LPCWSTR,DWORD,LPDEVMODEW,DW
 WINUSERAPI LONG        WINAPI GetDisplayConfigBufferSizes(UINT32,UINT32*,UINT32*);
 WINUSERAPI BOOL        WINAPI UpdateLayeredWindow(HWND,HDC,POINT*,SIZE*,HDC,POINT*,COLORREF,BLENDFUNCTION*,DWORD);
 WINUSERAPI BOOL        WINAPI UpdateLayeredWindowIndirect(HWND,UPDATELAYEREDWINDOWINFO const*);
-WINUSERAPI LONG        WINAPI QueryDisplayConfig(UINT32,UINT32*,DISPLAYCONFIG_PATH_INFO*,UINT32*,DISPLAYCONFIG_MODE_INFO*,DISPLAYCONFIG_TOPOLOGY_ID*);
 #endif /* defined(_WINGDI_) && !defined(NOGDI) */
 
 WINUSERAPI HKL         WINAPI ActivateKeyboardLayout(HKL,UINT);
@@ -4135,7 +4116,6 @@ WINUSERAPI DWORD       WINAPI GetAppCompatFlags(HTASK);
 WINUSERAPI SHORT       WINAPI GetAsyncKeyState(INT);
 WINUSERAPI BOOL        WINAPI GetAutoRotationState(AR_STATE*);
 WINUSERAPI DPI_AWARENESS WINAPI GetAwarenessFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT);
-WINUSERAPI UINT        WINAPI GetDpiFromDpiAwarenessContext(DPI_AWARENESS_CONTEXT);
 WINUSERAPI HWND        WINAPI GetCapture(void);
 WINUSERAPI UINT        WINAPI GetCaretBlinkTime(void);
 WINUSERAPI BOOL        WINAPI GetCaretPos(LPPOINT);
@@ -4625,7 +4605,6 @@ WINUSERAPI BOOL        WINAPI SetPropW(HWND,LPCWSTR,HANDLE);
 WINUSERAPI INT         WINAPI SetScrollInfo(HWND,INT,const SCROLLINFO*,BOOL);
 WINUSERAPI INT         WINAPI SetScrollPos(HWND,INT,INT,BOOL);
 WINUSERAPI BOOL        WINAPI SetScrollRange(HWND,INT,INT,INT,BOOL);
-WINUSERAPI BOOL        WINAPI SetShellWindow(HWND);
 #define                       SetSysModalWindow(hwnd) ((HWND)0)
 WINUSERAPI BOOL        WINAPI SetSystemCursor(HCURSOR,DWORD);
 WINUSERAPI BOOL        WINAPI SetSystemMenu(HWND,HMENU);

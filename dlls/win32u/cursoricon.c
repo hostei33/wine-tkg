@@ -41,7 +41,7 @@ struct cursoricon_object
 {
     struct user_object      obj;        /* object header */
     struct list             entry;      /* entry in shared icons list */
-    struct free_icon_params params;     /* opaque params used by 16-bit code */
+    ULONG_PTR               param;      /* opaque param used by 16-bit code */
     UNICODE_STRING          module;     /* module for icons loaded from resources */
     WCHAR                  *resname;    /* resource name for icons loaded from resources */
     HRSRC                   rsrc;       /* resource for shared icons */
@@ -179,7 +179,7 @@ static BOOL free_icon_handle( HICON handle )
     if (obj == OBJ_OTHER_PROCESS) WARN( "icon handle %p from other process\n", handle );
     else if (obj)
     {
-        struct free_icon_params params = obj->params;
+        ULONG param = obj->param;
         void *ret_ptr;
         ULONG ret_len;
         UINT i;
@@ -212,9 +212,8 @@ static BOOL free_icon_handle( HICON handle )
             free( obj->ani.frames );
         }
         if (!IS_INTRESOURCE( obj->resname )) free( obj->resname );
-        if (obj->module.Length) free(obj->module.Buffer);
         free( obj );
-        KeUserDispatchCallback( &params.dispatch, sizeof(params), &ret_ptr, &ret_len );
+        if (param) KeUserModeCallback( NtUserCallFreeIcon, &param, sizeof(param), &ret_ptr, &ret_len );
         user_driver->pDestroyCursorIcon( handle );
         return TRUE;
     }
@@ -398,7 +397,7 @@ HCURSOR WINAPI NtUserGetCursorFrameInfo( HCURSOR cursor, DWORD istep, DWORD *rat
 
     if (!(obj = get_icon_ptr( cursor ))) return 0;
 
-    TRACE( "%p => %d %p %p\n", cursor, istep, rate_jiffies, num_steps );
+    TRACE( "%p => %d %p %p\n", cursor, (int)istep, rate_jiffies, num_steps );
 
     icon_steps = obj->is_ani ? obj->ani.num_steps : 1;
     if (istep < icon_steps || !obj->is_ani)
@@ -686,13 +685,13 @@ ULONG_PTR get_icon_param( HICON handle )
     if (obj == OBJ_OTHER_PROCESS) WARN( "icon handle %p from other process\n", handle );
     else if (obj)
     {
-        ret = obj->params.param;
+        ret = obj->param;
         release_user_handle_ptr( obj );
     }
     return ret;
 }
 
-ULONG_PTR set_icon_param( HICON handle, const struct free_icon_params *params )
+ULONG_PTR set_icon_param( HICON handle, ULONG_PTR param )
 {
     ULONG_PTR ret = 0;
     struct cursoricon_object *obj = get_user_handle_ptr( handle, NTUSER_OBJ_ICON );
@@ -700,8 +699,8 @@ ULONG_PTR set_icon_param( HICON handle, const struct free_icon_params *params )
     if (obj == OBJ_OTHER_PROCESS) WARN( "icon handle %p from other process\n", handle );
     else if (obj)
     {
-        ret = obj->params.param;
-        obj->params = *params;
+        ret = obj->param;
+        obj->param = param;
         release_user_handle_ptr( obj );
     }
     return ret;
@@ -719,8 +718,7 @@ HANDLE WINAPI CopyImage( HANDLE hwnd, UINT type, INT dx, INT dy, UINT flags )
         { .hwnd = hwnd, .type = type, .dx = dx, .dy = dy, .flags = flags };
 
     ret = KeUserModeCallback( NtUserCopyImage, &params, sizeof(params), &ret_ptr, &ret_len );
-    if (!ret && ret_len == sizeof(HANDLE)) return *(HANDLE *)ret_ptr;
-    return 0;
+    return UlongToHandle( ret );
 }
 
 /******************************************************************************
@@ -741,6 +739,5 @@ HANDLE WINAPI LoadImageW( HINSTANCE hinst, const WCHAR *name, UINT type,
         return 0;
     }
     ret = KeUserModeCallback( NtUserLoadImage, &params, sizeof(params), &ret_ptr, &ret_len );
-    if (!ret && ret_len == sizeof(HANDLE)) return *(HANDLE *)ret_ptr;
-    return 0;
+    return UlongToHandle( ret );
 }

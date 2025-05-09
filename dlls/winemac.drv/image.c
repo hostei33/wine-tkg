@@ -249,7 +249,6 @@ cleanup:
  */
 CFArrayRef create_app_icon_images(void)
 {
-    struct dispatch_callback_params params = {.callback = app_icon_callback};
     CFMutableArrayRef images = NULL;
     struct app_icon_entry *entries;
     ULONG ret_len;
@@ -258,7 +257,7 @@ CFArrayRef create_app_icon_images(void)
 
     TRACE("()\n");
 
-    if (KeUserDispatchCallback(&params, sizeof(params), (void**)&entries, &ret_len) ||
+    if (KeUserModeCallback(client_func_app_icon, NULL, 0, (void**)&entries, &ret_len) ||
         (ret_len % sizeof(*entries)))
     {
         WARN("incorrect callback result\n");

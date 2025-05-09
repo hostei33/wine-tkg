@@ -5848,9 +5848,6 @@ static BOOL CRYPT_AsnDecodeCMSSignerInfoInternal(const BYTE *pbEncoded,
        offsetof(CMSG_CMS_SIGNER_INFO, AuthAttrs),
        CRYPT_AsnDecodePKCSAttributesInternal, sizeof(CRYPT_ATTRIBUTES),
        TRUE, TRUE, offsetof(CMSG_CMS_SIGNER_INFO, AuthAttrs.rgAttr), 0 },
-     /* FIXME: Tests show that CertOpenStore accepts such certificates, but
-      * how exactly should they be interpreted? */
-     { ASN_CONSTRUCTOR | ASN_UNIVERSAL | 0x11, 0, NULL, 0, TRUE, FALSE, 0, 0 },
      { ASN_SEQUENCEOF, offsetof(CMSG_CMS_SIGNER_INFO, HashEncryptionAlgorithm),
        CRYPT_AsnDecodeAlgorithmId, sizeof(CRYPT_ALGORITHM_IDENTIFIER),
        FALSE, TRUE, offsetof(CMSG_CMS_SIGNER_INFO,
@@ -6510,7 +6507,7 @@ static BOOL CRYPT_AsnDecodeOCSPBasicResponseEntry(const BYTE *pbEncoded, DWORD c
      { ASN_CONTEXT | ASN_CONSTRUCTOR, offsetof(OCSP_BASIC_RESPONSE_ENTRY, NextUpdate),
        CRYPT_AsnDecodeOCSPNextUpdate, sizeof(FILETIME), TRUE, FALSE,
        0, 0 },
-     { ASN_CONTEXT | ASN_CONSTRUCTOR | 1 /* FIXME */, offsetof(OCSP_BASIC_RESPONSE_ENTRY, cExtension),
+     { ASN_CONTEXT | ASN_CONSTRUCTOR /* FIXME */, offsetof(OCSP_BASIC_RESPONSE_ENTRY, cExtension),
        CRYPT_AsnDecodeCertExtensions, FINALMEMBERSIZE(OCSP_BASIC_RESPONSE_ENTRY, cExtension),
        TRUE, TRUE, offsetof(OCSP_BASIC_RESPONSE_ENTRY, rgExtension), 0 },
     };
@@ -6725,7 +6722,7 @@ static BOOL WINAPI CRYPT_AsnDecodeOCSPBasicResponse(DWORD dwCertEncodingType,
      { ASN_SEQUENCEOF, offsetof(OCSP_BASIC_RESPONSE_INFO, cResponseEntry),
        CRYPT_AsnDecodeOCSPBasicResponseEntriesArray, MEMBERSIZE(OCSP_BASIC_RESPONSE_INFO, cResponseEntry, cExtension),
        TRUE, TRUE, offsetof(OCSP_BASIC_RESPONSE_INFO, rgResponseEntry) },
-     { ASN_CONTEXT | ASN_CONSTRUCTOR | 1, offsetof(OCSP_BASIC_RESPONSE_INFO, cExtension),
+     { ASN_CONTEXT | ASN_CONSTRUCTOR, offsetof(OCSP_BASIC_RESPONSE_INFO, cExtension),
        CRYPT_AsnDecodeCertExtensions, FINALMEMBERSIZE(OCSP_BASIC_RESPONSE_INFO, cExtension),
        TRUE, TRUE, offsetof(OCSP_BASIC_RESPONSE_INFO, rgExtension), 0 },
      };
@@ -6943,8 +6940,6 @@ static CryptDecodeObjectExFunc CRYPT_GetBuiltinDecoder(DWORD dwCertEncodingType,
         decodeFunc = CRYPT_AsnDecodeCRLDistPoints;
     else if (!strcmp(lpszStructType, szOID_CERT_POLICIES))
         decodeFunc = CRYPT_AsnDecodeCertPolicies;
-    else if (!strcmp(lpszStructType, szOID_APPLICATION_CERT_POLICIES))
-        FIXME("szOID_APPLICATION_CERT_POLICIES\n");
     else if (!strcmp(lpszStructType, szOID_POLICY_MAPPINGS))
         decodeFunc = CRYPT_AsnDecodeCertPolicyMappings;
     else if (!strcmp(lpszStructType, szOID_POLICY_CONSTRAINTS))

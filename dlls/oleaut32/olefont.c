@@ -337,8 +337,6 @@ HRESULT WINAPI OleCreateFontIndirect(
     fd.fStrikethrough = FALSE;
     lpFontDesc = &fd;
   }
-  else if (!lpFontDesc->lpstrName)
-    return CTL_E_INVALIDPROPERTYVALUE;
 
   newFont = OLEFontImpl_Construct(lpFontDesc);
   if (!newFont) return E_OUTOFMEMORY;
@@ -636,7 +634,10 @@ static HRESULT WINAPI OLEFontImpl_get_Name(
 
   realize_font(this);
 
-  *pname = SysAllocString(this->description.lpstrName);
+  if (this->description.lpstrName!=0)
+    *pname = SysAllocString(this->description.lpstrName);
+  else
+    *pname = 0;
 
   return S_OK;
 }
@@ -1669,8 +1670,11 @@ static HRESULT WINAPI OLEFontImpl_Save(
   if (written != sizeof(DWORD)) return E_FAIL;
 
   /* FontName */
-  string_size = WideCharToMultiByte( CP_ACP, 0, this->description.lpstrName,
-                                     lstrlenW(this->description.lpstrName), NULL, 0, NULL, NULL );
+  if (this->description.lpstrName)
+    string_size = WideCharToMultiByte( CP_ACP, 0, this->description.lpstrName,
+                                       lstrlenW(this->description.lpstrName), NULL, 0, NULL, NULL );
+  else
+    string_size = 0;
 
   IStream_Write(pOutStream, &string_size, sizeof(BYTE), &written);
   if (written != sizeof(BYTE)) return E_FAIL;
@@ -1713,9 +1717,10 @@ static HRESULT WINAPI OLEFontImpl_GetSizeMax(
   pcbSize->u.LowPart += sizeof(DWORD); /* Size */
   pcbSize->u.LowPart += sizeof(BYTE);  /* StrLength */
 
-  pcbSize->u.LowPart += WideCharToMultiByte( CP_ACP, 0, this->description.lpstrName,
-                                             lstrlenW(this->description.lpstrName),
-                                             NULL, 0, NULL, NULL );
+  if (this->description.lpstrName!=0)
+      pcbSize->u.LowPart += WideCharToMultiByte( CP_ACP, 0, this->description.lpstrName,
+                                                 lstrlenW(this->description.lpstrName),
+                                                 NULL, 0, NULL, NULL );
 
   return S_OK;
 }

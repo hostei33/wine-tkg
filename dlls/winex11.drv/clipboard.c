@@ -83,6 +83,7 @@
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
 #include "x11drv.h"
+#include "xfixes.h"
 
 #ifdef HAVE_X11_EXTENSIONS_XFIXES_H
 #include <X11/extensions/Xfixes.h>
@@ -199,7 +200,6 @@ static UINT rendered_formats;
 static ULONG last_clipboard_update;
 static struct clipboard_format **current_x11_formats;
 static unsigned int nb_current_x11_formats;
-static BOOL use_xfixes;
 
 Display *clipboard_display = NULL;
 
@@ -1048,7 +1048,7 @@ static void *import_text_html( Atom type, const void *data, size_t size, size_t 
 /**************************************************************************
  *      file_list_to_drop_files
  */
-DROPFILES *file_list_to_drop_files( const void *data, size_t size, size_t *ret_size )
+void *file_list_to_drop_files( const void *data, size_t size, size_t *ret_size )
 {
     size_t buf_size = 4096, path_size;
     DROPFILES *drop = NULL;
@@ -1100,7 +1100,7 @@ DROPFILES *file_list_to_drop_files( const void *data, size_t size, size_t *ret_s
 /**************************************************************************
  *      uri_list_to_drop_files
  */
-DROPFILES *uri_list_to_drop_files( const void *data, size_t size, size_t *ret_size )
+void *uri_list_to_drop_files( const void *data, size_t size, size_t *ret_size )
 {
     const char *uriList = data;
     char *uri;
@@ -1622,7 +1622,7 @@ static BOOL export_hdrop( Display *display, Window win, Atom prop, Atom target, 
         {
             static const char hex_table[] = "0123456789abcdef";
             textUriList[next++] = '%';
-            textUriList[next++] = hex_table[(unsigned char)unixFilename[u] >> 4];
+            textUriList[next++] = hex_table[unixFilename[u] >> 4];
             textUriList[next++] = hex_table[unixFilename[u] & 0xf];
         }
         textUriList[next++] = '\r';
@@ -2170,28 +2170,6 @@ static BOOL selection_notify_event( HWND hwnd, XEvent *event )
 static void xfixes_init(void)
 {
 #ifdef SONAME_LIBXFIXES
-    typeof(XFixesSelectSelectionInput) *pXFixesSelectSelectionInput;
-    typeof(XFixesQueryExtension) *pXFixesQueryExtension;
-    typeof(XFixesQueryVersion) *pXFixesQueryVersion;
-
-    int event_base, error_base;
-    int major = 3, minor = 0;
-    void *handle;
-
-    handle = dlopen(SONAME_LIBXFIXES, RTLD_NOW);
-    if (!handle) return;
-
-    pXFixesQueryExtension = dlsym(handle, "XFixesQueryExtension");
-    if (!pXFixesQueryExtension) return;
-    pXFixesQueryVersion = dlsym(handle, "XFixesQueryVersion");
-    if (!pXFixesQueryVersion) return;
-    pXFixesSelectSelectionInput = dlsym(handle, "XFixesSelectSelectionInput");
-    if (!pXFixesSelectSelectionInput) return;
-
-    if (!pXFixesQueryExtension(clipboard_display, &event_base, &error_base))
-        return;
-    pXFixesQueryVersion(clipboard_display, &major, &minor);
-    use_xfixes = (major >= 1);
     if (!use_xfixes) return;
 
     pXFixesSelectSelectionInput(clipboard_display, import_window, x11drv_atom(CLIPBOARD),
@@ -2205,7 +2183,7 @@ static void xfixes_init(void)
                 XFixesSelectionWindowDestroyNotifyMask |
                 XFixesSelectionClientCloseNotifyMask);
     }
-    X11DRV_register_event_handler(event_base + XFixesSelectionNotify,
+    X11DRV_register_event_handler(xfixes_event_base + XFixesSelectionNotify,
             selection_notify_event, "XFixesSelectionNotify");
     TRACE("xfixes succesully initialized\n");
 #else

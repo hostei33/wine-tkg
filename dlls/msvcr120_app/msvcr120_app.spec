@@ -33,9 +33,9 @@
 @ cdecl -arch=arm ??0_NonReentrantPPLLock@details@Concurrency@@QAA@XZ(ptr) msvcr120.??0_NonReentrantPPLLock@details@Concurrency@@QAA@XZ
 @ thiscall -arch=i386 ??0_NonReentrantPPLLock@details@Concurrency@@QAE@XZ(ptr) msvcr120.??0_NonReentrantPPLLock@details@Concurrency@@QAE@XZ
 @ cdecl -arch=win64 ??0_NonReentrantPPLLock@details@Concurrency@@QEAA@XZ(ptr) msvcr120.??0_NonReentrantPPLLock@details@Concurrency@@QEAA@XZ
-@ cdecl -arch=arm ??0_ReaderWriterLock@details@Concurrency@@QAA@XZ(ptr) msvcr120.??0_ReaderWriterLock@details@Concurrency@@QAA@XZ
-@ thiscall -arch=i386 ??0_ReaderWriterLock@details@Concurrency@@QAE@XZ(ptr) msvcr120.??0_ReaderWriterLock@details@Concurrency@@QAE@XZ
-@ cdecl -arch=win64 ??0_ReaderWriterLock@details@Concurrency@@QEAA@XZ(ptr) msvcr120.??0_ReaderWriterLock@details@Concurrency@@QEAA@XZ
+@ stub -arch=arm ??0_ReaderWriterLock@details@Concurrency@@QAA@XZ
+@ stub -arch=i386 ??0_ReaderWriterLock@details@Concurrency@@QAE@XZ
+@ stub -arch=win64 ??0_ReaderWriterLock@details@Concurrency@@QEAA@XZ
 @ cdecl -arch=arm ??0_ReentrantBlockingLock@details@Concurrency@@QAA@XZ(ptr) msvcr120.??0_ReentrantBlockingLock@details@Concurrency@@QAA@XZ
 @ thiscall -arch=i386 ??0_ReentrantBlockingLock@details@Concurrency@@QAE@XZ(ptr) msvcr120.??0_ReentrantBlockingLock@details@Concurrency@@QAE@XZ
 @ cdecl -arch=win64 ??0_ReentrantBlockingLock@details@Concurrency@@QEAA@XZ(ptr) msvcr120.??0_ReentrantBlockingLock@details@Concurrency@@QEAA@XZ
@@ -493,11 +493,11 @@
 @ stub -arch=arm ?_CleanupToken@_StructuredTaskCollection@details@Concurrency@@AAAXXZ
 @ stub -arch=i386 ?_CleanupToken@_StructuredTaskCollection@details@Concurrency@@AAEXXZ
 @ stub -arch=win64 ?_CleanupToken@_StructuredTaskCollection@details@Concurrency@@AEAAXXZ
-@ stub -arch=win32 ?_ConcRT_Assert@details@Concurrency@@YAXPBD0H@Z
+@ stub -arch=i386 ?_ConcRT_Assert@details@Concurrency@@YAXPBD0H@Z
 @ stub -arch=win64 ?_ConcRT_Assert@details@Concurrency@@YAXPEBD0H@Z
 @ stub -arch=win32 ?_ConcRT_CoreAssert@details@Concurrency@@YAXPBD0H@Z
 @ stub -arch=win64 ?_ConcRT_CoreAssert@details@Concurrency@@YAXPEBD0H@Z
-@ stub -arch=win32 ?_ConcRT_DumpMessage@details@Concurrency@@YAXPB_WZZ
+@ stub -arch=i386 ?_ConcRT_DumpMessage@details@Concurrency@@YAXPB_WZZ
 @ stub -arch=win64 ?_ConcRT_DumpMessage@details@Concurrency@@YAXPEB_WZZ
 @ stub -arch=win32 ?_ConcRT_Trace@details@Concurrency@@YAXHPB_WZZ
 @ stub -arch=win64 ?_ConcRT_Trace@details@Concurrency@@YAXHPEB_WZZ
@@ -820,12 +820,12 @@
 @ cdecl -arch=i386 _CIsqrt() msvcr120._CIsqrt
 @ cdecl -arch=i386 _CItan() msvcr120._CItan
 @ cdecl -arch=i386 _CItanh() msvcr120._CItanh
-@ cdecl -norelay _Cbuild(double double) msvcr120._Cbuild
+@ cdecl _Cbuild(ptr double double) msvcr120._Cbuild
 @ cdecl _CreateFrameInfo(ptr ptr) msvcr120._CreateFrameInfo
 @ stdcall _CxxThrowException(ptr ptr) msvcr120._CxxThrowException
 @ cdecl -arch=i386 -norelay _EH_prolog() msvcr120._EH_prolog
 @ stub -arch=arm _FPE_Raise
-@ cdecl -norelay _FCbuild(float float) msvcr120._FCbuild
+@ stub _FCbuild
 @ cdecl _FindAndUnlinkFrame(ptr) msvcr120._FindAndUnlinkFrame
 @ stub -arch=win64 _GetImageBase
 @ stub -arch=win64 _GetThrowImageBase
@@ -1743,8 +1743,8 @@
 @ stub cexp
 @ stub cexpf
 @ stub cexpl
-@ cdecl cimag(int128) msvcr120.cimag
-@ cdecl cimagf(int64) msvcr120.cimagf
+@ stub cimag
+@ stub cimagf
 @ stub cimagl
 @ cdecl clearerr(ptr) msvcr120.clearerr
 @ cdecl clearerr_s(ptr) msvcr120.clearerr_s
@@ -1772,7 +1772,7 @@
 @ stub cprojf
 @ stub cprojl
 @ cdecl creal(int128) msvcr120.creal
-@ cdecl crealf(int64) msvcr120.crealf
+@ stub crealf
 @ stub creall
 @ stub csin
 @ stub csinf
@@ -1815,7 +1815,7 @@
 @ cdecl fegetenv(ptr) msvcr120.fegetenv
 @ cdecl fegetexceptflag(ptr long) msvcr120.fegetexceptflag
 @ cdecl fegetround() msvcr120.fegetround
-@ cdecl feholdexcept(ptr) msvcr120.feholdexcept
+@ stub feholdexcept
 @ cdecl feof(ptr) msvcr120.feof
 @ cdecl feraiseexcept(long) msvcr120.feraiseexcept
 @ cdecl ferror(ptr) msvcr120.ferror
@@ -1877,7 +1877,7 @@
 @ cdecl ilogbf(float) msvcr120.ilogbf
 @ cdecl ilogbl(double) msvcr120.ilogbl
 @ cdecl -ret64 imaxabs(int64) msvcr120.imaxabs
-@ cdecl -norelay imaxdiv(int64 int64) msvcr120.imaxdiv
+@ stub imaxdiv
 @ cdecl isalnum(long) msvcr120.isalnum
 @ cdecl isalpha(long) msvcr120.isalpha
 @ cdecl isblank(long) msvcr120.isblank
@@ -2013,7 +2013,7 @@
 @ varargs scanf(str) msvcr120.scanf
 @ varargs scanf_s(str) msvcr120.scanf_s
 @ cdecl setbuf(ptr ptr) msvcr120.setbuf
-@ cdecl -arch=arm,x86_64 -norelay -private setjmp(ptr ptr) msvcr120.setjmp
+@ cdecl -arch=arm,x86_64 -norelay -private setjmp(ptr) msvcr120.setjmp
 @ cdecl setlocale(long str) msvcr120.setlocale
 @ cdecl setvbuf(ptr str long long) msvcr120.setvbuf
 @ cdecl signal(long long) msvcr120.signal

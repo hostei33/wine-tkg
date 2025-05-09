@@ -98,8 +98,9 @@ struct key
 #define KEY_DELETED  0x0002  /* key has been deleted */
 #define KEY_DIRTY    0x0004  /* key has been modified */
 #define KEY_SYMLINK  0x0008  /* key is a symbolic link */
-#define KEY_WOWSHARE 0x0010  /* key is a Wow64 shared key (used for Software\Classes) */
+#define KEY_WOWREFLECT 0x0010  /* key is a Wow64 shared and reflected key (used for Software\Classes) */
 #define KEY_PREDEF   0x0020  /* key is marked as predefined */
+#define KEY_WOWSHARE 0x0040  /* key is Wow64 shared */
 
 #define OBJ_KEY_WOW64 0x100000 /* magic flag added to attributes for WoW64 redirection */
 
@@ -137,7 +138,7 @@ static struct key_value *find_value( const struct key *key, const struct unicode
 struct save_branch_info
 {
     struct key  *key;
-    const char  *filename;
+    const char  *path;
 };
 
 #define MAX_SAVE_BRANCH_INFO 3
@@ -448,7 +449,7 @@ static struct security_descriptor *key_get_sd( struct object *obj )
         key_default_sd->dacl_len  = dacl_len;
         sid = (struct sid *)(key_default_sd + 1);
         sid = copy_sid( sid, &builtin_admins_sid );
-        copy_sid( sid, &builtin_admins_sid );
+        sid = copy_sid( sid, &builtin_admins_sid );
 
         dacl = (struct acl *)((char *)(key_default_sd + 1) + 2 * admins_sid_len);
         dacl->revision = ACL_REVISION;
@@ -520,7 +521,7 @@ static struct object *key_lookup_name( struct object *obj, struct unicode_str *n
         }
 
         key = (struct key *)obj;
-        if (key && (key->flags & KEY_WOWSHARE) && (attr & OBJ_KEY_WOW64) && !name->str)
+        if (key && (key->flags & KEY_WOWREFLECT) && (attr & OBJ_KEY_WOW64) && !name->str)
         {
             key = get_parent( key );
             release_object( obj );
@@ -547,7 +548,7 @@ static struct object *key_lookup_name( struct object *obj, struct unicode_str *n
 
     if (!(found = find_subkey( key, &tmp, &index )))
     {
-        if ((key->flags & KEY_WOWSHARE) && (attr & OBJ_KEY_WOW64))
+        if ((key->flags & KEY_WOWREFLECT) && (attr & OBJ_KEY_WOW64))
         {
             /* try in the 64-bit parent */
             key = get_parent( key );
@@ -606,7 +607,7 @@ static int key_link_name( struct object *obj, struct object_name *name, struct o
     for (i = ++parent_key->last_subkey; i > index; i--)
         parent_key->subkeys[i] = parent_key->subkeys[i - 1];
     parent_key->subkeys[index] = (struct key *)grab_object( key );
-    if (is_wow6432node( name->name, name->len ) &&
+    if (!(parent_key->flags & KEY_WOWSHARE) && is_wow6432node( name->name, name->len ) &&
         !is_wow6432node( parent_key->obj.name->name, parent_key->obj.name->len ))
         parent_key->wow6432node = key;
     name->parent = parent;
@@ -782,7 +783,7 @@ static struct key *grab_wow6432node( struct key *key )
     struct key *ret = key->wow6432node;
 
     if (!ret) return key;
-    if (ret->flags & KEY_WOWSHARE) return key;
+    if (ret->flags & KEY_WOWREFLECT) return key;
     grab_object( ret );
     release_object( key );
     return ret;
@@ -828,7 +829,7 @@ static struct key *open_key( struct key *parent, const struct unicode_str *name,
     if (parent && !(access & KEY_WOW64_64KEY) && !is_wow6432node( name->str, name->len ))
     {
         key = get_wow6432node( parent );
-        if (key && ((access & KEY_WOW64_32KEY) || (key->flags & KEY_WOWSHARE)))
+        if (key && ((access & KEY_WOW64_32KEY) || (key->flags & KEY_WOWREFLECT)))
             parent = key;
     }
 
@@ -854,7 +855,7 @@ static struct key *create_key( struct key *parent, const struct unicode_str *nam
     if (parent && !(access & KEY_WOW64_64KEY) && !is_wow6432node( name->str, name->len ))
     {
         key = get_wow6432node( parent );
-        if (key && ((access & KEY_WOW64_32KEY) || (key->flags & KEY_WOWSHARE)))
+        if (key && ((access & KEY_WOW64_32KEY) || (key->flags & KEY_WOWREFLECT)))
             parent = key;
     }
 
@@ -984,8 +985,8 @@ static void enum_key( struct key *key, int index, int info_class, struct enum_ke
         if (len > namelen)
         {
             reply->namelen = namelen;
-            data = mem_append( data, key->obj.name->name, namelen );
-            memcpy( data, key->class, len - namelen );
+            memcpy( data, key->obj.name->name, namelen );
+            memcpy( data + namelen, key->class, len - namelen );
         }
         else if (info_class == KeyNameInformation)
         {
@@ -1006,7 +1007,7 @@ static void enum_key( struct key *key, int index, int info_class, struct enum_ke
 static void rename_key( struct key *key, const struct unicode_str *new_name )
 {
     struct object_name *new_name_ptr;
-    struct key *parent = get_parent( key );
+    struct key *subkey, *parent = get_parent( key );
     data_size_t len;
     int i, index, cur_index;
 
@@ -1019,7 +1020,7 @@ static void rename_key( struct key *key, const struct unicode_str *new_name )
     }
 
     /* check for existing subkey with the same name */
-    if (!parent || find_subkey( parent, new_name, &index ))
+    if (!parent || (subkey = find_subkey( parent, new_name, &index )))
     {
         set_error( STATUS_CANNOT_DELETE );
         return;
@@ -1297,8 +1298,8 @@ static void enum_value( struct key *key, int i, int info_class, struct enum_key_
             if (maxlen > namelen)
             {
                 reply->namelen = namelen;
-                data = mem_append( data, value->name, namelen );
-                memcpy( data, value->data, maxlen - namelen );
+                memcpy( data, value->name, namelen );
+                memcpy( (char *)data + namelen, value->data, maxlen - namelen );
             }
             else
             {
@@ -1640,7 +1641,7 @@ static int load_value( struct key *key, const char *buffer, struct file_load_inf
     case REG_SZ:
         if (!get_file_tmp_space( info, strlen(buffer) * sizeof(WCHAR) )) return 0;
         len = info->tmplen;
-        if (parse_strW( info->tmp, &len, buffer, '\"' ) == -1) goto error;
+        if ((res = parse_strW( info->tmp, &len, buffer, '\"' )) == -1) goto error;
         ptr = info->tmp;
         break;
     case REG_DWORD:
@@ -1701,7 +1702,7 @@ static int get_prefix_len( struct key *key, const char *name, struct file_load_i
     if (!get_file_tmp_space( info, strlen(name) * sizeof(WCHAR) )) return 0;
 
     len = info->tmplen;
-    if (parse_strW( info->tmp, &len, name, ']' ) == -1)
+    if ((res = parse_strW( info->tmp, &len, name, ']' )) == -1)
     {
         file_read_error( "Malformed key", info );
         return 0;
@@ -1828,7 +1829,7 @@ static int load_init_registry_from_file( const char *filename, struct key *key )
 
     assert( save_branch_count < MAX_SAVE_BRANCH_INFO );
 
-    save_branch_info[save_branch_count].filename = filename;
+    save_branch_info[save_branch_count].path = filename;
     save_branch_info[save_branch_count++].key = (struct key *)grab_object( key );
     make_object_permanent( &key->obj );
     return (f != NULL);
@@ -1836,16 +1837,15 @@ static int load_init_registry_from_file( const char *filename, struct key *key )
 
 static WCHAR *format_user_registry_path( const struct sid *sid, struct unicode_str *path )
 {
-    char buffer[7 + 11 + 11 + 11 * ARRAY_SIZE(sid->sub_auth)];
+    char buffer[7 + 11 + 11 + 11 * ARRAY_SIZE(sid->sub_auth)], *p = buffer;
     unsigned int i;
-    int len;
 
-    len = snprintf( buffer, sizeof(buffer), "User\\S-%u-%u", sid->revision,
-                    ((unsigned int)sid->id_auth[2] << 24) |
-                    ((unsigned int)sid->id_auth[3] << 16) |
-                    ((unsigned int)sid->id_auth[4] << 8) |
-                    ((unsigned int)sid->id_auth[5]) );
-    for (i = 0; i < sid->sub_count; i++) len += snprintf( buffer + len, sizeof(buffer) - len, "-%u", sid->sub_auth[i] );
+    p += sprintf( p, "User\\S-%u-%u", sid->revision,
+                  ((unsigned int)sid->id_auth[2] << 24) |
+                  ((unsigned int)sid->id_auth[3] << 16) |
+                  ((unsigned int)sid->id_auth[4] << 8) |
+                  ((unsigned int)sid->id_auth[5]) );
+    for (i = 0; i < sid->sub_count; i++) p += sprintf( p, "-%u", sid->sub_auth[i] );
     return ascii_to_unicode_str( buffer, path );
 }
 
@@ -1863,9 +1863,10 @@ static void init_supported_machines(void)
     if (prefix_type == PREFIX_64BIT)
     {
         supported_machines[count++] = IMAGE_FILE_MACHINE_ARM64;
+        supported_machines[count++] = IMAGE_FILE_MACHINE_AMD64;
         supported_machines[count++] = IMAGE_FILE_MACHINE_I386;
-        supported_machines[count++] = IMAGE_FILE_MACHINE_ARMNT;
     }
+    supported_machines[count++] = IMAGE_FILE_MACHINE_ARMNT;
 #else
 #error Unsupported machine
 #endif
@@ -1882,29 +1883,29 @@ void init_registry(void)
     static const WCHAR classes_i386[] = {'S','o','f','t','w','a','r','e','\\',
                                          'C','l','a','s','s','e','s','\\',
                                          'W','o','w','6','4','3','2','N','o','d','e'};
+    static const WCHAR classes_amd64[] = {'S','o','f','t','w','a','r','e','\\',
+                                          'C','l','a','s','s','e','s','\\',
+                                          'W','o','w','6','4','6','4','N','o','d','e'};
     static const WCHAR classes_arm[] = {'S','o','f','t','w','a','r','e','\\',
                                         'C','l','a','s','s','e','s','\\',
                                         'W','o','w','A','A','3','2','N','o','d','e'};
+    static const WCHAR classes_arm64[] = {'S','o','f','t','w','a','r','e','\\',
+                                          'C','l','a','s','s','e','s','\\',
+                                          'W','o','w','A','A','6','4','N','o','d','e'};
     static const WCHAR perflib[] = {'S','o','f','t','w','a','r','e','\\',
                                     'M','i','c','r','o','s','o','f','t','\\',
                                     'W','i','n','d','o','w','s',' ','N','T','\\',
                                     'C','u','r','r','e','n','t','V','e','r','s','i','o','n','\\',
                                     'P','e','r','f','l','i','b','\\',
                                     '0','0','9'};
-    static const WCHAR controlset[] = {'S','y','s','t','e','m','\\',
-                                       'C','u','r','r','e','n','t','C','o','n','t','r','o','l','S','e','t'};
-    static const WCHAR controlset001_path[] = {'\\','R','e','g','i','s','t','r','y','\\',
-                                               'M','a','c','h','i','n','e','\\',
-                                               'S','y','s','t','e','m','\\',
-                                               'C','o','n','t','r','o','l','S','e','t','0','0','1'};
+    static const WCHAR software[] = {'S','o','f','t','w','a','r','e',};
     static const struct unicode_str root_name = { REGISTRY, sizeof(REGISTRY) };
     static const struct unicode_str HKLM_name = { HKLM, sizeof(HKLM) };
     static const struct unicode_str HKU_name = { HKU_default, sizeof(HKU_default) };
     static const struct unicode_str perflib_name = { perflib, sizeof(perflib) };
-    static const struct unicode_str controlset_name = { controlset, sizeof(controlset) };
 
     WCHAR *current_user_path;
-    struct unicode_str current_user_str;
+    struct unicode_str current_user_str, name;
     struct key *key, *hklm, *hkcu;
     unsigned int i;
     char *p;
@@ -1929,13 +1930,6 @@ void init_registry(void)
             prefix_type = PREFIX_32BIT;
         else
             prefix_type = sizeof(void *) > sizeof(int) ? PREFIX_64BIT : PREFIX_32BIT;
-
-        if ((key = create_key_recursive( hklm, &controlset_name, current_time )))
-        {
-            key->flags |= KEY_SYMLINK;
-            set_value( key, &symlink_str, REG_LINK, controlset001_path, sizeof(controlset001_path) );
-            release_object( key );
-        }
     }
     else if (prefix_type == PREFIX_UNKNOWN)
         prefix_type = PREFIX_32BIT;
@@ -1963,20 +1957,27 @@ void init_registry(void)
     /* set the shared flag on Software\Classes\Wow6432Node for all platforms */
     for (i = 1; i < supported_machines_count; i++)
     {
-        struct unicode_str name;
-
         switch (supported_machines[i])
         {
         case IMAGE_FILE_MACHINE_I386:  name.str = classes_i386;  name.len = sizeof(classes_i386);  break;
         case IMAGE_FILE_MACHINE_ARMNT: name.str = classes_arm;   name.len = sizeof(classes_arm);   break;
-        default: continue;
+        case IMAGE_FILE_MACHINE_AMD64: name.str = classes_amd64; name.len = sizeof(classes_amd64); break;
+        case IMAGE_FILE_MACHINE_ARM64: name.str = classes_arm64; name.len = sizeof(classes_arm64); break;
         }
         if ((key = create_key_recursive( hklm, &name, current_time )))
         {
-            key->flags |= KEY_WOWSHARE;
+            key->flags |= KEY_WOWREFLECT;
             release_object( key );
         }
-        /* FIXME: handle HKCU too */
+    }
+
+    name.str = software;
+    name.len = sizeof(software);
+    if ((key = create_key_recursive( hkcu, &name, current_time )))
+    {
+        key->flags |= KEY_WOWSHARE;
+        key->wow6432node = NULL;
+        release_object( key );
     }
 
     if ((key = create_key_recursive( hklm, &perflib_name, current_time )))
@@ -2130,10 +2131,10 @@ static data_size_t save_registry( const struct key *key, char *buf )
 }
 
 /* save a registry branch to a file */
-static int save_branch( struct key *key, const char *filename )
+static int save_branch( struct key *key, const char *path )
 {
     struct stat st;
-    char tmp[32];
+    char *p, *tmp = NULL;
     int fd, count = 0, ret = 0;
     FILE *f;
 
@@ -2142,15 +2143,14 @@ static int save_branch( struct key *key, const char *filename )
         if (debug_level > 1) dump_operation( key, NULL, "Not saving clean" );
         return 1;
     }
-    tmp[0] = 0;
 
     /* test the file type */
 
-    if ((fd = open( filename, O_WRONLY )) != -1)
+    if ((fd = open( path, O_WRONLY )) != -1)
     {
         /* if file is not a regular file or has multiple links or is accessed
          * via symbolic links, write directly into it; otherwise use a temp file */
-        if (!lstat( filename, &st ) && (!S_ISREG(st.st_mode) || st.st_nlink > 1))
+        if (!lstat( path, &st ) && (!S_ISREG(st.st_mode) || st.st_nlink > 1))
         {
             ftruncate( fd, 0 );
             goto save;
@@ -2158,11 +2158,15 @@ static int save_branch( struct key *key, const char *filename )
         close( fd );
     }
 
-    /* create a temp file */
+    /* create a temp file in the same directory */
 
+    if (!(tmp = malloc( strlen(path) + 20 ))) goto done;
+    strcpy( tmp, path );
+    if ((p = strrchr( tmp, '/' ))) p++;
+    else p = tmp;
     for (;;)
     {
-        snprintf( tmp, sizeof(tmp), "reg%lx%04x.tmp", (long) getpid(), count++ );
+        sprintf( p, "reg%lx%04x.tmp", (long) getpid(), count++ );
         if ((fd = open( tmp, O_CREAT | O_EXCL | O_WRONLY, 0666 )) != -1) break;
         if (errno != EEXIST) goto done;
         close( fd );
@@ -2173,28 +2177,29 @@ static int save_branch( struct key *key, const char *filename )
  save:
     if (!(f = fdopen( fd, "w" )))
     {
-        if (tmp[0]) unlink( tmp );
+        if (tmp) unlink( tmp );
         close( fd );
         goto done;
     }
 
     if (debug_level > 1)
     {
-        fprintf( stderr, "%s: ", filename );
+        fprintf( stderr, "%s: ", path );
         dump_operation( key, NULL, "saving" );
     }
 
     save_all_subkeys( key, f );
     ret = !fclose(f);
 
-    if (tmp[0])
+    if (tmp)
     {
         /* if successfully written, rename to final name */
-        if (ret) ret = !rename( tmp, filename );
+        if (ret) ret = !rename( tmp, path );
         if (!ret) unlink( tmp );
     }
 
 done:
+    free( tmp );
     if (ret) make_clean( key, key->timestamp_counter );
     return ret;
 }
@@ -2207,10 +2212,10 @@ void flush_registry(void)
     if (fchdir( config_dir_fd ) == -1) return;
     for (i = 0; i < save_branch_count; i++)
     {
-        if (!save_branch( save_branch_info[i].key, save_branch_info[i].filename ))
+        if (!save_branch( save_branch_info[i].key, save_branch_info[i].path ))
         {
             fprintf( stderr, "wineserver: could not save registry branch to %s",
-                     save_branch_info[i].filename );
+                     save_branch_info[i].path );
             perror( " " );
         }
     }
@@ -2280,11 +2285,7 @@ DECL_HANDLER(create_key)
             key->classlen = (key->classlen / sizeof(WCHAR)) * sizeof(WCHAR);
             if (!(key->class = memdup( class, key->classlen ))) key->classlen = 0;
         }
-        if (get_error() == STATUS_OBJECT_NAME_EXISTS)
-            reply->hkey = alloc_handle( current->process, key, access, objattr->attributes );
-        else
-            reply->hkey = alloc_handle_no_access_check( current->process, key,
-                                                        access, objattr->attributes );
+        reply->hkey = alloc_handle( current->process, key, access, objattr->attributes );
         release_object( key );
     }
     if (parent) release_object( parent );
@@ -2341,7 +2342,7 @@ DECL_HANDLER(flush_key)
     {
         if (!(save_branch_info[branches[i]].key->flags & KEY_DIRTY)) continue;
         ++reply->branch_count;
-        path_len = strlen( save_branch_info[branches[i]].filename ) + 1;
+        path_len = strlen( save_branch_info[branches[i]].path ) + 1;
         reply->total += sizeof(int) + sizeof(int) + path_len + save_registry( save_branch_info[branches[i]].key, NULL );
     }
     if (reply->total > get_reply_max_size())
@@ -2357,10 +2358,10 @@ DECL_HANDLER(flush_key)
         if (!(save_branch_info[branches[i]].key->flags & KEY_DIRTY)) continue;
         *(int *)data = branches[i];
         data += sizeof(int);
-        path_len = strlen( save_branch_info[branches[i]].filename ) + 1;
+        path_len = strlen( save_branch_info[branches[i]].path ) + 1;
         *(int *)data = path_len;
         data += sizeof(int);
-        memcpy( data, save_branch_info[branches[i]].filename, path_len );
+        memcpy( data, save_branch_info[branches[i]].path, path_len );
         data += path_len;
         data += save_registry( save_branch_info[branches[i]].key, data );
     }
@@ -2493,8 +2494,6 @@ DECL_HANDLER(unload_registry)
     {
         if (key->obj.handle_count)
             set_error( STATUS_CANNOT_DELETE );
-        else if (key->obj.is_permanent)
-            set_error( STATUS_ACCESS_DENIED );
         else
             delete_key( key, 1 );     /* FIXME */
         release_object( key );

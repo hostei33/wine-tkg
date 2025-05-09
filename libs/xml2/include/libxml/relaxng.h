@@ -11,9 +11,8 @@
 #define __XML_RELAX_NG__
 
 #include <libxml/xmlversion.h>
-#include <libxml/xmlerror.h>
+#include <libxml/hash.h>
 #include <libxml/xmlstring.h>
-#include <libxml/tree.h>
 
 #ifdef LIBXML_SCHEMAS_ENABLED
 
@@ -33,7 +32,7 @@ typedef xmlRelaxNG *xmlRelaxNGPtr;
  *
  * Signature of an error callback from a Relax-NG validation
  */
-typedef void (*xmlRelaxNGValidityErrorFunc) (void *ctx,
+typedef void (XMLCDECL *xmlRelaxNGValidityErrorFunc) (void *ctx,
 						      const char *msg,
 						      ...) LIBXML_ATTR_FORMAT(2,3);
 
@@ -45,7 +44,7 @@ typedef void (*xmlRelaxNGValidityErrorFunc) (void *ctx,
  *
  * Signature of a warning callback from a Relax-NG validation
  */
-typedef void (*xmlRelaxNGValidityWarningFunc) (void *ctx,
+typedef void (XMLCDECL *xmlRelaxNGValidityWarningFunc) (void *ctx,
 							const char *msg,
 							...) LIBXML_ATTR_FORMAT(2,3);
 

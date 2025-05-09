@@ -107,7 +107,7 @@ static ULONG WINAPI domcdata_Release(IXMLDOMCDATASection *iface)
     if (!ref)
     {
         destroy_xmlnode(&cdata->node);
-        free(cdata);
+        heap_free(cdata);
     }
 
     return ref;
@@ -158,9 +158,12 @@ static HRESULT WINAPI domcdata_get_nodeName(
 {
     domcdata *This = impl_from_IXMLDOMCDATASection( iface );
 
+    static const WCHAR cdata_sectionW[] =
+        {'#','c','d','a','t','a','-','s','e','c','t','i','o','n',0};
+
     TRACE("(%p)->(%p)\n", This, p);
 
-    return return_bstr(L"#cdata-section", p);
+    return return_bstr(cdata_sectionW, p);
 }
 
 static HRESULT WINAPI domcdata_get_nodeValue(
@@ -349,10 +352,11 @@ static HRESULT WINAPI domcdata_get_nodeTypeString(
     BSTR* p)
 {
     domcdata *This = impl_from_IXMLDOMCDATASection( iface );
+    static const WCHAR cdatasectionW[] = {'c','d','a','t','a','s','e','c','t','i','o','n',0};
 
     TRACE("(%p)->(%p)\n", This, p);
 
-    return return_bstr(L"cdatasection", p);
+    return return_bstr(cdatasectionW, p);
 }
 
 static HRESULT WINAPI domcdata_get_text(
@@ -871,7 +875,7 @@ IUnknown* create_cdata( xmlNodePtr text )
 {
     domcdata *This;
 
-    This = malloc(sizeof(*This));
+    This = heap_alloc( sizeof *This );
     if ( !This )
         return NULL;
 

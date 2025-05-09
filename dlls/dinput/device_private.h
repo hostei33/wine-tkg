@@ -69,7 +69,6 @@ struct object_properties
     UINT_PTR app_data;
     DWORD calibration_mode;
     DWORD granularity;
-    DWORD scan_code;
 };
 
 enum device_status
@@ -128,8 +127,6 @@ extern void dinput_device_internal_addref( struct dinput_device *device );
 extern void dinput_device_internal_release( struct dinput_device *device );
 
 extern HRESULT dinput_device_init_device_format( IDirectInputDevice8W *iface );
-extern HRESULT gamepad_enum_device( DWORD type, DWORD flags, DIDEVICEINSTANCEW *instance, DWORD version );
-extern HRESULT gamepad_create_device( struct dinput *dinput, const GUID *guid, IDirectInputDevice8W **out );
 extern int dinput_device_object_index_from_id( IDirectInputDevice8W *iface, DWORD id );
 extern BOOL device_object_matches_semantic( const DIDEVICEINSTANCEW *instance, const DIOBJECTDATAFORMAT *object,
                                             DWORD semantic, BOOL exact );

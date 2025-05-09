@@ -80,14 +80,14 @@ static DWORD shgfi_get_exe_type(LPCWSTR szFullPath)
      * Seek to the start of the file and read the header information.
      */
 
-    SetFilePointer( hfile, 0, NULL, FILE_BEGIN );
+    SetFilePointer( hfile, 0, NULL, SEEK_SET );
     ReadFile( hfile, &mz_header, sizeof(mz_header), &len, NULL );
 
-    SetFilePointer( hfile, mz_header.e_lfanew, NULL, FILE_BEGIN );
+    SetFilePointer( hfile, mz_header.e_lfanew, NULL, SEEK_SET );
     ReadFile( hfile, magic, sizeof(magic), &len, NULL );
     if ( *(DWORD*)magic == IMAGE_NT_SIGNATURE )
     {
-        SetFilePointer( hfile, mz_header.e_lfanew, NULL, FILE_BEGIN );
+        SetFilePointer( hfile, mz_header.e_lfanew, NULL, SEEK_SET );
         ReadFile( hfile, &nt, sizeof(nt), &len, NULL );
         CloseHandle( hfile );
         /* DLL files are not executable and should return 0 */
@@ -104,7 +104,7 @@ static DWORD shgfi_get_exe_type(LPCWSTR szFullPath)
     else if ( *(WORD*)magic == IMAGE_OS2_SIGNATURE )
     {
         IMAGE_OS2_HEADER ne;
-        SetFilePointer( hfile, mz_header.e_lfanew, NULL, FILE_BEGIN );
+        SetFilePointer( hfile, mz_header.e_lfanew, NULL, SEEK_SET );
         ReadFile( hfile, &ne, sizeof(ne), &len, NULL );
         CloseHandle( hfile );
         if (ne.ne_exetyp == 2)
@@ -265,7 +265,7 @@ DWORD_PTR WINAPI SHGetFileInfoW(LPCWSTR path,DWORD dwFileAttributes,
             STRRET str;
             hr = IShellFolder_GetDisplayNameOf( psfParent, pidlLast,
                                                 SHGDN_INFOLDER, &str);
-            StrRetToBufW(&str, pidlLast, psfi->szDisplayName, MAX_PATH);
+            StrRetToStrNW (psfi->szDisplayName, MAX_PATH, &str, pidlLast);
         }
     }
 
@@ -1135,19 +1135,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID fImpLoad)
         break;
     }
     return TRUE;
-}
-
-WCHAR *shell_get_resource_string(UINT id)
-{
-    const WCHAR *resource;
-    unsigned int size;
-    WCHAR *ret;
-
-    size = LoadStringW(shell32_hInstance, id, (WCHAR *)&resource, 0);
-    ret = malloc((size + 1) * sizeof(WCHAR));
-    memcpy(ret, resource, size * sizeof(WCHAR));
-    ret[size] = 0;
-    return ret;
 }
 
 /*************************************************************************

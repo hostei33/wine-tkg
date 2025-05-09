@@ -234,7 +234,7 @@ static BOOL PATH_AddEntry(struct gdi_path *pPath, const POINT *pPoint, BYTE flag
     /* FIXME: If newStroke is true, perhaps we want to check that we're
      * getting a PT_MOVETO
      */
-    TRACE("(%d,%d) - %d\n", pPoint->x, pPoint->y, flags);
+    TRACE("(%d,%d) - %d\n", (int)pPoint->x, (int)pPoint->y, flags);
 
     /* Reserve enough memory for an extra path entry */
     if(!PATH_ReserveEntries(pPath, pPath->count+1))
@@ -1447,7 +1447,7 @@ static BOOL PATH_add_outline(struct path_physdev *physdev, INT x, INT y,
 
         if (header->dwType != TT_POLYGON_TYPE)
         {
-            FIXME("Unknown header type %d\n", header->dwType);
+            FIXME("Unknown header type %d\n", (int)header->dwType);
             return FALSE;
         }
 
@@ -2118,5 +2118,11 @@ const struct gdi_dc_funcs path_driver =
     NULL,                               /* pStrokeAndFillPath */
     NULL,                               /* pStrokePath */
     NULL,                               /* pUnrealizePalette */
+    NULL,                               /* pD3DKMTCheckVidPnExclusiveOwnership */
+    NULL,                               /* pD3DKMTCloseAdapter */
+    NULL,                               /* pD3DKMTOpenAdapterFromLuid */
+    NULL,                               /* pD3DKMTQueryAdapterInfo */
+    NULL,                               /* pD3DKMTQueryVideoMemoryInfo */
+    NULL,                               /* pD3DKMTSetVidPnSourceOwner */
     GDI_PRIORITY_PATH_DRV               /* priority */
 };

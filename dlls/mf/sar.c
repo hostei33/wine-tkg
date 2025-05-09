@@ -636,7 +636,7 @@ static HRESULT WINAPI audio_renderer_clock_sink_OnClockStart(IMFClockStateSink *
     EnterCriticalSection(&renderer->cs);
     if (renderer->audio_client)
     {
-        if (renderer->state != STREAM_STATE_RUNNING)
+        if (renderer->state == STREAM_STATE_STOPPED)
         {
             if (FAILED(hr = IAudioClient_Start(renderer->audio_client)))
                 WARN("Failed to start audio client, hr %#lx.\n", hr);
@@ -1339,6 +1339,7 @@ static HRESULT stream_queue_sample(struct audio_renderer *renderer, IMFSample *s
 {
     struct queued_object *object;
     DWORD sample_len, sample_frames;
+    MFTIME time, clocktime, systime;
     HRESULT hr;
 
     if (FAILED(hr = IMFSample_GetTotalLength(sample, &sample_len)))
@@ -1346,15 +1347,33 @@ static HRESULT stream_queue_sample(struct audio_renderer *renderer, IMFSample *s
 
     sample_frames = sample_len / renderer->frame_size;
 
-    if (!(object = calloc(1, sizeof(*object))))
-        return E_OUTOFMEMORY;
+    if (FAILED(hr = IMFSample_GetSampleTime(sample, &time)))
+    {
+        WARN("Failed to get sample time, hr %#lx.\n", hr);
+        return hr;
+    }
 
-    object->type = OBJECT_TYPE_SAMPLE;
-    object->u.sample.sample = sample;
-    IMFSample_AddRef(object->u.sample.sample);
+    if (!renderer->clock)
+        clocktime = time;
+    else if (FAILED(hr = IMFPresentationClock_GetCorrelatedTime(renderer->clock, 0, &clocktime, &systime)))
+    {
+        WARN("Failed to get clock time, hr %#lx.\n", hr);
+        return hr;
+    }
 
-    list_add_tail(&renderer->queue, &object->entry);
-    renderer->queued_frames += sample_frames;
+    if (time < clocktime)
+        FIXME("Dropping sample %p, time %I64u, clocktime %I64u, systime %I64u.\n", sample, time, clocktime, systime);
+    else
+    {
+        if (!(object = calloc(1, sizeof(*object))))
+            return E_OUTOFMEMORY;
+
+        object->type = OBJECT_TYPE_SAMPLE;
+        object->u.sample.sample = sample;
+        IMFSample_AddRef(object->u.sample.sample);
+        list_add_tail(&renderer->queue, &object->entry);
+        renderer->queued_frames += sample_frames;
+    }
 
     return S_OK;
 }
@@ -1458,8 +1477,6 @@ static HRESULT WINAPI audio_renderer_stream_Flush(IMFStreamSink *iface)
         }
     }
     renderer->queued_frames = 0;
-    if (FAILED(hr = IAudioClient_Reset(renderer->audio_client)))
-        WARN("Failed to reset audio client, hr %#lx.\n", hr);
     LeaveCriticalSection(&renderer->cs);
 
     return hr;

@@ -53,8 +53,6 @@ struct wined3d_device_vk;
     VK_INSTANCE_PFN(vkGetPhysicalDeviceSurfaceFormatsKHR) \
     VK_INSTANCE_PFN(vkGetPhysicalDeviceSurfacePresentModesKHR) \
     VK_INSTANCE_PFN(vkGetPhysicalDeviceSurfaceSupportKHR) \
-    /* VK_KHR_video_queue */ \
-    VK_INSTANCE_EXT_PFN(vkGetPhysicalDeviceVideoCapabilitiesKHR) \
     /* VK_KHR_win32_surface */ \
     VK_INSTANCE_PFN(vkCreateWin32SurfaceKHR) \
     /* VK_EXT_host_query_reset */ \
@@ -181,28 +179,6 @@ struct wined3d_device_vk;
     VK_DEVICE_PFN(vkUnmapMemory) \
     VK_DEVICE_PFN(vkUpdateDescriptorSets) \
     VK_DEVICE_PFN(vkWaitForFences) \
-    /* VK_EXT_extended_dynamic_state */ \
-    VK_DEVICE_EXT_PFN(vkCmdSetDepthCompareOpEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetDepthTestEnableEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetDepthWriteEnableEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetPrimitiveTopologyEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetStencilOpEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetStencilTestEnableEXT) \
-    /* VK_EXT_extended_dynamic_state2 */ \
-    VK_DEVICE_EXT_PFN(vkCmdSetPatchControlPointsEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetPrimitiveRestartEnableEXT) \
-    /* VK_EXT_extended_dynamic_state3 */ \
-    VK_DEVICE_EXT_PFN(vkCmdSetAlphaToCoverageEnableEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetColorBlendEnableEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetColorBlendEquationEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetColorWriteMaskEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetCullModeEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetDepthBiasEnableEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetDepthClampEnableEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetFrontFaceEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetRasterizationSamplesEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetRasterizerDiscardEnableEXT) \
-    VK_DEVICE_EXT_PFN(vkCmdSetSampleMaskEXT) \
     /* VK_EXT_transform_feedback */ \
     VK_DEVICE_EXT_PFN(vkCmdBeginQueryIndexedEXT) \
     VK_DEVICE_EXT_PFN(vkCmdBeginTransformFeedbackEXT) \
@@ -214,19 +190,7 @@ struct wined3d_device_vk;
     VK_DEVICE_PFN(vkCreateSwapchainKHR) \
     VK_DEVICE_PFN(vkDestroySwapchainKHR) \
     VK_DEVICE_PFN(vkGetSwapchainImagesKHR) \
-    VK_DEVICE_PFN(vkQueuePresentKHR) \
-    /* VK_KHR_video_decode_queue */ \
-    VK_DEVICE_EXT_PFN(vkCmdDecodeVideoKHR) \
-    /* VK_KHR_video_queue */ \
-    VK_DEVICE_EXT_PFN(vkBindVideoSessionMemoryKHR) \
-    VK_DEVICE_EXT_PFN(vkCmdBeginVideoCodingKHR) \
-    VK_DEVICE_EXT_PFN(vkCmdControlVideoCodingKHR) \
-    VK_DEVICE_EXT_PFN(vkCmdEndVideoCodingKHR) \
-    VK_DEVICE_EXT_PFN(vkCreateVideoSessionKHR) \
-    VK_DEVICE_EXT_PFN(vkCreateVideoSessionParametersKHR) \
-    VK_DEVICE_EXT_PFN(vkDestroyVideoSessionKHR) \
-    VK_DEVICE_EXT_PFN(vkDestroyVideoSessionParametersKHR) \
-    VK_DEVICE_EXT_PFN(vkGetVideoSessionMemoryRequirementsKHR)
+    VK_DEVICE_PFN(vkQueuePresentKHR)
 
 #define DECLARE_VK_PFN(name) PFN_##name name;
 
@@ -251,19 +215,10 @@ enum wined3d_vk_extension
 {
     WINED3D_VK_EXT_NONE,
 
-    WINED3D_VK_EXT_EXTENDED_DYNAMIC_STATE,
-    WINED3D_VK_EXT_EXTENDED_DYNAMIC_STATE2,
-    WINED3D_VK_EXT_EXTENDED_DYNAMIC_STATE3,
-    WINED3D_VK_EXT_HOST_QUERY_RESET,
-    WINED3D_VK_EXT_SHADER_STENCIL_EXPORT,
     WINED3D_VK_EXT_TRANSFORM_FEEDBACK,
-    WINED3D_VK_EXT_VERTEX_ATTRIBUTE_DIVISOR,
-    WINED3D_VK_KHR_MAINTENANCE2,
     WINED3D_VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE,
-    WINED3D_VK_KHR_SAMPLER_YCBCR_CONVERSION,
     WINED3D_VK_KHR_SHADER_DRAW_PARAMETERS,
-    WINED3D_VK_KHR_VIDEO_DECODE_H264,
-    WINED3D_VK_KHR_VIDEO_QUEUE,
+    WINED3D_VK_EXT_HOST_QUERY_RESET,
 
     WINED3D_VK_EXT_COUNT,
 };
@@ -278,13 +233,7 @@ struct wined3d_vk_info
     BOOL supported[WINED3D_VK_EXT_COUNT];
     HMODULE vulkan_lib;
 
-    bool multiple_viewports;
-    bool dynamic_state2;
-    bool dynamic_patch_vertex_count;
-    bool dynamic_multisample_state;
-    bool dynamic_blend_state;
-    bool dynamic_rasterizer_state;
-    bool uav_read_without_format;
+    unsigned int multiple_viewports : 1;
 };
 
 #define VK_CALL(f) (vk_info->vk_ops.f)
@@ -441,17 +390,6 @@ struct wined3d_command_buffer_vk
     VkFence vk_fence;
 };
 
-struct wined3d_aux_command_buffer_vk
-{
-    VkCommandBuffer vk_command_buffer;
-    /* Semaphore that the auxiliary CB signals and the main CB will wait on. */
-    VkSemaphore signal_semaphore;
-    /* Semaphore that the main CB signals and the auxiliary CB will wait on.
-     * This is necessary for when the main CB uses resources that the auxiliary
-     * CB needs to use. */
-    VkSemaphore wait_semaphore;
-};
-
 enum wined3d_retired_object_type_vk
 {
     WINED3D_RETIRED_FREE_VK,
@@ -468,9 +406,6 @@ enum wined3d_retired_object_type_vk
     WINED3D_RETIRED_QUERY_POOL_VK,
     WINED3D_RETIRED_EVENT_VK,
     WINED3D_RETIRED_PIPELINE_VK,
-    WINED3D_RETIRED_VIDEO_SESSION_VK,
-    WINED3D_RETIRED_VIDEO_PARAMETERS_VK,
-    WINED3D_RETIRED_AUX_COMMAND_BUFFER_VK,
 };
 
 struct wined3d_retired_object_vk
@@ -495,19 +430,12 @@ struct wined3d_retired_object_vk
         VkSampler vk_sampler;
         VkEvent vk_event;
         VkPipeline vk_pipeline;
-        VkVideoSessionKHR vk_video_session;
-        VkVideoSessionParametersKHR vk_video_parameters;
         struct
         {
             struct wined3d_query_pool_vk *pool_vk;
             uint32_t start;
             uint32_t count;
         } queries;
-        struct
-        {
-            struct wined3d_aux_command_pool_vk *pool;
-            struct wined3d_aux_command_buffer_vk buffer;
-        } aux_command_buffer;
     } u;
     uint64_t command_buffer_id;
 };
@@ -567,6 +495,8 @@ struct wined3d_graphics_pipeline_key_vk
     VkVertexInputBindingDivisorDescriptionEXT divisors[MAX_ATTRIBS];
     VkVertexInputAttributeDescription attributes[MAX_ATTRIBS];
     VkVertexInputBindingDescription bindings[MAX_ATTRIBS];
+    VkViewport viewports[WINED3D_MAX_VIEWPORTS];
+    VkRect2D scissors[WINED3D_MAX_VIEWPORTS];
     VkSampleMask sample_mask;
     VkPipelineColorBlendAttachmentState blend_attachments[WINED3D_MAX_RENDER_TARGETS];
 
@@ -622,35 +552,11 @@ struct wined3d_shader_descriptor_writes_vk
     SIZE_T size, count;
 };
 
-/* In order to track whether resources can be destroyed or reused, we use
- * the sequence ID of a command buffer submitted to the graphics queue.
- *
- * In order to extend this system to command buffers submitted to different
- * queues, we use a semaphore to associate these "auxiliary" command buffers
- * with the next graphics queue submission. These command buffers then get
- * an associated command_buffer_id and are freed back to the auxiliary
- * command pool via wined3d_retired_object_vk, just like any other resource.
- */
-struct wined3d_aux_command_pool_vk
-{
-    VkCommandPool vk_pool;
-    struct wined3d_aux_command_buffer_vk *buffers;
-    SIZE_T buffers_size, buffer_count;
-};
-
-bool wined3d_aux_command_pool_vk_get_buffer(struct wined3d_context_vk *context_vk,
-        struct wined3d_aux_command_pool_vk *pool, struct wined3d_aux_command_buffer_vk *buffer);
-void wined3d_aux_command_pool_vk_retire_buffer(
-        struct wined3d_context_vk *context_vk, struct wined3d_aux_command_pool_vk *pool,
-        const struct wined3d_aux_command_buffer_vk *buffer, uint64_t command_buffer_id);
-
 struct wined3d_context_vk
 {
     struct wined3d_context c;
 
     const struct wined3d_vk_info *vk_info;
-
-    VkDynamicState dynamic_states[27];
 
     uint32_t update_compute_pipeline : 1;
     uint32_t update_stream_output : 1;
@@ -678,13 +584,6 @@ struct wined3d_context_vk
     struct wined3d_command_buffer_vk current_command_buffer;
     uint64_t completed_command_buffer_id;
     VkDeviceSize retired_bo_size;
-    /* Number of draw or dispatch calls that have been recorded into the
-     * current command buffer. */
-    unsigned int command_buffer_work_count;
-    /* Semaphores that the current command buffer must wait on. */
-    VkSemaphore *wait_semaphores;
-    VkPipelineStageFlags *wait_stages;
-    SIZE_T wait_semaphore_count, wait_semaphores_size, wait_stages_size;
 
     struct
     {
@@ -692,8 +591,6 @@ struct wined3d_context_vk
         SIZE_T buffers_size;
         SIZE_T buffer_count;
     } submitted, completed;
-
-    struct wined3d_aux_command_pool_vk decode_pool;
 
     struct wined3d_shader_descriptor_writes_vk descriptor_writes;
 
@@ -731,8 +628,6 @@ static inline struct wined3d_context_vk *wined3d_context_vk(struct wined3d_conte
     return CONTAINING_RECORD(context, struct wined3d_context_vk, c);
 }
 
-struct wined3d_allocator_block *wined3d_context_vk_allocate_memory(struct wined3d_context_vk *context_vk,
-        unsigned int memory_type, VkDeviceSize size, VkDeviceMemory *vk_memory);
 bool wined3d_context_vk_allocate_query(struct wined3d_context_vk *context_vk,
         enum wined3d_query_type type, struct wined3d_query_pool_idx_vk *pool_idx);
 VkDeviceMemory wined3d_context_vk_allocate_vram_chunk_memory(struct wined3d_context_vk *context_vk,
@@ -747,7 +642,7 @@ BOOL wined3d_context_vk_create_bo(struct wined3d_context_vk *context_vk, VkDevic
 BOOL wined3d_context_vk_create_image(struct wined3d_context_vk *context_vk, VkImageType vk_image_type,
         VkImageUsageFlags usage, VkFormat vk_format, unsigned int width, unsigned int height, unsigned int depth,
         unsigned int sample_count, unsigned int mip_levels, unsigned int layer_count, unsigned int flags,
-        const void *next, struct wined3d_image_vk *image);
+        struct wined3d_image_vk *image);
 void wined3d_context_vk_destroy_allocator_block(struct wined3d_context_vk *context_vk,
         struct wined3d_allocator_block *block, uint64_t command_buffer_id);
 void wined3d_context_vk_destroy_bo(struct wined3d_context_vk *context_vk,
@@ -770,12 +665,7 @@ void wined3d_context_vk_destroy_vk_event(struct wined3d_context_vk *context_vk,
         VkEvent vk_event, uint64_t command_buffer_id);
 void wined3d_context_vk_destroy_vk_pipeline(struct wined3d_context_vk *context_vk,
         VkPipeline vk_pipeline, uint64_t command_buffer_id);
-void wined3d_context_vk_destroy_vk_video_parameters(struct wined3d_context_vk *context_vk,
-        VkVideoSessionParametersKHR vk_video_parameters, uint64_t command_buffer_id);
-void wined3d_context_vk_destroy_vk_video_session(struct wined3d_context_vk *context_vk,
-        VkPipeline vk_video_session, uint64_t command_buffer_id);
 void wined3d_context_vk_end_current_render_pass(struct wined3d_context_vk *context_vk);
-void wined3d_context_vk_free_memory(struct wined3d_context_vk *context_vk, struct wined3d_allocator_block *block);
 VkCommandBuffer wined3d_context_vk_get_command_buffer(struct wined3d_context_vk *context_vk);
 struct wined3d_pipeline_layout_vk *wined3d_context_vk_get_pipeline_layout(struct wined3d_context_vk *context_vk,
         VkDescriptorSetLayoutBinding *bindings, SIZE_T binding_count);
@@ -897,13 +787,9 @@ struct wined3d_device_vk
     struct wined3d_context_vk context_vk;
 
     VkDevice vk_device;
-
-    struct wined3d_queue_vk
-    {
-        VkQueue vk_queue;
-        uint32_t vk_queue_family_index;
-        int32_t timestamp_bits;
-    } graphics_queue, decode_queue;
+    VkQueue vk_queue;
+    uint32_t vk_queue_family_index;
+    uint32_t timestamp_bits;
 
     struct wined3d_vk_info vk_info;
 
@@ -1125,21 +1011,6 @@ HRESULT wined3d_unordered_access_view_vk_init(struct wined3d_unordered_access_vi
         void *parent, const struct wined3d_parent_ops *parent_ops);
 void wined3d_unordered_access_view_vk_update(struct wined3d_unordered_access_view_vk *view_vk,
         struct wined3d_context_vk *context_vk);
-
-struct wined3d_decoder_output_view_vk
-{
-    struct wined3d_decoder_output_view v;
-};
-
-static inline struct wined3d_decoder_output_view_vk *wined3d_decoder_output_view_vk(
-        struct wined3d_decoder_output_view *view)
-{
-    return CONTAINING_RECORD(view, struct wined3d_decoder_output_view_vk, v);
-}
-
-HRESULT wined3d_decoder_output_view_vk_init(struct wined3d_decoder_output_view_vk *view_vk,
-        const struct wined3d_view_desc *desc, struct wined3d_texture *texture,
-        void *parent, const struct wined3d_parent_ops *parent_ops);
 
 struct wined3d_swapchain_vk
 {

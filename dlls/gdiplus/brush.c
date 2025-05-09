@@ -48,10 +48,9 @@ GpStatus WINGDIPAPI GdipCloneBrush(GpBrush *brush, GpBrush **clone)
     switch(brush->bt){
         case BrushTypeSolidColor:
         {
-            GpSolidFill *dest = malloc(sizeof(*dest));
-            if (!dest) return OutOfMemory;
-            memcpy(dest, brush, sizeof(*dest));
-            *clone = &dest->brush;
+            *clone = malloc(sizeof(GpSolidFill));
+            if (!*clone) return OutOfMemory;
+            memcpy(*clone, brush, sizeof(GpSolidFill));
             break;
         }
         case BrushTypeHatchFill:
@@ -65,10 +64,11 @@ GpStatus WINGDIPAPI GdipCloneBrush(GpBrush *brush, GpBrush **clone)
             INT count, pcount;
             GpStatus stat;
 
-            dest = malloc(sizeof(*dest));
-            if (!dest) return OutOfMemory;
+            *clone = malloc(sizeof(GpPathGradient));
+            if (!*clone) return OutOfMemory;
 
             src = (GpPathGradient*) brush;
+            dest = (GpPathGradient*) *clone;
 
             memcpy(dest, src, sizeof(GpPathGradient));
 
@@ -116,7 +116,6 @@ GpStatus WINGDIPAPI GdipCloneBrush(GpBrush *brush, GpBrush **clone)
                 memcpy(dest->pblendpos, src->pblendpos, pcount * sizeof(REAL));
             }
 
-            *clone = &dest->brush;
             break;
         }
         case BrushTypeLinearGradient:{
@@ -1060,9 +1059,9 @@ GpStatus WINGDIPAPI GdipGetPathGradientBlend(GpPathGradient *brush, REAL *blend,
     if(count < brush->blendcount)
         return InsufficientBuffer;
 
-    memcpy(blend, brush->blendfac, brush->blendcount*sizeof(REAL));
+    memcpy(blend, brush->blendfac, count*sizeof(REAL));
     if(brush->blendcount > 1){
-        memcpy(positions, brush->blendpos, brush->blendcount*sizeof(REAL));
+        memcpy(positions, brush->blendpos, count*sizeof(REAL));
     }
 
     return Ok;

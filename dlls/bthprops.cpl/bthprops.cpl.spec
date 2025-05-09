@@ -5,8 +5,8 @@
 @ stub BluetoothAuthenticationAgent
 @ stub BluetoothDisconnectDevice
 @ stub BluetoothDisplayDeviceProperties
-@ stdcall -import BluetoothEnableDiscovery(ptr long)
-@ stdcall -import BluetoothEnableIncomingConnections(ptr long)
+@ stub BluetoothEnableDiscovery
+@ stub BluetoothEnableIncomingConnections
 @ stub BluetoothEnumerateInstalledServices
 @ stub BluetoothEnumerateInstalledServicesEx
 @ stub BluetoothFindBrowseGroupClose
@@ -34,25 +34,25 @@
 @ stub BluetoothFindProtocolEntryClose
 @ stdcall -import BluetoothFindRadioClose(ptr)
 @ stub BluetoothFindServiceClose
-@ stdcall BluetoothGetDeviceInfo(ptr long)
+@ stub BluetoothGetDeviceInfo
 @ stdcall -import BluetoothGetRadioInfo(ptr ptr)
-@ stdcall -import BluetoothIsConnectable(ptr)
-@ stdcall -import BluetoothIsDiscoverable(ptr)
+@ stub BluetoothIsConnectable
+@ stub BluetoothIsDiscoverable
 @ stub BluetoothIsVersionAvailable
 @ stub BluetoothMapClassOfDeviceToImageIndex
 @ stub BluetoothMapClassOfDeviceToString
 @ stub BluetoothRegisterForAuthentication
 @ stdcall -import BluetoothRegisterForAuthenticationEx(ptr ptr ptr ptr)
-@ stdcall -import BluetoothRemoveDevice(ptr)
-@ stdcall -import BluetoothSdpEnumAttributes(ptr long ptr ptr)
-@ stdcall -import BluetoothSdpGetAttributeValue(ptr long long ptr)
-@ stdcall -import BluetoothSdpGetContainerElementData(ptr long ptr ptr)
-@ stdcall -import BluetoothSdpGetElementData(ptr long ptr)
+@ stub BluetoothRemoveDevice
+@ stub BluetoothSdpEnumAttributes
+@ stub BluetoothSdpGetAttributeValue
+@ stub BluetoothSdpGetContainerElementData
+@ stub BluetoothSdpGetElementData
 @ stub BluetoothSdpGetString
 @ stub BluetoothSelectDevices
 @ stub BluetoothSelectDevicesFree
 @ stub BluetoothSendAuthenticationResponse
-@ stdcall -import BluetoothSendAuthenticationResponseEx(ptr ptr)
+@ stub BluetoothSendAuthenticationResponseEx
 @ stub BluetoothSetLocalServiceInfo
 @ stub BluetoothSetServiceState
 @ stdcall -import BluetoothUnregisterAuthentication(long)

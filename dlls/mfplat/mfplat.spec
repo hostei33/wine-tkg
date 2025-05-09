@@ -50,7 +50,7 @@
 @ stdcall MFCreateDXSurfaceBuffer(ptr ptr long ptr)
 @ stdcall MFCreateEventQueue(ptr)
 @ stdcall MFCreateFile(long long long wstr ptr)
-@ stdcall MFCreateLegacyMediaBufferOnMFMediaBuffer(ptr ptr long ptr)
+@ stub MFCreateLegacyMediaBufferOnMFMediaBuffer
 @ stdcall MFCreateMFByteStreamOnStream(ptr ptr)
 @ stdcall MFCreateMFByteStreamOnStreamEx(ptr ptr)
 @ stdcall MFCreateMFByteStreamWrapper(ptr ptr)
@@ -59,7 +59,7 @@
 @ stub MFCreateMediaBufferWrapper
 @ stdcall MFCreateMediaEvent(long ptr long ptr ptr)
 @ stdcall MFCreateMediaType(ptr)
-@ stdcall MFCreateMediaTypeFromRepresentation(int128 ptr ptr)
+@ stub MFCreateMediaTypeFromRepresentation
 @ stdcall MFCreateMemoryBuffer(long ptr)
 @ stub MFCreateMemoryStream
 @ stdcall MFCreatePathFromURL(wstr ptr)
@@ -76,7 +76,7 @@
 @ stdcall MFCreateTransformActivate(ptr)
 @ stub MFCreateURLFromPath
 @ stub MFCreateUdpSockets
-@ stdcall MFCreateVideoMediaType(ptr ptr)
+@ stub MFCreateVideoMediaType
 @ stub MFCreateVideoMediaTypeFromBitMapInfoHeader
 @ stub MFCreateVideoMediaTypeFromBitMapInfoHeaderEx
 @ stdcall MFCreateVideoMediaTypeFromSubtype(ptr ptr)
@@ -120,10 +120,10 @@
 @ stdcall MFInitAMMediaTypeFromMFMediaType(ptr int128 ptr)
 @ stdcall MFInitAttributesFromBlob(ptr ptr long)
 @ stdcall MFInitMediaTypeFromAMMediaType(ptr ptr)
-@ stdcall MFInitMediaTypeFromMFVideoFormat(ptr ptr long)
-@ stdcall MFInitMediaTypeFromMPEG1VideoInfo(ptr ptr long ptr)
-@ stdcall MFInitMediaTypeFromMPEG2VideoInfo(ptr ptr long ptr)
-@ stdcall MFInitMediaTypeFromVideoInfoHeader2(ptr ptr long ptr)
+@ stub MFInitMediaTypeFromMFVideoFormat
+@ stub MFInitMediaTypeFromMPEG1VideoInfo
+@ stub MFInitMediaTypeFromMPEG2VideoInfo
+@ stub MFInitMediaTypeFromVideoInfoHeader2
 @ stdcall MFInitMediaTypeFromVideoInfoHeader(ptr ptr long ptr)
 @ stdcall MFInitMediaTypeFromWaveFormatEx(ptr ptr long)
 @ stub MFInitVideoFormat
@@ -181,6 +181,3 @@
 @ stdcall -ret64 MFllMulDiv(int64 int64 int64 int64)
 @ stub PropVariantFromStream
 @ stub PropVariantToStream
-
-# Wine extension
-@ stdcall __wine_create_http_bytestream(wstr ptr)

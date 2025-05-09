@@ -22,8 +22,6 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "ntstatus.h"
-#define WIN32_NO_STATUS
 #include "wine/winuser16.h"
 #include "wownt32.h"
 #include "winerror.h"
@@ -99,7 +97,7 @@ static LRESULT call_window_proc_callback( HWND hwnd, UINT msg, WPARAM wp, LPARAM
  * Support for window procedure thunks
  */
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 typedef struct
 {
     WORD        popl_eax;        /* popl  %eax (return address) */
@@ -109,7 +107,7 @@ typedef struct
     BYTE        ljmp;            /* ljmp relay*/
     FARPROC16   relay;           /* __wine_call_wndproc */
 } WINPROC_THUNK;
-#pragma pack(pop)
+#include "poppack.h"
 
 #define WINPROC_HANDLE (~0u >> 16)
 #define MAX_WINPROCS32 4096
@@ -320,7 +318,7 @@ static LRESULT call_dialog_proc_Ato16( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
 
 #define MAX_THUNKS 32
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 static struct word_break_thunk
 {
     BYTE                popl_eax;       /* popl  %eax (return address) */
@@ -330,7 +328,7 @@ static struct word_break_thunk
     BYTE                jmp;            /* ljmp call_word_break_proc16 */
     DWORD               callback;
 } *word_break_thunks;
-#pragma pack(pop)
+#include <poppack.h>
 
 /**********************************************************************
  *           call_word_break_proc16
@@ -2583,18 +2581,28 @@ HWND create_window16( CREATESTRUCTW *cs, LPCWSTR className, HINSTANCE instance, 
 }
 
 
-static NTSTATUS WINAPI thunk_lock_callback( void *args, ULONG size )
+static void WINAPI User16CallFreeIcon( ULONG *param, ULONG size )
 {
-    const struct thunk_lock_params *params = args;
-    DWORD locks = params->locks;
-    if (params->restore) RestoreThunkLock( locks );
-    else ReleaseThunkLock( &locks );
-    return NtCallbackReturn( &locks, sizeof(locks), STATUS_SUCCESS );
+    GlobalFree16( LOWORD(*param) );
+}
+
+
+static DWORD WINAPI User16ThunkLock( DWORD *param, ULONG size )
+{
+    if (size != sizeof(DWORD))
+    {
+        DWORD lock;
+        ReleaseThunkLock( &lock );
+        return lock;
+    }
+    RestoreThunkLock( *param );
+    return 0;
 }
 
 
 void register_wow_handlers(void)
 {
+    void **callback_table = NtCurrentTeb()->Peb->KernelCallbackTable;
     static const struct wow_handlers16 handlers16 =
     {
         button_proc16,
@@ -2609,7 +2617,10 @@ void register_wow_handlers(void)
         call_dialog_proc_Ato16,
     };
 
-    NtUserEnableThunkLock( thunk_lock_callback );
+    callback_table[NtUserCallFreeIcon] = User16CallFreeIcon;
+    callback_table[NtUserThunkLock]    = User16ThunkLock;
+
+    NtUserEnableThunkLock( TRUE );
 
     UserRegisterWowHandlers( &handlers16, &wow_handlers32 );
 }

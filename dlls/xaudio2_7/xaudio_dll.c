@@ -1353,14 +1353,14 @@ static void WINAPI XA2M_DestroyVoice(IXAudio2MasteringVoice *iface)
 }
 
 #if XAUDIO2_VER >= 8
-static HRESULT WINAPI XA2M_GetChannelMask(IXAudio2MasteringVoice *iface,
+static void WINAPI XA2M_GetChannelMask(IXAudio2MasteringVoice *iface,
         DWORD *pChannelMask)
 {
     XA2VoiceImpl *This = impl_from_IXAudio2MasteringVoice(iface);
 
     TRACE("%p, %p\n", This, pChannelMask);
 
-    return FAudioMasteringVoice_GetChannelMask(This->faudio_voice, (uint32_t *)pChannelMask);
+    FAudioMasteringVoice_GetChannelMask(This->faudio_voice, (uint32_t *)pChannelMask);
 }
 #endif
 
@@ -1570,7 +1570,7 @@ static inline XA2VoiceImpl *create_voice(IXAudio2Impl *This)
     voice->IXAudio2SubmixVoice_iface.lpVtbl = &XAudio2SubmixVoice_Vtbl;
     voice->FAudioVoiceCallback_vtbl = FAudioVoiceCallback_Vtbl;
 
-    InitializeCriticalSectionEx(&voice->lock, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&voice->lock);
     voice->lock.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": XA2VoiceImpl.lock");
 
     return voice;
@@ -1904,10 +1904,10 @@ static HRESULT WINAPI XAudio2CF_CreateInstance(IClassFactory *iface, IUnknown *p
 
     list_init(&object->voices);
 
-    InitializeCriticalSectionEx(&object->lock, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&object->lock);
     object->lock.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": IXAudio2Impl.lock");
 
-    InitializeCriticalSectionEx(&object->mst.lock, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&object->mst.lock);
     object->mst.lock.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": XA2MasteringVoice.lock");
 
     FAudioCOMConstructWithCustomAllocatorEXT(

@@ -101,7 +101,6 @@ static HRESULT (WINAPI *pSetThreadDescription)(HANDLE,const WCHAR *);
 static HRESULT (WINAPI *pGetThreadDescription)(HANDLE,WCHAR **);
 static PVOID (WINAPI *pRtlAddVectoredExceptionHandler)(ULONG,PVECTORED_EXCEPTION_HANDLER);
 static ULONG (WINAPI *pRtlRemoveVectoredExceptionHandler)(PVOID);
-static NTSTATUS (WINAPI *pNtSetLdtEntries)(ULONG,ULONG,ULONG,ULONG,ULONG,ULONG);
 
 static HANDLE create_target_process(const char *arg)
 {
@@ -1299,78 +1298,6 @@ static void test_GetThreadSelectorEntry(void)
     ok(entry.HighWord.Bits.Granularity == 1,  "expected 1, got %u\n", entry.HighWord.Bits.Granularity);
 }
 
-static void test_NtSetLdtEntries(void)
-{
-    THREAD_DESCRIPTOR_INFORMATION tdi;
-    LDT_ENTRY ds_entry;
-    CONTEXT ctx;
-    DWORD ret;
-    union
-    {
-        LDT_ENTRY entry;
-        DWORD dw[2];
-    } sel;
-
-    if (!pNtSetLdtEntries)
-    {
-        win_skip("NtSetLdtEntries is not available on this platform\n");
-        return;
-    }
-
-    if (pNtSetLdtEntries(0, 0, 0, 0, 0, 0) == STATUS_NOT_IMPLEMENTED) /* WoW64 */
-    {
-        win_skip("NtSetLdtEntries is not implemented on this platform\n");
-        return;
-    }
-
-    ret = pNtSetLdtEntries(0, 0, 0, 0, 0, 0);
-    ok(!ret, "NtSetLdtEntries failed: %08x\n", ret);
-
-    ctx.ContextFlags = CONTEXT_SEGMENTS;
-    ret = GetThreadContext(GetCurrentThread(), &ctx);
-    ok(ret, "GetThreadContext failed\n");
-
-    tdi.Selector = ctx.SegDs;
-    ret = pNtQueryInformationThread(GetCurrentThread(), ThreadDescriptorTableEntry, &tdi, sizeof(tdi), &ret);
-    ok(!ret, "NtQueryInformationThread failed: %08x\n", ret);
-    ds_entry = tdi.Entry;
-
-    tdi.Selector = 0x000f;
-    ret = pNtQueryInformationThread(GetCurrentThread(), ThreadDescriptorTableEntry, &tdi, sizeof(tdi), &ret);
-    ok(ret == STATUS_ACCESS_VIOLATION, "got %08x\n", ret);
-
-    tdi.Selector = 0x001f;
-    ret = pNtQueryInformationThread(GetCurrentThread(), ThreadDescriptorTableEntry, &tdi, sizeof(tdi), &ret);
-    ok(ret == STATUS_ACCESS_VIOLATION, "NtQueryInformationThread returned %08x\n", ret);
-
-    ret = GetThreadSelectorEntry(GetCurrentThread(), 0x000f, &sel.entry);
-    ok(!ret, "GetThreadSelectorEntry should fail\n");
-
-    ret = GetThreadSelectorEntry(GetCurrentThread(), 0x001f, &sel.entry);
-    ok(!ret, "GetThreadSelectorEntry should fail\n");
-
-    memset(&sel.entry, 0x9a, sizeof(sel.entry));
-    ret = GetThreadSelectorEntry(GetCurrentThread(), ctx.SegDs, &sel.entry);
-    ok(ret, "GetThreadSelectorEntry failed\n");
-    ok(!memcmp(&ds_entry, &sel.entry, sizeof(ds_entry)), "entries do not match\n");
-
-    ret = pNtSetLdtEntries(0x000f, sel.dw[0], sel.dw[1], 0x001f, sel.dw[0], sel.dw[1]);
-    ok(!ret || broken(ret == STATUS_INVALID_LDT_DESCRIPTOR) /*XP*/, "NtSetLdtEntries failed: %08x\n", ret);
-
-    if (!ret)
-    {
-        memset(&sel.entry, 0x9a, sizeof(sel.entry));
-        ret = GetThreadSelectorEntry(GetCurrentThread(), 0x000f, &sel.entry);
-        ok(ret, "GetThreadSelectorEntry failed\n");
-        ok(!memcmp(&ds_entry, &sel.entry, sizeof(ds_entry)), "entries do not match\n");
-
-        memset(&sel.entry, 0x9a, sizeof(sel.entry));
-        ret = GetThreadSelectorEntry(GetCurrentThread(), 0x001f, &sel.entry);
-        ok(ret, "GetThreadSelectorEntry failed\n");
-        ok(!memcmp(&ds_entry, &sel.entry, sizeof(ds_entry)), "entries do not match\n");
-    }
-}
-
 #endif  /* __i386__ */
 
 static HANDLE finish_event;
@@ -1962,13 +1889,7 @@ struct fpu_thread_ctx
 
 static inline unsigned long get_fpu_cw(void)
 {
-#ifdef __arm64ec__
-    extern NTSTATUS (*__os_arm64x_get_x64_information)(ULONG,void*,void*);
-    unsigned int cw, sse;
-    __os_arm64x_get_x64_information( 0, &sse, NULL );
-    __os_arm64x_get_x64_information( 2, &cw, NULL );
-    return MAKELONG( cw, sse );
-#elif defined(__i386__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__x86_64__)
     WORD cw = 0;
     unsigned int sse = 0;
 #ifdef _MSC_VER
@@ -2007,7 +1928,7 @@ static inline void fpu_invalid_operation(void)
 
     d = acos(2.0);
     ok(_isnan(d), "d = %lf\n", d);
-    ok(_statusfp() & _SW_INVALID, "_statusfp() = %x\n", _statusfp());
+    ok(_statusfp() == _SW_INVALID, "_statusfp() = %x\n", _statusfp());
 }
 
 static DWORD WINAPI fpu_thread(void *param)
@@ -2692,7 +2613,6 @@ static void init_funcs(void)
        X(NtSetInformationThread);
        X(RtlAddVectoredExceptionHandler);
        X(RtlRemoveVectoredExceptionHandler);
-       X(NtSetLdtEntries);
    }
 #undef X
 }
@@ -2749,7 +2669,6 @@ START_TEST(thread)
    test_SetThreadContext();
    test_GetThreadSelectorEntry();
    test_GetThreadContext();
-   test_NtSetLdtEntries();
 #endif
    test_QueueUserWorkItem();
    test_RegisterWaitForSingleObject();

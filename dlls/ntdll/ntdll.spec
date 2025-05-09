@@ -70,8 +70,6 @@
 @ stdcall -norelay KiRaiseUserExceptionDispatcher()
 @ stdcall -norelay KiUserApcDispatcher(ptr long long long ptr)
 @ stdcall -norelay KiUserCallbackDispatcher(long ptr long)
-@ stdcall -norelay -arch=arm,arm64,arm64ec KiUserCallbackDispatcherReturn()
-@ stdcall -norelay -arch=arm64ec KiUserEmulationDispatcher(ptr)
 @ stdcall -norelay KiUserExceptionDispatcher(ptr ptr)
 # @ stub LdrAccessOutOfProcessResource
 @ stdcall LdrAccessResource(long ptr ptr ptr)
@@ -145,7 +143,6 @@
 @ stdcall -syscall NtAlertThread(long)
 @ stdcall -syscall NtAlertThreadByThreadId(ptr)
 @ stdcall -syscall NtAllocateLocallyUniqueId(ptr)
-@ stdcall -syscall NtAllocateReserveObject(ptr ptr long)
 # @ stub NtAllocateUserPhysicalPages
 @ stdcall -syscall NtAllocateUuids(ptr ptr ptr ptr)
 @ stdcall -syscall NtAllocateVirtualMemory(long ptr long ptr long long)
@@ -164,13 +161,11 @@
 @ stdcall -syscall NtCommitTransaction(long long)
 # @ stub NtCompactKeys
 @ stdcall -syscall NtCompareObjects(ptr ptr)
-@ stdcall -syscall NtCompareTokens(ptr ptr ptr)
+# @ stub NtCompareTokens
 @ stdcall -syscall NtCompleteConnectPort(ptr)
 # @ stub NtCompressKey
 @ stdcall -syscall NtConnectPort(ptr ptr ptr ptr ptr ptr ptr ptr)
 @ stdcall -syscall NtContinue(ptr long)
-@ stdcall -syscall NtContinueEx(ptr ptr)
-@ stdcall -syscall NtConvertBetweenAuxiliaryCounterAndPerformanceCounter(long ptr ptr ptr)
 @ stdcall -syscall NtCreateDebugObject(ptr long ptr long)
 @ stdcall -syscall NtCreateDirectoryObject(ptr long ptr)
 @ stdcall -syscall NtCreateEvent(ptr long ptr long long)
@@ -192,7 +187,6 @@
 # @ stub NtCreateProcessEx
 # @ stub NtCreateProfile
 @ stdcall -syscall NtCreateSection(ptr long ptr ptr long long long)
-@ stdcall -syscall NtCreateSectionEx(ptr long ptr ptr long long long ptr long)
 @ stdcall -syscall NtCreateSemaphore(ptr long ptr long long)
 @ stdcall -syscall NtCreateSymbolicLinkObject(ptr long ptr ptr)
 @ stdcall -syscall NtCreateThread(ptr long ptr long ptr ptr ptr long)
@@ -225,7 +219,6 @@
 @ stdcall -syscall NtFilterToken(long long ptr ptr ptr ptr)
 @ stdcall -syscall NtFindAtom(ptr long ptr)
 @ stdcall -syscall NtFlushBuffersFile(long ptr)
-@ stdcall -syscall NtFlushBuffersFileEx(long long ptr long ptr)
 @ stdcall -syscall NtFlushInstructionCache(long ptr long)
 @ stdcall -syscall NtFlushKey(long)
 @ stdcall -syscall NtFlushProcessWriteBuffers()
@@ -237,7 +230,6 @@
 @ stdcall -norelay -syscall NtGetContextThread(long ptr)
 @ stdcall -syscall NtGetCurrentProcessorNumber()
 # @ stub NtGetDevicePowerState
-@ stdcall -syscall NtGetNextProcess(ptr long long long ptr)
 @ stdcall -syscall NtGetNextThread(ptr ptr long long long ptr)
 @ stdcall -syscall NtGetNlsSectionPtr(long long long ptr ptr)
 # @ stub NtGetPlugPlayEvent
@@ -260,7 +252,7 @@
 # @ stub NtLockProductActivationKeys
 # @ stub NtLockRegistryKey
 @ stdcall -syscall NtLockVirtualMemory(long ptr ptr long)
-@ stdcall -syscall NtMakePermanentObject(long)
+# @ stub NtMakePermanentObject
 @ stdcall -syscall NtMakeTemporaryObject(long)
 # @ stub NtMapUserPhysicalPages
 # @ stub NtMapUserPhysicalPagesScatter
@@ -345,9 +337,8 @@
 @ stdcall -syscall NtQueryVirtualMemory(long ptr long ptr long ptr)
 @ stdcall -syscall NtQueryVolumeInformationFile(long ptr ptr long long)
 @ stdcall -syscall NtQueueApcThread(long ptr long long long)
-@ stdcall -syscall NtQueueApcThreadEx(long long ptr long long long)
 @ stdcall -syscall NtRaiseException(ptr ptr long)
-@ stdcall -syscall NtRaiseHardError(long long long ptr long ptr)
+@ stdcall -syscall NtRaiseHardError(long long ptr ptr long ptr)
 @ stdcall -syscall NtReadFile(long long ptr ptr ptr ptr long ptr ptr)
 @ stdcall -syscall NtReadFileScatter(long long ptr ptr ptr ptr long ptr ptr)
 # @ stub NtReadRequestData
@@ -405,7 +396,6 @@
 @ stdcall -syscall NtSetInformationVirtualMemory(long long ptr ptr ptr long)
 @ stdcall -syscall NtSetIntervalProfile(long long)
 @ stdcall -syscall NtSetIoCompletion(ptr long long long long)
-@ stdcall -syscall NtSetIoCompletionEx(ptr ptr long long long long)
 @ stdcall -syscall NtSetLdtEntries(long int64 long int64)
 # @ stub NtSetLowEventPair
 # @ stub NtSetLowWaitHighEventPair
@@ -457,7 +447,6 @@
 @ stdcall -syscall -arch=win32 NtWow64AllocateVirtualMemory64(long ptr int64 ptr long long)
 @ stdcall -syscall -arch=win32 NtWow64GetNativeSystemInformation(long ptr long ptr)
 @ stdcall -syscall -arch=win32 NtWow64IsProcessorFeaturePresent(long)
-@ stdcall -syscall -arch=win32 NtWow64QueryInformationProcess64(long long ptr long ptr)
 @ stdcall -syscall -arch=win32 NtWow64ReadVirtualMemory64(long int64 ptr int64 ptr)
 @ stdcall -syscall -arch=win32 NtWow64WriteVirtualMemory64(long int64 ptr int64 ptr)
 @ stdcall -syscall NtWriteFile(long long ptr ptr ptr ptr long ptr ptr)
@@ -465,15 +454,10 @@
 # @ stub NtWriteRequestData
 @ stdcall -syscall NtWriteVirtualMemory(long ptr ptr long ptr)
 @ stdcall -syscall NtYieldExecution()
-@ stdcall NtdllDefWindowProc_A(long long long long)
-@ stdcall NtdllDefWindowProc_W(long long long long)
-@ stdcall NtdllDialogWndProc_A(long long long long)
-@ stdcall NtdllDialogWndProc_W(long long long long)
 @ stub PfxFindPrefix
 @ stub PfxInitialize
 @ stub PfxInsertPrefix
 @ stub PfxRemovePrefix
-@ stdcall -arch=arm64ec ProcessPendingCrossProcessEmulatorWork()
 # @ stub PropertyLengthAsVariant
 @ stub RtlAbortRXact
 @ stdcall RtlAbsoluteToSelfRelativeSD(ptr ptr ptr)
@@ -554,7 +538,6 @@
 # @ stub RtlComputeImportTableHash
 # @ stub RtlComputePrivatizedDllName_U
 @ stub RtlConsoleMultiByteToUnicodeN
-@ stdcall RtlConvertDeviceFamilyInfoToString(ptr ptr ptr ptr)
 @ stub RtlConvertExclusiveToShared
 @ stdcall -arch=win32 -ret64 RtlConvertLongToLargeInteger(long)
 # @ stub RtlConvertPropertyToVariant
@@ -612,15 +595,15 @@
 @ stdcall RtlDecompressBuffer(long ptr long ptr long ptr)
 @ stdcall RtlDecompressFragment(long ptr long ptr long long ptr ptr)
 @ stdcall RtlDefaultNpAcl(ptr)
-@ stdcall RtlDelete(ptr)
+@ stub RtlDelete
 @ stdcall RtlDeleteAce(ptr long)
 @ stdcall RtlDeleteAtomFromAtomTable(ptr long)
 @ stdcall RtlDeleteCriticalSection(ptr)
 @ stdcall -arch=!i386 RtlDeleteGrowableFunctionTable(ptr)
-@ stdcall RtlDeleteElementGenericTable(ptr ptr)
+@ stub RtlDeleteElementGenericTable
 @ stub RtlDeleteElementGenericTableAvl
 @ cdecl -arch=!i386 RtlDeleteFunctionTable(ptr)
-@ stdcall RtlDeleteNoSplay(ptr ptr)
+@ stub RtlDeleteNoSplay
 @ stub RtlDeleteOwnersRanges
 @ stub RtlDeleteRange
 @ stdcall RtlDeleteRegistryValue(long ptr wstr)
@@ -631,7 +614,6 @@
 @ stdcall RtlDeleteTimerQueueEx(ptr ptr)
 @ stdcall RtlDeregisterWait(ptr)
 @ stdcall RtlDeregisterWaitEx(ptr ptr)
-@ stdcall RtlDeriveCapabilitySidsFromName(ptr ptr ptr)
 @ stdcall RtlDestroyAtomTable(ptr)
 @ stdcall RtlDestroyEnvironment(ptr)
 @ stdcall RtlDestroyHandleTable(ptr)
@@ -662,11 +644,11 @@
 @ stdcall -arch=win32 -ret64 RtlEnlargedUnsignedMultiply(long long)
 @ stdcall RtlEnterCriticalSection(ptr)
 @ stub RtlEnumProcessHeaps
-@ stdcall RtlEnumerateGenericTable(ptr long)
+@ stub RtlEnumerateGenericTable
 # @ stub RtlEnumerateGenericTableAvl
 # @ stub RtlEnumerateGenericTableLikeADirectory
 @ stdcall RtlEnumerateGenericTableWithoutSplaying(ptr ptr)
-@ stdcall RtlEnumerateGenericTableWithoutSplayingAvl(ptr ptr)
+# @ stub RtlEnumerateGenericTableWithoutSplayingAvl
 @ stub RtlEnumerateProperties
 @ stdcall RtlEqualComputerName(ptr ptr)
 @ stdcall RtlEqualDomainName(ptr ptr)
@@ -728,12 +710,11 @@
 @ stdcall RtlFreeThreadActivationContextStack()
 @ stdcall RtlFreeUnicodeString(ptr)
 @ stdcall RtlFreeUserStack(ptr)
-@ stdcall RtlGetDeviceFamilyInfoEnum(ptr ptr ptr)
 @ stdcall RtlGUIDFromString(ptr ptr)
 @ stub RtlGenerate8dot3Name
 @ stdcall RtlGetAce(ptr long ptr)
 @ stdcall RtlGetActiveActivationContext(ptr)
-@ stdcall RtlGetCallersAddress(ptr ptr)
+@ stub RtlGetCallersAddress
 @ stdcall RtlGetCompressionWorkSpaceSize(long ptr ptr)
 @ stdcall RtlGetControlSecurityDescriptor(ptr ptr ptr)
 @ stdcall RtlGetCurrentDirectory_U(long ptr)
@@ -751,7 +732,6 @@
 # @ stub RtlGetFirstRange
 @ stdcall RtlGetFrame()
 @ stdcall RtlGetFullPathName_U(wstr long ptr ptr)
-@ stdcall RtlGetFullPathName_UEx(wstr long ptr ptr ptr)
 @ stdcall RtlGetGroupSecurityDescriptor(ptr ptr ptr)
 @ stdcall RtlGetLastNtStatus()
 @ stdcall RtlGetLastWin32Error()
@@ -760,7 +740,8 @@
 # @ stub RtlGetLengthWithoutTrailingPathSeperators
 @ stdcall RtlGetLocaleFileMappingAddress(ptr ptr ptr)
 @ stdcall RtlGetLongestNtPathLength()
-@ stdcall RtlGetNativeSystemInformation(long ptr long ptr)
+@ stdcall -syscall -arch=win32 RtlGetNativeSystemInformation(long ptr long ptr) NtWow64GetNativeSystemInformation
+@ stdcall -syscall -arch=win64 RtlGetNativeSystemInformation(long ptr long ptr) NtQuerySystemInformation
 # @ stub RtlGetNextRange
 @ stdcall RtlGetNtGlobalFlags()
 @ stdcall RtlGetNtProductType(ptr)
@@ -815,7 +796,6 @@
 @ stdcall RtlInitializeGenericTable(ptr ptr ptr ptr ptr)
 @ stdcall RtlInitializeGenericTableAvl(ptr ptr ptr ptr ptr)
 @ stdcall RtlInitializeHandleTable(long long ptr)
-@ stdcall RtlInitializeNtUserPfn(ptr long ptr long ptr long)
 @ stub RtlInitializeRXact
 # @ stub RtlInitializeRangeList
 @ stdcall RtlInitializeResource(ptr)
@@ -823,7 +803,7 @@
 @ stdcall RtlInitializeSRWLock(ptr)
 @ stdcall RtlInitializeSid(ptr ptr long)
 # @ stub RtlInitializeStackTraceDataBase
-@ stdcall RtlInsertElementGenericTable(ptr ptr long ptr)
+@ stub RtlInsertElementGenericTable
 @ stdcall RtlInsertElementGenericTableAvl(ptr ptr long ptr)
 @ cdecl -arch=!i386 RtlInstallFunctionTableCallback(long long long ptr ptr wstr)
 @ stdcall RtlInt64ToUnicodeString(int64 long ptr)
@@ -859,7 +839,7 @@
 @ stdcall RtlIsCurrentThread(long)
 @ stdcall RtlIsDosDeviceName_U(wstr)
 @ stdcall -arch=x86_64 -norelay RtlIsEcCode(ptr)
-@ stdcall RtlIsGenericTableEmpty(ptr)
+@ stub RtlIsGenericTableEmpty
 # @ stub RtlIsGenericTableEmptyAvl
 @ stdcall RtlIsNameLegalDOS8Dot3(ptr ptr ptr)
 @ stdcall RtlIsNormalizedString(long wstr long ptr)
@@ -894,9 +874,8 @@
 # @ stub RtlLogStackBackTrace
 @ stdcall RtlLookupAtomInAtomTable(ptr wstr ptr)
 @ stdcall RtlLookupElementGenericTable(ptr ptr)
-@ stdcall RtlLookupElementGenericTableAvl(ptr ptr)
+# @ stub RtlLookupElementGenericTableAvl
 @ stdcall -arch=!i386 RtlLookupFunctionEntry(long ptr ptr)
-@ stdcall -arch=!i386 RtlLookupFunctionTable(long ptr ptr)
 @ stdcall RtlMakeSelfRelativeSD(ptr ptr ptr)
 @ stdcall RtlMapGenericMask(ptr ptr)
 # @ stub RtlMapSecurityErrorToNtStatus
@@ -916,7 +895,7 @@
 @ stdcall RtlNtStatusToDosError(long)
 @ stdcall RtlNtStatusToDosErrorNoTeb(long)
 @ stdcall RtlNumberGenericTableElements(ptr)
-@ stdcall RtlNumberGenericTableElementsAvl(ptr)
+# @ stub RtlNumberGenericTableElementsAvl
 @ stdcall RtlNumberOfClearBits(ptr)
 @ stdcall RtlNumberOfSetBits(ptr)
 @ stdcall RtlOemStringToUnicodeSize(ptr)
@@ -972,8 +951,8 @@
 @ stdcall RtlReAllocateHeap(long long ptr long)
 @ stub RtlReadMemoryStream
 @ stub RtlReadOutOfProcessMemoryStream
-@ stdcall RtlRealPredecessor(ptr)
-@ stdcall RtlRealSuccessor(ptr)
+@ stub RtlRealPredecessor
+@ stub RtlRealSuccessor
 @ stub RtlRegisterSecureMemoryCacheCallback
 @ stdcall RtlRegisterWait(ptr ptr ptr ptr long long)
 @ stdcall RtlReleaseActivationContext(ptr)
@@ -987,11 +966,9 @@
 @ stub RtlRemoteCall
 @ stdcall RtlRemoveVectoredContinueHandler(ptr)
 @ stdcall RtlRemoveVectoredExceptionHandler(ptr)
-@ stdcall RtlResetNtUserPfn()
 @ stdcall RtlResetRtlTranslations(ptr)
 @ cdecl RtlRestoreContext(ptr ptr)
 @ stdcall RtlRestoreLastWin32Error(long) RtlSetLastWin32Error
-@ stdcall RtlRetrieveNtUserPfn(ptr ptr ptr)
 @ stub RtlRevertMemoryStream
 @ stub RtlRunDecodeUnicodeString
 @ stub RtlRunEncodeUnicodeString
@@ -1047,14 +1024,14 @@
 @ stdcall RtlSizeHeap(long long ptr)
 @ stdcall RtlSleepConditionVariableCS(ptr ptr ptr)
 @ stdcall RtlSleepConditionVariableSRW(ptr ptr ptr long)
-@ stdcall RtlSplay(ptr)
+@ stub RtlSplay
 @ stub RtlStartRXact
 # @ stub RtlStatMemoryStream
 @ stdcall RtlStringFromGUID(ptr ptr)
 @ stdcall RtlSubAuthorityCountSid(ptr)
 @ stdcall RtlSubAuthoritySid(ptr long)
-@ stdcall RtlSubtreePredecessor(ptr)
-@ stdcall RtlSubtreeSuccessor(ptr)
+@ stub RtlSubtreePredecessor
+@ stub RtlSubtreeSuccessor
 @ stdcall RtlSystemTimeToLocalTime(ptr ptr)
 @ stdcall RtlTimeFieldsToTime(ptr ptr)
 @ stdcall RtlTimeToElapsedTimeFields(ptr ptr)
@@ -1117,13 +1094,12 @@
 # @ stub RtlValidateUnicodeString
 @ stdcall RtlVerifyVersionInfo(ptr long int64)
 @ stdcall -arch=!i386 RtlVirtualUnwind(long long long ptr ptr ptr ptr ptr)
-@ stdcall -arch=!i386 RtlVirtualUnwind2(long long long ptr ptr ptr ptr ptr ptr ptr ptr ptr long)
 @ stdcall RtlWaitOnAddress(ptr ptr long ptr)
 @ stdcall RtlWakeAddressAll(ptr)
 @ stdcall RtlWakeAddressSingle(ptr)
 @ stdcall RtlWakeAllConditionVariable(ptr)
 @ stdcall RtlWakeConditionVariable(ptr)
-@ stdcall RtlWalkFrameChain(ptr long long)
+@ stub RtlWalkFrameChain
 @ stdcall RtlWalkHeap(long ptr)
 @ stdcall RtlWow64EnableFsRedirection(long)
 @ stdcall RtlWow64EnableFsRedirectionEx(long ptr)
@@ -1220,14 +1196,13 @@
 @ stdcall -private -syscall ZwAlertThread(long) NtAlertThread
 @ stdcall -private -syscall ZwAlertThreadByThreadId(ptr) NtAlertThreadByThreadId
 @ stdcall -private -syscall ZwAllocateLocallyUniqueId(ptr) NtAllocateLocallyUniqueId
-@ stdcall -private -syscall ZwAllocateReserveObject(ptr ptr long) NtAllocateReserveObject
 # @ stub ZwAllocateUserPhysicalPages
 @ stdcall -private -syscall ZwAllocateUuids(ptr ptr ptr ptr) NtAllocateUuids
 @ stdcall -private -syscall ZwAllocateVirtualMemory(long ptr long ptr long long) NtAllocateVirtualMemory
 @ stdcall -private -syscall ZwAllocateVirtualMemoryEx(long ptr ptr long long ptr long) NtAllocateVirtualMemoryEx
 @ stdcall -private -syscall ZwAreMappedFilesTheSame(ptr ptr) NtAreMappedFilesTheSame
 @ stdcall -private -syscall ZwAssignProcessToJobObject(long long) NtAssignProcessToJobObject
-@ stdcall -private -syscall ZwCallbackReturn(ptr long long) NtCallbackReturn
+# @ stub ZwCallbackReturn
 # @ stub ZwCancelDeviceWakeupRequest
 @ stdcall -private -syscall ZwCancelIoFile(long ptr) NtCancelIoFile
 @ stdcall -private -syscall ZwCancelIoFileEx(long ptr ptr) NtCancelIoFileEx
@@ -1236,17 +1211,14 @@
 @ stdcall -private -syscall ZwClearEvent(long) NtClearEvent
 @ stdcall -private -syscall ZwClose(long) NtClose
 # @ stub ZwCloseObjectAuditAlarm
-@ stdcall -private -syscall ZwCommitTransaction(long long) NtCommitTransaction
 # @ stub ZwCompactKeys
 @ stdcall -private -syscall ZwCompareObjects(ptr ptr) NtCompareObjects
-@ stdcall -private -syscall ZwCompareTokens(ptr ptr ptr) NtCompareTokens
+# @ stub ZwCompareTokens
 @ stdcall -private -syscall ZwCompleteConnectPort(ptr) NtCompleteConnectPort
 # @ stub ZwCompressKey
 @ stdcall -private -syscall ZwConnectPort(ptr ptr ptr ptr ptr ptr ptr ptr) NtConnectPort
 @ stdcall -private -syscall ZwContinue(ptr long) NtContinue
-@ stdcall -private -syscall ZwContinueEx(ptr ptr) NtContinueEx
-@ stdcall -private -syscall ZwConvertBetweenAuxiliaryCounterAndPerformanceCounter(long ptr ptr ptr) NtConvertBetweenAuxiliaryCounterAndPerformanceCounter
-@ stdcall -private -syscall ZwCreateDebugObject(ptr long ptr long) NtCreateDebugObject
+# @ stub ZwCreateDebugObject
 @ stdcall -private -syscall ZwCreateDirectoryObject(ptr long ptr) NtCreateDirectoryObject
 @ stdcall -private -syscall ZwCreateEvent(ptr long ptr long long) NtCreateEvent
 # @ stub ZwCreateEventPair
@@ -1267,14 +1239,12 @@
 # @ stub ZwCreateProcessEx
 # @ stub ZwCreateProfile
 @ stdcall -private -syscall ZwCreateSection(ptr long ptr ptr long long long) NtCreateSection
-@ stdcall -private -syscall ZwCreateSectionEx(ptr long ptr ptr long long long ptr long) NtCreateSectionEx
 @ stdcall -private -syscall ZwCreateSemaphore(ptr long ptr long long) NtCreateSemaphore
 @ stdcall -private -syscall ZwCreateSymbolicLinkObject(ptr long ptr ptr) NtCreateSymbolicLinkObject
 @ stdcall -private -syscall ZwCreateThread(ptr long ptr long ptr ptr ptr long) NtCreateThread
 @ stdcall -private -syscall ZwCreateThreadEx(ptr long ptr long ptr ptr long long long long ptr) NtCreateThreadEx
 @ stdcall -private -syscall ZwCreateTimer(ptr long ptr long) NtCreateTimer
 @ stdcall -private -syscall ZwCreateToken(ptr long ptr long ptr ptr ptr ptr ptr ptr ptr ptr ptr) NtCreateToken
-@ stdcall -private -syscall ZwCreateTransaction(ptr long ptr ptr long long long long ptr ptr) NtCreateTransaction
 @ stdcall -private -syscall ZwCreateUserProcess(ptr ptr long long ptr ptr long long ptr ptr ptr) NtCreateUserProcess
 # @ stub ZwCreateWaitablePort
 @ stdcall -private -syscall ZwDebugActiveProcess(long long) NtDebugActiveProcess
@@ -1299,7 +1269,6 @@
 @ stdcall -private -syscall ZwFilterToken(long long ptr ptr ptr ptr) NtFilterToken
 @ stdcall -private -syscall ZwFindAtom(ptr long ptr) NtFindAtom
 @ stdcall -private -syscall ZwFlushBuffersFile(long ptr) NtFlushBuffersFile
-@ stdcall -private -syscall ZwFlushBuffersFileEx(long long ptr long ptr) NtFlushBuffersFileEx
 @ stdcall -private -syscall ZwFlushInstructionCache(long ptr long) NtFlushInstructionCache
 @ stdcall -private -syscall ZwFlushKey(long) NtFlushKey
 @ stdcall -private -syscall ZwFlushProcessWriteBuffers() NtFlushProcessWriteBuffers
@@ -1311,8 +1280,6 @@
 @ stdcall -private -norelay -syscall ZwGetContextThread(long ptr) NtGetContextThread
 @ stdcall -private -syscall ZwGetCurrentProcessorNumber() NtGetCurrentProcessorNumber
 # @ stub ZwGetDevicePowerState
-@ stdcall -private -syscall ZwGetNextProcess(ptr long long long ptr) NtGetNextProcess
-@ stdcall -private -syscall ZwGetNextThread(ptr ptr long long long ptr) NtGetNextThread
 @ stdcall -private -syscall ZwGetNlsSectionPtr(long long long ptr ptr) NtGetNlsSectionPtr
 # @ stub ZwGetPlugPlayEvent
 @ stdcall -private ZwGetTickCount() NtGetTickCount
@@ -1329,12 +1296,11 @@
 @ stdcall -private -syscall ZwLoadDriver(ptr) NtLoadDriver
 @ stdcall -private -syscall ZwLoadKey2(ptr ptr long) NtLoadKey2
 @ stdcall -private -syscall ZwLoadKey(ptr ptr) NtLoadKey
-@ stdcall -private -syscall ZwLoadKeyEx(ptr ptr long long long long ptr ptr) NtLoadKeyEx
 @ stdcall -private -syscall ZwLockFile(long long ptr ptr ptr ptr ptr ptr long long) NtLockFile
 # @ stub ZwLockProductActivationKeys
 # @ stub ZwLockRegistryKey
 @ stdcall -private -syscall ZwLockVirtualMemory(long ptr ptr long) NtLockVirtualMemory
-@ stdcall -private -syscall ZwMakePermanentObject(long) NtMakePermanentObject
+# @ stub ZwMakePermanentObject
 @ stdcall -private -syscall ZwMakeTemporaryObject(long) NtMakeTemporaryObject
 # @ stub ZwMapUserPhysicalPages
 # @ stub ZwMapUserPhysicalPagesScatter
@@ -1419,9 +1385,8 @@
 @ stdcall -private -syscall ZwQueryVirtualMemory(long ptr long ptr long ptr) NtQueryVirtualMemory
 @ stdcall -private -syscall ZwQueryVolumeInformationFile(long ptr ptr long long) NtQueryVolumeInformationFile
 @ stdcall -private -syscall ZwQueueApcThread(long ptr long long long) NtQueueApcThread
-@ stdcall -private -syscall ZwQueueApcThreadEx(long long ptr long long long) NtQueueApcThreadEx
 @ stdcall -private -syscall ZwRaiseException(ptr ptr long) NtRaiseException
-@ stdcall -private -syscall ZwRaiseHardError(long long long ptr long ptr) NtRaiseHardError
+@ stdcall -private -syscall ZwRaiseHardError(long long ptr ptr long ptr) NtRaiseHardError
 @ stdcall -private -syscall ZwReadFile(long long ptr ptr ptr ptr long ptr ptr) NtReadFile
 @ stdcall -private -syscall ZwReadFileScatter(long long ptr ptr ptr ptr long ptr ptr) NtReadFileScatter
 # @ stub ZwReadRequestData
@@ -1450,7 +1415,6 @@
 @ stdcall -private -syscall ZwRestoreKey(long long long) NtRestoreKey
 @ stdcall -private -syscall ZwResumeProcess(long) NtResumeProcess
 @ stdcall -private -syscall ZwResumeThread(long ptr) NtResumeThread
-@ stdcall -private -syscall ZwRollbackTransaction(long long) NtRollbackTransaction
 @ stdcall -private -syscall ZwSaveKey(long long) NtSaveKey
 # @ stub ZwSaveKeyEx
 # @ stub ZwSaveMergedKeys
@@ -1479,7 +1443,6 @@
 @ stdcall -private -syscall ZwSetInformationVirtualMemory(long long ptr ptr ptr long) NtSetInformationVirtualMemory
 @ stdcall -private -syscall ZwSetIntervalProfile(long long) NtSetIntervalProfile
 @ stdcall -private -syscall ZwSetIoCompletion(ptr long long long long) NtSetIoCompletion
-@ stdcall -private -syscall ZwSetIoCompletionEx(ptr ptr long long long long) NtSetIoCompletionEx
 @ stdcall -private -syscall ZwSetLdtEntries(long int64 long int64) NtSetLdtEntries
 # @ stub ZwSetLowEventPair
 # @ stub ZwSetLowWaitHighEventPair
@@ -1528,12 +1491,11 @@
 @ stdcall -private -syscall ZwWaitForSingleObject(long long ptr) NtWaitForSingleObject
 # @ stub ZwWaitHighEventPair
 # @ stub ZwWaitLowEventPair
-@ stdcall -private -syscall -arch=win32 ZwWow64AllocateVirtualMemory64(long ptr int64 ptr long long) NtWow64AllocateVirtualMemory64
-@ stdcall -private -syscall -arch=win32 ZwWow64GetNativeSystemInformation(long ptr long ptr) NtWow64GetNativeSystemInformation
-@ stdcall -private -syscall -arch=win32 ZwWow64IsProcessorFeaturePresent(long) NtWow64IsProcessorFeaturePresent
-@ stdcall -private -syscall -arch=win32 ZwWow64QueryInformationProcess64(long long ptr long ptr) NtWow64QueryInformationProcess64
-@ stdcall -private -syscall -arch=win32 ZwWow64ReadVirtualMemory64(long int64 ptr int64 ptr) NtWow64ReadVirtualMemory64
-@ stdcall -private -syscall -arch=win32 ZwWow64WriteVirtualMemory64(long int64 ptr int64 ptr) NtWow64WriteVirtualMemory64
+@ stdcall -syscall -arch=win32 ZwWow64AllocateVirtualMemory64(long ptr int64 ptr long long) NtWow64AllocateVirtualMemory64
+@ stdcall -syscall -arch=win32 ZwWow64GetNativeSystemInformation(long ptr long ptr) NtWow64GetNativeSystemInformation
+@ stdcall -syscall -arch=win32 ZwWow64IsProcessorFeaturePresent(long) NtWow64IsProcessorFeaturePresent
+@ stdcall -syscall -arch=win32 ZwWow64ReadVirtualMemory64(long int64 ptr int64 ptr) NtWow64ReadVirtualMemory64
+@ stdcall -syscall -arch=win32 ZwWow64WriteVirtualMemory64(long int64 ptr int64 ptr) NtWow64WriteVirtualMemory64
 @ stdcall -private -syscall ZwWriteFile(long long ptr ptr ptr ptr long ptr ptr) NtWriteFile
 @ stdcall -private -syscall ZwWriteFileGather(long long ptr ptr ptr ptr long ptr ptr) NtWriteFileGather
 # @ stub ZwWriteRequestData
@@ -1550,7 +1512,7 @@
 @ cdecl __isascii(long)
 @ cdecl __iscsym(long)
 @ cdecl __iscsymf(long)
-@ stdcall -arch=arm __jump_unwind(ptr ptr) _local_unwind
+@ stdcall -arch=arm __jump_unwind(ptr ptr)
 @ cdecl __toascii(long)
 @ cdecl -norelay -arch=i386 -ret64 _alldiv(int64 int64)
 @ cdecl -arch=i386 -norelay _alldvrm(int64 int64)
@@ -1587,8 +1549,6 @@
 @ cdecl _makepath_s(ptr long str str str str)
 @ cdecl _memccpy(ptr ptr long long)
 @ cdecl _memicmp(str str long)
-@ cdecl -norelay -arch=arm,x86_64 _setjmp(ptr ptr) NTDLL__setjmpex
-@ cdecl -norelay -arch=!i386 _setjmpex(ptr ptr) NTDLL__setjmpex
 @ varargs _snprintf(ptr long str) NTDLL__snprintf
 @ varargs _snprintf_s(ptr long long str)
 @ varargs _snwprintf(ptr long wstr)
@@ -1667,7 +1627,6 @@
 @ cdecl isxdigit(long)
 @ cdecl labs(long) abs
 @ cdecl log(double)
-@ cdecl -arch=!i386 longjmp(ptr long) NTDLL_longjmp
 @ cdecl mbstowcs(ptr str long)
 @ cdecl memchr(ptr long long)
 @ cdecl memcmp(ptr ptr long)
@@ -1753,12 +1712,13 @@
 @ cdecl wine_server_handle_to_fd(long long ptr ptr)
 
 # Unix interface
+@ stdcall __wine_unix_call(int64 long ptr)
 @ stdcall __wine_unix_spawnvp(long ptr)
 @ stdcall __wine_ctrl_routine(ptr)
 @ extern -private __wine_syscall_dispatcher
 @ extern -private __wine_unix_call_dispatcher
-@ extern -private -arch=arm64ec __wine_unix_call_dispatcher_arm64ec
 @ extern -private __wine_unixlib_handle
+@ stdcall -syscall __wine_set_unix_env(ptr ptr)
 
 # Debugging
 @ stdcall -norelay __wine_dbg_write(ptr long)
@@ -1766,6 +1726,7 @@
 @ cdecl -norelay __wine_dbg_header(long long str)
 @ cdecl -norelay __wine_dbg_output(str)
 @ cdecl -norelay __wine_dbg_strdup(str)
+@ stdcall -syscall -norelay __wine_dbg_ftrace(ptr long long)
 
 # Version
 @ cdecl wine_get_version()
@@ -1775,3 +1736,4 @@
 # Filesystem
 @ stdcall -syscall wine_nt_to_unix_file_name(ptr ptr ptr long)
 @ stdcall -syscall wine_unix_to_nt_file_name(str ptr ptr)
+@ stdcall -syscall __wine_needs_override_large_address_aware()

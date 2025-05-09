@@ -4,14 +4,13 @@
 # Adam "Saibamen" Stachowicz <saibamenppl@gmail.com>, 2015.
 # Marcin Mikołajczak <me@m4sk.in>, 2017, 2018.
 # Bartosz Kosiorek <gang65@poczta.onet.pl>, 2023.
-# Adam Markowski <wbcwknvstb@proton.me>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: Wine\n"
 "Report-Msgid-Bugs-To: https://bugs.winehq.org\n"
 "POT-Creation-Date: N/A\n"
-"PO-Revision-Date: 2025-05-01 04:15+0200\n"
-"Last-Translator: Adam Markowski <wbcwknvstb@proton.me>\n"
+"PO-Revision-Date: 2023-12-09 01:58+0100\n"
+"Last-Translator: Bartosz Kosiorek <gang65@poczta.onet.pl>\n"
 "Language-Team: Polish <kde-i18n-doc@kde.org>\n"
 "Language: pl\n"
 "MIME-Version: 1.0\n"
@@ -19,12 +18,12 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
 "|| n%100>=20) ? 1 : 2);\n"
-"X-Generator: Poedit 3.6\n"
+"X-Generator: Poedit 3.0.1\n"
 
 #: dlls/aclui/aclui.rc:29 dlls/inetcpl.cpl/inetcpl.rc:90
 #: programs/winefile/winefile.rc:114
 msgid "Security"
-msgstr "Zabezpieczenia"
+msgstr "Prawa dostępu"
 
 #: dlls/aclui/aclui.rc:32
 msgid "&Group or user names:"
@@ -42,53 +41,52 @@ msgstr "Odmów"
 msgid "Permissions for %1"
 msgstr "Uprawnienia dla %1"
 
-#: dlls/appwiz.cpl/appwiz.rc:60
+#: dlls/appwiz.cpl/appwiz.rc:59
 msgid "Install/Uninstall"
-msgstr "Zainstaluj/Odinstaluj"
+msgstr "Wgraj/Usuń"
 
-#: dlls/appwiz.cpl/appwiz.rc:63
+#: dlls/appwiz.cpl/appwiz.rc:62
 msgid ""
 "To install a new program from a floppy disk, CD-ROM drive, or your hard "
 "drive, click Install."
 msgstr ""
 "Aby dodać program z dysku, płyty CD-ROM lub dyskietki, kliknij przycisk "
-"Zainstaluj."
+"Wgraj."
 
-#: dlls/appwiz.cpl/appwiz.rc:64
+#: dlls/appwiz.cpl/appwiz.rc:63
 msgid "&Install..."
-msgstr "Zai&nstaluj..."
+msgstr "&Wgraj..."
 
-#: dlls/appwiz.cpl/appwiz.rc:67
+#: dlls/appwiz.cpl/appwiz.rc:66
 msgid ""
 "The following software can be automatically removed. To remove a program or "
 "to modify its installed components, select it from the list and click Modify/"
 "Remove."
 msgstr ""
 "To oprogramowanie może być usunięte automatycznie. Aby usunąć program lub "
-"zmienić jego zainstalowane składniki, zaznacz go na liście i naciśnij Zmień/"
-"Usuń."
+"zmienić jego wgrane składniki, zaznacz go na liście i naciśnij Zmień/Usuń."
 
-#: dlls/appwiz.cpl/appwiz.rc:69
+#: dlls/appwiz.cpl/appwiz.rc:68
 msgid "&Support Information"
 msgstr "&Szczegóły wsparcia"
 
-#: dlls/appwiz.cpl/appwiz.rc:70 programs/regedit/regedit.rc:136
+#: dlls/appwiz.cpl/appwiz.rc:69 programs/regedit/regedit.rc:136
 #: programs/regedit/regedit.rc:237
 msgid "&Modify..."
-msgstr "Za&mień..."
+msgstr "Z&mień..."
 
-#: dlls/appwiz.cpl/appwiz.rc:71 dlls/appwiz.cpl/appwiz.rc:45
+#: dlls/appwiz.cpl/appwiz.rc:70 dlls/appwiz.cpl/appwiz.rc:45
 #: dlls/cryptui/cryptui.rc:351 dlls/msacm32/msacm32.rc:40
 #: programs/winecfg/winecfg.rc:205 programs/winecfg/winecfg.rc:242
 #: programs/wordpad/wordpad.rc:256
 msgid "&Remove"
 msgstr "&Usuń"
 
-#: dlls/appwiz.cpl/appwiz.rc:77
+#: dlls/appwiz.cpl/appwiz.rc:76
 msgid "Support Information"
 msgstr "Szczegóły wsparcia"
 
-#: dlls/appwiz.cpl/appwiz.rc:80 dlls/avifil32/avifil32.rc:54
+#: dlls/appwiz.cpl/appwiz.rc:79 dlls/avifil32/avifil32.rc:54
 #: dlls/comctl32/comctl32.rc:71 dlls/comctl32/comctl32.rc:55
 #: dlls/comdlg32/comdlg32.rc:233 dlls/comdlg32/comdlg32.rc:263
 #: dlls/comdlg32/comdlg32.rc:307 dlls/comdlg32/comdlg32.rc:390
@@ -101,8 +99,8 @@ msgstr "Szczegóły wsparcia"
 #: dlls/mshtml/mshtml.rc:47 dlls/mshtml/mshtml.rc:57 dlls/msvfw32/msvfw32.rc:36
 #: dlls/oledlg/oledlg.rc:62 dlls/oledlg/oledlg.rc:94
 #: dlls/serialui/serialui.rc:41 dlls/setupapi/setupapi.rc:59
-#: dlls/shell32/shell32.rc:278 dlls/shell32/shell32.rc:302
-#: dlls/shell32/shell32.rc:324 dlls/shell32/shell32.rc:343
+#: dlls/shell32/shell32.rc:274 dlls/shell32/shell32.rc:298
+#: dlls/shell32/shell32.rc:320 dlls/shell32/shell32.rc:339
 #: dlls/shlwapi/shlwapi.rc:44 dlls/twain_32/twain.rc:32
 #: dlls/user32/user32.rc:94 dlls/user32/user32.rc:109 dlls/user32/user32.rc:73
 #: dlls/wininet/wininet.rc:62 dlls/wininet/wininet.rc:82
@@ -125,70 +123,69 @@ msgstr "Szczegóły wsparcia"
 msgid "OK"
 msgstr "OK"
 
-#: dlls/appwiz.cpl/appwiz.rc:81
+#: dlls/appwiz.cpl/appwiz.rc:80
 msgid "The following information can be used to get technical support for %s:"
 msgstr ""
 "Następujące dane mogą być użyte do otrzymania wsparcia technicznego dla %s:"
 
-#: dlls/appwiz.cpl/appwiz.rc:82
+#: dlls/appwiz.cpl/appwiz.rc:81
 msgid "Publisher:"
 msgstr "Wydawca:"
 
-#: dlls/appwiz.cpl/appwiz.rc:83 programs/winefile/winefile.rc:165
+#: dlls/appwiz.cpl/appwiz.rc:82 programs/winefile/winefile.rc:165
 msgid "Version:"
 msgstr "&Wersja:"
 
-#: dlls/appwiz.cpl/appwiz.rc:84
+#: dlls/appwiz.cpl/appwiz.rc:83
 msgid "Contact:"
 msgstr "Kontakt:"
 
-#: dlls/appwiz.cpl/appwiz.rc:85
+#: dlls/appwiz.cpl/appwiz.rc:84
 msgid "Support Information:"
-msgstr "Szczegóły wsparcia:"
+msgstr "Szczegóły wsparcia"
 
-#: dlls/appwiz.cpl/appwiz.rc:86
+#: dlls/appwiz.cpl/appwiz.rc:85
 msgid "Support Telephone:"
 msgstr "Wsparcie przez telefon:"
 
-#: dlls/appwiz.cpl/appwiz.rc:87
+#: dlls/appwiz.cpl/appwiz.rc:86
 msgid "Readme:"
 msgstr "CzytajTo:"
 
-#: dlls/appwiz.cpl/appwiz.rc:88
+#: dlls/appwiz.cpl/appwiz.rc:87
 msgid "Product Updates:"
 msgstr "Uaktualnienia produktu:"
 
-#: dlls/appwiz.cpl/appwiz.rc:89
+#: dlls/appwiz.cpl/appwiz.rc:88
 msgid "Comments:"
 msgstr "Komentarze:"
 
-#: dlls/appwiz.cpl/appwiz.rc:102
+#: dlls/appwiz.cpl/appwiz.rc:101
 msgid "Wine Gecko Installer"
 msgstr "Instalator Wine Gecko"
 
-#: dlls/appwiz.cpl/appwiz.rc:105
+#: dlls/appwiz.cpl/appwiz.rc:104
 msgid ""
 "Wine could not find a Gecko package which is needed for applications "
 "embedding HTML to work correctly. Wine can automatically download and "
 "install it for you.\n"
 "\n"
 "Note: it is recommended to use your distribution's packages instead. See <a "
-"href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Gecko\">https://"
-"gitlab.winehq.org/wine/wine/-/wikis/Gecko</a> for details."
+"href=\"https://wiki.winehq.org/Gecko\">https://wiki.winehq.org/Gecko</a> for "
+"details."
 msgstr ""
 "Nie znaleziono paczki Gecko potrzebnej do prawidłowego działania aplikacji "
 "zawierających kod HTML. Wine może sam pobrać i zainstalować tą paczkę dla "
 "ciebie.\n"
 "\n"
-"Uwaga: zalecamy użycie paczki z twojej dystrybucji. Po szczegóły zajrzyj na "
-"<a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Gecko\">https://"
-"gitlab.winehq.org/wine/wine/-/wikis/Gecko</a>."
+"Uwaga: Zalecamy użycie paczki z twojej dystrybucji. Po szczegóły zajrzyj na "
+"<a href=\"https://wiki.winehq.org/Gecko\">https://wiki.winehq.org/Gecko</a>."
+
+#: dlls/appwiz.cpl/appwiz.rc:110 dlls/appwiz.cpl/appwiz.rc:125
+msgid "&Install"
+msgstr "&Wgraj"
 
 #: dlls/appwiz.cpl/appwiz.rc:111 dlls/appwiz.cpl/appwiz.rc:126
-msgid "&Install"
-msgstr "&Zainstaluj"
-
-#: dlls/appwiz.cpl/appwiz.rc:112 dlls/appwiz.cpl/appwiz.rc:127
 #: dlls/avifil32/avifil32.rc:55 dlls/browseui/browseui.rc:45
 #: dlls/comctl32/comctl32.rc:72 dlls/comctl32/comctl32.rc:87
 #: dlls/comctl32/comctl32.rc:56 dlls/comdlg32/comdlg32.rc:172
@@ -207,9 +204,9 @@ msgstr "&Zainstaluj"
 #: dlls/mshtml/mshtml.rc:48 dlls/mshtml/mshtml.rc:58 dlls/msvfw32/msvfw32.rc:37
 #: dlls/oledlg/oledlg.rc:63 dlls/oledlg/oledlg.rc:95
 #: dlls/serialui/serialui.rc:42 dlls/setupapi/setupapi.rc:42
-#: dlls/setupapi/setupapi.rc:60 dlls/shell32/shell32.rc:279
-#: dlls/shell32/shell32.rc:303 dlls/shell32/shell32.rc:314
-#: dlls/shell32/shell32.rc:344 dlls/shlwapi/shlwapi.rc:45
+#: dlls/setupapi/setupapi.rc:60 dlls/shell32/shell32.rc:275
+#: dlls/shell32/shell32.rc:299 dlls/shell32/shell32.rc:310
+#: dlls/shell32/shell32.rc:340 dlls/shlwapi/shlwapi.rc:45
 #: dlls/twain_32/twain.rc:33 dlls/user32/user32.rc:95 dlls/user32/user32.rc:110
 #: dlls/user32/user32.rc:74 dlls/wininet/wininet.rc:63
 #: dlls/wininet/wininet.rc:83 dlls/winspool.drv/winspool.rc:43
@@ -231,27 +228,27 @@ msgstr "&Zainstaluj"
 msgid "Cancel"
 msgstr "Anuluj"
 
-#: dlls/appwiz.cpl/appwiz.rc:117
+#: dlls/appwiz.cpl/appwiz.rc:116
 msgid "Wine Mono Installer"
 msgstr "Instalator Wine Mono"
 
-#: dlls/appwiz.cpl/appwiz.rc:120
+#: dlls/appwiz.cpl/appwiz.rc:119
 msgid ""
 "Wine could not find a wine-mono package which is needed for .NET "
 "applications to work correctly. Wine can automatically download and install "
 "it for you.\n"
 "\n"
 "Note: it is recommended to use your distribution's packages instead. See <a "
-"href=\"https://gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono\">https://"
-"gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono</a> for details."
+"href=\"https://wiki.winehq.org/Mono\">https://wiki.winehq.org/Mono</a> for "
+"details."
 msgstr ""
 "Wine nie znalazło pakietu wine-mono, potrzebnego do poprawnego działania "
 "aplikacji .NET. Wine może samodzielnie pobrać i wgrać ten pakiet dla "
 "ciebie.\n"
 "\n"
 "Uwaga: zaleca się użycie pakietu z twojej dystrybucji. Po szczegóły zajrzyj "
-"na stronę <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/"
-"Gecko\">https://gitlab.winehq.org/wine/wine/-/wikis/Wine-Mono</a>."
+"na stronę <a href=\"https://wiki.winehq.org/Gecko\">https://wiki.winehq.org/"
+"Mono</a>."
 
 #: dlls/appwiz.cpl/appwiz.rc:31
 msgid "Add/Remove Programs"
@@ -283,7 +280,7 @@ msgid "Not specified"
 msgstr "Nieokreślone"
 
 #: dlls/appwiz.cpl/appwiz.rc:38 dlls/oledb32/version.rc:38
-#: dlls/shell32/shell32.rc:141 dlls/shell32/shell32.rc:243
+#: dlls/shell32/shell32.rc:144 dlls/shell32/shell32.rc:239
 #: programs/regedit/regedit.rc:150 programs/winefile/winefile.rc:106
 msgid "Name"
 msgstr "Nazwa"
@@ -305,7 +302,7 @@ msgid "Programs (*.exe)"
 msgstr "Programy (*.exe)"
 
 #: dlls/appwiz.cpl/appwiz.rc:43 dlls/avifil32/avifil32.rc:33
-#: dlls/cryptui/cryptui.rc:83 dlls/shell32/shell32.rc:199
+#: dlls/cryptui/cryptui.rc:83 dlls/shell32/shell32.rc:197
 #: programs/notepad/notepad.rc:81 programs/oleview/oleview.rc:103
 #: programs/progman/progman.rc:82 programs/regedit/regedit.rc:230
 #: programs/winedbg/winedbg.rc:43 programs/winhlp32/winhlp32.rc:90
@@ -335,12 +332,8 @@ msgstr ""
 #: dlls/appwiz.cpl/appwiz.rc:47
 msgid "Please wait until the current uninstall/modify process is complete."
 msgstr ""
-"Poczekaj, aż bieżący proces odinstalowywania/modyfikowania zostanie "
+"Proszę czekać dopóki bieżący proces de-instalacji/modyfikacji zostanie "
 "zakończony."
-
-#: dlls/appwiz.cpl/appwiz.rc:55
-msgid "Download failed."
-msgstr "Pobieranie się nie powiodło."
 
 #: dlls/avifil32/avifil32.rc:42
 msgid "Compress options"
@@ -423,7 +416,6 @@ msgid "Properties for %s"
 msgstr "Właściwości dla %s"
 
 #: dlls/comctl32/comctl32.rc:73 dlls/comdlg32/comdlg32.rc:265
-#: dlls/desk.cpl/desk.rc:41
 msgid "&Apply"
 msgstr "Z&astosuj"
 
@@ -472,7 +464,7 @@ msgstr "Wyze&ruj"
 #: dlls/comdlg32/comdlg32.rc:482 dlls/comdlg32/comdlg32.rc:508
 #: dlls/comdlg32/comdlg32.rc:531 dlls/ieframe/ieframe.rc:58
 #: dlls/msacm32/msacm32.rc:52 dlls/oledlg/oledlg.rc:96
-#: dlls/shell32/shell32.rc:125 programs/clock/clock.rc:44
+#: dlls/shell32/shell32.rc:128 programs/clock/clock.rc:44
 #: programs/notepad/notepad.rc:65 programs/notepad/notepad.rc:126
 #: programs/oleview/oleview.rc:72 programs/progman/progman.rc:55
 #: programs/progman/progman.rc:108 programs/progman/progman.rc:126
@@ -518,12 +510,12 @@ msgctxt "hotkey"
 msgid "None"
 msgstr "Brak"
 
-#: dlls/comctl32/comctl32.rc:52 dlls/shell32/shell32.rc:311
+#: dlls/comctl32/comctl32.rc:52 dlls/shell32/shell32.rc:307
 #: dlls/shlwapi/shlwapi.rc:46 dlls/user32/user32.rc:90 dlls/user32/user32.rc:78
 msgid "&Yes"
 msgstr "&Tak"
 
-#: dlls/comctl32/comctl32.rc:53 dlls/shell32/shell32.rc:313
+#: dlls/comctl32/comctl32.rc:53 dlls/shell32/shell32.rc:309
 #: dlls/shlwapi/shlwapi.rc:47 dlls/user32/user32.rc:91 dlls/user32/user32.rc:79
 msgid "&No"
 msgstr "&Nie"
@@ -543,7 +535,7 @@ msgstr "Obejrzyj szczegóły"
 
 #: dlls/comctl32/comctl32.rc:31 dlls/cryptui/cryptui.rc:235
 #: programs/regedit/regedit.rc:291 programs/taskmgr/taskmgr.rc:434
-#: programs/winedbg/winedbg.rc:62 programs/winedbg/winedbg.rc:77
+#: programs/winedbg/winedbg.rc:61 programs/winedbg/winedbg.rc:76
 #: programs/wordpad/wordpad.rc:180
 msgid "Close"
 msgstr "Zamknij"
@@ -558,7 +550,8 @@ msgstr "Idź do dziś"
 
 #: dlls/comdlg32/comdlg32.rc:158 dlls/comdlg32/comdlg32.rc:171
 #: dlls/comdlg32/comdlg32.rc:462 dlls/comdlg32/comdlg32.rc:487
-#: dlls/comdlg32/comdlg32.rc:514 programs/oleview/oleview.rc:101
+#: dlls/comdlg32/comdlg32.rc:514 dlls/shell32/shell32.rc:165
+#: programs/oleview/oleview.rc:101
 msgid "Open"
 msgstr "Otwórz"
 
@@ -579,7 +572,7 @@ msgid "Dri&ves:"
 msgstr "&Dyski:"
 
 #: dlls/comdlg32/comdlg32.rc:174 dlls/comdlg32/comdlg32.rc:196
-#: dlls/shell32/shell32.rc:372 dlls/shell32/shell32.rc:409
+#: dlls/shell32/shell32.rc:368 dlls/shell32/shell32.rc:405
 #: programs/winefile/winefile.rc:172
 msgid "&Read Only"
 msgstr "Tylko do &odczytu"
@@ -594,7 +587,7 @@ msgstr "Zapisz jako"
 
 #: dlls/comdlg32/comdlg32.rc:202 dlls/comdlg32/comdlg32.rc:211
 #: dlls/comdlg32/comdlg32.rc:358 dlls/comdlg32/comdlg32.rc:55
-#: dlls/hhctrl.ocx/hhctrl.rc:51 programs/wordpad/wordpad.rc:173
+#: dlls/hhctrl.ocx/hhctrl.rc:49 programs/wordpad/wordpad.rc:173
 msgid "Print"
 msgstr "Wydrukuj"
 
@@ -609,7 +602,7 @@ msgstr "Zakres wydruku"
 #: dlls/comdlg32/comdlg32.rc:208 dlls/comdlg32/comdlg32.rc:376
 #: programs/regedit/regedit.rc:273
 msgid "&All"
-msgstr "&Wszystko"
+msgstr "&Cały rejestr"
 
 #: dlls/comdlg32/comdlg32.rc:209
 msgid "S&election"
@@ -733,7 +726,6 @@ msgid "Scr&ipt:"
 msgstr "Skr&ypt:"
 
 #: dlls/comdlg32/comdlg32.rc:283 dlls/comdlg32/comdlg32.rc:288
-#: dlls/compstui/compstui.rc:33
 msgid "Color"
 msgstr "Kolor"
 
@@ -839,7 +831,7 @@ msgstr "Zamień &wszystkie"
 
 #: dlls/comdlg32/comdlg32.rc:363 dlls/comdlg32/comdlg32.rc:403
 #: dlls/ieframe/ieframe.rc:42 dlls/shdoclc/shdoclc.rc:61
-#: dlls/shell32/shell32.rc:105 programs/clock/clock.rc:31
+#: dlls/shell32/shell32.rc:108 programs/clock/clock.rc:31
 #: programs/conhost/conhost.rc:34
 msgid "&Properties"
 msgstr "Właś&ciwości"
@@ -915,7 +907,7 @@ msgstr "P&ozioma"
 
 #: dlls/comdlg32/comdlg32.rc:432
 msgid "Setup Page"
-msgstr "Ustawienia strony"
+msgstr "Ustawienia Strony"
 
 #: dlls/comdlg32/comdlg32.rc:441
 msgid "&Tray:"
@@ -963,7 +955,7 @@ msgstr "Otwórz &tylko do odczytu"
 
 #: dlls/comdlg32/comdlg32.rc:480 dlls/comdlg32/comdlg32.rc:506
 #: dlls/comdlg32/comdlg32.rc:524 dlls/shdoclc/shdoclc.rc:127
-#: dlls/shell32/shell32.rc:165
+#: dlls/shell32/shell32.rc:99
 msgid "&Open"
 msgstr "&Otwórz"
 
@@ -988,7 +980,7 @@ msgid ""
 "File does not exist.\n"
 "Do you want to create file?"
 msgstr ""
-"Plik nie istnieje.\n"
+"Plik nie istnieje.t\n"
 "Czy chcesz go utworzyć?"
 
 #: dlls/comdlg32/comdlg32.rc:36
@@ -1350,7 +1342,7 @@ msgstr "mm"
 msgid "Properties"
 msgstr "Właściwości"
 
-#: dlls/compstui/compstui.rc:30 dlls/hhctrl.ocx/hhctrl.rc:52
+#: dlls/compstui/compstui.rc:30 dlls/hhctrl.ocx/hhctrl.rc:50
 #: programs/conhost/conhost.rc:51 programs/wordpad/wordpad.rc:166
 msgid "Options"
 msgstr "Ustawienia"
@@ -1358,34 +1350,6 @@ msgstr "Ustawienia"
 #: dlls/compstui/compstui.rc:31
 msgid "Default"
 msgstr "Domyślne"
-
-#: dlls/compstui/compstui.rc:35
-msgid "&Copy count"
-msgstr "&Liczba kopii"
-
-#: dlls/compstui/compstui.rc:36
-msgid "Print on Both Sides"
-msgstr "Drukuj po obu stronach"
-
-#: dlls/compstui/compstui.rc:32
-msgid "C&olor"
-msgstr "K&olor"
-
-#: dlls/compstui/compstui.rc:34
-msgid "Bla&ck && White"
-msgstr "&Czarno-biały"
-
-#: dlls/compstui/compstui.rc:37
-msgid "&None"
-msgstr "&Brak"
-
-#: dlls/compstui/compstui.rc:38 dlls/compstui/compstui.rc:41
-msgid "Flip on Shor&t Edge"
-msgstr "Obróć na &krótkiej krawędzi"
-
-#: dlls/compstui/compstui.rc:39 dlls/compstui/compstui.rc:40
-msgid "Flip on Long E&dge"
-msgstr "Obróć na &długiej krawędzi"
 
 #: dlls/credui/credui.rc:45
 msgid "&User name:"
@@ -1859,7 +1823,7 @@ msgstr "Lista zaufania certyfikatu"
 
 #: dlls/crypt32/crypt32.rc:135
 msgid "Archived Key Certificate Hash"
-msgstr "Zarchiwizowany hash klucza certyfikatu"
+msgstr "Zarchiwizowany Hash klucza certyfikatu"
 
 #: dlls/crypt32/crypt32.rc:136
 msgid "Private Key Usage Period"
@@ -2290,17 +2254,17 @@ msgstr "Numer uwagi="
 
 #: dlls/cryptdlg/cryptdlg.rc:40
 msgid "Notice Text="
-msgstr "Tekst uwagi="
+msgstr "Tekst Uwagi="
 
 #: dlls/cryptui/cryptui.rc:185 dlls/cryptui/cryptui.rc:240
-#: dlls/inetcpl.cpl/inetcpl.rc:46 dlls/shell32/shell32.rc:350
-#: dlls/shell32/shell32.rc:379
+#: dlls/inetcpl.cpl/inetcpl.rc:46 dlls/shell32/shell32.rc:346
+#: dlls/shell32/shell32.rc:375
 msgid "General"
 msgstr "Ogólne"
 
 #: dlls/cryptui/cryptui.rc:196
 msgid "&Install Certificate..."
-msgstr "Zainstaluj certyf&ikat..."
+msgstr "Wgraj certyf&ikat..."
 
 #: dlls/cryptui/cryptui.rc:197
 msgid "Issuer &Statement"
@@ -2440,8 +2404,8 @@ msgid ""
 "Note: The following file formats may contain more than one certificate, "
 "certificate revocation list, or certificate trust list:"
 msgstr ""
-"Uwaga: następujące formaty plików mogą zawierać więcej niż jeden certyfikat, "
-"listę odwołania certyfikatu lub listę zaufania certyfikatu:"
+"Uwaga:  Następujące formaty plików mogą zawierać więcej niż jeden "
+"certyfikat, listę odwołania certyfikatu lub listę zaufania certyfikatu:"
 
 #: dlls/cryptui/cryptui.rc:304
 msgid "Cryptographic Message Syntax Standard/PKCS #7 Messages (*.p7b)"
@@ -2512,7 +2476,7 @@ msgid "Certificate intended purposes"
 msgstr "Zamierzone cele certyfikatu"
 
 #: dlls/cryptui/cryptui.rc:355 dlls/ieframe/ieframe.rc:45
-#: dlls/shell32/shell32.rc:43 dlls/shell32/shell32.rc:117
+#: dlls/shell32/shell32.rc:43 dlls/shell32/shell32.rc:120
 #: programs/notepad/notepad.rc:61 programs/oleview/oleview.rc:59
 #: programs/oleview/oleview.rc:61 programs/oleview/oleview.rc:85
 #: programs/regedit/regedit.rc:65 programs/taskmgr/taskmgr.rc:52
@@ -2603,7 +2567,7 @@ msgstr "Wybierz format, którego chcesz użyć:"
 
 #: dlls/cryptui/cryptui.rc:413
 msgid "&DER-encoded X.509 (*.cer)"
-msgstr "Certyfikat X.509 szyfrowany algorytmem &DER (*.cer)"
+msgstr "Certyfikat X*.509 szyfrowany binarnie algorytmem &DER (*.cer)"
 
 #: dlls/cryptui/cryptui.rc:415
 msgid "Ba&se64-encoded X.509 (*.cer):"
@@ -2800,7 +2764,7 @@ msgstr "Użycie klucza rozszerzonego (właściwość)"
 msgid "Friendly name"
 msgstr "Przyjazna nazwa"
 
-#: dlls/cryptui/cryptui.rc:65 dlls/shell32/shell32.rc:244
+#: dlls/cryptui/cryptui.rc:65 dlls/shell32/shell32.rc:240
 #: programs/ipconfig/ipconfig.rc:45
 msgid "Description"
 msgstr "Opis"
@@ -2897,7 +2861,7 @@ msgstr "Magazyn certyfikatów wybrany"
 msgid "Automatically determined by the program"
 msgstr "Automatycznie określony przez program"
 
-#: dlls/cryptui/cryptui.rc:91 dlls/shell32/shell32.rc:134
+#: dlls/cryptui/cryptui.rc:91 dlls/shell32/shell32.rc:137
 msgid "File"
 msgstr "Plik"
 
@@ -2947,7 +2911,7 @@ msgstr "Data wygaśnięcia"
 
 #: dlls/cryptui/cryptui.rc:107
 msgid "Friendly Name"
-msgstr "Prosta nazwa"
+msgstr "Przyjazna nazwa"
 
 #: dlls/cryptui/cryptui.rc:109 dlls/cryptui/cryptui.rc:123
 msgid "<None>"
@@ -3177,19 +3141,19 @@ msgstr "Niezgodność haseł."
 
 #: dlls/cryptui/cryptui.rc:175
 msgid "Note: The private key for this certificate could not be opened."
-msgstr "Uwaga: nie można otworzyć klucza prywatnego dla tego certyfikatu."
+msgstr "Uwaga: Nie można otworzyć klucza prywatnego dla tego certyfikatu."
 
 #: dlls/cryptui/cryptui.rc:176
 msgid "Note: The private key for this certificate is not exportable."
 msgstr ""
-"Uwaga: klucz prywatny dla tego certyfikatu jest oznaczony jako nie do "
+"Uwaga: Klucz prywatny dla tego certyfikatu jest oznaczony jako nie do "
 "eksportu."
 
 #: dlls/cryptui/cryptui.rc:177
 msgid "Intended Use"
 msgstr "Zamiar użycia"
 
-#: dlls/cryptui/cryptui.rc:178 dlls/shell32/shell32.rc:147
+#: dlls/cryptui/cryptui.rc:178 dlls/shell32/shell32.rc:150
 msgid "Location"
 msgstr "Położenie"
 
@@ -3201,30 +3165,6 @@ msgstr "Wybierz certyfikat"
 #: programs/winhlp32/winhlp32.rc:110 programs/winhlp32/winhlp32.rc:85
 msgid "Not yet implemented"
 msgstr "Jeszcze nie zaimplementowane"
-
-#: dlls/desk.cpl/desk.rc:35
-msgid "Desktop"
-msgstr "Pulpit"
-
-#: dlls/desk.cpl/desk.rc:38
-msgid "Virtual Desktop"
-msgstr "Wirtualny pulpit"
-
-#: dlls/desk.cpl/desk.rc:40 dlls/joy.cpl/joy.rc:41
-msgid "&Reset"
-msgstr "Wyze&ruj"
-
-#: dlls/desk.cpl/desk.rc:42
-msgid "Emulate display mode changes (requires restart)"
-msgstr "Emuluj zmiany trybu wyświetlania (wymaga ponownego uruchomienia)"
-
-#: dlls/desk.cpl/desk.rc:29
-msgid "Display Settings"
-msgstr "Ustawienia wyświetlania"
-
-#: dlls/desk.cpl/desk.rc:30
-msgid "Configure monitors and display devices."
-msgstr "Konfigurowanie monitorów i urządzeń wyświetlających."
 
 #: dlls/dinput/dinput.rc:34
 msgid "Configure Devices"
@@ -3383,75 +3323,74 @@ msgstr "Nawiązywanie połączenia z aparatem"
 msgid "Connecting to camera... Please Wait"
 msgstr "Nawiązywanie połączenia z aparatem... Proszę czekać"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:61
+#: dlls/hhctrl.ocx/hhctrl.rc:59
 msgid "S&ync"
 msgstr "S&ynchronizuj"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:62 dlls/hhctrl.ocx/hhctrl.rc:75
+#: dlls/hhctrl.ocx/hhctrl.rc:60 dlls/hhctrl.ocx/hhctrl.rc:73
 #: dlls/shdoclc/shdoclc.rc:41 programs/winhlp32/winhlp32.rc:89
 msgid "&Back"
 msgstr "&Wstecz"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:63 dlls/hhctrl.ocx/hhctrl.rc:76
+#: dlls/hhctrl.ocx/hhctrl.rc:61 dlls/hhctrl.ocx/hhctrl.rc:74
 msgid "&Forward"
 msgstr "&Dalej"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:64
+#: dlls/hhctrl.ocx/hhctrl.rc:62
 msgctxt "table of contents"
 msgid "&Home"
 msgstr "&Start"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:65
+#: dlls/hhctrl.ocx/hhctrl.rc:63
 msgid "&Stop"
 msgstr "Z&atrzymaj"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:66 dlls/hhctrl.ocx/hhctrl.rc:83
+#: dlls/hhctrl.ocx/hhctrl.rc:64 dlls/hhctrl.ocx/hhctrl.rc:81
 #: dlls/oledb32/version.rc:73 dlls/shdoclc/shdoclc.rc:59
 msgid "&Refresh"
 msgstr "&Odśwież"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:67 dlls/hhctrl.ocx/hhctrl.rc:82
+#: dlls/hhctrl.ocx/hhctrl.rc:65 dlls/hhctrl.ocx/hhctrl.rc:80
 #: programs/winhlp32/winhlp32.rc:34
 msgid "&Print..."
 msgstr "Wydr&ukuj..."
 
-#: dlls/hhctrl.ocx/hhctrl.rc:78 dlls/hhctrl.ocx/hhctrl.rc:92
+#: dlls/hhctrl.ocx/hhctrl.rc:76 dlls/hhctrl.ocx/hhctrl.rc:90
 #: dlls/shdoclc/shdoclc.rc:49 dlls/shdoclc/shdoclc.rc:98
 #: dlls/shdoclc/shdoclc.rc:120 dlls/user32/user32.rc:65
 msgid "Select &All"
 msgstr "&Zaznacz wszystko"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:80 dlls/shdoclc/shdoclc.rc:54
+#: dlls/hhctrl.ocx/hhctrl.rc:78 dlls/shdoclc/shdoclc.rc:54
 msgid "&View Source"
 msgstr "&Pokaż źródło"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:85
+#: dlls/hhctrl.ocx/hhctrl.rc:83
 msgid "Proper&ties"
 msgstr "&Właściwości"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:89 dlls/shdoclc/shdoclc.rc:79
+#: dlls/hhctrl.ocx/hhctrl.rc:87 dlls/shdoclc/shdoclc.rc:79
 #: dlls/shdoclc/shdoclc.rc:93 dlls/shdoclc/shdoclc.rc:117
 #: dlls/shdoclc/shdoclc.rc:159 dlls/shdoclc/shdoclc.rc:183
 #: dlls/user32/user32.rc:60 programs/wordpad/wordpad.rc:112
 msgid "Cu&t"
 msgstr "Wy&tnij"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:90 dlls/shdoclc/shdoclc.rc:80
+#: dlls/hhctrl.ocx/hhctrl.rc:88 dlls/shdoclc/shdoclc.rc:80
 #: dlls/shdoclc/shdoclc.rc:94 dlls/shdoclc/shdoclc.rc:118
 #: dlls/shdoclc/shdoclc.rc:133 dlls/shdoclc/shdoclc.rc:160
-#: dlls/shdoclc/shdoclc.rc:184 dlls/shell32/shell32.rc:98
+#: dlls/shdoclc/shdoclc.rc:184 dlls/shell32/shell32.rc:102
 #: dlls/user32/user32.rc:61 programs/conhost/conhost.rc:36
 #: programs/winhlp32/winhlp32.rc:40 programs/wordpad/wordpad.rc:113
 msgid "&Copy"
 msgstr "&Skopiuj"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:91 dlls/shdoclc/shdoclc.rc:119
+#: dlls/hhctrl.ocx/hhctrl.rc:89 dlls/shdoclc/shdoclc.rc:119
 #: dlls/shell32/shell32.rc:64
 msgid "Paste"
 msgstr "Wkl&ej"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:93 dlls/shdoclc/shdoclc.rc:121
-#: dlls/shell32/shell32.rc:166
+#: dlls/hhctrl.ocx/hhctrl.rc:91 dlls/shdoclc/shdoclc.rc:121
 msgid "&Print"
 msgstr "Wy&drukuj"
 
@@ -3479,42 +3418,38 @@ msgstr "Ukryj &karty"
 msgid "Show &Tabs"
 msgstr "Pokaż &karty"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:39
-msgid "Select Topic"
-msgstr "Wybierz temat"
-
-#: dlls/hhctrl.ocx/hhctrl.rc:44
+#: dlls/hhctrl.ocx/hhctrl.rc:42
 msgid "Show"
 msgstr "Pokaż"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:45 dlls/winemac.drv/winemac.rc:34
+#: dlls/hhctrl.ocx/hhctrl.rc:43 dlls/winemac.drv/winemac.rc:34
 msgid "Hide"
 msgstr "Ukryj"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:46 dlls/ieframe/ieframe.rc:68
+#: dlls/hhctrl.ocx/hhctrl.rc:44 dlls/ieframe/ieframe.rc:68
 #: dlls/shdoclc/shdoclc.rc:167 dlls/shdoclc/shdoclc.rc:191
 msgid "Stop"
 msgstr "Zatrzymaj"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:47 dlls/ieframe/ieframe.rc:69
+#: dlls/hhctrl.ocx/hhctrl.rc:45 dlls/ieframe/ieframe.rc:69
 #: dlls/shell32/shell32.rc:62
 msgid "Refresh"
 msgstr "Odśwież"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:48 dlls/ieframe/ieframe.rc:66
+#: dlls/hhctrl.ocx/hhctrl.rc:46 dlls/ieframe/ieframe.rc:66
 msgid "Back"
 msgstr "Wstecz"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:49
+#: dlls/hhctrl.ocx/hhctrl.rc:47
 msgctxt "table of contents"
 msgid "Home"
 msgstr "Strona główna"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:50
+#: dlls/hhctrl.ocx/hhctrl.rc:48
 msgid "Sync"
 msgstr "Synchronizuj"
 
-#: dlls/hhctrl.ocx/hhctrl.rc:53 dlls/ieframe/ieframe.rc:67
+#: dlls/hhctrl.ocx/hhctrl.rc:51 dlls/ieframe/ieframe.rc:67
 msgid "Forward"
 msgstr "Dalej"
 
@@ -3522,7 +3457,7 @@ msgstr "Dalej"
 msgid "Cinepak Video codec"
 msgstr "Kodek Cinepak Video"
 
-#: dlls/ieframe/ieframe.rc:28 dlls/shell32/shell32.rc:111
+#: dlls/ieframe/ieframe.rc:28 dlls/shell32/shell32.rc:114
 #: programs/notepad/notepad.rc:29 programs/oleview/oleview.rc:30
 #: programs/oleview/oleview.rc:80 programs/progman/progman.rc:32
 #: programs/taskmgr/taskmgr.rc:35 programs/view/view.rc:31
@@ -3804,7 +3739,7 @@ msgstr "Indeo5"
 
 #: dlls/ir50_32/ir50_32.rc:29
 msgid "Indeo Video Interactive version 5 video codec"
-msgstr "Kodek Indeo Video Interactive w wersji 5"
+msgstr "Kodek Indeo Video Interactive wersja 5"
 
 #: dlls/joy.cpl/joy.rc:37
 msgid "Joysticks"
@@ -3814,61 +3749,59 @@ msgstr "Dżojstiki"
 msgid "&Disable"
 msgstr "Wyłą&cz"
 
-#: dlls/joy.cpl/joy.rc:42
-msgid "&Override"
-msgstr "&Zastąp"
+#: dlls/joy.cpl/joy.rc:41
+msgid "&Reset"
+msgstr "Wyze&ruj"
 
-#: dlls/joy.cpl/joy.rc:43
+#: dlls/joy.cpl/joy.rc:42
 msgid "&Enable"
 msgstr "&Włącz"
 
+#: dlls/joy.cpl/joy.rc:43
+msgid "&Override"
+msgstr "&Zastąp"
+
 #: dlls/joy.cpl/joy.rc:44
-msgid "Connected (DirectInput devices)"
-msgstr "Podłączone (urządzenia DirectInput)"
+msgid "Connected"
+msgstr "Podłączony"
 
 #: dlls/joy.cpl/joy.rc:46
-msgid "Connected (XInput devices)"
-msgstr "Podłączone (urządzenia XInput)"
+msgid "Connected (xinput device)"
+msgstr "Podłączony (urządzenie xinput)"
 
 #: dlls/joy.cpl/joy.rc:48
 msgid "Disabled"
 msgstr "Wyłączone"
 
-#: dlls/joy.cpl/joy.rc:51
-msgid "Advanced settings (restart prefix required to take effect)"
+#: dlls/joy.cpl/joy.rc:50
+msgid ""
+"After disabling or enabling a device, the connected joysticks won't be "
+"updated here until you restart this applet."
 msgstr ""
-"Ustawienia zaawansowane (aby zaczęły obowiązywać, wymagany jest prefiks "
-"ponownego uruchomienia)"
+"Po wyłączeniu lub włączeniu urządzenia, podłączone joysticki nie będą tutaj "
+"uaktualnione do momentu ponownego uruchomienia tego apletu."
 
-#: dlls/joy.cpl/joy.rc:52
-msgid "Enable SDL"
-msgstr "Włącz SDL"
-
-#: dlls/joy.cpl/joy.rc:53
-msgid "Disable hidraw"
-msgstr "Wyłącz hidraw"
-
-#: dlls/joy.cpl/joy.rc:58
+#: dlls/joy.cpl/joy.rc:55
 msgid "DInput"
 msgstr "DInput"
 
-#: dlls/joy.cpl/joy.rc:62
+#: dlls/joy.cpl/joy.rc:59
 msgid "Axes"
 msgstr "Osie"
 
-#: dlls/joy.cpl/joy.rc:63
+#: dlls/joy.cpl/joy.rc:60
 msgid "POVs"
-msgstr "POV-y"
+msgstr "POVs"
 
-#: dlls/joy.cpl/joy.rc:64
+#: dlls/joy.cpl/joy.rc:61
 msgid "Buttons"
 msgstr "Przyciski"
 
-#: dlls/joy.cpl/joy.rc:65
+#: dlls/joy.cpl/joy.rc:62
 msgid "Force Feedback Effect"
 msgstr "Efekt sprzężenia zwrotnego"
 
-#: dlls/joy.cpl/joy.rc:67
+#: dlls/joy.cpl/joy.rc:64
 msgid ""
 "Press any button in the controller to activate the chosen effect. The effect "
 "direction can be changed with the controller axis."
@@ -3876,27 +3809,27 @@ msgstr ""
 "Naciśnij jakikolwiek klawisz na kontrolerze, aby aktywować wybrany efekt. "
 "Kierunek efektu może być zmieniony przy użyciu osi kontrolera."
 
-#: dlls/joy.cpl/joy.rc:73
+#: dlls/joy.cpl/joy.rc:70
 msgid "XInput"
 msgstr "XInput"
 
-#: dlls/joy.cpl/joy.rc:76
+#: dlls/joy.cpl/joy.rc:73
 msgid "User #0"
 msgstr "Użytkownik #0"
 
-#: dlls/joy.cpl/joy.rc:77
+#: dlls/joy.cpl/joy.rc:74
 msgid "User #1"
 msgstr "Użytkownik #1"
 
-#: dlls/joy.cpl/joy.rc:78
+#: dlls/joy.cpl/joy.rc:75
 msgid "User #2"
 msgstr "Użytkownik #2"
 
-#: dlls/joy.cpl/joy.rc:79
+#: dlls/joy.cpl/joy.rc:76
 msgid "User #3"
 msgstr "Użytkownik #3"
 
-#: dlls/joy.cpl/joy.rc:81
+#: dlls/joy.cpl/joy.rc:78
 msgid ""
 "No user detected on slot #0, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
@@ -3904,7 +3837,7 @@ msgstr ""
 "Nie wykryto użytkownika na slocie #0. Upewnij się że twój pad jest "
 "podłączony i nie nadpisany dla DInput, w zakładce Dżojstiki."
 
-#: dlls/joy.cpl/joy.rc:85
+#: dlls/joy.cpl/joy.rc:82
 msgid ""
 "No user detected on slot #1, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
@@ -3912,7 +3845,7 @@ msgstr ""
 "Nie wykryto użytkownika na slocie #1. Upewnij się że twój pad jest "
 "podłączony i nie nadpisany dla DInput, w zakładce Dżojstiki."
 
-#: dlls/joy.cpl/joy.rc:89
+#: dlls/joy.cpl/joy.rc:86
 msgid ""
 "No user detected on slot #2, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
@@ -3920,7 +3853,7 @@ msgstr ""
 "Nie wykryto użytkownika na slocie #2. Upewnij się że twój pad jest "
 "podłączony i nie nadpisany dla DInput, w zakładce Dżojstiki."
 
-#: dlls/joy.cpl/joy.rc:93
+#: dlls/joy.cpl/joy.rc:90
 msgid ""
 "No user detected on slot #3, make sure your gamepad is plugged in, and not "
 "overridden for DInput in the Joysticks tab."
@@ -3928,10 +3861,10 @@ msgstr ""
 "Nie wykryto użytkownika na slocie #3. Upewnij się że twój pad jest "
 "podłączony i nie nadpisany dla DInput, w zakładce Dżojstiki."
 
-#: dlls/joy.cpl/joy.rc:98 dlls/joy.cpl/joy.rc:99 dlls/joy.cpl/joy.rc:100
-#: dlls/joy.cpl/joy.rc:101
+#: dlls/joy.cpl/joy.rc:95 dlls/joy.cpl/joy.rc:96 dlls/joy.cpl/joy.rc:97
+#: dlls/joy.cpl/joy.rc:98
 msgid "Rumble"
-msgstr "Wibracje"
+msgstr "Rumble"
 
 #: dlls/joy.cpl/joy.rc:31
 msgid "Game Controllers"
@@ -3973,175 +3906,171 @@ msgstr "Obiekt nie wspiera tej właściwości lub metody"
 msgid "Object doesn't support this action"
 msgstr "Obiekt nie wspiera tej akcji"
 
-#: dlls/jscript/jscript.rc:36 dlls/vbscript/vbscript.rc:54
+#: dlls/jscript/jscript.rc:36
 msgid "Argument not optional"
 msgstr "Argument nieopcjonalny"
 
-#: dlls/jscript/jscript.rc:37 dlls/vbscript/vbscript.rc:56
-msgid "Object not a collection"
-msgstr "Obiekt nie jest zbiorem"
-
-#: dlls/jscript/jscript.rc:38
+#: dlls/jscript/jscript.rc:37
 msgid "Syntax error"
 msgstr "Błąd składni"
 
-#: dlls/jscript/jscript.rc:39
+#: dlls/jscript/jscript.rc:38
 msgid "Expected ';'"
 msgstr "Oczekiwano ';'"
 
-#: dlls/jscript/jscript.rc:40
+#: dlls/jscript/jscript.rc:39
 msgid "Expected '('"
 msgstr "Oczekiwano '('"
 
-#: dlls/jscript/jscript.rc:41
+#: dlls/jscript/jscript.rc:40
 msgid "Expected ')'"
 msgstr "Oczekiwano ')'"
 
-#: dlls/jscript/jscript.rc:42
+#: dlls/jscript/jscript.rc:41
 msgid "Expected identifier"
 msgstr "Oczekiwano identyfikatora"
 
-#: dlls/jscript/jscript.rc:43
+#: dlls/jscript/jscript.rc:42
 msgid "Expected '='"
 msgstr "Oczekiwano ';'"
 
-#: dlls/jscript/jscript.rc:44
+#: dlls/jscript/jscript.rc:43
 msgid "Invalid character"
 msgstr "Nieprawidłowy znak"
 
-#: dlls/jscript/jscript.rc:45
+#: dlls/jscript/jscript.rc:44
 msgid "Unterminated string constant"
 msgstr "Niezakończona stała znakowa"
 
-#: dlls/jscript/jscript.rc:46
+#: dlls/jscript/jscript.rc:45
 msgid "'return' statement outside of function"
 msgstr "polecenie powrotu 'return' jest poza funkcją"
 
-#: dlls/jscript/jscript.rc:47
+#: dlls/jscript/jscript.rc:46
 msgid "Can't have 'break' outside of loop"
 msgstr "Nie można umieścić 'break' poza pętlą"
 
-#: dlls/jscript/jscript.rc:48
+#: dlls/jscript/jscript.rc:47
 msgid "Can't have 'continue' outside of loop"
 msgstr "Nie można umieścić 'continue' poza pętlą"
 
-#: dlls/jscript/jscript.rc:49
+#: dlls/jscript/jscript.rc:48
 msgid "Label redefined"
 msgstr "Etykieta zdefiniowana ponownie"
 
-#: dlls/jscript/jscript.rc:50
+#: dlls/jscript/jscript.rc:49
 msgid "Label not found"
 msgstr "Nie znaleziono etykiety"
 
-#: dlls/jscript/jscript.rc:51
+#: dlls/jscript/jscript.rc:50
 msgid "Expected '@end'"
 msgstr "Oczekiwano '@end'"
 
-#: dlls/jscript/jscript.rc:52
+#: dlls/jscript/jscript.rc:51
 msgid "Conditional compilation is turned off"
 msgstr "Warunkowa kompilacja jest wyłączona"
 
-#: dlls/jscript/jscript.rc:53
+#: dlls/jscript/jscript.rc:52
 msgid "Expected '@'"
 msgstr "Oczekiwano '@'"
 
-#: dlls/jscript/jscript.rc:90
+#: dlls/jscript/jscript.rc:84
 msgid "Microsoft JScript compilation error"
 msgstr "Błąd kompilacji Microsoft JScript"
 
-#: dlls/jscript/jscript.rc:91
+#: dlls/jscript/jscript.rc:85
 msgid "Microsoft JScript runtime error"
 msgstr "Błąd biblioteki uruchomieniowej Microsoft JScript"
 
-#: dlls/jscript/jscript.rc:92 dlls/vbscript/vbscript.rc:64
+#: dlls/jscript/jscript.rc:86 dlls/vbscript/vbscript.rc:64
 msgid "Unknown runtime error"
 msgstr "Nieznany błąd biblioteki uruchomieniowej"
 
-#: dlls/jscript/jscript.rc:56
+#: dlls/jscript/jscript.rc:55
 msgid "Number expected"
 msgstr "Oczekiwana liczba"
 
-#: dlls/jscript/jscript.rc:54
+#: dlls/jscript/jscript.rc:53
 msgid "Function expected"
 msgstr "Oczekiwana funkcja"
 
-#: dlls/jscript/jscript.rc:55
+#: dlls/jscript/jscript.rc:54
 msgid "'[object]' is not a date object"
 msgstr "'[obiekt]' nie jest obiektem daty"
 
-#: dlls/jscript/jscript.rc:57
+#: dlls/jscript/jscript.rc:56
 msgid "Object expected"
 msgstr "Oczekiwany obiekt"
 
-#: dlls/jscript/jscript.rc:58
+#: dlls/jscript/jscript.rc:57
 msgid "Illegal assignment"
 msgstr "Niepoprawne przypisanie"
 
-#: dlls/jscript/jscript.rc:59
+#: dlls/jscript/jscript.rc:58
 msgid "'|' is undefined"
 msgstr "'|' jest niezdefiniowany"
 
-#: dlls/jscript/jscript.rc:60
+#: dlls/jscript/jscript.rc:59
 msgid "Boolean object expected"
 msgstr "Oczekiwany obiekt boolean"
 
-#: dlls/jscript/jscript.rc:61
+#: dlls/jscript/jscript.rc:60
 msgid "Cannot delete '|'"
 msgstr "Nie można usunąć '|'"
 
-#: dlls/jscript/jscript.rc:62
+#: dlls/jscript/jscript.rc:61
 msgid "VBArray object expected"
 msgstr "Oczekiwany obiekt VBArray"
 
-#: dlls/jscript/jscript.rc:63
+#: dlls/jscript/jscript.rc:62
 msgid "JScript object expected"
 msgstr "Oczekiwany obiekt JScript"
 
-#: dlls/jscript/jscript.rc:64
+#: dlls/jscript/jscript.rc:63
 msgid "Enumerator object expected"
 msgstr "Oczekiwano obiekt wyliczenia"
 
-#: dlls/jscript/jscript.rc:65
+#: dlls/jscript/jscript.rc:64
 msgid "Regular Expression object expected"
 msgstr "Oczekiwano obiektu wyrażenia regularnego"
 
-#: dlls/jscript/jscript.rc:66
+#: dlls/jscript/jscript.rc:65
 msgid "Syntax error in regular expression"
 msgstr "Błąd składni w regularnym wyrażeniu"
 
-#: dlls/jscript/jscript.rc:67
+#: dlls/jscript/jscript.rc:66
 msgid "Unexpected quantifier"
 msgstr "Nieprawidłowy identyfikator"
 
-#: dlls/jscript/jscript.rc:68
+#: dlls/jscript/jscript.rc:67
 msgid "Exception thrown and not caught"
 msgstr "Rzucono wyjątek i go nie złapano"
 
-#: dlls/jscript/jscript.rc:70
+#: dlls/jscript/jscript.rc:69
 msgid "URI to be encoded contains invalid characters"
 msgstr "Kodowane URI zawiera niewłaściwe znaki"
 
-#: dlls/jscript/jscript.rc:69
+#: dlls/jscript/jscript.rc:68
 msgid "URI to be decoded is incorrect"
 msgstr "URI do dekodowania jest niepoprawny"
 
-#: dlls/jscript/jscript.rc:71
+#: dlls/jscript/jscript.rc:70
 msgid "Number of fraction digits is out of range"
-msgstr "Liczba cyfr znaczących jest poza zakresem"
+msgstr "Ilość cyfr znaczących jest poza zakresem"
 
-#: dlls/jscript/jscript.rc:72
+#: dlls/jscript/jscript.rc:71
 msgid "Precision is out of range"
 msgstr "Precyzja jest poza poza zakresem"
 
-#: dlls/jscript/jscript.rc:73
+#: dlls/jscript/jscript.rc:72
 msgid "Array length must be a finite positive integer"
 msgstr "Długość tablicy musi być skończoną dodatnią liczbą stałą"
 
-#: dlls/jscript/jscript.rc:74
+#: dlls/jscript/jscript.rc:73
 msgid "Array object expected"
 msgstr "Oczekiwany obiekt tablicowy"
 
-#: dlls/jscript/jscript.rc:75
+#: dlls/jscript/jscript.rc:74
 msgid ""
 "'writable' attribute on the property descriptor cannot be set to 'true' on "
 "this object"
@@ -4149,56 +4078,35 @@ msgstr ""
 "nie można ustawić atrybutu 'writable' na opisie własności na 'true' na tym "
 "obiekcie"
 
-#: dlls/jscript/jscript.rc:76
+#: dlls/jscript/jscript.rc:75
 msgid "Cyclic __proto__ value"
-msgstr "Cykliczna wartość __proto__"
+msgstr ""
 
-#: dlls/jscript/jscript.rc:77
+#: dlls/jscript/jscript.rc:76
 msgid "Cannot create property for a non-extensible object"
 msgstr "Nie można stworzyć własności dla nierozszerzalnego obiektu"
 
-#: dlls/jscript/jscript.rc:78
+#: dlls/jscript/jscript.rc:77
 msgid "Cannot define property '|': object is not extensible"
 msgstr "Nie można określić własności '|': obiekt jest nierozciągalny"
 
-#: dlls/jscript/jscript.rc:79
+#: dlls/jscript/jscript.rc:78
 msgid "Cannot redefine non-configurable property '|'"
 msgstr "Nie można określić nieustawialnej własności '|'"
 
-#: dlls/jscript/jscript.rc:80
+#: dlls/jscript/jscript.rc:79
 msgid "Cannot modify non-writable property '|'"
 msgstr "Nie można zmienić niezapisywalnej własności '|'"
 
-#: dlls/jscript/jscript.rc:81
-msgid "'this' is not a DataView object"
-msgstr "'this' nie jest obiektem DataView"
-
-#: dlls/jscript/jscript.rc:82
-msgid "Required argument offset or value in DataView method is not specified"
-msgstr ""
-"Wymagany argument offset lub wartość w metodzie DataView nie jest określona"
-
-#: dlls/jscript/jscript.rc:83
-msgid "DataView operation access beyond specified buffer length"
-msgstr "Dostęp do operacji DataView poza określoną długością bufora"
-
-#: dlls/jscript/jscript.rc:84
-msgid "DataView constructor argument offset is invalid"
-msgstr "Argument przesunięcia konstruktora DataView jest nieprawidłowy"
-
-#: dlls/jscript/jscript.rc:85
+#: dlls/jscript/jscript.rc:80
 msgid "'this' is not a | object"
 msgstr "'this' nie jest obiektem |"
 
-#: dlls/jscript/jscript.rc:86
+#: dlls/jscript/jscript.rc:81
 msgid "'key' is not an object"
 msgstr "'key' nie jest obiektem"
 
-#: dlls/jscript/jscript.rc:87
-msgid "ArrayBuffer object expected"
-msgstr "Oczekiwano obiektu ArrayBuffer"
-
-#: dlls/jscript/jscript.rc:88
+#: dlls/jscript/jscript.rc:82
 msgid "Property cannot have both accessors and a value"
 msgstr "Własność nie może mieć zarówno akcesorów i wartości"
 
@@ -4213,11 +4121,11 @@ msgstr "Wine"
 
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
-msgstr "Europa Zachodnia i Stany Zjednoczone"
+msgstr "Europa zachodnia i Stany Zjednoczone"
 
 #: dlls/kernelbase/kernelbase.rc:30
 msgid "Central Europe"
-msgstr "Europa Środkowa"
+msgstr "Europa centralna"
 
 #: dlls/kernelbase/kernelbase.rc:34
 msgid "Turkic"
@@ -4333,7 +4241,7 @@ msgstr "Zła jednostka.\n"
 
 #: dlls/kernelbase/winerror.mc:133
 msgid "Not ready.\n"
-msgstr "Niegotowe.\n"
+msgstr "Nie gotowe.\n"
 
 #: dlls/kernelbase/winerror.mc:138
 msgid "Bad command.\n"
@@ -4353,7 +4261,7 @@ msgstr "Błąd żądania w pliku.\n"
 
 #: dlls/kernelbase/winerror.mc:158
 msgid "Not DOS disk.\n"
-msgstr "Nie jest to dysk DOS.\n"
+msgstr "To nie dysk DOS'owy.\n"
 
 #: dlls/kernelbase/winerror.mc:163
 msgid "Sector not found.\n"
@@ -4485,7 +4393,7 @@ msgstr "Współdzielenie wstrzymane.\n"
 
 #: dlls/kernelbase/winerror.mc:323
 msgid "Request not accepted.\n"
-msgstr "Żądanie niezaakceptowane.\n"
+msgstr "Żądanie nie zaakceptowane.\n"
 
 #: dlls/kernelbase/winerror.mc:328
 msgid "Redirector paused.\n"
@@ -4853,7 +4761,7 @@ msgstr "Automatyczny segment danych przekracza 64k.\n"
 
 #: dlls/kernelbase/winerror.mc:793
 msgid "Ring 2 segment must be movable.\n"
-msgstr "Segment Ring 2 musi być ruchomy.\n"
+msgstr "Segment Ring'u 2 musi być ruchomy.\n"
 
 #: dlls/kernelbase/winerror.mc:798
 msgid "Relocation chain exceeds segment limit in %1.\n"
@@ -4871,13 +4779,13 @@ msgstr "Nie znaleziono zmiennej środowiskowej.\n"
 msgid "No signal sent.\n"
 msgstr "Brak wysłanego sygnału.\n"
 
-#: dlls/kernelbase/winerror.mc:818 programs/cmd/cmd.rc:406
+#: dlls/kernelbase/winerror.mc:818 programs/cmd/cmd.rc:410
 msgid "File name is too long.\n"
 msgstr "Nazwa pliku zbyt długa.\n"
 
 #: dlls/kernelbase/winerror.mc:823
 msgid "Ring 2 stack in use.\n"
-msgstr "Stos Ring 2 w użyciu.\n"
+msgstr "Stos Ring'u 2 w użyciu.\n"
 
 #: dlls/kernelbase/winerror.mc:828
 msgid "Error in use of filename wildcards.\n"
@@ -5017,15 +4925,15 @@ msgstr "Dostęp rozszerzonego atrybutu zastrzeżony.\n"
 
 #: dlls/kernelbase/winerror.mc:998
 msgid "I/O operation aborted.\n"
-msgstr "Operacja We/Wy przerwana.\n"
+msgstr "Operacja WE/WY przerwana.\n"
 
 #: dlls/kernelbase/winerror.mc:1003
 msgid "Overlapped I/O incomplete.\n"
-msgstr "Zachodzące operacje We/Wy niekompletne.\n"
+msgstr "Zachodzące operacje WE/WY niekompletne.\n"
 
 #: dlls/kernelbase/winerror.mc:1008
 msgid "Overlapped I/O pending.\n"
-msgstr "Zachodzące operacje We/Wy w toku.\n"
+msgstr "Zachodzące operacje WE/WY w toku.\n"
 
 #: dlls/kernelbase/winerror.mc:1013
 msgid "No access to memory location.\n"
@@ -5097,7 +5005,7 @@ msgstr "Rejestr jest zepsuty.\n"
 
 #: dlls/kernelbase/winerror.mc:1098
 msgid "I/O to registry failed.\n"
-msgstr "Operacje We/Wy do rejestru nieudane.\n"
+msgstr "Operacje WE/WY do rejestru nieudane.\n"
 
 #: dlls/kernelbase/winerror.mc:1103
 msgid "Not registry file.\n"
@@ -5301,7 +5209,7 @@ msgstr "Zmieniono nośnik.\n"
 
 #: dlls/kernelbase/winerror.mc:1353
 msgid "I/O bus reset.\n"
-msgstr "Reset szyny We/Wy.\n"
+msgstr "Reset szyny WE/WY.\n"
 
 #: dlls/kernelbase/winerror.mc:1358
 msgid "No media in drive.\n"
@@ -5325,7 +5233,7 @@ msgstr "Brak zamykania w toku.\n"
 
 #: dlls/kernelbase/winerror.mc:1383
 msgid "I/O device error.\n"
-msgstr "Błąd We/W urządzenia.\n"
+msgstr "Błąd WE/WY urządzenia.\n"
 
 #: dlls/kernelbase/winerror.mc:1388
 msgid "No serial devices found.\n"
@@ -5337,11 +5245,11 @@ msgstr "Współdzielone IRQ zajęte.\n"
 
 #: dlls/kernelbase/winerror.mc:1398
 msgid "Serial I/O completed.\n"
-msgstr "Szeregowe operacje We/Wy ukończone.\n"
+msgstr "Szeregowe operacje WE/WY ukończone.\n"
 
 #: dlls/kernelbase/winerror.mc:1403
 msgid "Serial I/O counter timeout.\n"
-msgstr "Czas wygaśnięcia licznika szeregowych operacji We/Wy.\n"
+msgstr "Czas wygaśnięcia licznika szeregowych operacji WE/WY.\n"
 
 #: dlls/kernelbase/winerror.mc:1408
 msgid "Floppy ID address mark not found.\n"
@@ -5619,7 +5527,7 @@ msgstr "Operacja anulowana przez użytkownika.\n"
 msgid "File has a user-mapped section.\n"
 msgstr "Plik ma sekcję mapowania użytkownika.\n"
 
-#: dlls/kernelbase/winerror.mc:1758 dlls/kernelbase/winerror.mc:3788
+#: dlls/kernelbase/winerror.mc:1758 dlls/kernelbase/winerror.mc:3783
 msgid "Connection refused.\n"
 msgstr "Połączenie odmówiło.\n"
 
@@ -5873,11 +5781,11 @@ msgstr "Nie zmapowano identyfikatora zabezpieczeń.\n"
 
 #: dlls/kernelbase/winerror.mc:2073
 msgid "Too many LUIDs requested.\n"
-msgstr "Zażądano zbyt dużo LUID-ów.\n"
+msgstr "Zażądano zbyt dużo LUID'ów.\n"
 
 #: dlls/kernelbase/winerror.mc:2078
 msgid "LUIDs exhausted.\n"
-msgstr "LUID-y wyczerpane.\n"
+msgstr "LUID'y wyczerpane.\n"
 
 #: dlls/kernelbase/winerror.mc:2083
 msgid "Invalid sub authority.\n"
@@ -6089,7 +5997,7 @@ msgstr "Niepoprawny członek.\n"
 
 #: dlls/kernelbase/winerror.mc:2348
 msgid "Too many SIDs.\n"
-msgstr "Zbyt dużo SID-ów.\n"
+msgstr "Zbyt dużo SID'ów.\n"
 
 #: dlls/kernelbase/winerror.mc:2353
 msgid "Cross-encrypted LM password required.\n"
@@ -6193,11 +6101,11 @@ msgstr "Index prywatnego dialogu.\n"
 
 #: dlls/kernelbase/winerror.mc:2478
 msgid "List box ID not found.\n"
-msgstr "Nie znaleziono identyfikatora pola listy.\n"
+msgstr "Nie znaleziono identyfikatora listbox'a.\n"
 
 #: dlls/kernelbase/winerror.mc:2483
 msgid "No wildcard characters.\n"
-msgstr "Brak symboli wieloznacznych.\n"
+msgstr "Brak znaków wildcard.\n"
 
 #: dlls/kernelbase/winerror.mc:2488
 msgid "Clipboard not open.\n"
@@ -6209,19 +6117,19 @@ msgstr "Klawisz skrótu niezarejestrowany.\n"
 
 #: dlls/kernelbase/winerror.mc:2498
 msgid "Not a dialog window.\n"
-msgstr "To nie jest okno dialogowe.\n"
+msgstr "To nie jest okno dialogu.\n"
 
 #: dlls/kernelbase/winerror.mc:2503
 msgid "Control ID not found.\n"
-msgstr "Nie znaleziono identyfikatora kontrolki.\n"
+msgstr "Nie znaleziono identyfikatora control'a.\n"
 
 #: dlls/kernelbase/winerror.mc:2508
 msgid "Invalid combo box message.\n"
-msgstr "Nieprawidłowy komunikat w polu kombi.\n"
+msgstr "Niepoprawna wiadomość combo box'a.\n"
 
 #: dlls/kernelbase/winerror.mc:2513
 msgid "Not a combo box window.\n"
-msgstr "To nie jest okno z polem kombi.\n"
+msgstr "To nie jest okno combo box.\n"
 
 #: dlls/kernelbase/winerror.mc:2518
 msgid "Invalid edit height.\n"
@@ -7220,46 +7128,42 @@ msgid "Invalid argument.\n"
 msgstr "Niepoprawny argument.\n"
 
 #: dlls/kernelbase/winerror.mc:3778
-msgid "Cannot assign requested address.\n"
-msgstr "Nie można przypisać żądanego adresu.\n"
-
-#: dlls/kernelbase/winerror.mc:3783
 msgid "Connection reset by peer.\n"
 msgstr "Połączenie wyzerowane przez uczestnika.\n"
 
-#: dlls/kernelbase/winerror.mc:3793
+#: dlls/kernelbase/winerror.mc:3788
 msgid "Host not found.\n"
 msgstr "Nie znaleziono hosta.\n"
 
-#: dlls/kernelbase/winerror.mc:3798
+#: dlls/kernelbase/winerror.mc:3793
 msgid "Nonauthoritative host not found.\n"
 msgstr "Nie znaleziono nieautorytatywnego hosta.\n"
 
-#: dlls/kernelbase/winerror.mc:3803
+#: dlls/kernelbase/winerror.mc:3798
 msgid "Nonrecoverable error.\n"
 msgstr "Wystąpił nienaprawialny błąd.\n"
 
-#: dlls/kernelbase/winerror.mc:3808
+#: dlls/kernelbase/winerror.mc:3803
 msgid "Name valid, no data record.\n"
 msgstr "Nazwa prawidłowa, brak rekordu danych.\n"
 
-#: dlls/kernelbase/winerror.mc:3822
+#: dlls/kernelbase/winerror.mc:3817
 msgid "Not implemented.\n"
 msgstr "Niezaimplementowane.\n"
 
-#: dlls/kernelbase/winerror.mc:3843
+#: dlls/kernelbase/winerror.mc:3838
 msgid "Call failed.\n"
 msgstr "Nie udało się wywołać.\n"
 
-#: dlls/kernelbase/winerror.mc:3815
+#: dlls/kernelbase/winerror.mc:3810
 msgid "No Signature found in file.\n"
 msgstr "Nie znaleziono podpisu w pliku.\n"
 
-#: dlls/kernelbase/winerror.mc:3829
+#: dlls/kernelbase/winerror.mc:3824
 msgid "Invalid call.\n"
 msgstr "Nieprawidłowe wywołanie.\n"
 
-#: dlls/kernelbase/winerror.mc:3836
+#: dlls/kernelbase/winerror.mc:3831
 msgid "Resource is not currently available.\n"
 msgstr "Zasób jest obecnie niedostępny.\n"
 
@@ -8207,7 +8111,7 @@ msgstr "Cała sieć"
 msgid "Sound Selection"
 msgstr "Wybór dźwięku"
 
-#: dlls/msacm32/msacm32.rc:39 programs/winedbg/winedbg.rc:78
+#: dlls/msacm32/msacm32.rc:39 programs/winedbg/winedbg.rc:77
 msgid "&Save As..."
 msgstr "&Zapisz jako..."
 
@@ -8327,7 +8231,7 @@ msgstr ""
 
 #: dlls/msi/msi.rc:61
 msgid "enter which folder contains %s"
-msgstr "wprowadź katalog zawierający %s"
+msgstr "wprowadź folder zawierający %s"
 
 #: dlls/msi/msi.rc:62
 msgid "install source for feature missing"
@@ -8343,11 +8247,11 @@ msgstr "funkcja z:"
 
 #: dlls/msi/msi.rc:65
 msgid "choose which folder contains %s"
-msgstr "wybierz katalog zawierający %s"
+msgstr "wybierz folder zawierający %s"
 
-#: dlls/msi/msi.rc:66 dlls/shell32/shell32.rc:238
+#: dlls/msi/msi.rc:66 dlls/shell32/shell32.rc:236
 msgid "New Folder"
-msgstr "Nowy katalog"
+msgstr "Nowy Katalog"
 
 #: dlls/msi/msi.rc:91
 msgid "Allocating registry space"
@@ -8507,7 +8411,7 @@ msgstr "Usuwanie plików"
 
 #: dlls/msi/msi.rc:132
 msgid "Removing folders"
-msgstr "Usuwanie katalogów"
+msgstr "Usuwanie folderów"
 
 #: dlls/msi/msi.rc:133
 msgid "Removing INI files entries"
@@ -9474,9 +9378,8 @@ msgstr "Skopiuj pliki z:"
 #: dlls/oledlg/oledlg.rc:86 dlls/shdoclc/shdoclc.rc:50
 #: dlls/shdoclc/shdoclc.rc:82 dlls/shdoclc/shdoclc.rc:95
 #: dlls/shdoclc/shdoclc.rc:135 dlls/shdoclc/shdoclc.rc:162
-#: dlls/shdoclc/shdoclc.rc:186 dlls/shell32/shell32.rc:99
-#: dlls/user32/user32.rc:62 programs/conhost/conhost.rc:37
-#: programs/wordpad/wordpad.rc:114
+#: dlls/shdoclc/shdoclc.rc:186 dlls/user32/user32.rc:62
+#: programs/conhost/conhost.rc:37 programs/wordpad/wordpad.rc:114
 msgid "&Paste"
 msgstr "Wkl&ej"
 
@@ -9508,7 +9411,7 @@ msgstr ""
 "Wstaw zawartość pliku jako obiekt do dokumentu. Będzie można go aktywować "
 "używając programu, który go stworzył."
 
-#: dlls/oledlg/oledlg.rc:30 dlls/shell32/shell32.rc:197
+#: dlls/oledlg/oledlg.rc:30 dlls/shell32/shell32.rc:195
 msgid "Browse"
 msgstr "Przeglądaj"
 
@@ -9586,7 +9489,7 @@ msgid ""
 "The shortcut is linked to the source file so that changes to the file will "
 "be reflected in your document."
 msgstr ""
-"Wstawia do dokumentu skrót do zawartości schowka. Skrót będzie połączony z "
+"Wstawia do dokumentu skrót do zawartości schowka.Skrót będzie połączony z "
 "plikiem źródłowym, dzięki czemu zmiany w pliku będą odzwierciedlone w "
 "dokumencie."
 
@@ -9617,7 +9520,7 @@ msgstr "TRWA SKANOWANIE... Proszę czekać"
 #: dlls/sane.ds/sane.rc:31
 msgctxt "unit: pixels"
 msgid "px"
-msgstr "px"
+msgstr "piks."
 
 #: dlls/sane.ds/sane.rc:32
 msgctxt "unit: bits"
@@ -9807,12 +9710,12 @@ msgstr "Właś&ciwości"
 msgid "&Undo"
 msgstr "&Cofnij"
 
-#: dlls/shdoclc/shdoclc.rc:96 dlls/shell32/shell32.rc:102
+#: dlls/shdoclc/shdoclc.rc:96 dlls/shell32/shell32.rc:105
 #: dlls/user32/user32.rc:63
 msgid "&Delete"
 msgstr "&Usuń"
 
-#: dlls/shdoclc/shdoclc.rc:103
+#: dlls/shdoclc/shdoclc.rc:103 dlls/shell32/shell32.rc:97
 msgid "&Select"
 msgstr "Z&aznacz"
 
@@ -9981,26 +9884,26 @@ msgid "&w&bPage &p"
 msgstr "&w&bStrona &p"
 
 #: dlls/shell32/shell32.rc:30 dlls/shell32/shell32.rc:45
-#: dlls/shell32/shell32.rc:119 dlls/shell32/shell32.rc:157
+#: dlls/shell32/shell32.rc:122 dlls/shell32/shell32.rc:160
 #: programs/taskmgr/taskmgr.rc:65 programs/taskmgr/taskmgr.rc:110
 #: programs/taskmgr/taskmgr.rc:252
 msgid "Lar&ge Icons"
 msgstr "Duż&e ikony"
 
 #: dlls/shell32/shell32.rc:31 dlls/shell32/shell32.rc:46
-#: dlls/shell32/shell32.rc:120 dlls/shell32/shell32.rc:158
+#: dlls/shell32/shell32.rc:123 dlls/shell32/shell32.rc:161
 #: programs/taskmgr/taskmgr.rc:66 programs/taskmgr/taskmgr.rc:111
 #: programs/taskmgr/taskmgr.rc:253
 msgid "S&mall Icons"
 msgstr "M&ałe ikony"
 
 #: dlls/shell32/shell32.rc:32 dlls/shell32/shell32.rc:47
-#: dlls/shell32/shell32.rc:121 dlls/shell32/shell32.rc:159
+#: dlls/shell32/shell32.rc:124 dlls/shell32/shell32.rc:162
 msgid "&List"
 msgstr "&Lista"
 
 #: dlls/shell32/shell32.rc:33 dlls/shell32/shell32.rc:48
-#: dlls/shell32/shell32.rc:122 dlls/shell32/shell32.rc:160
+#: dlls/shell32/shell32.rc:125 dlls/shell32/shell32.rc:163
 #: programs/taskmgr/taskmgr.rc:67 programs/taskmgr/taskmgr.rc:112
 #: programs/taskmgr/taskmgr.rc:254
 msgid "&Details"
@@ -10043,9 +9946,9 @@ msgstr "Wklej &skrót"
 msgid "New"
 msgstr "Nowy"
 
-#: dlls/shell32/shell32.rc:69 dlls/shell32/shell32.rc:240
+#: dlls/shell32/shell32.rc:69
 msgid "New &Folder"
-msgstr "Nowy &katalog"
+msgstr "Nowy &Katalog"
 
 #: dlls/shell32/shell32.rc:70
 msgid "New &Link"
@@ -10060,19 +9963,23 @@ msgstr "P&rzywróć"
 msgid "&Erase"
 msgstr "&Wymaż"
 
-#: dlls/shell32/shell32.rc:97
+#: dlls/shell32/shell32.rc:98
+msgid "E&xplore"
+msgstr "&Przeglądaj"
+
+#: dlls/shell32/shell32.rc:101
 msgid "C&ut"
 msgstr "Wy&tnij"
 
-#: dlls/shell32/shell32.rc:101
+#: dlls/shell32/shell32.rc:104
 msgid "Create &Link"
 msgstr "Utwórz &skrót"
 
-#: dlls/shell32/shell32.rc:103
+#: dlls/shell32/shell32.rc:106
 msgid "&Rename"
 msgstr "Z&mień nazwę"
 
-#: dlls/shell32/shell32.rc:114 programs/notepad/notepad.rc:39
+#: dlls/shell32/shell32.rc:117 programs/notepad/notepad.rc:39
 #: programs/oleview/oleview.rc:38 programs/regedit/regedit.rc:41
 #: programs/view/view.rc:34 programs/winefile/winefile.rc:40
 #: programs/winemine/winemine.rc:51 programs/winhlp32/winhlp32.rc:37
@@ -10080,347 +9987,338 @@ msgstr "Z&mień nazwę"
 msgid "E&xit"
 msgstr "Za&kończ"
 
-#: dlls/shell32/shell32.rc:127
+#: dlls/shell32/shell32.rc:130
 msgid "&About Control Panel"
 msgstr "Panel sterowania - i&nformacje"
 
-#: dlls/shell32/shell32.rc:275 dlls/shell32/shell32.rc:290
+#: dlls/shell32/shell32.rc:271 dlls/shell32/shell32.rc:286
 msgid "Browse for Folder"
 msgstr "Wybierz katalog"
 
-#: dlls/shell32/shell32.rc:295
+#: dlls/shell32/shell32.rc:291
 msgid "Folder:"
 msgstr "Katalog:"
 
-#: dlls/shell32/shell32.rc:301
+#: dlls/shell32/shell32.rc:297
 msgid "&Make New Folder"
 msgstr "&Utwórz nowy katalog"
 
-#: dlls/shell32/shell32.rc:308
+#: dlls/shell32/shell32.rc:304
 msgid "Message"
 msgstr "Komunikat"
 
-#: dlls/shell32/shell32.rc:312
+#: dlls/shell32/shell32.rc:308
 msgid "Yes to &all"
 msgstr "Tak na &wszystkie"
 
-#: dlls/shell32/shell32.rc:321
+#: dlls/shell32/shell32.rc:317
 msgid "About %s"
 msgstr "O %s"
 
-#: dlls/shell32/shell32.rc:325
+#: dlls/shell32/shell32.rc:321
 msgid "Wine &license"
 msgstr "&Licencja Wine"
 
-#: dlls/shell32/shell32.rc:330
+#: dlls/shell32/shell32.rc:326
 msgid "Running on %s"
 msgstr "Uruchomiony na %s"
 
-#: dlls/shell32/shell32.rc:331
+#: dlls/shell32/shell32.rc:327
 msgid "Wine was brought to you by:"
-msgstr "Możesz korzystać z Wine dzięki:"
+msgstr "Możesz korzystać z Wine'a dzięki:"
 
-#: dlls/shell32/shell32.rc:336
+#: dlls/shell32/shell32.rc:332
 msgid "Run"
 msgstr "Uruchom"
 
-#: dlls/shell32/shell32.rc:340
+#: dlls/shell32/shell32.rc:336
 msgid ""
 "Type the name of a program, folder, document, or Internet resource, and Wine "
 "will open it for you."
 msgstr ""
 "Wpisz nazwę programu, katalogu lub dokumentu, a Wine otworzy go dla ciebie."
 
-#: dlls/shell32/shell32.rc:341
+#: dlls/shell32/shell32.rc:337
 msgid "&Open:"
 msgstr "&Otwórz:"
 
-#: dlls/shell32/shell32.rc:345 programs/progman/progman.rc:182
+#: dlls/shell32/shell32.rc:341 programs/progman/progman.rc:182
 #: programs/progman/progman.rc:201 programs/progman/progman.rc:218
 #: programs/winecfg/winecfg.rc:247 programs/winefile/winefile.rc:129
 msgid "&Browse..."
 msgstr "&Przeglądaj..."
 
-#: dlls/shell32/shell32.rc:357 dlls/shell32/shell32.rc:386
+#: dlls/shell32/shell32.rc:353 dlls/shell32/shell32.rc:382
 msgid "File type:"
 msgstr "Rodzaj pliku:"
 
-#: dlls/shell32/shell32.rc:361 dlls/shell32/shell32.rc:394
+#: dlls/shell32/shell32.rc:357 dlls/shell32/shell32.rc:390
 #: dlls/urlmon/urlmon.rc:37 programs/explorer/explorer.rc:33
 msgid "Location:"
 msgstr "Położenie:"
 
-#: dlls/shell32/shell32.rc:363 dlls/shell32/shell32.rc:396
+#: dlls/shell32/shell32.rc:359 dlls/shell32/shell32.rc:392
 #: programs/winefile/winefile.rc:169
 msgid "Size:"
 msgstr "Rozmiar:"
 
-#: dlls/shell32/shell32.rc:367 dlls/shell32/shell32.rc:400
+#: dlls/shell32/shell32.rc:363 dlls/shell32/shell32.rc:396
 msgid "Creation date:"
 msgstr "Data utworzenia:"
 
-#: dlls/shell32/shell32.rc:371 dlls/shell32/shell32.rc:408
+#: dlls/shell32/shell32.rc:367 dlls/shell32/shell32.rc:404
 msgid "Attributes:"
 msgstr "Atrybuty:"
 
-#: dlls/shell32/shell32.rc:373 dlls/shell32/shell32.rc:410
+#: dlls/shell32/shell32.rc:369 dlls/shell32/shell32.rc:406
 #: programs/winefile/winefile.rc:173
 msgid "H&idden"
 msgstr "&Ukryty"
 
-#: dlls/shell32/shell32.rc:374 dlls/shell32/shell32.rc:411
+#: dlls/shell32/shell32.rc:370 dlls/shell32/shell32.rc:407
 #: programs/winefile/winefile.rc:174
 msgid "&Archive"
 msgstr "&Archiwalny"
 
-#: dlls/shell32/shell32.rc:388
+#: dlls/shell32/shell32.rc:384
 msgid "Open with:"
 msgstr "Otwórz za pomocą:"
 
-#: dlls/shell32/shell32.rc:391
+#: dlls/shell32/shell32.rc:387
 msgid "&Change..."
 msgstr "&Zmień..."
 
-#: dlls/shell32/shell32.rc:402
+#: dlls/shell32/shell32.rc:398
 msgid "Last modified:"
 msgstr "Ostatnio zmieniony:"
 
-#: dlls/shell32/shell32.rc:404
+#: dlls/shell32/shell32.rc:400
 msgid "Last accessed:"
 msgstr "Ostatnio otwierany:"
 
-#: dlls/shell32/shell32.rc:135 dlls/shell32/shell32.rc:139
+#: dlls/shell32/shell32.rc:138 dlls/shell32/shell32.rc:142
 #: programs/winefile/winefile.rc:107
 msgid "Size"
 msgstr "Rozmiar"
 
-#: dlls/shell32/shell32.rc:136 programs/regedit/regedit.rc:151
+#: dlls/shell32/shell32.rc:139 programs/regedit/regedit.rc:151
 msgid "Type"
 msgstr "Rodzaj"
 
-#: dlls/shell32/shell32.rc:137
+#: dlls/shell32/shell32.rc:140
 msgid "Modified"
 msgstr "Zmieniony"
 
-#: dlls/shell32/shell32.rc:138 programs/winefile/winefile.rc:171
+#: dlls/shell32/shell32.rc:141 programs/winefile/winefile.rc:171
 #: programs/winefile/winefile.rc:113
 msgid "Attributes"
 msgstr "Atrybuty"
 
-#: dlls/shell32/shell32.rc:140
+#: dlls/shell32/shell32.rc:143
 msgid "Size available"
 msgstr "Dostępny rozmiar"
 
-#: dlls/shell32/shell32.rc:142
+#: dlls/shell32/shell32.rc:145
 msgid "Comments"
 msgstr "Komentarz"
 
-#: dlls/shell32/shell32.rc:143
+#: dlls/shell32/shell32.rc:146
 msgid "Original location"
 msgstr "Oryginalne położenie"
 
-#: dlls/shell32/shell32.rc:144
+#: dlls/shell32/shell32.rc:147
 msgid "Date deleted"
 msgstr "Data usunięcia"
 
-#: dlls/shell32/shell32.rc:151 programs/winecfg/winecfg.rc:106
+#: dlls/shell32/shell32.rc:154 programs/winecfg/winecfg.rc:106
 #: programs/winefile/winefile.rc:99
 msgctxt "display name"
 msgid "Desktop"
 msgstr "Pulpit"
 
-#: dlls/shell32/shell32.rc:152 dlls/urlmon/urlmon.rc:56
-#: programs/regedit/regedit.rc:243
+#: dlls/shell32/shell32.rc:155 programs/regedit/regedit.rc:243
 msgid "My Computer"
 msgstr "Mój komputer"
 
-#: dlls/shell32/shell32.rc:154
+#: dlls/shell32/shell32.rc:157
 msgid "Control Panel"
 msgstr "Panel sterowania"
 
-#: dlls/shell32/shell32.rc:162
-msgid "Ne&w"
-msgstr "No&wy"
-
 #: dlls/shell32/shell32.rc:164
-msgid "E&xplore"
-msgstr "&Przeglądaj"
+msgid "Select"
+msgstr "Zaznacz"
 
-#: dlls/shell32/shell32.rc:167
-msgid "Run as &Administrator"
-msgstr "Uruchom jako &administrator"
-
-#: dlls/shell32/shell32.rc:189
+#: dlls/shell32/shell32.rc:187
 msgid "Restart"
 msgstr "Uruchom ponownie"
 
-#: dlls/shell32/shell32.rc:190
+#: dlls/shell32/shell32.rc:188
 msgid "Do you want to simulate a Windows reboot?"
 msgstr "Czy chcesz zasymulować zrestartowanie Windows?"
 
-#: dlls/shell32/shell32.rc:191
+#: dlls/shell32/shell32.rc:189
 msgid "Shutdown"
 msgstr "Wyłącz"
 
-#: dlls/shell32/shell32.rc:192
+#: dlls/shell32/shell32.rc:190
 msgid "Do you want to shutdown your Wine session?"
-msgstr "Czy chcesz wyłączyć sesję Wine?"
+msgstr "Czy chcesz wyłączyć sesję Wine'a?"
 
-#: dlls/shell32/shell32.rc:203 programs/progman/progman.rc:83
+#: dlls/shell32/shell32.rc:201 programs/progman/progman.rc:83
 msgid "Programs"
 msgstr "Programy"
 
-#: dlls/shell32/shell32.rc:204 dlls/shell32/shell32.rc:219
-#: dlls/shell32/shell32.rc:145 dlls/shell32/shell32.rc:235
+#: dlls/shell32/shell32.rc:202 dlls/shell32/shell32.rc:217
+#: dlls/shell32/shell32.rc:148 dlls/shell32/shell32.rc:233
 msgid "Documents"
 msgstr "Dokumenty"
 
-#: dlls/shell32/shell32.rc:205
+#: dlls/shell32/shell32.rc:203
 msgid "Favorites"
 msgstr "Ulubione"
 
-#: dlls/shell32/shell32.rc:206
+#: dlls/shell32/shell32.rc:204
 msgid "StartUp"
 msgstr "Autostart"
 
-#: dlls/shell32/shell32.rc:207
+#: dlls/shell32/shell32.rc:205
 msgid "Start Menu"
 msgstr "Menu Start"
 
-#: dlls/shell32/shell32.rc:208 dlls/shell32/shell32.rc:221
+#: dlls/shell32/shell32.rc:206 dlls/shell32/shell32.rc:219
 msgid "Music"
 msgstr "Muzyka"
 
-#: dlls/shell32/shell32.rc:209 dlls/shell32/shell32.rc:223
+#: dlls/shell32/shell32.rc:207 dlls/shell32/shell32.rc:221
 msgid "Videos"
 msgstr "Wideo"
 
-#: dlls/shell32/shell32.rc:210
+#: dlls/shell32/shell32.rc:208
 msgctxt "directory"
 msgid "Desktop"
 msgstr "Pulpit"
 
-#: dlls/shell32/shell32.rc:211
+#: dlls/shell32/shell32.rc:209
 msgid "NetHood"
 msgstr "Otoczenie sieciowe"
 
-#: dlls/shell32/shell32.rc:212
+#: dlls/shell32/shell32.rc:210
 msgid "Templates"
 msgstr "Szablony"
 
-#: dlls/shell32/shell32.rc:213
+#: dlls/shell32/shell32.rc:211
 msgid "PrintHood"
-msgstr "Otoczenie sieciowe drukarek"
+msgstr "Drukowanie otoczenie"
 
-#: dlls/shell32/shell32.rc:214 programs/winhlp32/winhlp32.rc:49
+#: dlls/shell32/shell32.rc:212 programs/winhlp32/winhlp32.rc:49
 msgid "History"
 msgstr "Historia"
 
-#: dlls/shell32/shell32.rc:215
+#: dlls/shell32/shell32.rc:213
 msgid "Program Files"
 msgstr "Program Files"
 
-#: dlls/shell32/shell32.rc:217 dlls/shell32/shell32.rc:222
+#: dlls/shell32/shell32.rc:215 dlls/shell32/shell32.rc:220
 msgid "Pictures"
 msgstr "Obrazy"
 
-#: dlls/shell32/shell32.rc:218
+#: dlls/shell32/shell32.rc:216
 msgid "Common Files"
 msgstr "Common Files"
 
-#: dlls/shell32/shell32.rc:220
+#: dlls/shell32/shell32.rc:218
 msgid "Administrative Tools"
 msgstr "Narzędzia administracyjne"
 
-#: dlls/shell32/shell32.rc:216
+#: dlls/shell32/shell32.rc:214
 msgid "Program Files (x86)"
 msgstr "Pliki programów (x86)"
 
-#: dlls/shell32/shell32.rc:224
+#: dlls/shell32/shell32.rc:222
 msgid "Contacts"
 msgstr "Kontakty"
 
-#: dlls/shell32/shell32.rc:225 programs/winefile/winefile.rc:112
+#: dlls/shell32/shell32.rc:223 programs/winefile/winefile.rc:112
 msgid "Links"
 msgstr "Łącza"
 
-#: dlls/shell32/shell32.rc:226
+#: dlls/shell32/shell32.rc:224
 msgid "Slide Shows"
 msgstr "Pokazy slajdów"
 
-#: dlls/shell32/shell32.rc:227
+#: dlls/shell32/shell32.rc:225
 msgid "Playlists"
 msgstr "Listy odtwarzania"
 
-#: dlls/shell32/shell32.rc:146 programs/taskmgr/taskmgr.rc:326
+#: dlls/shell32/shell32.rc:149 programs/taskmgr/taskmgr.rc:326
 msgid "Status"
 msgstr "Stan"
 
-#: dlls/shell32/shell32.rc:148
+#: dlls/shell32/shell32.rc:151
 msgid "Model"
 msgstr "Model"
 
-#: dlls/shell32/shell32.rc:228
+#: dlls/shell32/shell32.rc:226
 msgid "Sample Music"
 msgstr "Przykładowa muzyka"
 
-#: dlls/shell32/shell32.rc:229
+#: dlls/shell32/shell32.rc:227
 msgid "Sample Pictures"
 msgstr "Przykładowe obrazy"
 
-#: dlls/shell32/shell32.rc:230
+#: dlls/shell32/shell32.rc:228
 msgid "Sample Playlists"
 msgstr "Przykładowe listy odtwarzania"
 
-#: dlls/shell32/shell32.rc:231
+#: dlls/shell32/shell32.rc:229
 msgid "Sample Videos"
 msgstr "Przykładowe wideo"
 
-#: dlls/shell32/shell32.rc:232
+#: dlls/shell32/shell32.rc:230
 msgid "Saved Games"
 msgstr "Zapisane gry"
 
-#: dlls/shell32/shell32.rc:233
+#: dlls/shell32/shell32.rc:231
 msgid "Searches"
 msgstr "Wyszukiwania"
 
-#: dlls/shell32/shell32.rc:234
+#: dlls/shell32/shell32.rc:232
 msgid "Users"
 msgstr "Użytkownicy"
 
-#: dlls/shell32/shell32.rc:236
+#: dlls/shell32/shell32.rc:234
 msgid "Downloads"
 msgstr "Pobrane"
 
-#: dlls/shell32/shell32.rc:169
+#: dlls/shell32/shell32.rc:167
 msgid "Unable to create new Folder: Permission denied."
-msgstr "Nie mogę utworzyć nowego katalogu: brak dostępu."
+msgstr "Nie mogę utworzyć nowego katalogu: Brak dostępu."
 
-#: dlls/shell32/shell32.rc:170
+#: dlls/shell32/shell32.rc:168
 msgid "Error during creation of a new folder"
 msgstr "Błąd przy tworzeniu nowego katalogu"
 
-#: dlls/shell32/shell32.rc:171
+#: dlls/shell32/shell32.rc:169
 msgid "Confirm file deletion"
 msgstr "Potwierdź usunięcie pliku"
 
-#: dlls/shell32/shell32.rc:172
+#: dlls/shell32/shell32.rc:170
 msgid "Confirm folder deletion"
 msgstr "Potwierdź usunięcie katalogu"
 
-#: dlls/shell32/shell32.rc:173
+#: dlls/shell32/shell32.rc:171
 msgid "Are you sure you want to delete '%1'?"
 msgstr "Czy jesteś pewien, że chcesz usunąć '%1'?"
 
-#: dlls/shell32/shell32.rc:174
+#: dlls/shell32/shell32.rc:172
 msgid "Are you sure you want to delete these %1 items?"
 msgstr "Czy jesteś pewien, że chcesz usunąć te %1 pliki?"
 
-#: dlls/shell32/shell32.rc:181
+#: dlls/shell32/shell32.rc:179
 msgid "Confirm file overwrite"
 msgstr "Potwierdź zastąpienie pliku"
 
-#: dlls/shell32/shell32.rc:180
+#: dlls/shell32/shell32.rc:178
 msgid ""
 "This folder already contains a file called '%1'.\n"
 "\n"
@@ -10430,31 +10328,31 @@ msgstr ""
 "\n"
 "Czy chcesz go zastąpić?"
 
-#: dlls/shell32/shell32.rc:175
+#: dlls/shell32/shell32.rc:173
 msgid "Are you sure you want to delete the selected item(s)?"
 msgstr "Czy jesteś pewien, że chcesz usunąć wybrane elementy?"
 
-#: dlls/shell32/shell32.rc:177
+#: dlls/shell32/shell32.rc:175
 msgid ""
 "Are you sure that you want to send '%1' and all its content to the Trash?"
 msgstr ""
 "Czy jesteś pewien, że chcesz umieścić katalog '%1' i całą jego zawartość w "
 "koszu?"
 
-#: dlls/shell32/shell32.rc:176
+#: dlls/shell32/shell32.rc:174
 msgid "Are you sure that you want to send '%1' to the Trash?"
 msgstr "Czy jesteś pewien, że chcesz umieścić plik '%1' w Koszu?"
 
-#: dlls/shell32/shell32.rc:178
+#: dlls/shell32/shell32.rc:176
 msgid "Are you sure that you want to send these %1 items to the Trash?"
 msgstr "Elementów: %1 - czy na pewno chcesz je umieścić w Koszu?"
 
-#: dlls/shell32/shell32.rc:179
+#: dlls/shell32/shell32.rc:177
 msgid "The item '%1' can't be sent to Trash. Do you want to delete it instead?"
 msgstr ""
 "Nie mogę przenieść elementu '%1' do Kosza. Czy chcesz go zamiast tego usunąć?"
 
-#: dlls/shell32/shell32.rc:186
+#: dlls/shell32/shell32.rc:184
 msgid ""
 "This folder already contains a folder named '%1'.\n"
 "\n"
@@ -10469,40 +10367,40 @@ msgstr ""
 "przenieść\n"
 "lub skopiować katalog?"
 
-#: dlls/shell32/shell32.rc:242
+#: dlls/shell32/shell32.rc:238
 msgid "Wine Control Panel"
 msgstr "Panel sterowania Wine"
 
-#: dlls/shell32/shell32.rc:195
+#: dlls/shell32/shell32.rc:193
 msgid "Unable to display Run dialog box (internal error)"
 msgstr "Nie można wyświetlić okna dialogowego Uruchom (błąd wewnętrzny)"
 
-#: dlls/shell32/shell32.rc:196
+#: dlls/shell32/shell32.rc:194
 msgid "Unable to display Browse dialog box (internal error)"
 msgstr "Nie można wyświetlić okna dialogowego Przeglądaj (błąd wewnętrzny)"
 
-#: dlls/shell32/shell32.rc:198
+#: dlls/shell32/shell32.rc:196
 msgid "Executable files (*.exe)"
 msgstr "Pliki wykonywalne (*.exe)"
 
-#: dlls/shell32/shell32.rc:246
+#: dlls/shell32/shell32.rc:242
 msgid "There is no Windows program configured to open this type of file."
 msgstr ""
 "Nie ma przypisanego programu Windowsowego do otwierania tego rodzaju plików."
 
-#: dlls/shell32/shell32.rc:248
+#: dlls/shell32/shell32.rc:244
 msgid "Are you sure you wish to permanently delete '%1'?"
 msgstr "Czy na pewno chcesz trwale usunąć '%1'?"
 
-#: dlls/shell32/shell32.rc:249
+#: dlls/shell32/shell32.rc:245
 msgid "Are you sure you wish to permanently delete these %1 items?"
 msgstr "Czy na pewno chcesz trwale usunąć te %1 elementy?"
 
-#: dlls/shell32/shell32.rc:250
+#: dlls/shell32/shell32.rc:246
 msgid "Confirm deletion"
 msgstr "Potwierdź usunięcie"
 
-#: dlls/shell32/shell32.rc:251
+#: dlls/shell32/shell32.rc:247
 msgid ""
 "A file already exists at the path %1.\n"
 "\n"
@@ -10512,7 +10410,7 @@ msgstr ""
 "\n"
 "Czy chcesz go zastąpić?"
 
-#: dlls/shell32/shell32.rc:252
+#: dlls/shell32/shell32.rc:248
 msgid ""
 "A folder already exists at the path %1.\n"
 "\n"
@@ -10522,11 +10420,11 @@ msgstr ""
 "\n"
 "Czy chcesz go zastąpić?"
 
-#: dlls/shell32/shell32.rc:253
+#: dlls/shell32/shell32.rc:249
 msgid "Confirm overwrite"
 msgstr "Potwierdź zastąpienia"
 
-#: dlls/shell32/shell32.rc:270
+#: dlls/shell32/shell32.rc:266
 msgid ""
 "Wine is free software; you can redistribute it and/or modify it under the "
 "terms of the GNU Lesser General Public License as published by the Free "
@@ -10557,11 +10455,11 @@ msgstr ""
 "wraz z tą biblioteką; jeżeli tak nie jest, napisz do Free Software "
 "Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA."
 
-#: dlls/shell32/shell32.rc:258
+#: dlls/shell32/shell32.rc:254
 msgid "Wine License"
 msgstr "Licencja Wine"
 
-#: dlls/shell32/shell32.rc:153
+#: dlls/shell32/shell32.rc:156
 msgid "Trash"
 msgstr "Kosz"
 
@@ -10694,12 +10592,12 @@ msgstr "(UTC-05:00) Haiti"
 #: dlls/tzres/tzres.rc:93
 msgctxt "maximum 31 characters"
 msgid "Central European Standard Time"
-msgstr "Czas urzędowy Europy Środkowej"
+msgstr "Czas urzędowy Europy środkowej"
 
 #: dlls/tzres/tzres.rc:94
 msgctxt "maximum 31 characters"
 msgid "Central European Daylight Time"
-msgstr "Czas letni Europy Środkowej"
+msgstr "Czas letni Europy środkowej"
 
 #: dlls/tzres/tzres.rc:95
 msgid "(UTC+01:00) Sarajevo, Skopje, Warsaw, Zagreb"
@@ -10745,12 +10643,12 @@ msgstr "(UTC+07:00) Barnaul, Gorno-Altaysk"
 #: dlls/tzres/tzres.rc:90
 msgctxt "maximum 31 characters"
 msgid "Central Europe Standard Time"
-msgstr "Czas urzędowy Europy Środkowej"
+msgstr "Czas urzędowy Europy środkowej"
 
 #: dlls/tzres/tzres.rc:91
 msgctxt "maximum 31 characters"
 msgid "Central Europe Daylight Time"
-msgstr "Czas letni Europy Środkowej"
+msgstr "Czas letni Europy środkowej"
 
 #: dlls/tzres/tzres.rc:92
 msgid "(UTC+01:00) Belgrade, Bratislava, Budapest, Ljubljana, Prague"
@@ -10857,7 +10755,7 @@ msgstr "(UTC+00:00) Dublin, Edynburg, Lizbona, Londyn"
 #: dlls/tzres/tzres.rc:324
 msgctxt "maximum 31 characters"
 msgid "South Sudan Standard Time"
-msgstr "Czas urzędowy Sudanu Poł."
+msgstr "Czas urzędowy Sudanu Połudn."
 
 #: dlls/tzres/tzres.rc:325
 msgctxt "maximum 31 characters"
@@ -10871,12 +10769,12 @@ msgstr "(UTC+02:00) Dżuba"
 #: dlls/tzres/tzres.rc:84
 msgctxt "maximum 31 characters"
 msgid "Central Asia Standard Time"
-msgstr "Czas urzędowy Azji Środkowej"
+msgstr "Czas urzędowy Azji środkowej"
 
 #: dlls/tzres/tzres.rc:85
 msgctxt "maximum 31 characters"
 msgid "Central Asia Daylight Time"
-msgstr "Czas letni Azji Środkowej"
+msgstr "Czas letni Azji środkowej"
 
 #: dlls/tzres/tzres.rc:86
 msgid "(UTC+06:00) Astana"
@@ -11062,7 +10960,7 @@ msgstr "(UTC-08:00) Baja Kalifornia"
 #: dlls/tzres/tzres.rc:210
 msgctxt "maximum 31 characters"
 msgid "Middle East Standard Time"
-msgstr "Czas urzędowy Bliskiego Wschodu"
+msgstr "Czas urzędowy bliskiego wschodu"
 
 #: dlls/tzres/tzres.rc:211
 msgctxt "maximum 31 characters"
@@ -11141,7 +11039,7 @@ msgstr "Czas letni środkowy"
 
 #: dlls/tzres/tzres.rc:101
 msgid "(UTC-06:00) Central Time (US & Canada)"
-msgstr "(UTC-06:00) Czas środkowy (USA i Kanada)"
+msgstr "(UTC-06:00) Czas środkowy (US & Canada)"
 
 #: dlls/tzres/tzres.rc:285 dlls/tzres/tzres.rc:286
 msgctxt "maximum 31 characters"
@@ -11183,12 +11081,12 @@ msgstr "(UTC-01:00) Azory"
 #: dlls/tzres/tzres.rc:246
 msgctxt "maximum 31 characters"
 msgid "North Asia East Standard Time"
-msgstr "Czas urzędowy Azji Półn.-Wsch."
+msgstr "Czas urzędowy Azji półn. wsch."
 
 #: dlls/tzres/tzres.rc:247
 msgctxt "maximum 31 characters"
 msgid "North Asia East Daylight Time"
-msgstr "Czas letni Azji Półn.-Wsch."
+msgstr "Czas letni Azji półn. wsch."
 
 #: dlls/tzres/tzres.rc:248
 msgid "(UTC+08:00) Irkutsk"
@@ -11341,12 +11239,12 @@ msgstr "(UTC+12:00) Fidżi"
 #: dlls/tzres/tzres.rc:69
 msgctxt "maximum 31 characters"
 msgid "Canada Central Standard Time"
-msgstr "Czas urzędowy Kanady Środkowej"
+msgstr "Czas urzędowy Kanady środkowej"
 
 #: dlls/tzres/tzres.rc:70
 msgctxt "maximum 31 characters"
 msgid "Canada Central Daylight Time"
-msgstr "Czas letni Kanady Środkowej"
+msgstr "Czas letni Kanady środkowej"
 
 #: dlls/tzres/tzres.rc:71
 msgid "(UTC-06:00) Saskatchewan"
@@ -11383,12 +11281,12 @@ msgstr "(UTC+08:00) Tajpej"
 #: dlls/tzres/tzres.rc:408
 msgctxt "maximum 31 characters"
 msgid "W. Europe Standard Time"
-msgstr "Czas urzędowy Europy Zachodniej"
+msgstr "Czas urzędowy Europy zachodniej"
 
 #: dlls/tzres/tzres.rc:409
 msgctxt "maximum 31 characters"
 msgid "W. Europe Daylight Time"
-msgstr "Czas letni Europy Zachodniej"
+msgstr "Czas letni Europy zachodniej"
 
 #: dlls/tzres/tzres.rc:410
 msgid "(UTC+01:00) Amsterdam, Berlin, Bern, Rome, Stockholm, Vienna"
@@ -11453,12 +11351,12 @@ msgstr "(UTC+04:00) Erywań"
 #: dlls/tzres/tzres.rc:48
 msgctxt "maximum 31 characters"
 msgid "AUS Eastern Standard Time"
-msgstr "Czas urzędowy Australii Wsch."
+msgstr "Czas urzędowy Australii wsch."
 
 #: dlls/tzres/tzres.rc:49
 msgctxt "maximum 31 characters"
 msgid "AUS Eastern Daylight Time"
-msgstr "Czas letni Australii Wschodniej"
+msgstr "Czas letni Australii wschodniej"
 
 #: dlls/tzres/tzres.rc:50
 msgid "(UTC+10:00) Canberra, Melbourne, Sydney"
@@ -11467,12 +11365,12 @@ msgstr "(UTC+10:00) Canberra, Melbourne, Sydney"
 #: dlls/tzres/tzres.rc:228
 msgctxt "maximum 31 characters"
 msgid "N. Central Asia Standard Time"
-msgstr "Czas urzędowy Azji Półn-Środk."
+msgstr "Czas urzędowy Azji środk. półn."
 
 #: dlls/tzres/tzres.rc:229
 msgctxt "maximum 31 characters"
 msgid "N. Central Asia Daylight Time"
-msgstr "Czas letni Azji Półn-Środk."
+msgstr "Czas letni Azji półn.-środ."
 
 #: dlls/tzres/tzres.rc:230
 msgid "(UTC+07:00) Novosibirsk"
@@ -11490,7 +11388,7 @@ msgstr "Czas letni wschodni"
 
 #: dlls/tzres/tzres.rc:134
 msgid "(UTC-05:00) Eastern Time (US & Canada)"
-msgstr "(UTC-05:00) Czas wschodni (USA i Kanada)"
+msgstr "(UTC-05:00) Czas wschodni (US & Canada)"
 
 #: dlls/tzres/tzres.rc:354
 msgctxt "maximum 31 characters"
@@ -11509,12 +11407,12 @@ msgstr "(UTC+09:00) Chita"
 #: dlls/tzres/tzres.rc:123
 msgctxt "maximum 31 characters"
 msgid "E. Europe Standard Time"
-msgstr "Czas urzędowy Europy Wschodniej"
+msgstr "Czas urzędowy Europy wschodniej"
 
 #: dlls/tzres/tzres.rc:124
 msgctxt "maximum 31 characters"
 msgid "E. Europe Daylight Time"
-msgstr "Czas letni Europy Wschodniej"
+msgstr "Czas letni Europy wschodniej"
 
 #: dlls/tzres/tzres.rc:125
 msgid "(UTC+02:00) Chisinau"
@@ -11579,12 +11477,12 @@ msgstr "(UTC-07:00) Czas górski (US & Canada)"
 #: dlls/tzres/tzres.rc:366
 msgctxt "maximum 31 characters"
 msgid "US Eastern Standard Time"
-msgstr "Czas urzędowy St. Zjedn. Wsch."
+msgstr "Czas urzędowy St. Zjedn. wsch."
 
 #: dlls/tzres/tzres.rc:367
 msgctxt "maximum 31 characters"
 msgid "US Eastern Daylight Time"
-msgstr "Czas letni St. Zjedn. Wsch."
+msgstr "Czas letni St. Zjedn. wsch."
 
 #: dlls/tzres/tzres.rc:368
 msgid "(UTC-05:00) Indiana (East)"
@@ -11635,16 +11533,16 @@ msgstr "(UTC+10:00) Hobart"
 #: dlls/tzres/tzres.rc:81
 msgctxt "maximum 31 characters"
 msgid "Central America Standard Time"
-msgstr "Czas urzędowy Ameryki Środkowej"
+msgstr "Czas urzędowy Ameryki środkowej"
 
 #: dlls/tzres/tzres.rc:82
 msgctxt "maximum 31 characters"
 msgid "Central America Daylight Time"
-msgstr "Czas letni Ameryki Środkowej"
+msgstr "Czas letni Ameryki środkowej"
 
 #: dlls/tzres/tzres.rc:83
 msgid "(UTC-06:00) Central America"
-msgstr "(UTC-06:00) Ameryka Środkowa"
+msgstr "(UTC-06:00) Ameryka środkowa"
 
 #: dlls/tzres/tzres.rc:381 dlls/tzres/tzres.rc:382
 msgctxt "maximum 31 characters"
@@ -11672,7 +11570,7 @@ msgstr "(UTC-07:00) Arizona"
 #: dlls/tzres/tzres.rc:321
 msgctxt "maximum 31 characters"
 msgid "South Africa Standard Time"
-msgstr "Czas urzędowy Afryki Poł."
+msgstr "Czas urzędowy Afryki poł."
 
 #: dlls/tzres/tzres.rc:322
 msgctxt "maximum 31 characters"
@@ -11686,12 +11584,12 @@ msgstr "(UTC+02:00) Harare, Pretoria"
 #: dlls/tzres/tzres.rc:78
 msgctxt "maximum 31 characters"
 msgid "Cen. Australia Standard Time"
-msgstr "Czas urzędowy Australii Śr."
+msgstr "Czas urzędowy Australii śr."
 
 #: dlls/tzres/tzres.rc:79
 msgctxt "maximum 31 characters"
 msgid "Cen. Australia Daylight Time"
-msgstr "Czas letni Australii Środkowej"
+msgstr "Czas letni Australii środkowej"
 
 #: dlls/tzres/tzres.rc:80
 msgid "(UTC+09:30) Adelaide"
@@ -11751,12 +11649,12 @@ msgstr "(UTC+09:00) Jakuck"
 #: dlls/tzres/tzres.rc:291
 msgctxt "maximum 31 characters"
 msgid "SA Eastern Standard Time"
-msgstr "Czas urzędowy Ameryki Poł.-Wsch."
+msgstr "Czas urzędowy Ameryki Poł. wsch."
 
 #: dlls/tzres/tzres.rc:292
 msgctxt "maximum 31 characters"
 msgid "SA Eastern Daylight Time"
-msgstr "Czas letni Ameryki Poł.-Wsch."
+msgstr "Czas letni Ameryki Poł. wsch."
 
 #: dlls/tzres/tzres.rc:293
 msgid "(UTC-03:00) Cayenne, Fortaleza"
@@ -11821,12 +11719,12 @@ msgstr "(UTC+03:00) Moskwa, St. Petersburg"
 #: dlls/tzres/tzres.rc:45
 msgctxt "maximum 31 characters"
 msgid "Aus Central W. Standard Time"
-msgstr "Czas urzędowy Australii Śr.-Wsch."
+msgstr "Czas urzędowy Australii śr. wsch."
 
 #: dlls/tzres/tzres.rc:46
 msgctxt "maximum 31 characters"
 msgid "Aus Central W. Daylight Time"
-msgstr "Czas letni Australii Śr.-Zach."
+msgstr "Czas letni Australii śr. zach."
 
 #: dlls/tzres/tzres.rc:47
 msgid "(UTC+08:45) Eucla"
@@ -11900,12 +11798,12 @@ msgstr "(UTC+02:00) Damaszek"
 #: dlls/tzres/tzres.rc:42
 msgctxt "maximum 31 characters"
 msgid "AUS Central Standard Time"
-msgstr "Czas urzędowy Australii Śr."
+msgstr "Czas urzędowy Australii śr."
 
 #: dlls/tzres/tzres.rc:43
 msgctxt "maximum 31 characters"
 msgid "AUS Central Daylight Time"
-msgstr "Czas letni Australii Środkowej"
+msgstr "Czas letni Australii środkowej"
 
 #: dlls/tzres/tzres.rc:44
 msgid "(UTC+09:30) Darwin"
@@ -11998,12 +11896,12 @@ msgstr "(UTC-05:00) Bogota, Lima, Quito, Rio Branco"
 #: dlls/tzres/tzres.rc:414
 msgctxt "maximum 31 characters"
 msgid "West Asia Standard Time"
-msgstr "Czas urzędowy Azji Zachodniej"
+msgstr "Czas urzędowy Azji zachodniej"
 
 #: dlls/tzres/tzres.rc:415
 msgctxt "maximum 31 characters"
 msgid "West Asia Daylight Time"
-msgstr "Czas letni Azji Zachodniej"
+msgstr "Czas letni Azji zachodniej"
 
 #: dlls/tzres/tzres.rc:416
 msgid "(UTC+05:00) Ashgabat, Tashkent"
@@ -12124,12 +12022,12 @@ msgstr "(UTC-10:00) Hawaje"
 #: dlls/tzres/tzres.rc:315
 msgctxt "maximum 31 characters"
 msgid "SE Asia Standard Time"
-msgstr "Czas urzędowy Azji Poł.-Wsch."
+msgstr "Czas urzędowy Azji poł.-wsch."
 
 #: dlls/tzres/tzres.rc:316
 msgctxt "maximum 31 characters"
 msgid "SE Asia Daylight Time"
-msgstr "Czas letni Azji Poł.-Wsch."
+msgstr "Czas letni Azji poł.-wsch."
 
 #: dlls/tzres/tzres.rc:317
 msgid "(UTC+07:00) Bangkok, Hanoi, Jakarta"
@@ -12208,12 +12106,12 @@ msgstr "(UTC+06:00) Omsk"
 #: dlls/tzres/tzres.rc:87
 msgctxt "maximum 31 characters"
 msgid "Central Brazilian Standard Time"
-msgstr "Czas urzędowy Brazylii Śr."
+msgstr "Czas urzędowy Brazylii śr."
 
 #: dlls/tzres/tzres.rc:88
 msgctxt "maximum 31 characters"
 msgid "Central Brazilian Daylight Time"
-msgstr "Czas letni Brazylii Środkowej"
+msgstr "Czas letni Brazylii środkowej"
 
 #: dlls/tzres/tzres.rc:89
 msgid "(UTC-04:00) Cuiaba"
@@ -12236,12 +12134,12 @@ msgstr "(UTC+03:00) Mińsk"
 #: dlls/tzres/tzres.rc:297
 msgctxt "maximum 31 characters"
 msgid "SA Western Standard Time"
-msgstr "Czas urzędowy Ameryki Poł.-Wsch."
+msgstr "Czas urzędowy Ameryki Poł. wsch."
 
 #: dlls/tzres/tzres.rc:298
 msgctxt "maximum 31 characters"
 msgid "SA Western Daylight Time"
-msgstr "Czas letni Ameryki Poł.-Zach."
+msgstr "Czas letni Ameryki Poł. zach."
 
 #: dlls/tzres/tzres.rc:299
 msgid "(UTC-04:00) Georgetown, La Paz, Manaus, San Juan"
@@ -12385,12 +12283,12 @@ msgstr "(UTC+12:45) Wyspy Chatham"
 #: dlls/tzres/tzres.rc:117
 msgctxt "maximum 31 characters"
 msgid "E. Africa Standard Time"
-msgstr "Czas urzędowy Afryki Wschodniej"
+msgstr "Czas urzędowy Afryki wschodniej"
 
 #: dlls/tzres/tzres.rc:118
 msgctxt "maximum 31 characters"
 msgid "E. Africa Daylight Time"
-msgstr "Czas letni Afryki Wschodniej"
+msgstr "Czas letni Afryki wschodniej"
 
 #: dlls/tzres/tzres.rc:119
 msgid "(UTC+03:00) Nairobi"
@@ -12413,12 +12311,12 @@ msgstr "(UTC+02:00) Helsinki, Kijów, Ryga, Sofia, Tallinn, Vilnius"
 #: dlls/tzres/tzres.rc:126
 msgctxt "maximum 31 characters"
 msgid "E. South America Standard Time"
-msgstr "Czas urzędowy Ameryki Poł.-Wsch."
+msgstr "Czas urzędowy Ameryki Poł. wsch."
 
 #: dlls/tzres/tzres.rc:127
 msgctxt "maximum 31 characters"
 msgid "E. South America Daylight Time"
-msgstr "Czas letni Ameryki Poł.-Wsch."
+msgstr "Czas letni Ameryki Poł. wsch."
 
 #: dlls/tzres/tzres.rc:128
 msgid "(UTC-03:00) Brasilia"
@@ -12441,12 +12339,12 @@ msgstr "(UTC+11:00) Wyspy Salomona, Nowa Kaledonia"
 #: dlls/tzres/tzres.rc:405
 msgctxt "maximum 31 characters"
 msgid "W. Central Africa Standard Time"
-msgstr "Czas urzędowy Afryki Śr-Zach."
+msgstr "Czas urzędowy Afryki śr-zach."
 
 #: dlls/tzres/tzres.rc:406
 msgctxt "maximum 31 characters"
 msgid "W. Central Africa Daylight Time"
-msgstr "Czas letni Afryki Śr.-Zach."
+msgstr "Czas letni Afryki śr.-zach."
 
 #: dlls/tzres/tzres.rc:407
 msgid "(UTC+01:00) West Central Africa"
@@ -12469,12 +12367,12 @@ msgstr "(UTC-04:00) Santiago"
 #: dlls/tzres/tzres.rc:120
 msgctxt "maximum 31 characters"
 msgid "E. Australia Standard Time"
-msgstr "Czas urzędowy Australii Wsch."
+msgstr "Czas urzędowy Australii wsch."
 
 #: dlls/tzres/tzres.rc:121
 msgctxt "maximum 31 characters"
 msgid "E. Australia Daylight Time"
-msgstr "Czas letni Australii Wschodniej"
+msgstr "Czas letni Australii wschodniej"
 
 #: dlls/tzres/tzres.rc:122
 msgid "(UTC+10:00) Brisbane"
@@ -12483,12 +12381,12 @@ msgstr "(UTC+10:00) Brisbane"
 #: dlls/tzres/tzres.rc:402
 msgctxt "maximum 31 characters"
 msgid "W. Australia Standard Time"
-msgstr "Czas urzędowy Australii Zach."
+msgstr "Czas urzędowy Australii zach."
 
 #: dlls/tzres/tzres.rc:403
 msgctxt "maximum 31 characters"
 msgid "W. Australia Daylight Time"
-msgstr "Czas letni Australii Zachodniej"
+msgstr "Czas letni Australii zachodniej"
 
 #: dlls/tzres/tzres.rc:404
 msgid "(UTC+08:00) Perth"
@@ -12504,15 +12402,15 @@ msgstr "Czy chcesz zainstalować to oprogramowanie?"
 
 #: dlls/urlmon/urlmon.rc:39
 msgid "Don't install"
-msgstr "Nie instaluj"
+msgstr "Nie wgrywaj"
 
 #: dlls/urlmon/urlmon.rc:43
 msgid ""
 "When installed, an ActiveX component has full access to your computer. Do "
 "not click install unless you have absolute trust in the above source."
 msgstr ""
-"Po zainstalowaniu komponent ActiveX ma pełny dostęp do komputera. Nie "
-"instaluj, jeśli nie masz absolutnego zaufania do powyższego źródła."
+"Składnik ActiveX ma pełny dostęp do twojego komputera, jeśli jest wgrany. "
+"Nie klikaj wgraj dopóki nie masz pełnego zaufania do powyższego źródła."
 
 #: dlls/urlmon/urlmon.rc:51
 msgid "Installation of component failed: %08x"
@@ -12520,60 +12418,11 @@ msgstr "Nieudana instalacja składnika: %08x"
 
 #: dlls/urlmon/urlmon.rc:52
 msgid "Install (%d)"
-msgstr "Zainstaluj (%d)"
+msgstr "Wgraj (%d)"
 
 #: dlls/urlmon/urlmon.rc:53
 msgid "Install"
-msgstr "Zainstaluj"
-
-#: dlls/urlmon/urlmon.rc:58
-msgid "Local intranet"
-msgstr "Lokalny intranet"
-
-#: dlls/urlmon/urlmon.rc:60
-msgid "Trusted sites"
-msgstr "Zaufane witryny"
-
-#: dlls/urlmon/urlmon.rc:62
-msgid "Internet"
-msgstr "Internet"
-
-#: dlls/urlmon/urlmon.rc:64
-msgid "Restricted sites"
-msgstr "Ograniczone witryny"
-
-#: dlls/urlmon/urlmon.rc:57
-msgid "Your computer"
-msgstr "Twój komputer"
-
-#: dlls/urlmon/urlmon.rc:59
-msgid ""
-"This zone contains all Web sites that are on your organization's intranet."
-msgstr ""
-"Ta strefa zawiera wszystkie witryny internetowe znajdujące się w intranecie "
-"Twojej organizacji."
-
-#: dlls/urlmon/urlmon.rc:61
-msgid ""
-"This zone contains Web sites that you trust not to damage your computer or "
-"data."
-msgstr ""
-"Strefa ta zawiera witryny internetowe, którym ufasz i które nie uszkodzą "
-"Twojego komputera ani danych."
-
-#: dlls/urlmon/urlmon.rc:63
-msgid "This zone contains all Web sites you haven't placed in other zones"
-msgstr ""
-"Ta strefa zawiera wszystkie witryny internetowe, których nie umieściłeś w "
-"innych strefach"
-
-#: dlls/urlmon/urlmon.rc:65
-msgid ""
-"This zone contains Web sites that could potentially damage your computer or "
-"data."
-msgstr ""
-"W tej strefie znajdują się witryny internetowe, które potencjalnie mogą "
-"uszkodzić Twój komputer lub dane."
+msgstr "Wgraj"
 
 #: dlls/user32/user32.rc:30 dlls/user32/user32.rc:43
 #: programs/taskmgr/taskmgr.rc:138
@@ -12658,7 +12507,7 @@ msgstr "Niezgodność rodzajów"
 
 #: dlls/vbscript/vbscript.rc:36
 msgid "Device I/O error"
-msgstr "Błąd We/Wy urządzenia"
+msgstr "Błąd WE/WY urządzenia"
 
 #: dlls/vbscript/vbscript.rc:37
 msgid "File already exists"
@@ -12716,13 +12565,17 @@ msgstr "Obiekt nie obsługuje nazwanych argumentów"
 msgid "Object doesn't support current locale setting"
 msgstr "Obiekt nie obsługuje ustawień bieżącego regionu"
 
-#: dlls/vbscript/vbscript.rc:53
+#: dlls/vbscript/vbscript.rc:53 dlls/vbscript/vbscript.rc:54
 msgid "Named argument not found"
 msgstr "Nie znaleziono nazwanego argumentu"
 
 #: dlls/vbscript/vbscript.rc:55
 msgid "Wrong number of arguments or invalid property assignment"
 msgstr "Zła liczba argumentów lub nieprawidłowe przypisanie własności"
+
+#: dlls/vbscript/vbscript.rc:56
+msgid "Object not a collection"
+msgstr "Obiekt nie jest zbiorem"
 
 #: dlls/vbscript/vbscript.rc:57
 msgid "Specified DLL function not found"
@@ -13154,7 +13007,8 @@ msgstr "Sterownik urządzenia nie jest gotowy."
 #: dlls/winmm/winmm.rc:78
 msgid "A problem occurred in initializing MCI. Try restarting Windows."
 msgstr ""
-"Wystąpił problem podczas inicjowania MCI. Spróbuj uruchomić ponownie Windows."
+"Wystąpił problem podczas inicjowania MCI. Spróbuj uruchomić ponownie "
+"Windowsa."
 
 #: dlls/winmm/winmm.rc:79
 msgid ""
@@ -13788,7 +13642,7 @@ msgstr "Pętla przed obsługą odwołań"
 msgid "Referral hop limit exceeded"
 msgstr "Przekroczono limit skoków odwołań"
 
-#: programs/attrib/attrib.rc:30 programs/cmd/cmd.rc:370
+#: programs/attrib/attrib.rc:30 programs/cmd/cmd.rc:373
 msgid ""
 "Not Yet Implemented\n"
 "\n"
@@ -13796,7 +13650,7 @@ msgstr ""
 "Jeszcze niezaimplementowane\n"
 "\n"
 
-#: programs/attrib/attrib.rc:31 programs/cmd/cmd.rc:373
+#: programs/attrib/attrib.rc:31 programs/cmd/cmd.rc:376
 msgid "%1: File Not Found\n"
 msgstr "%1: Nie znaleziono pliku\n"
 
@@ -13861,14 +13715,6 @@ msgid ""
 "  Type CHCP without a number to display the active console code page.\n"
 "\n"
 msgstr ""
-"CHCP [numer]\n"
-"\n"
-"  Ustawia lub wyświetla aktywną stronę kodową konsoli.\n"
-"\n"
-"  numer   Strona kodowa konsoli do aktywacji.\n"
-"\n"
-"  Wpisz CHCP bez numeru, aby wyświetlić aktywną stronę kodową konsoli.\n"
-"\n"
 
 #: programs/clock/clock.rc:32
 msgid "Ana&log"
@@ -13948,18 +13794,22 @@ msgid "COPY <filename> copies a file.\n"
 msgstr "COPY <nazwapliku> kopiuje plik.\n"
 
 #: programs/cmd/cmd.rc:56
+msgid "CTTY changes the input/output device.\n"
+msgstr "CTTY zmienia urządzenie wejścia/wyjścia.\n"
+
+#: programs/cmd/cmd.rc:59
 msgid "DATE shows or changes the system date.\n"
 msgstr "DATE pokazuje lub zmienia datę systemową.\n"
 
-#: programs/cmd/cmd.rc:59
+#: programs/cmd/cmd.rc:62
 msgid "DEL <filename> deletes a file or set of files.\n"
 msgstr "DEL <nazwapliku> usuwa plik lub zestaw plików.\n"
 
-#: programs/cmd/cmd.rc:62
+#: programs/cmd/cmd.rc:65
 msgid "DIR lists the contents of a directory.\n"
 msgstr "DIR wyświetla wykaz zawartości katalogu.\n"
 
-#: programs/cmd/cmd.rc:72
+#: programs/cmd/cmd.rc:75
 msgid ""
 "ECHO <string> displays <string> on the current terminal device.\n"
 "\n"
@@ -13979,11 +13829,11 @@ msgstr ""
 "standardowo). Komenda ECHO OFF może zostać nie wyświetlona jeżeli zostanie\n"
 "poprzedzona znakiem @.\n"
 
-#: programs/cmd/cmd.rc:75
+#: programs/cmd/cmd.rc:78
 msgid "ERASE <filename> deletes a file or set of files.\n"
 msgstr "ERASE <nazwapliku> usuwa plik lub zestaw plików.\n"
 
-#: programs/cmd/cmd.rc:82
+#: programs/cmd/cmd.rc:85
 msgid ""
 "The FOR command is used to execute a command for each of a set of files.\n"
 "\n"
@@ -13996,7 +13846,7 @@ msgstr ""
 "Użycie: FOR %zmienna IN (zbiór) DO polecenie\n"
 "Należy podwoić znak % jeśli FOR jest używane w pliku wsadowym.\n"
 
-#: programs/cmd/cmd.rc:94
+#: programs/cmd/cmd.rc:97
 msgid ""
 "The GOTO command transfers execution to another statement within a batch\n"
 "file.\n"
@@ -14018,7 +13868,7 @@ msgstr ""
 "\n"
 "GOTO nie przynosi żadnego efektu, gdy jest używane interaktywnie.\n"
 
-#: programs/cmd/cmd.rc:98
+#: programs/cmd/cmd.rc:101
 msgid ""
 "HELP <command> shows brief help details on a topic.\n"
 "HELP without an argument shows all CMD built-in commands.\n"
@@ -14026,7 +13876,7 @@ msgstr ""
 "HELP <polecenie> pokazuje krótką pomoc na dany temat.\n"
 "HELP bez argumentu pokazuje wszystkie wbudowane polecenia CMD.\n"
 
-#: programs/cmd/cmd.rc:108
+#: programs/cmd/cmd.rc:111
 msgid ""
 "IF is used to conditionally execute a command.\n"
 "\n"
@@ -14047,7 +13897,7 @@ msgstr ""
 "zawarty w cudzysłowie\n"
 "Porównanie nie uwzględnia wielkości znaków.\n"
 
-#: programs/cmd/cmd.rc:115
+#: programs/cmd/cmd.rc:118
 msgid ""
 "LABEL is used to set a disk volume label.\n"
 "\n"
@@ -14061,15 +13911,15 @@ msgstr ""
 "Komenda poprosi o podanie nowej etykiety dysku.\n"
 "Możesz wyświetlić aktualną etykietę komendą VOL.\n"
 
-#: programs/cmd/cmd.rc:118
+#: programs/cmd/cmd.rc:121
 msgid "MD <name> is the short version of MKDIR. It creates a subdirectory.\n"
 msgstr "MD <nazwa> jest krótką wersją MKDIR. Tworzy podkatalog.\n"
 
-#: programs/cmd/cmd.rc:120
+#: programs/cmd/cmd.rc:123
 msgid "MKDIR <name> creates a subdirectory.\n"
 msgstr "MKDIR <nazwa> tworzy podkatalog.\n"
 
-#: programs/cmd/cmd.rc:128
+#: programs/cmd/cmd.rc:131
 msgid ""
 "MOVE relocates a file or directory to a new point within the file system.\n"
 "\n"
@@ -14085,7 +13935,7 @@ msgstr ""
 "\n"
 "MOVE działa tylko w obrębie jednego dysku.\n"
 
-#: programs/cmd/cmd.rc:139
+#: programs/cmd/cmd.rc:142
 msgid ""
 "PATH displays or changes the cmd search path.\n"
 "\n"
@@ -14107,7 +13957,7 @@ msgstr ""
 "wstawienie starej ścieżki, na przykład:\n"
 "PATH %PATH%;c:\\temp\n"
 
-#: programs/cmd/cmd.rc:145
+#: programs/cmd/cmd.rc:148
 msgid ""
 "PAUSE displays a message on the screen asking the user to press a key.\n"
 "\n"
@@ -14119,7 +13969,7 @@ msgstr ""
 "Jest to użyteczne w plikach wsadowych, bo pozwala użytkownikowi na odczyt\n"
 "wyjścia poprzedniego polecenia przed przewinięciem ekranu.\n"
 
-#: programs/cmd/cmd.rc:166
+#: programs/cmd/cmd.rc:169
 msgid ""
 "PROMPT sets the command-line prompt.\n"
 "\n"
@@ -14163,7 +14013,7 @@ msgstr ""
 "PROMPT, tak więc polecenie 'SET PROMPT=tekst' ma ten sam efekt co\n"
 "'PROMPT tekst'.\n"
 
-#: programs/cmd/cmd.rc:170
+#: programs/cmd/cmd.rc:173
 msgid ""
 "A command line beginning with REM (followed by a space) performs no action,\n"
 "and can therefore be used as a comment in a batch file.\n"
@@ -14172,23 +14022,23 @@ msgstr ""
 "żadnego działania i może przez to zostać wykorzystany jako komentarz w\n"
 "pliku wsadowym.\n"
 
-#: programs/cmd/cmd.rc:173
+#: programs/cmd/cmd.rc:176
 msgid "REN <filename> is the short version of RENAME. It renames a file.\n"
 msgstr "REN <filename> jest krótką wersją RENAME. Zmienia nazwę pliku.\n"
 
-#: programs/cmd/cmd.rc:175
+#: programs/cmd/cmd.rc:178
 msgid "RENAME <filename> renames a file.\n"
 msgstr "RENAME <nazwapliku> zmienia nazwę pliku.\n"
 
-#: programs/cmd/cmd.rc:178
+#: programs/cmd/cmd.rc:181
 msgid "RD <directory> is the short version of RMDIR. It deletes a directory.\n"
 msgstr "RD <katalog> jest krótką wersją RMDIR. Usuwa katalog.\n"
 
-#: programs/cmd/cmd.rc:180
+#: programs/cmd/cmd.rc:183
 msgid "RMDIR <directory> deletes a directory.\n"
 msgstr "RMDIR <katalog> usuwa katalog.\n"
 
-#: programs/cmd/cmd.rc:226
+#: programs/cmd/cmd.rc:229
 msgid ""
 "SET displays or changes the cmd environment variables.\n"
 "\n"
@@ -14221,7 +14071,7 @@ msgstr ""
 "zmiennych środowiskowych Win32, z tego powodu jest więcej zmiennych niż w\n"
 "implementacji Win32. Wine nie zmienia zmiennych środowiskowych systemu.\n"
 
-#: programs/cmd/cmd.rc:231
+#: programs/cmd/cmd.rc:234
 msgid ""
 "SHIFT is used in a batch file to remove one parameter from the head of the\n"
 "list, so parameter 2 becomes parameter 1 and so on. It has no effect if\n"
@@ -14231,7 +14081,7 @@ msgstr ""
 "parametrów, parametr 2 staje się 1 itd. Polecenie to nie ma efektu gdy jest\n"
 "wywoływane z linii komend.\n"
 
-#: programs/cmd/cmd.rc:209
+#: programs/cmd/cmd.rc:212
 msgid ""
 "Start a program, or open a document in the program normally used for files\n"
 "with that suffix.\n"
@@ -14289,15 +14139,15 @@ msgstr ""
 "/ProgIDOpen     Otwórz dokument używając podanego progID.\n"
 "/?              Wyświetl tę pomoc i wyjdź.\n"
 
-#: programs/cmd/cmd.rc:234
+#: programs/cmd/cmd.rc:237
 msgid "TIME sets or shows the current system time.\n"
 msgstr "TIME ustawia lub pokazuje aktualny czas systemowy.\n"
 
-#: programs/cmd/cmd.rc:237
+#: programs/cmd/cmd.rc:240
 msgid "TITLE <string> sets the window title for the cmd window.\n"
 msgstr "TITLE <ciąg znaków> ustawia tytuł okna dla okna wiersza poleceń.\n"
 
-#: programs/cmd/cmd.rc:241
+#: programs/cmd/cmd.rc:244
 msgid ""
 "TYPE <filename> copies <filename> to the console device (or elsewhere if\n"
 "redirected). No check is made that the file is readable text.\n"
@@ -14305,7 +14155,7 @@ msgstr ""
 "TYPE <nazwa pliku> wyświetla zawartość pliku, nie jest sprawdzane, czy jest\n"
 "on plikiem tekstowym.\n"
 
-#: programs/cmd/cmd.rc:250
+#: programs/cmd/cmd.rc:253
 msgid ""
 "VERIFY is used to set, clear or test the verify flag. Valid forms are:\n"
 "\n"
@@ -14324,15 +14174,15 @@ msgstr ""
 "\n"
 "Flaga verify nie ma funkcji w Wine.\n"
 
-#: programs/cmd/cmd.rc:253
+#: programs/cmd/cmd.rc:256
 msgid "VER displays the version of cmd you are running.\n"
 msgstr "VER wyświetla wersję uruchomionego wiersza poleceń.\n"
 
-#: programs/cmd/cmd.rc:256
+#: programs/cmd/cmd.rc:259
 msgid "VOL shows the volume label of a disk device.\n"
 msgstr "VOL pokazuje etykietę woluminu urządzenia dyskowego.\n"
 
-#: programs/cmd/cmd.rc:260
+#: programs/cmd/cmd.rc:263
 msgid ""
 "ENDLOCAL ends localization of environment changes in a batch file which\n"
 "were introduced by a preceding SETLOCAL.\n"
@@ -14340,7 +14190,7 @@ msgstr ""
 "ENDLOCAL kończy zmiany ustawień regionalnych środowiska w pliku wsadowym,\n"
 "które zostały wprowadzone przez poprzedzające SETLOCAL.\n"
 
-#: programs/cmd/cmd.rc:268
+#: programs/cmd/cmd.rc:271
 msgid ""
 "SETLOCAL starts localization of environment changes in a batch file.\n"
 "\n"
@@ -14357,7 +14207,7 @@ msgstr ""
 "pierwsze), przy którym zostają przywrócone poprzednie ustawienia\n"
 "środowiska.\n"
 
-#: programs/cmd/cmd.rc:272
+#: programs/cmd/cmd.rc:275
 msgid ""
 "PUSHD <directory> saves the current directory onto a stack, and then\n"
 "changes the current directory to the supplied one.\n"
@@ -14365,11 +14215,11 @@ msgstr ""
 "PUSHD <nazwakatalogu> zapamiętuje bieżący katalog na stosie, a następnie\n"
 "przechodzi do katalogu podanego jako parametr.\n"
 
-#: programs/cmd/cmd.rc:275
+#: programs/cmd/cmd.rc:278
 msgid "POPD changes current directory to the last one saved with PUSHD.\n"
 msgstr "POPD zmienia bieżący katalog na ostatni zachowany przez PUSHD.\n"
 
-#: programs/cmd/cmd.rc:285
+#: programs/cmd/cmd.rc:288
 msgid ""
 "ASSOC shows or modifies file extension associations.\n"
 "\n"
@@ -14390,7 +14240,7 @@ msgstr ""
 "Nie określanie rodzaju pliku po znaku równości usuwa obecne skojarzenie,\n"
 "jeśli jakiekolwiek istnieje.\n"
 
-#: programs/cmd/cmd.rc:297
+#: programs/cmd/cmd.rc:300
 msgid ""
 "FTYPE shows or modifies open commands associated with file types.\n"
 "\n"
@@ -14414,11 +14264,11 @@ msgstr ""
 "Nie określanie polecenia otwarcia po znaku równości usuwa ciąg znaków\n"
 "polecenia skojarzony z danym rodzajem pliku.\n"
 
-#: programs/cmd/cmd.rc:300
+#: programs/cmd/cmd.rc:303
 msgid "MORE displays output of files or piped input in pages.\n"
 msgstr "MORE wyświetla strona po stronie wyjście pliku lub potoku.\n"
 
-#: programs/cmd/cmd.rc:305
+#: programs/cmd/cmd.rc:308
 msgid ""
 "CHOICE displays a text and waits, until the User presses an allowed Key\n"
 "from a selectable list.\n"
@@ -14428,7 +14278,7 @@ msgstr ""
 "wybieralnej listy.\n"
 "CHOICE jest używany głównie do budowania menu wyboru w plikach rodzaju bat.\n"
 
-#: programs/cmd/cmd.rc:321
+#: programs/cmd/cmd.rc:324
 msgid ""
 "Create a symbolic link.\n"
 "\n"
@@ -14452,7 +14302,7 @@ msgstr ""
 "nazwa_dowiązania jest nazwą nowego dowiązania symbolicznego.\n"
 "cel_dowiązania jest ścieżką, na którą wskazuje nazwa_dowiązania.\n"
 
-#: programs/cmd/cmd.rc:309
+#: programs/cmd/cmd.rc:312
 msgid ""
 "EXIT terminates the current command session and returns to the operating\n"
 "system or shell from which you invoked cmd.\n"
@@ -14460,7 +14310,7 @@ msgstr ""
 "EXIT kończy bieżącą sesję cmd i powraca do systemu operacyjnego lub\n"
 "powłoki, w której uruchomiono cmd.\n"
 
-#: programs/cmd/cmd.rc:361
+#: programs/cmd/cmd.rc:364
 msgid ""
 "CMD built-in commands are:\n"
 "ASSOC\t\tShow or modify file extension associations\n"
@@ -14546,110 +14396,110 @@ msgstr ""
 "Wpisz HELP <polecenie> dla dalszych informacji o którymkolwiek z tych "
 "poleceń.\n"
 
-#: programs/cmd/cmd.rc:362
+#: programs/cmd/cmd.rc:365
 msgid "Are you sure?"
 msgstr "Czy jesteś pewien?"
 
-#: programs/cmd/cmd.rc:363 programs/reg/reg.rc:126 programs/xcopy/xcopy.rc:43
+#: programs/cmd/cmd.rc:366 programs/reg/reg.rc:126 programs/xcopy/xcopy.rc:43
 msgctxt "Yes key"
 msgid "Y"
 msgstr "T"
 
-#: programs/cmd/cmd.rc:364 programs/reg/reg.rc:127 programs/xcopy/xcopy.rc:44
+#: programs/cmd/cmd.rc:367 programs/reg/reg.rc:127 programs/xcopy/xcopy.rc:44
 msgctxt "No key"
 msgid "N"
 msgstr "N"
 
-#: programs/cmd/cmd.rc:365
+#: programs/cmd/cmd.rc:368
 msgid "File association missing for extension %1\n"
 msgstr "Brak skojarzenia pliku dla rozszerzenia %1\n"
 
-#: programs/cmd/cmd.rc:366
+#: programs/cmd/cmd.rc:369
 msgid "No open command associated with file type '%1'\n"
 msgstr "Brak skojarzenia polecenia otwórz z typem plików '%1'\n"
 
-#: programs/cmd/cmd.rc:367
+#: programs/cmd/cmd.rc:370
 msgid "Overwrite %1?"
 msgstr "Czy zastąpić %1?"
 
-#: programs/cmd/cmd.rc:368
+#: programs/cmd/cmd.rc:371
 msgid "More..."
 msgstr "Więcej..."
 
-#: programs/cmd/cmd.rc:369
+#: programs/cmd/cmd.rc:372
 msgid "Line in Batch processing possibly truncated. Using:\n"
 msgstr "Linia przy przetwarzaniu pliku bat prawdopodobnie obcięta. Używam:\n"
 
-#: programs/cmd/cmd.rc:371
+#: programs/cmd/cmd.rc:374
 msgid "Argument missing\n"
 msgstr "Brakuje argumentu\n"
 
-#: programs/cmd/cmd.rc:372
+#: programs/cmd/cmd.rc:375
 msgid "Syntax error\n"
 msgstr "Błąd składni\n"
 
-#: programs/cmd/cmd.rc:374
+#: programs/cmd/cmd.rc:377
 msgid "No help available for %1\n"
 msgstr "Brak pliku pomocy dla %1\n"
 
-#: programs/cmd/cmd.rc:375
+#: programs/cmd/cmd.rc:378
 msgid "Target to GOTO not found\n"
 msgstr "Nie znaleziono przeznaczenia dla GOTO\n"
 
-#: programs/cmd/cmd.rc:376
+#: programs/cmd/cmd.rc:379
 msgid "Current Date is %1\n"
 msgstr "Obecna data to %1\n"
 
-#: programs/cmd/cmd.rc:377
+#: programs/cmd/cmd.rc:380
 msgid "Current Time is %1\n"
 msgstr "Obecny czas to %1\n"
 
-#: programs/cmd/cmd.rc:378
+#: programs/cmd/cmd.rc:381
 msgid "Enter new date: "
 msgstr "Wpisz nową datę: "
 
-#: programs/cmd/cmd.rc:379
+#: programs/cmd/cmd.rc:382
 msgid "Enter new time: "
 msgstr "Wpisz nowy czas: "
 
-#: programs/cmd/cmd.rc:380
+#: programs/cmd/cmd.rc:383
 msgid "Environment variable %1 not defined\n"
 msgstr "Zmienna środowiskowa %1 jest niezdefiniowana\n"
 
-#: programs/cmd/cmd.rc:381 programs/xcopy/xcopy.rc:41
+#: programs/cmd/cmd.rc:384 programs/xcopy/xcopy.rc:41
 msgid "Failed to open '%1'\n"
 msgstr "Nieudane otwarcie '%1'\n"
 
-#: programs/cmd/cmd.rc:382
+#: programs/cmd/cmd.rc:385
 msgid "Cannot call batch label outside of a batch script\n"
 msgstr "Nie można wywołać etykiety bat poza skryptem bat\n"
 
-#: programs/cmd/cmd.rc:383 programs/reg/reg.rc:128 programs/xcopy/xcopy.rc:45
+#: programs/cmd/cmd.rc:386 programs/reg/reg.rc:128 programs/xcopy/xcopy.rc:45
 msgctxt "All key"
 msgid "A"
 msgstr "A"
 
-#: programs/cmd/cmd.rc:384
+#: programs/cmd/cmd.rc:387
 msgid "Delete %1?"
 msgstr "Czy usunąć %1?"
 
-#: programs/cmd/cmd.rc:385
+#: programs/cmd/cmd.rc:388
 msgid "Echo is %1\n"
 msgstr "Echo jest %1\n"
 
-#: programs/cmd/cmd.rc:386
+#: programs/cmd/cmd.rc:389
 msgid "Verify is %1\n"
 msgstr "Verify jest %1\n"
 
-#: programs/cmd/cmd.rc:387
+#: programs/cmd/cmd.rc:390
 msgid "Verify must be ON or OFF\n"
 msgstr "Verify musi być ON lub OFF\n"
 
-#: programs/cmd/cmd.rc:388
+#: programs/cmd/cmd.rc:391
 msgid "Parameter error\n"
 msgstr "Błąd parametru\n"
 
-#: programs/cmd/cmd.rc:389
+#: programs/cmd/cmd.rc:392
 msgid ""
 "Volume Serial Number is %1!04x!-%2!04x!\n"
 "\n"
@@ -14657,88 +14507,80 @@ msgstr ""
 "Numer seryny wolumenu to %1!04x!-%2!04x!\n"
 "\n"
 
-#: programs/cmd/cmd.rc:390
+#: programs/cmd/cmd.rc:393
 msgid "Volume label (11 characters, <Enter> for none)?"
-msgstr "Etykieta wolumenu (11 znaków, <Enter> aby pominąć)?"
+msgstr "Etykieta Wolumenu (11 znaków, <Enter> aby pominąć)?"
 
-#: programs/cmd/cmd.rc:391
+#: programs/cmd/cmd.rc:394
+msgid "PATH not found\n"
+msgstr "Nie znaleziono PATH\n"
+
+#: programs/cmd/cmd.rc:395
 msgid "Press any key to continue... "
 msgstr "Naciśnij jakikolwiek klawisz, aby kontynuować... "
 
-#: programs/cmd/cmd.rc:392
+#: programs/cmd/cmd.rc:396
 msgid "Wine Command Prompt"
-msgstr "Wiersz poleceń Wine"
+msgstr "Wiersz Poleceń Wine"
 
-#: programs/cmd/cmd.rc:393
+#: programs/cmd/cmd.rc:397
 msgid "Microsoft Windows %1!S!\n"
 msgstr "Microsoft Windows %1!S!\n"
 
-#: programs/cmd/cmd.rc:394
+#: programs/cmd/cmd.rc:398
 msgid "More? "
 msgstr "Więcej? "
 
-#: programs/cmd/cmd.rc:395
+#: programs/cmd/cmd.rc:399
 msgid "The input line is too long.\n"
 msgstr "Wpisany tekst jest zbyt długi.\n"
 
-#: programs/cmd/cmd.rc:396
+#: programs/cmd/cmd.rc:400
 msgid "Volume in drive %1!c! is %2\n"
 msgstr "Wolumen w napędzie %1!c! to %2\n"
 
-#: programs/cmd/cmd.rc:397
+#: programs/cmd/cmd.rc:401
 msgid "Volume in drive %1!c! has no label.\n"
 msgstr "Wolumen w napędzie %1!c! nie ma etykiety.\n"
 
-#: programs/cmd/cmd.rc:398 programs/reg/reg.rc:129
+#: programs/cmd/cmd.rc:402 programs/reg/reg.rc:129
 msgid " (Yes|No)"
 msgstr " (Tak|Nie)"
 
-#: programs/cmd/cmd.rc:399 programs/reg/reg.rc:130
+#: programs/cmd/cmd.rc:403 programs/reg/reg.rc:130
 msgid " (Yes|No|All)"
 msgstr " (Tak|Nie|Wszystkie)"
 
-#: programs/cmd/cmd.rc:400
+#: programs/cmd/cmd.rc:404
 msgid ""
 "Can't recognize '%1' as an internal or external command, or batch script.\n"
 msgstr ""
 "Nie można rozpoznać '%1' ani jako polecenia wewnętrznego, ani zewnętrznego, "
 "czy nawet skryptu wsadowego.\n"
 
-#: programs/cmd/cmd.rc:401
+#: programs/cmd/cmd.rc:405
 msgid "Division by zero error.\n"
 msgstr "Błąd dzielenia przez zero.\n"
 
-#: programs/cmd/cmd.rc:402
+#: programs/cmd/cmd.rc:406
 msgid "Expected an operand.\n"
 msgstr "Oczekiwano zmiennej niezależnej.\n"
 
-#: programs/cmd/cmd.rc:403
+#: programs/cmd/cmd.rc:407
 msgid "Expected an operator.\n"
 msgstr "Oczekiwano operatora.\n"
 
-#: programs/cmd/cmd.rc:404
+#: programs/cmd/cmd.rc:408
 msgid "Mismatch in parentheses.\n"
 msgstr "Nierówna liczba nawiasach.\n"
 
-#: programs/cmd/cmd.rc:405
+#: programs/cmd/cmd.rc:409
 msgid ""
 "Badly formed number - must be one of decimal (12),\n"
 " hexadecimal (0x34) or octal (056).\n"
 msgstr ""
 "Zły format liczbowy - musi on być jednym z formatów dziesiętnych (12),\n"
 " szesnastkowych (0x34) lub ósemkowych (056).\n"
-
-#: programs/cmd/cmd.rc:407
-msgid "Syntax error: unexpected %1\n"
-msgstr "Błąd składni: nieoczekiwane %1\n"
-
-#: programs/cmd/cmd.rc:408
-msgid "End of line"
-msgstr "Koniec wiersza"
-
-#: programs/cmd/cmd.rc:409
-msgid "End of file"
-msgstr "Koniec pliku"
 
 #: programs/conhost/conhost.rc:54
 msgid "Cursor size"
@@ -14903,7 +14745,7 @@ msgstr ""
 
 #: programs/explorer/explorer.rc:32
 msgid "Wine Explorer"
-msgstr "Eksplorator Wine"
+msgstr "Wine Explorer"
 
 #: programs/explorer/explorer.rc:34
 msgid "Start"
@@ -14924,21 +14766,17 @@ msgstr ""
 "Czy jesteś pewien, że chcesz zamknąć wszystkie programy i opuścić wirtualny "
 "pulpit?"
 
-#: programs/explorer/explorer.rc:38
-msgid "Wine Desktop"
-msgstr "Pulpit Wine"
-
 #: programs/findstr/findstr.rc:28
 msgid "Usage: findstr /options string\n"
 msgstr "Użycie: findstr /opcje tekst\n"
 
 #: programs/findstr/findstr.rc:29
 msgid "FINDSTR: Bad command line\n"
-msgstr "FINDSTR: złe polecenie\n"
+msgstr "FINDSTR: Złe polecenie\n"
 
 #: programs/findstr/findstr.rc:30
 msgid "FINDSTR: Cannot open %s\n"
-msgstr "FINDSTR: nie można otworzyć %s\n"
+msgstr "FINDSTR: Nie można otworzyć %s\n"
 
 #: programs/findstr/findstr.rc:31
 msgid "FINDSTR: /%c ignored\n"
@@ -14950,7 +14788,7 @@ msgid ""
 "\n"
 "hardlink      hardlink management\n"
 msgstr ""
-"- Obsługiwane polecenia -\n"
+"- Obsługiwane Polecenia -\n"
 "\n"
 "hardlink      zarządzanie twardym dowiązaniem\n"
 
@@ -14960,7 +14798,7 @@ msgid ""
 "\n"
 "create        create a hardlink\n"
 msgstr ""
-"- Hardlink - Obsługiwane polecenia -\n"
+"- Hardlink - Obsługiwane Polecenia -\n"
 "\n"
 "create        utwórz twarde dowiązanie\n"
 
@@ -14974,18 +14812,18 @@ msgstr "Użycie: hostname\n"
 
 #: programs/hostname/hostname.rc:31
 msgid "Error: Invalid option '%c'.\n"
-msgstr "Błąd: nieprawidłowa opcja '%c'.\n"
+msgstr "Błąd: Nieprawidłowa opcja '%c'.\n"
 
 #: programs/hostname/hostname.rc:32
 msgid "Error: Could not get hostname: %u.\n"
-msgstr "Błąd: nie można pobrać nazwy gospodarza: %u.\n"
+msgstr "Błąd: Nie można pobrać nazwy gospodarza: %u.\n"
 
 #: programs/hostname/hostname.rc:33
 msgid ""
 "Error: Setting the system hostname is not possible with the hostname "
 "utility.\n"
 msgstr ""
-"Błąd: ustawienie nazwy gospodarza systemu jest niemożliwe przy użyciu "
+"Błąd: Ustawienie nazwy gospodarza systemu jest niemożliwe przy użyciu "
 "narzędzia hostname.\n"
 
 #: programs/ipconfig/ipconfig.rc:30
@@ -14994,7 +14832,7 @@ msgstr "Sposób użycia: ipconfig [ /? | /all ]\n"
 
 #: programs/ipconfig/ipconfig.rc:31
 msgid "Error: Unknown or invalid command line parameters specified\n"
-msgstr "Błąd: nierozpoznany lub niepełny wiersz polecenia\n"
+msgstr "Błąd: Nierozpoznany lub niepełny wiersz polecenia\n"
 
 #: programs/ipconfig/ipconfig.rc:32
 msgid "%1 adapter %2\n"
@@ -15082,11 +14920,11 @@ msgstr "Czas ponowienia"
 
 #: programs/klist/klist.rc:33
 msgid "Ticket Flags"
-msgstr "Flagi biletów"
+msgstr ""
 
 #: programs/klist/klist.rc:34
 msgid "Cached Tickets"
-msgstr "Bilety w pamięci podręcznej"
+msgstr ""
 
 #: programs/klist/klist.rc:36
 msgid "KerbTicket Encryption Type"
@@ -15095,10 +14933,6 @@ msgstr "Rodzaj szyfrowania KerbTicket"
 #: programs/klist/klist.rc:37
 msgid "Current LogonId is"
 msgstr "Bieżący LogonId"
-
-#: programs/klist/klist.rc:38
-msgid "Client"
-msgstr "Klient"
 
 #: programs/msinfo32/msinfo32.rc:28
 msgid "System Information"
@@ -15203,7 +15037,7 @@ msgid ""
 "---------------------------------------------------------------\n"
 msgstr ""
 "\n"
-"Stan    Lokalny  Zdalny\n"
+"Status    Lokalny  Zdalny\n"
 "---------------------------------------------------------------\n"
 
 #: programs/net/net.rc:47
@@ -15336,7 +15170,7 @@ msgstr "Statystyki UDP dla IPv4"
 
 #: programs/netstat/netstat.rc:54
 msgid "Datagrams Received"
-msgstr "Odebranych datagramów"
+msgstr "Pobranych Danogramów"
 
 #: programs/netstat/netstat.rc:55
 msgid "No Ports"
@@ -15348,7 +15182,7 @@ msgstr "Błędów pobrania"
 
 #: programs/netstat/netstat.rc:57
 msgid "Datagrams Sent"
-msgstr "Wysłanych datagramów"
+msgstr "Wysłanych Danogramów"
 
 #: programs/notepad/notepad.rc:30
 msgid "&New\tCtrl+N"
@@ -15434,7 +15268,7 @@ msgstr "Pasek &stanu"
 #: programs/notepad/notepad.rc:66 programs/progman/progman.rc:56
 #: programs/regedit/regedit.rc:80 programs/winefile/winefile.rc:83
 msgid "&Contents\tF1"
-msgstr "&Tematy pomocy\tF1"
+msgstr "&Tematy Pomocy\tF1"
 
 #: programs/notepad/notepad.rc:67
 msgid "&About Notepad"
@@ -15633,7 +15467,7 @@ msgstr "Ustawienia &systemu"
 
 #: programs/oleview/oleview.rc:36
 msgid "&Run the Registry Editor"
-msgstr "&Uruchom Edytor rejestru"
+msgstr "&Uruchom Edytor Rejestru"
 
 #: programs/oleview/oleview.rc:42
 msgid "&CoCreateInstance Flag"
@@ -15804,7 +15638,7 @@ msgstr "Zmień ustawienia Distributed COM tego komputera"
 
 #: programs/oleview/oleview.rc:108
 msgid "Run the Wine registry editor"
-msgstr "Uruchom Edytor rejestru Wine"
+msgstr "Uruchom Edytor Rejestru Wine"
 
 #: programs/oleview/oleview.rc:109
 msgid "Quit the application. Prompts to save changes"
@@ -16152,7 +15986,7 @@ msgstr "Plik `%s' istnieje. Nie został zastąpiony."
 
 #: programs/progman/progman.rc:80
 msgid "Save group as `%s' to prevent overwriting original files."
-msgstr "Grupa zapisana jako `%s', aby uniknąć zastąpienia oryginalnego pliku."
+msgstr "Grupa zapisana jako `%s' aby uniknąć zastąpienia oryginalnego pliku."
 
 #: programs/progman/progman.rc:84
 msgid "Libraries (*.dll)"
@@ -16168,31 +16002,31 @@ msgstr "Ikony (*.ico)"
 
 #: programs/reg/reg.rc:139
 msgid "reg: Invalid syntax. "
-msgstr "reg: nieprawidłowa składnia. "
+msgstr "reg: Nieprawidłowa składnia. "
 
 #: programs/reg/reg.rc:142
 msgid "Type \"REG %1 /?\" for help.\n"
-msgstr "Wprowadź \"REG %1 /?\", aby uzyskać pomoc.\n"
+msgstr "Wprowadź \"REG %1 /?\" aby uzyskać pomoc.\n"
 
 #: programs/reg/reg.rc:181
 msgid "reg: Unable to access or create the specified registry key\n"
-msgstr "reg: nie można otworzyć, ani stworzyć danego klucza rejestru\n"
+msgstr "reg: Nie można otworzyć, ani stworzyć danego klucza rejestru\n"
 
 #: programs/reg/reg.rc:116
 msgid "reg: The operation completed successfully\n"
-msgstr "reg: pomyślnie zakończono działanie\n"
+msgstr "reg: Pomyślnie zakończono działanie\n"
 
 #: programs/reg/reg.rc:131
 msgid "reg: The registry operation was cancelled\n"
-msgstr "reg: zaniechano działania rejestru\n"
+msgstr "reg: Zaniechano działania rejestru\n"
 
 #: programs/reg/reg.rc:174
 msgid "reg: Unable to find the specified registry key\n"
-msgstr "reg: nie można znaleźć danej klucza rejestru\n"
+msgstr "reg: Nie można znaleźć danej klucza rejestru\n"
 
 #: programs/reg/reg.rc:120
 msgid "reg: Unable to find the specified registry value\n"
-msgstr "reg: nie można znaleźć danej wartości rejestru\n"
+msgstr "reg: Nie można znaleźć danej wartości rejestru\n"
 
 #: programs/reg/reg.rc:132 programs/regedit/regedit.rc:244
 msgid "(Default)"
@@ -16200,7 +16034,7 @@ msgstr "(Domyślna)"
 
 #: programs/reg/reg.rc:141
 msgid "Type \"REG /?\" for help.\n"
-msgstr "Wprowadź \"REG /?\", aby uzyskać pomoc.\n"
+msgstr "Wprowadź \"REG /?\" aby uzyskać pomoc.\n"
 
 #: programs/reg/reg.rc:35
 msgid ""
@@ -16225,6 +16059,7 @@ msgstr ""
 "\n"
 
 #: programs/reg/reg.rc:67
+#, fuzzy
 msgid ""
 "REG ADD <key> [/v value_name | /ve] [/t type] [/s separator] [/d data] [/f]\n"
 "\n"
@@ -16273,22 +16108,22 @@ msgid ""
 "     Modify the registry without prompting for confirmation.\n"
 "\n"
 msgstr ""
-"REG ADD <klucz> [/v nazwa_wartości | /ve] [/t typ] [/s separator] [/d dane] "
-"[/f]\n"
+"REG ADD <key> [/v nazwa_wartości | /ve] [/t rodzaj] [/s rozdzielacz] [/d "
+"dane] [/f]\n"
 "\n"
 "  Dodaje klucz do rejestru lub dodaje nową wartość do danego klucza "
 "rejestru.\n"
 "\n"
 "  <klucz>\n"
-"     Klucz rejestru do dodania lub, jeśli określono [/v] lub [/ve],\n"
-"     klucz, do którego mają zostać dodane nowe dane rejestru.\n"
+"     Klucz rejestru do dodania lub, jeśli podano [/v] lub [/ve],\n"
+"     klucz, w który dodać nową daną rejestru.\n"
 "\n"
 "     Format: ROOT\\Podklucz\n"
 "\n"
-"     ROOT: Wstępnie zdefiniowany klucz rejestru. Musi to być jeden z "
-"następujących:\n"
+"     ROOT: Uprzednio określony klucz rejestru. Musi być jednym z "
+"poniższych:\n"
 "\n"
-"         HKEY_LOCAL_MACHINE  |HKLM\n"
+"         HKEY_LOCAL_MACHINE  | HKLM\n"
 "         HKEY_CURRENT_USER   | HKCU\n"
 "         HKEY_CLASSES_ROOT   | HKCR\n"
 "         HKEY_USERS          | HKU\n"
@@ -16300,27 +16135,27 @@ msgstr ""
 "     Nazwa wartości rejestru do dodania.\n"
 "\n"
 "  /ve\n"
-"     Dodaj nienazwaną wartość rejestru. Ta opcja modyfikuje (domyślną)\n"
+"     Dodaj nienazwaną wartość rejestru. Ustawienie to zmienia (domyślną)\n"
 "     wartość rejestru.\n"
 "\n"
-"  /t <typ>\n"
-"     Typ danych do dodania do rejestru. Jeśli określono [/t],\n"
-"     <typ> musi być jednym z następujących:\n"
+"  /t <rodzaj>\n"
+"     Rodzaj danych do dodania do rejestru. Jeśli podano [/t], to\n"
+"     <rodzaj> musi być jednym z poniższych:\n"
 "\n"
 "         REG_SZ    | REG_MULTI_SZ | REG_EXPAND_SZ\n"
-"         REG_DWORD | REG_QWORD    | REG_BINARY   | REG_NONE\n"
+"         REG_DWORD | REG_BINARY   | REG_NONE\n"
 "\n"
-"     Jeśli nie określono [/t], domyślnym typem danych jest REG_SZ.\n"
+"     Jeśli nie podano [/t], to domyślnym rodzajem danej jest REG_SZ.\n"
 "\n"
-"  /s <separator>\n"
-"     Znak używany do oddzielania ciągów w danych REG_MULTI_SZ.\n"
-"     Jeśli nie określono [/s], domyślnym separatorem jest \\0.\n"
+"  /s <rozdzielacz>\n"
+"     Znak używany do rozdzielania ciągów znaków w danej REG_MULTI_SZ.\n"
+"     Jeśli nie podano [/s], to domyślnym znakiem rozdzielającym jest  \\0.\n"
 "\n"
-"  /d <dane>\n"
+"  /d <dana>\n"
 "     Dane do dodania do nowej wartości rejestru.\n"
 "\n"
 "  /f\n"
-"     Modyfikuje rejestr bez monitowania o potwierdzenie.\n"
+"     Zmień rejestr bez pytania o potwierdzenie.\n"
 "\n"
 
 #: programs/reg/reg.rc:202
@@ -16634,39 +16469,39 @@ msgstr ""
 
 #: programs/reg/reg.rc:117
 msgid "reg: Invalid registry key\n"
-msgstr "reg: nieprawidłowy klucz rejestru\n"
+msgstr "reg: Nieprawidłowy klucz rejestru\n"
 
 #: programs/reg/reg.rc:119
 msgid "reg: Unable to access remote machine\n"
-msgstr "reg: nie udało się uzyskać dostępu do zdalnej maszyny\n"
+msgstr "reg: Nie udało się uzyskać dostępu do zdalnej maszyny\n"
 
 #: programs/reg/reg.rc:172
 msgid "reg: Invalid system key\n"
-msgstr "reg: nieprawidłowy klucz systemowy\n"
+msgstr "reg: Nieprawidłowy klucz systemowy\n"
 
 #: programs/reg/reg.rc:140
 msgid "reg: Invalid option [%1]. "
-msgstr "reg: nieprawidłowa opcja [%1]. "
+msgstr "reg: Nieprawidłowa opcja [%1]. "
 
 #: programs/reg/reg.rc:122
 msgid "reg: The option [/d] must be followed by a valid numeric value\n"
-msgstr "reg: po opcji [/d] musi wystąpić prawidłowa wartość liczbowa\n"
+msgstr "reg: Po opcji [/d] musi wystąpić prawidłowa wartość liczbowa\n"
 
 #: programs/reg/reg.rc:123
 msgid "reg: The option [/d] must be followed by a valid hexadecimal value\n"
-msgstr "reg: po opcji [/d] musi wystąpić prawidłowa wartość szesnastkowa\n"
+msgstr "reg: Po opcji [/d] musi wystąpić prawidłowa wartość szesnastkowa\n"
 
 #: programs/reg/reg.rc:136
 msgid "reg: The option [/d] must be followed by a valid string\n"
-msgstr "reg: opcja [/d] musi występować przy prawidłowym ciągu tekstu\n"
+msgstr "reg: Opcja [/d] musi występować przy prawidłowym ciągu tekstu\n"
 
 #: programs/reg/reg.rc:124
 msgid "reg: Unhandled registry data type [/t 0x%1!x!, /d %2]\n"
-msgstr "reg: nieobsługiwany rodzaj wartości rejestru [/t 0x%1!x!, /d %2]\n"
+msgstr "reg: Nieobsługiwany rodzaj wartości rejestru [/t 0x%1!x!, /d %2]\n"
 
 #: programs/reg/reg.rc:121
 msgid "reg: Unsupported registry data type [%1]\n"
-msgstr "reg: nieobsługiwany rodzaj wartości rejestru [%1]\n"
+msgstr "reg: Nieobsługiwany rodzaj wartości rejestru [%1]\n"
 
 #: programs/reg/reg.rc:125
 msgid "The registry value '%1' already exists. Do you want to overwrite it?"
@@ -16674,11 +16509,11 @@ msgstr "Wartość rejestru '%1' już istnieje. Czy chcesz ją zastąpić?"
 
 #: programs/reg/reg.rc:118
 msgid "reg: Invalid command line parameters\n"
-msgstr "reg: nieprawidłowe parametry wiersza poleceń\n"
+msgstr "reg: Nieprawidłowe parametry wiersza poleceń\n"
 
 #: programs/reg/reg.rc:204
 msgid "reg: The source and destination keys cannot be the same\n"
-msgstr "reg: klucze źródłowy i docelowy nie mogą być takie same\n"
+msgstr "reg: Klucze źródłowy i docelowy nie mogą być takie same\n"
 
 #: programs/reg/reg.rc:205
 msgid ""
@@ -16701,7 +16536,7 @@ msgstr "Czy na pewno chcesz usunąć kłucz rejestru '%1'?"
 
 #: programs/reg/reg.rc:137
 msgid "reg: Unable to delete all registry values in '%1'\n"
-msgstr "reg: nie udało się usunąć wszystkich kluczy rejestru '%1'\n"
+msgstr "reg: Nie udało się usunąć wszystkich kluczy rejestru '%1'\n"
 
 #: programs/reg/reg.rc:173
 msgid "The file '%1' already exists. Do you want to overwrite it?"
@@ -16709,15 +16544,15 @@ msgstr "Plik '%1' już istnieje. Czy chcesz go zastąpić?"
 
 #: programs/reg/reg.rc:151
 msgid "reg: Unrecognized escape sequence [\\%1!c!]\n"
-msgstr "reg: nierozpoznana sekwencja wyjściowa [\\%1!c!]\n"
+msgstr "reg: Nierozpoznana sekwencja wyjściowa [\\%1!c!]\n"
 
 #: programs/reg/reg.rc:175
 msgid "reg: Unable to import the registry key '%1'\n"
-msgstr "reg: nie można zaimportować klucza rejestru '%1'.\n"
+msgstr "reg: Nie można zaimportować klucza rejestru '%1'.\n"
 
 #: programs/reg/reg.rc:150
 msgid "reg: The file '%1' was not found.\n"
-msgstr "reg: nie znaleziono pliku '%1'.\n"
+msgstr "reg: Nie znaleziono pliku '%1'.\n"
 
 #: programs/reg/reg.rc:143 programs/regedit/regedit.rc:245
 msgid "(value not set)"
@@ -17067,7 +16902,7 @@ msgstr ""
 
 #: programs/regedit/regedit.rc:414
 msgid "regedit: Invalid or unrecognized switch [%1]\n"
-msgstr "regedit: nieprawidłowy lub nierozpoznany przełącznik [%1]\n"
+msgstr "regedit: Nieprawidłowy lub nierozpoznany przełącznik [%1]\n"
 
 #: programs/regedit/regedit.rc:415
 msgid "Type \"regedit /?\" for help.\n"
@@ -17075,95 +16910,95 @@ msgstr "Wprowadź \"regedit /?\" aby uzyskać pomoc.\n"
 
 #: programs/regedit/regedit.rc:416
 msgid "regedit: No filename was specified.\n"
-msgstr "regedit: nie określono nazwy pliku.\n"
+msgstr "regedit: Nie określono nazwy pliku.\n"
 
 #: programs/regedit/regedit.rc:417
 msgid "regedit: No registry key was specified for removal.\n"
-msgstr "regedit: nie określono klucza rejestru do usunięcia.\n"
+msgstr "regedit: Nie określono klucza rejestru do usunięcia.\n"
 
 #: programs/regedit/regedit.rc:418
 msgid "regedit: The file '%1' was not found.\n"
-msgstr "regedit: nie znaleziono pliku '%1'.\n"
+msgstr "regedit: Nie znaleziono pliku '%1'.\n"
 
 #: programs/regedit/regedit.rc:419
 msgid "regedit: Unable to open the file '%1'.\n"
-msgstr "regedit: nie udało się otworzyć pliku '%1'.\n"
+msgstr "regedit: Nie udało się otworzyć pliku '%1'.\n"
 
 #: programs/regedit/regedit.rc:420
 msgid "regedit: Unhandled action.\n"
-msgstr "regedit: nieobsługiwana akcja.\n"
+msgstr "regedit: Nieobsługiwana akcja.\n"
 
 #: programs/regedit/regedit.rc:421
 msgid "regedit: Out of memory! (%1!S!, line %2!u!)\n"
-msgstr "regedit: brak pamięci! (%1!S!, wiersz %2!u!)\n"
+msgstr "regedit: Brak pamięci! (%1!S!, wiersz %2!u!)\n"
 
 #: programs/regedit/regedit.rc:422
 msgid "regedit: Invalid hexadecimal value.\n"
-msgstr "regedit: nieobsługiwana wartość szesnastkowa.\n"
+msgstr "regedit: Nieobsługiwana wartość szesnastkowa.\n"
 
 #: programs/regedit/regedit.rc:423
 msgid ""
 "regedit: Unable to convert hexadecimal data. An invalid value was "
 "encountered at '%1'.\n"
 msgstr ""
-"regedit: nie udało się przekształcić wartości szesnastkowej. Napotkano "
+"regedit: Nie udało się przekształcić wartości szesnastkowej. Napotkano "
 "nieprawidłową wartość w '%1'.\n"
 
 #: programs/regedit/regedit.rc:424
 msgid "regedit: Unrecognized escape sequence [\\%1!c!]\n"
-msgstr "regedit: nierozpoznana sekwencja wyjściowa [\\%1!c!]\n"
+msgstr "regedit: Nierozpoznana sekwencja wyjściowa [\\%1!c!]\n"
 
 #: programs/regedit/regedit.rc:425
 msgid "regedit: Unsupported registry data type [0x%1!x!]\n"
-msgstr "regedit: nieobsługiwany rodzaj wartości rejestru [0x%1!x!]\n"
+msgstr "regedit: Nieobsługiwany rodzaj wartości rejestru [0x%1!x!]\n"
 
 #: programs/regedit/regedit.rc:426
 msgid "regedit: Unexpected end of line in '%1'.\n"
-msgstr "regedit: nieoczekiwane zakończenie linii w '%1'.\n"
+msgstr "regedit: Nieoczekiwane zakończenie linii w '%1'.\n"
 
 #: programs/regedit/regedit.rc:427
 msgid "regedit: The line '%1' was not recognized.\n"
-msgstr "regedit: nie rozpoznano linii '%1'.\n"
+msgstr "regedit: Nie rozpoznano linii '%1'.\n"
 
 #: programs/regedit/regedit.rc:428
 msgid "regedit: Unable to add the registry value '%1' to '%2'.\n"
-msgstr "regedit: nie udało się dodać wartości rejestru '%1' do '%2'.\n"
+msgstr "regedit: Nie udało się dodać wartości rejestru '%1' do '%2'.\n"
 
 #: programs/regedit/regedit.rc:429
 msgid "regedit: Unable to open the registry key '%1'.\n"
-msgstr "regedit: nie udało się otworzyć klucza rejestru '%1'.\n"
+msgstr "regedit: Nie udało się otworzyć klucza rejestru '%1'.\n"
 
 #: programs/regedit/regedit.rc:430
 msgid ""
 "regedit: Unsupported registry data type [0x%1!x!] encountered in '%2'.\n"
 msgstr ""
-"regedit: nieobsługiwany rodzaj wartości rejestru [0x%1!x!] napotkany w "
+"regedit: Nieobsługiwany rodzaj wartości rejestru [0x%1!x!] napotkany w "
 "'%2'.\n"
 
 #: programs/regedit/regedit.rc:431
 msgid "regedit: The registry value '%1' will be exported as binary data.\n"
 msgstr ""
-"regedit: wartość rejestru '%1' zostanie wyeksportowana jako wartość "
+"regedit: Wartość rejestru '%1' zostanie wyeksportowana jako wartość "
 "binarna.\n"
 
 #: programs/regedit/regedit.rc:432
 msgid "regedit: Invalid system key [%1]\n"
-msgstr "regedit: nieprawidłowy klucz systemowy [%1]\n"
+msgstr "regedit: Nieprawidłowy klucz systemowy [%1]\n"
 
 #: programs/regedit/regedit.rc:433
 msgid ""
 "regedit: Unable to export '%1'. The specified registry key was not found.\n"
 msgstr ""
-"regedit: nie udało się wyeksportować '%1'. Określony klucz rejestru nie "
+"regedit: Nie udało się wyeksportować '%1'. Określony klucz rejestru nie "
 "został odnaleziony.\n"
 
 #: programs/regedit/regedit.rc:434
 msgid "regedit: Unable to delete the registry key '%1'.\n"
-msgstr "regedit: nie udało się usunąć klucza rejestru '%1'.\n"
+msgstr "regedit: Nie udało się usunąć klucza rejestru '%1'.\n"
 
 #: programs/regedit/regedit.rc:436
 msgid "regedit: The line contains invalid syntax.\n"
-msgstr "regedit: wiersz zawiera nieprawidłową składnię.\n"
+msgstr "regedit: Wiersz zawiera nieprawidłową składnię.\n"
 
 #: programs/regedit/regedit.rc:191
 msgid "Quits the Registry Editor"
@@ -17199,7 +17034,7 @@ msgstr "Zmienia nazwę zaznaczenia"
 
 #: programs/regedit/regedit.rc:199
 msgid "Copies the name of the selected key to the clipboard"
-msgstr "Kopiuje nazwę wybranego klucza do schowka"
+msgstr "Kopiuje nazwę wybranego klucza do Schowka"
 
 #: programs/regedit/regedit.rc:200
 msgid "Finds a text string in a key, value or data"
@@ -17373,12 +17208,12 @@ msgid ""
 "regsvr32: Invalid or unrecognized switch [%1]\n"
 "\n"
 msgstr ""
-"regsvr32: nieprawidłowy lub nierozpoznany przełącznik [%1]\n"
+"regsvr32: Nieprawidłowy lub nierozpoznany przełącznik [%1]\n"
 "\n"
 
 #: programs/regsvr32/regsvr32.rc:43
 msgid "regsvr32: Failed to load DLL '%1'\n"
-msgstr "regsvr32: nieudane wczytywanie biblioteki DLL '%1'\n"
+msgstr "regsvr32: Nieudane wczytywanie biblioteki DLL '%1'\n"
 
 #: programs/regsvr32/regsvr32.rc:44
 msgid "regsvr32: '%1!S!' not implemented in DLL '%2'\n"
@@ -17386,35 +17221,35 @@ msgstr "regsvr32: '%1!S!' nie jest zaimplementowana w bibliotece DLL '%2'\n"
 
 #: programs/regsvr32/regsvr32.rc:45
 msgid "regsvr32: Failed to register DLL '%1'\n"
-msgstr "regsvr32: nieudane rejestrowanie biblioteki DLL '%1'\n"
+msgstr "regsvr32: Nieudane rejestrowanie biblioteki DLL '%1'\n"
 
 #: programs/regsvr32/regsvr32.rc:46
 msgid "regsvr32: Successfully registered DLL '%1'\n"
-msgstr "regsvr32: pomyślnie zarejestrowano bibliotekę DLL '%1'\n"
+msgstr "regsvr32: Pomyślnie zarejestrowano bibliotekę DLL '%1'\n"
 
 #: programs/regsvr32/regsvr32.rc:47
 msgid "regsvr32: Failed to unregister DLL '%1'\n"
-msgstr "regsvr32: nieudane wyrejestrowywanie biblioteki DLL '%1'\n"
+msgstr "regsvr32: Nieudane wyrejestrowywanie biblioteki DLL '%1'\n"
 
 #: programs/regsvr32/regsvr32.rc:48
 msgid "regsvr32: Successfully unregistered DLL '%1'\n"
-msgstr "regsvr32: pomyślnie wyrejestrowano bibliotekę DLL '%1'\n"
+msgstr "regsvr32: Pomyślnie wyrejestrowano bibliotekę DLL '%1'\n"
 
 #: programs/regsvr32/regsvr32.rc:49
 msgid "regsvr32: Failed to install DLL '%1'\n"
-msgstr "regsvr32: nieudane instalowanie biblioteki DLL '%1'\n"
+msgstr "regsvr32: Nieudane instalowanie biblioteki DLL '%1'\n"
 
 #: programs/regsvr32/regsvr32.rc:50
 msgid "regsvr32: Successfully installed DLL '%1'\n"
-msgstr "regsvr32: pomyślnie zainstalowano bibliotekę DLL '%1'\n"
+msgstr "regsvr32: Pomyślnie zainstalowano bibliotekę DLL '%1'\n"
 
 #: programs/regsvr32/regsvr32.rc:51
 msgid "regsvr32: Failed to uninstall DLL '%1'\n"
-msgstr "regsvr32: nieudane odinstalowywanie biblioteki DLL '%1'\n"
+msgstr "regsvr32: Nieudane odinstalowywanie biblioteki DLL '%1'\n"
 
 #: programs/regsvr32/regsvr32.rc:52
 msgid "regsvr32: Successfully uninstalled DLL '%1'\n"
-msgstr "regsvr32: pomyślnie odinstalowano bibliotekę DLL '%1'\n"
+msgstr "regsvr32: Pomyślnie odinstalowano bibliotekę DLL '%1'\n"
 
 #: programs/start/start.rc:56
 msgid ""
@@ -17497,23 +17332,23 @@ msgstr "Użycie: taskkill [/?] [/f] [/im nazwa procesu | /pid id procesu]\n"
 
 #: programs/taskkill/taskkill.rc:31
 msgid "Error: Unknown or invalid command line option specified.\n"
-msgstr "Błąd: podano nieznany lub nieprawidłowy argument wiersza poleceń.\n"
+msgstr "Błąd: Podano nieznany lub nieprawidłowy argument wiersza poleceń.\n"
 
 #: programs/taskkill/taskkill.rc:32
 msgid "Error: Invalid command line parameter specified.\n"
-msgstr "Błąd: podano nieprawidłowy parametr wiersza poleceń.\n"
+msgstr "Błąd: Podano nieprawidłowy parametr wiersza poleceń.\n"
 
 #: programs/taskkill/taskkill.rc:33
 msgid "Error: One of options /im or /pid must be specified.\n"
-msgstr "Błąd: jedna z opcji /im albo /pid musi być podana.\n"
+msgstr "Błąd: Jedna z opcji /im albo /pid musi być podana.\n"
 
 #: programs/taskkill/taskkill.rc:34
 msgid "Error: Option %1 expects a command line parameter.\n"
-msgstr "Błąd: argument %1 oczekuje parametru wiersza poleceń.\n"
+msgstr "Błąd: Argument %1 oczekuje parametru wiersza poleceń.\n"
 
 #: programs/taskkill/taskkill.rc:35
 msgid "Error: Options /im and /pid are mutually exclusive.\n"
-msgstr "Błąd: argumenty /im i /pid wykluczają się wzajemnie.\n"
+msgstr "Błąd: Argumenty /im i /pid wykluczają się wzajemnie.\n"
 
 #: programs/taskkill/taskkill.rc:36
 msgid "Close message sent to top-level windows of process with PID %1!u!.\n"
@@ -17538,19 +17373,19 @@ msgstr "Proces \"%1\" z PID %2!u! został zmuszony do zakończenia.\n"
 
 #: programs/taskkill/taskkill.rc:40
 msgid "Error: Could not find process \"%1\".\n"
-msgstr "Błąd: nie można znaleźć procesu \"%1\".\n"
+msgstr "Błąd: Nie można znaleźć procesu \"%1\".\n"
 
 #: programs/taskkill/taskkill.rc:41
 msgid "Error: Unable to enumerate the process list.\n"
-msgstr "Błąd: nie można ponumerować listy procesów.\n"
+msgstr "Błąd: Nie można ponumerować listy procesów.\n"
 
 #: programs/taskkill/taskkill.rc:42
 msgid "Error: Unable to terminate process \"%1\".\n"
-msgstr "Błąd: nie można zakończyć procesu \"%1\".\n"
+msgstr "Błąd: Nie można zakończyć procesu \"%1\".\n"
 
 #: programs/taskkill/taskkill.rc:43
 msgid "Error: Process self-termination is not permitted.\n"
-msgstr "Błąd: samozakończenie procesu nie jest dozwolone.\n"
+msgstr "Błąd: Samo-zakończenie procesu nie jest dozwolone.\n"
 
 #: programs/taskkill/taskkill.rc:44
 msgid ""
@@ -17599,11 +17434,11 @@ msgstr "K"
 
 #: programs/tasklist/tasklist.rc:36
 msgid "ERROR: Invalid syntax\n"
-msgstr "BŁĄD: nieprawidłowa składnia\n"
+msgstr "BŁĄD: Nieprawidłowa składnia\n"
 
 #: programs/tasklist/tasklist.rc:37
 msgid "ERROR: The search filter cannot be recognized.\n"
-msgstr "BŁĄD: nie można rozpoznać filtru wyszukiwania.\n"
+msgstr "BŁĄD: Nie można rozpoznać filtru wyszukiwania.\n"
 
 #: programs/taskmgr/taskmgr.rc:37 programs/taskmgr/taskmgr.rc:108
 msgid "&New Task (Run...)"
@@ -17841,7 +17676,7 @@ msgid ""
 "The Processor Affinity setting controls which CPUs the process will be "
 "allowed to execute on."
 msgstr ""
-"Koligacja procesora pozwala ustalić, na których procesorach można uruchamiać "
+"Koligacja Procesora pozwala ustalić na których procesorach można uruchamiać "
 "ten proces."
 
 #: programs/taskmgr/taskmgr.rc:446
@@ -18029,7 +17864,7 @@ msgstr "Odczyty We/Wy w bajtach"
 
 #: programs/taskmgr/taskmgr.rc:543
 msgid "&Session ID"
-msgstr "ID ses&ji"
+msgstr "ID Ses&ji"
 
 #: programs/taskmgr/taskmgr.rc:545
 msgid "User &Name"
@@ -18107,15 +17942,15 @@ msgstr "Ukrywa zarządzanie zadaniami, gdy jest zminimalizowane"
 #: programs/taskmgr/taskmgr.rc:192
 msgid "Force Task Manager to update now, regardless of Update Speed setting"
 msgstr ""
-"Wymuś, odświeżenie listy teraz, niezależnie od częstotliwości odświeżania"
+"Wymuś, odświeżenie listy teraz, niezależnie od Częstotliwości odświeżania"
 
 #: programs/taskmgr/taskmgr.rc:193
 msgid "Displays tasks by using large icons"
-msgstr "Wyświetla zadania, używając dużych ikon"
+msgstr "Wyświetla zadania używając dużych ikon"
 
 #: programs/taskmgr/taskmgr.rc:194
 msgid "Displays tasks by using small icons"
-msgstr "Wyświetla zadania, używając małych ikon"
+msgstr "Wyświetla zadania używając małych ikon"
 
 #: programs/taskmgr/taskmgr.rc:195
 msgid "Displays information about each task"
@@ -18332,7 +18167,7 @@ msgid ""
 "cause undesired results including system instability. Are you\n"
 "sure you want to change the priority class?"
 msgstr ""
-"OSTRZEŻENIE: zmiana priorytetu tego procesu może przynieść\n"
+"OSTRZEŻENIE: Zmiana priorytetu tego procesu może przynieść\n"
 "niepożądane skutki, w tym również niestabilność systemu\n"
 "Czy na pewno chcesz zmienić priorytet?"
 
@@ -18348,7 +18183,7 @@ msgid ""
 "data before it is terminated. Are you sure you want to\n"
 "terminate the process?"
 msgstr ""
-"OSTRZEŻENIE: zakończenie procesu może przynieść\n"
+"OSTRZEŻENIE: Zakończenie procesu może przynieść\n"
 "niepożądane skutki, w tym również\n"
 "utratę danych i niestabilność systemu.\n"
 "Proces nie będzie miał szansy na zapisanie danych\n"
@@ -18363,7 +18198,7 @@ msgid ""
 "WARNING: Debugging this process may result in loss of data.\n"
 "Are you sure you wish to attach the debugger?"
 msgstr ""
-"OSTRZEŻENIE: diagnozowanie tego procesu może spowodować utratę danych.\n"
+"OSTRZEŻENIE: Diagnozowanie tego procesu może spowodować utratę danych.\n"
 "Czy na pewno chcesz uruchomić program diagnostyczny?"
 
 #: programs/taskmgr/taskmgr.rc:314
@@ -18398,40 +18233,6 @@ msgstr "Uruchomione"
 msgid "Task"
 msgstr "Zadanie"
 
-#: programs/timeout/timeout.rc:28
-msgid "Usage: timeout /T <timeout> [</NOBREAK>]\n"
-msgstr "Użycie: timeout /T <limit_czasu> [</NOBREAK>]\n"
-
-#: programs/timeout/timeout.rc:29
-msgid "TIMEOUT: Bad command line\n"
-msgstr ""
-"LIMIT CZASU: zła linia poleceń\n"
-"\n"
-
-#: programs/timeout/timeout.rc:30
-msgid "waiting since %d sec. "
-msgstr "oczekiwanie od %d sek."
-
-#: programs/timeout/timeout.rc:31
-msgid "press CTRL+C..."
-msgstr "naciśnij CTRL+C..."
-
-#: programs/timeout/timeout.rc:32
-msgid "press a key to continue..."
-msgstr "naciśnij klawisz, aby kontynuować..."
-
-#: programs/timeout/timeout.rc:33
-msgid "ERROR: not possible to redirect input\n"
-msgstr "BŁĄD: nie można przekierować danych wejściowych\n"
-
-#: programs/timeout/timeout.rc:34
-msgid ""
-"ERROR: Timeout value out of range or invalid number. Valid range is -1 to "
-"99999.\n"
-msgstr ""
-"BŁĄD: wartość limitu czasu poza zakresem lub nieprawidłowa liczba. "
-"Prawidłowy zakres to -1 do 99999.\n"
-
 #: programs/uninstaller/uninstaller.rc:29
 msgid "Wine Application Uninstaller"
 msgstr "Wine - usuwanie programów"
@@ -18448,16 +18249,16 @@ msgstr ""
 
 #: programs/uninstaller/uninstaller.rc:31
 msgid "uninstaller: The application with GUID '%1' was not found\n"
-msgstr "usuwanie programów: nie znaleziono aplikacji o GUID '%1'\n"
+msgstr "usuwanie programów: Nie znaleziono aplikacji o GUID '%1'\n"
 
 #: programs/uninstaller/uninstaller.rc:32
 msgid ""
 "uninstaller: The option '--remove' must be followed by an application GUID\n"
-msgstr "usuwanie programów: po opcji '--remove' należy podać GUID aplikacji\n"
+msgstr "usuwanie programów: Po opcji '--remove' należy podać GUID aplikacji\n"
 
 #: programs/uninstaller/uninstaller.rc:33
 msgid "uninstaller: Invalid option [%1]\n"
-msgstr "usuwanie programów: nieprawidłowa opcja [%1]\n"
+msgstr "usuwanie programów: Nieprawidłowa opcja [%1]\n"
 
 #: programs/uninstaller/uninstaller.rc:35
 msgid ""
@@ -18557,7 +18358,7 @@ msgstr ""
 
 #: programs/winecfg/winecfg.rc:148
 msgid "Windows registration information"
-msgstr "Dane rejestracyjne Windows"
+msgstr "Dane rejestracyjne dla Windowsa"
 
 #: programs/winecfg/winecfg.rc:149
 msgid "&Owner:"
@@ -18636,9 +18437,9 @@ msgid ""
 "(provided by Wine) or native (taken from Windows or provided by the "
 "application)."
 msgstr ""
-"Biblioteki dynamicznego łączenia można określić indywidualnie jako wbudowane "
-"(dostarczane przez Wine) lub natywne (pobierane z systemu Windows lub "
-"dostarczane przez aplikację)."
+"Tutaj, dla każdej biblioteki DLL osobno, można ustawić czy będzie używana "
+"jej wersja wbudowana (dostarczona z Wine), czy zewnętrzna(wzięta z Windowsa "
+"lub dostarczona wraz z aplikacją)"
 
 #: programs/winecfg/winecfg.rc:199
 msgid "&New override for library:"
@@ -18778,7 +18579,7 @@ msgstr "Motyw &WinRT:"
 
 #: programs/winecfg/winecfg.rc:297
 msgid "&Install theme..."
-msgstr "&Zainstaluj motyw..."
+msgstr "&Wgraj wystrój..."
 
 #: programs/winecfg/winecfg.rc:302
 msgid "It&em:"
@@ -18814,7 +18615,7 @@ msgstr "Dyski"
 
 #: programs/winecfg/winecfg.rc:35
 msgid "Select the Unix target directory, please."
-msgstr "Proszę wybrać docelowy katalog uniksowy."
+msgstr "Proszę wybrać docelowy katalog Uniksowy."
 
 #: programs/winecfg/winecfg.rc:36
 msgid "Hide Advan&ced"
@@ -18995,8 +18796,8 @@ msgid ""
 msgstr ""
 "Czy na pewno chcesz usunąć dysk C?\n"
 "\n"
-"Większość programów dla Windows zakłada istnienie takiego dysku i mogą one "
-"przestać działać, gdy go zabraknie. Jeżeli go usuniesz, nie zapomnij o "
+"Większość programów dla Windows zakłada istnienie takiego dysku i mogą "
+"przestać działać gdy go zabraknie. Jeżeli go usuniesz, nie zapomnij o "
 "ponownym jego utworzeniu!"
 
 #: programs/winecfg/winecfg.rc:76
@@ -19147,14 +18948,14 @@ msgid ""
 "wineconsole: Starting program %s failed.\n"
 "The command is invalid.\n"
 msgstr ""
-"wineconsole: nie udało się uruchomić programu %s.\n"
+"wineconsole: Nie udało się uruchomić programu %s.\n"
 "Polecenie jest niewłaściwe.\n"
 
-#: programs/winedbg/winedbg.rc:51 programs/winedbg/winedbg.rc:38
+#: programs/winedbg/winedbg.rc:50 programs/winedbg/winedbg.rc:38
 msgid "Program Error"
 msgstr "Błąd programu"
 
-#: programs/winedbg/winedbg.rc:56
+#: programs/winedbg/winedbg.rc:55
 msgid ""
 "The program %s has encountered a serious problem and needs to close. We are "
 "sorry for the inconvenience."
@@ -19162,7 +18963,7 @@ msgstr ""
 "Program %s napotkał poważny problem i musi zakończyć działanie. Przepraszamy "
 "za tę niedogodność."
 
-#: programs/winedbg/winedbg.rc:60
+#: programs/winedbg/winedbg.rc:59
 msgid ""
 "This can be caused by a problem in the program or a deficiency in Wine. You "
 "may want to check the <a href=\"https://appdb.winehq.org\">Application "
@@ -19172,26 +18973,25 @@ msgstr ""
 "href=\"https://appdb.winehq.org\">Bazy danych aplikacji</a> po wskazówki na "
 "temat uruchomienia tej aplikacji."
 
-#: programs/winedbg/winedbg.rc:63
+#: programs/winedbg/winedbg.rc:62
 msgid "Show &Details"
 msgstr "Pokaż &szczegóły"
 
-#: programs/winedbg/winedbg.rc:68
+#: programs/winedbg/winedbg.rc:67
 msgid "Program Error Details"
 msgstr "Szczegóły błędu programu"
 
-#: programs/winedbg/winedbg.rc:75
+#: programs/winedbg/winedbg.rc:74
 msgid ""
 "If this problem is not present under Windows and has not been reported yet, "
 "you can save the detailed information to a file using the \"Save As\" "
-"button, then <a href=\"https://gitlab.winehq.org/wine/wine/-/wikis/"
-"Bugs\">file a bug report</a> and attach that file to the report."
+"button, then <a href=\"https://wiki.winehq.org/Bugs\">file a bug report</a> "
+"and attach that file to the report."
 msgstr ""
 "Jeżeli problem ten nie występuje w systemie Windows i nie został jeszcze "
 "zgłoszony, to możesz zapisać szczegółowe informacje do pliku używając "
-"przycisku \"Zapisz jako\", a następnie <a href=\"https://gitlab.winehq.org/"
-"wine/wine/-/wikis/Bugs\">wypełnić zgłoszenie o błędzie</a> i dołączyć ten "
-"plik do zgłoszenia."
+"przycisku \"Zapisz jako\", a następnie <a href=\"https://wiki.winehq.org/"
+"Bugs\">wypełnić zgłoszenie o błędzie</a> i dołączyć ten plik do zgłoszenia."
 
 #: programs/winedbg/winedbg.rc:40
 msgid ""
@@ -19368,7 +19168,7 @@ msgstr "Błąd przy wybieraniu czcionki."
 
 #: programs/winefile/winefile.rc:96
 msgid "Wine File Manager"
-msgstr "Menedżer plików Wine"
+msgstr "Zarządzanie plikami Wine"
 
 #: programs/winefile/winefile.rc:98
 msgid "root fs"
@@ -19428,7 +19228,7 @@ msgstr "Plansza &użytkownika..."
 
 #: programs/winemine/winemine.rc:49
 msgid "&Fastest Times"
-msgstr "&Najlepsze wyniki"
+msgstr "&Najlepsze Wyniki"
 
 #: programs/winemine/winemine.rc:54
 msgid "&About WineMine"
@@ -19589,24 +19389,20 @@ msgid "Help topics: "
 msgstr "Tematy pomocy: "
 
 #: programs/wmic/wmic.rc:28
-msgid "Error: Command not supported\n"
-msgstr "Błąd: polecenie nie jest obsługiwane\n"
+msgid "Error: Command line not supported\n"
+msgstr "Błąd: Wiersz poleceń jest nieobsługiwany\n"
 
 #: programs/wmic/wmic.rc:29
 msgid "Error: Alias not found\n"
-msgstr "Błąd: nie znaleziono aliasu\n"
+msgstr "Błąd: Nie znaleziono aliasu\n"
 
 #: programs/wmic/wmic.rc:30
 msgid "Error: Invalid query\n"
-msgstr "Błąd: nieprawidłowe zapytanie\n"
+msgstr "Błąd: Nieprawidłowe zapytanie\n"
 
 #: programs/wmic/wmic.rc:31
 msgid "Error: Invalid syntax for PATH\n"
-msgstr "Błąd: nieprawidłowa składnia dla PATH\n"
-
-#: programs/wmic/wmic.rc:32
-msgid "Supply a command\n"
-msgstr "Podaj polecenie\n"
+msgstr "Błąd: Nieprawidłowa składnia dla PATH\n"
 
 #: programs/wordpad/wordpad.rc:31
 msgid "&New...\tCtrl+N"
@@ -19730,7 +19526,7 @@ msgstr "&Jasny żółty\tCtrl+2"
 
 #: programs/wordpad/wordpad.rc:104
 msgid "&About Wine Wordpad"
-msgstr "Wordpad Wine - &informacje"
+msgstr "Wine Wordpad - &informacje"
 
 #: programs/wordpad/wordpad.rc:141
 msgid "Automatic"

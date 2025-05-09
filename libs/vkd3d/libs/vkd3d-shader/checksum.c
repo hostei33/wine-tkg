@@ -33,11 +33,6 @@
  * will fill a supplied 16-byte array with the digest.
  */
 
-/*
- * DXBC uses a variation of the MD5 algorithm, which only changes the way
- * the message is padded in the final step.
- */
-
 #include "vkd3d_shader_private.h"
 
 #define DXBC_CHECKSUM_BLOCK_SIZE 64
@@ -235,9 +230,10 @@ static void md5_update(struct md5_ctx *ctx, const unsigned char *buf, unsigned i
     memcpy(ctx->in, buf, len);
 }
 
-static void md5_final(struct md5_ctx *ctx, enum vkd3d_md5_variant variant)
+static void dxbc_checksum_final(struct md5_ctx *ctx)
 {
     unsigned int padding;
+    unsigned int length;
     unsigned int count;
     unsigned char *p;
 
@@ -264,7 +260,7 @@ static void md5_final(struct md5_ctx *ctx, enum vkd3d_md5_variant variant)
         /* Now fill the next block */
         memset(ctx->in, 0, DXBC_CHECKSUM_BLOCK_SIZE);
     }
-    else if (variant == VKD3D_MD5_DXBC)
+    else
     {
         /* Make place for bitcount at the beginning of the block */
         memmove(&ctx->in[4], ctx->in, count);
@@ -272,44 +268,33 @@ static void md5_final(struct md5_ctx *ctx, enum vkd3d_md5_variant variant)
         /* Pad block to 60 bytes */
         memset(p + 4, 0, padding - 4);
     }
-    else
-    {
-        /* Pad block to 56 bytes */
-        memset(p, 0, padding - 8);
-    }
 
     /* Append length in bits and transform */
-    if (variant == VKD3D_MD5_DXBC)
-    {
-        unsigned int length;
-
-        length = ctx->i[0];
-        memcpy(&ctx->in[0], &length, sizeof(length));
-        byte_reverse(&ctx->in[4], 14);
-        length = ctx->i[0] >> 2 | 0x1;
-        memcpy(&ctx->in[DXBC_CHECKSUM_BLOCK_SIZE - 4], &length, sizeof(length));
-    }
-    else
-    {
-        byte_reverse(ctx->in, 14);
-
-        ((unsigned int *)ctx->in)[14] = ctx->i[0];
-        ((unsigned int *)ctx->in)[15] = ctx->i[1];
-    }
+    length = ctx->i[0];
+    memcpy(&ctx->in[0], &length, sizeof(length));
+    byte_reverse(&ctx->in[4], 14);
+    length = ctx->i[0] >> 2 | 0x1;
+    memcpy(&ctx->in[DXBC_CHECKSUM_BLOCK_SIZE - 4], &length, sizeof(length));
 
     md5_transform(ctx->buf, (unsigned int *)ctx->in);
     byte_reverse((unsigned char *)ctx->buf, 4);
     memcpy(ctx->digest, ctx->buf, 16);
 }
 
-void vkd3d_compute_md5(const void *data, size_t size, uint32_t checksum[4], enum vkd3d_md5_variant variant)
+#define DXBC_CHECKSUM_SKIP_BYTE_COUNT 20
+
+void vkd3d_compute_dxbc_checksum(const void *dxbc, size_t size, uint32_t checksum[4])
 {
-    const uint8_t *ptr = data;
+    const uint8_t *ptr = dxbc;
     struct md5_ctx ctx;
+
+    assert(size > DXBC_CHECKSUM_SKIP_BYTE_COUNT);
+    ptr += DXBC_CHECKSUM_SKIP_BYTE_COUNT;
+    size -= DXBC_CHECKSUM_SKIP_BYTE_COUNT;
 
     md5_init(&ctx);
     md5_update(&ctx, ptr, size);
-    md5_final(&ctx, variant);
+    dxbc_checksum_final(&ctx);
 
     memcpy(checksum, ctx.digest, sizeof(ctx.digest));
 }

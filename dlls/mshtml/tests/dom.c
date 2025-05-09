@@ -52,6 +52,16 @@ static enum {
 static const char doc_blank[] =
     "<html></html>";
 
+static const char doc_blank_ie8[] =
+    "<!DOCTYPE html>\n"
+    "<html>"
+    " <head>"
+    "  <meta http-equiv=\"x-ua-compatible\" content=\"IE=8\" />"
+    " </head>"
+    " <body>"
+    " </body>"
+    "</html>";
+
 static const char doc_blank_ie9[] =
     "<!DOCTYPE html>\n"
     "<html>"
@@ -102,9 +112,6 @@ static const char frameset_str[] =
     "</frameset></html>";
 static const char emptydiv_str[] =
     "<html><head><title>emptydiv test</title></head>"
-    "<body><div id=\"divid\"></div></body></html>";
-static const char emptydiv_ie9_str[] =
-    "<html><head><meta http-equiv=\"x-ua-compatible\" content=\"IE=9\"/><title>emptydiv test</title></head>"
     "<body><div id=\"divid\"></div></body></html>";
 static const char noscript_str[] =
     "<html><head><title>noscript test</title><noscript><style>.body { margin-right: 0px; }</style></noscript></head>"
@@ -341,7 +348,6 @@ static const IID * const window_iids[] = {
 static const IID * const comment_iids[] = {
     ELEM_IFACES,
     &IID_IHTMLCommentElement,
-    &IID_IHTMLCommentElement2,
     &IID_IConnectionPointContainer,
     NULL
 };
@@ -757,7 +763,10 @@ static void _test_class_info(unsigned line, IUnknown *unk, const CLSID *clsid)
 #define test_disp2(a,b,c,d,e) _test_disp2(__LINE__,a,b,c,d,e)
 static void _test_disp2(unsigned line, IUnknown *unk, const IID *diid, const IID *diid2, const CLSID *clsid, const WCHAR *val)
 {
+    IDispatchEx *dispex;
     IUnknown *u;
+    DISPID id;
+    BSTR bstr;
     IID iid;
     HRESULT hres;
 
@@ -787,6 +796,28 @@ static void _test_disp2(unsigned line, IUnknown *unk, const IID *diid, const IID
         hres = IUnknown_QueryInterface(unk, &IID_IProvideClassInfo, (void**)&u);
         ok_(__FILE__,line)(hres == E_NOINTERFACE, "Got IProvideClassInfo iface\n");
         ok_(__FILE__,line)(!u, "u = %p\n", u);
+    }
+
+    if(compat_mode >= COMPAT_IE9) {
+        dispex = _get_dispex_iface(line, unk);
+        bstr = SysAllocString(L"hasOwnProperty");
+        hres = IDispatchEx_GetDispID(dispex, bstr, 0, &id);
+        ok_(__FILE__,line)(hres == S_OK, "GetDispID(hasOwnProperty) failed: %08lx\n", hres);
+        SysFreeString(bstr);
+
+        bstr = SysAllocString(L"hasoWnPROperty");
+        hres = IDispatchEx_GetIDsOfNames(dispex, &IID_NULL, &bstr, 1, 0, &id);
+        ok_(__FILE__,line)(hres == S_OK, "GetIDsOfNames(hasoWnPROperty) failed: %08lx\n", hres);
+        ok_(__FILE__,line)(id > 0, "Unexpected DISPID for hasoWnPROperty: %ld\n", id);
+
+        hres = IDispatchEx_GetDispID(dispex, bstr, 0, &id);
+        ok_(__FILE__,line)(hres == DISP_E_UNKNOWNNAME, "GetDispID(hasoWnPROperty) returned %08lx\n", hres);
+
+        hres = IDispatchEx_GetDispID(dispex, bstr, fdexNameCaseInsensitive, &id);
+        ok_(__FILE__,line)(hres == S_OK, "GetDispID(hasoWnPROperty) with fdexNameCaseInsensitive failed: %08lx\n", hres);
+        ok_(__FILE__,line)(id > 0, "Unexpected DISPID for hasoWnPROperty with fdexNameCaseInsensitive: %ld\n", id);
+        SysFreeString(bstr);
+        IDispatchEx_Release(dispex);
     }
 }
 
@@ -1014,17 +1045,6 @@ static IHTMLCommentElement *_get_comment_iface(unsigned line, IUnknown *unk)
     hres = IUnknown_QueryInterface(unk, &IID_IHTMLCommentElement, (void**)&comment);
     ok_(__FILE__,line) (hres == S_OK, "Could not get IHTMLCommentElement: %08lx\n", hres);
     return comment;
-}
-
-#define get_comment2_iface(u) _get_comment2_iface(__LINE__,u)
-static IHTMLCommentElement2 *_get_comment2_iface(unsigned line, IUnknown *unk)
-{
-    IHTMLCommentElement2 *comment2;
-    HRESULT hres;
-
-    hres = IUnknown_QueryInterface(unk, &IID_IHTMLCommentElement2, (void**)&comment2);
-    ok_(__FILE__,line) (hres == S_OK, "Could not get IHTMLCommentElement2: %08lx\n", hres);
-    return comment2;
 }
 
 #define get_object_iface(u) _get_object_iface(__LINE__,u)
@@ -2059,10 +2079,9 @@ static IHTMLFormElement *_get_textarea_form(unsigned line, IUnknown *unk)
     return form;
 }
 
-#define test_comment_text(c,t,d) _test_comment_text(__LINE__,c,t,d)
-static void _test_comment_text(unsigned line, IUnknown *unk, const WCHAR *extext, const WCHAR *data)
+#define test_comment_text(c,t) _test_comment_text(__LINE__,c,t)
+static void _test_comment_text(unsigned line, IUnknown *unk, const WCHAR *extext)
 {
-    IHTMLCommentElement2 *comment2 = _get_comment2_iface(__LINE__,unk);
     IHTMLCommentElement *comment = _get_comment_iface(__LINE__,unk);
     const WCHAR *p;
     BSTR text;
@@ -2076,13 +2095,6 @@ static void _test_comment_text(unsigned line, IUnknown *unk, const WCHAR *extext
         ok_(__FILE__,line)(!lstrcmpW(text, extext), "text = \"%s\", expected \"%s\"\n", wine_dbgstr_w(text), wine_dbgstr_w(extext));
 
     IHTMLCommentElement_Release(comment);
-    SysFreeString(text);
-
-    hres = IHTMLCommentElement2_get_data(comment2, &text);
-    ok_(__FILE__,line)(hres == S_OK, "get_data failed: %08lx\n", hres);
-    ok_(__FILE__,line)(!wcscmp(text, data), "data = \"%s\", expected \"%s\"\n", wine_dbgstr_w(text), wine_dbgstr_w(data));
-
-    IHTMLCommentElement2_Release(comment2);
     SysFreeString(text);
 }
 
@@ -2226,6 +2238,42 @@ static void _set_object_name(unsigned line, IHTMLElement *elem, const WCHAR *nam
     _test_object_name(line, elem, name);
 }
 
+static void test_factory(void *window, void *factory, const WCHAR *name, const WCHAR *value)
+{
+    IDispatch *disp, *window_disp = window;
+    DISPPARAMS dp = { NULL, NULL, 0, 0 };
+    BSTR bstr = SysAllocString(name);
+    VARIANT var, val;
+    DISPID dispid;
+    HRESULT hres;
+
+    hres = IDispatch_GetIDsOfNames(window_disp, &IID_NULL, &bstr, 1, 0, &dispid);
+    SysFreeString(bstr);
+    ok(hres == S_OK, "GetIDsOfNames(%s) failed: %08lx\n", wine_dbgstr_w(name), hres);
+
+    hres = IDispatch_Invoke(window_disp, dispid, &IID_NULL, 0, DISPATCH_PROPERTYGET, &dp, &var, NULL, NULL);
+    ok(hres == S_OK, "Invoke(%s) failed: %08lx\n", wine_dbgstr_w(name), hres);
+    ok(V_VT(&var) == VT_DISPATCH, "VT(%s) = %d\n", wine_dbgstr_w(name), V_VT(&var));
+
+    hres = IUnknown_QueryInterface((IUnknown*)factory, &IID_IDispatch, (void**)&disp);
+    ok(hres == S_OK, "Could not get IDispatch from %s factory: %08lx\n", wine_dbgstr_w(name), hres);
+    ok(disp != V_DISPATCH(&var), "window.%s and the builtin getter returned same dispatch\n", wine_dbgstr_w(name));
+
+    hres = IDispatch_Invoke(disp, DISPID_VALUE, &IID_NULL, 0, DISPATCH_PROPERTYGET, &dp, &val, NULL, NULL);
+    IDispatch_Release(disp);
+    ok(hres == S_OK, "Invoke(DISPID_VALUE) for %s builtin getter returned: %08lx\n", wine_dbgstr_w(name), hres);
+    ok(V_VT(&val) == VT_BSTR, "V_VT(value) for %s builtin getter = %d\n", wine_dbgstr_w(name), V_VT(&val));
+    ok(!lstrcmpW(V_BSTR(&val), L"[object]"), "value for %s builtin getter = %s\n", wine_dbgstr_w(name), wine_dbgstr_w(V_BSTR(&val)));
+    VariantClear(&val);
+
+    hres = IDispatch_Invoke(V_DISPATCH(&var), DISPID_VALUE, &IID_NULL, 0, DISPATCH_PROPERTYGET, &dp, &val, NULL, NULL);
+    VariantClear(&var);
+    ok(hres == S_OK, "Invoke(DISPID_VALUE) for %s: %08lx\n", wine_dbgstr_w(name), hres);
+    ok(V_VT(&val) == VT_BSTR, "V_VT(value) for %s = %d\n", wine_dbgstr_w(name), V_VT(&val));
+    ok(!lstrcmpW(V_BSTR(&val), value), "value for %s = %s\n", wine_dbgstr_w(name), wine_dbgstr_w(V_BSTR(&val)));
+    VariantClear(&val);
+}
+
 #define create_option_elem(d,t,v) _create_option_elem(__LINE__,d,t,v)
 static IHTMLOptionElement *_create_option_elem(unsigned line, IHTMLDocument2 *doc,
         const WCHAR *txt, const WCHAR *val)
@@ -2245,6 +2293,7 @@ static IHTMLOptionElement *_create_option_elem(unsigned line, IHTMLDocument2 *do
     IHTMLWindow2_Release(window);
     ok_(__FILE__,line) (hres == S_OK, "get_Option failed: %08lx\n", hres);
 
+    test_factory(window, factory, L"Option", L"[object HTMLOptionElement]");
     test_disp((IUnknown*)factory, &IID_IHTMLOptionElementFactory, NULL, L"[object]");
 
     V_VT(&text) = VT_BSTR;
@@ -2348,6 +2397,7 @@ static IHTMLImgElement *_create_img_elem(unsigned line, IHTMLDocument2 *doc,
     ok_(__FILE__,line) (hres == S_OK, "get_Image failed: %08lx\n", hres);
 
     test_ifaces((IUnknown*)factory, img_factory_iids);
+    test_factory(window, factory, L"Image", L"[object HTMLImageElement]");
     test_disp((IUnknown*)factory, &IID_IHTMLImageElementFactory, NULL, L"[object]");
 
     if(wdth >= 0){
@@ -7262,6 +7312,8 @@ static void test_xmlhttprequest(IHTMLWindow5 *window)
     ok(hres == S_OK, "QueryInterface(&IID_IHTMLXMLHttpRequestFactory) failed: %08lx\n", hres);
     ok(factory != NULL, "factory == NULL\n");
 
+    test_factory(window, factory, L"XMLHttpRequest", L"[object XMLHttpRequest]");
+
     xml = NULL;
     hres = IHTMLXMLHttpRequestFactory_create(factory, &xml);
     ok(hres == S_OK, "create failed: %08lx\n", hres);
@@ -7271,6 +7323,46 @@ static void test_xmlhttprequest(IHTMLWindow5 *window)
 
     IHTMLXMLHttpRequest_Release(xml);
     IHTMLXMLHttpRequestFactory_Release(factory);
+    VariantClear(&var);
+}
+
+static void test_xdomainrequest(IHTMLWindow6 *window)
+{
+    IHTMLXDomainRequestFactory *factory;
+    IHTMLXDomainRequest *xdr;
+    HRESULT hres;
+    VARIANT var;
+    BSTR bstr;
+
+    hres = IHTMLWindow6_get_XDomainRequest(window, &var);
+    ok(hres == S_OK, "get_XDomainRequest failed: %08lx\n", hres);
+    ok(V_VT(&var) == VT_DISPATCH || broken(V_VT(&var) == VT_EMPTY), "expect VT_DISPATCH, got %s\n", debugstr_variant(&var));
+
+    if(V_VT(&var) == VT_EMPTY) {
+        win_skip("Native XDomainRequest support is missing or disabled.\n");
+        return;
+    }
+
+    factory = NULL;
+    hres = IDispatch_QueryInterface(V_DISPATCH(&var), &IID_IHTMLXDomainRequestFactory, (void**)&factory);
+    ok(hres == S_OK, "QueryInterface(&IID_IHTMLXDomainRequestFactory) failed: %08lx\n", hres);
+    ok(factory != NULL, "factory == NULL\n");
+
+    test_factory(window, factory, L"XDomainRequest", L"[object XDomainRequest]");
+
+    xdr = NULL;
+    hres = IHTMLXDomainRequestFactory_create(factory, &xdr);
+    ok(hres == S_OK, "create failed: %08lx\n", hres);
+    ok(xdr != NULL, "xdr == NULL\n");
+    if(is_ie9plus)
+        test_disp((IUnknown*)xdr, &DIID_DispXDomainRequest, NULL, L"[object]");
+
+    hres = IHTMLXDomainRequest_get_contentType(xdr, &bstr);
+    ok(hres == S_OK, "get_contentType returned %08lx\n", hres);
+    ok(bstr == NULL, "contentType = %s\n", debugstr_w(bstr));
+
+    IHTMLXDomainRequest_Release(xdr);
+    IHTMLXDomainRequestFactory_Release(factory);
     VariantClear(&var);
 }
 
@@ -7299,7 +7391,9 @@ static void test_window(IHTMLDocument2 *doc)
 {
     IHTMLWindow2 *window, *window2, *self, *parent;
     IHTMLWindow5 *window5;
+    IHTMLWindow6 *window6;
     IHTMLWindow7 *window7;
+    IHTMLDOMConstructorCollection *ctor_col;
     IHTMLDocument2 *doc2 = NULL;
     IDispatch *disp;
     IUnknown *unk;
@@ -7402,6 +7496,18 @@ static void test_window(IHTMLDocument2 *doc)
     }else {
         win_skip("IHTMLWindow5 not supported!\n");
     }
+
+    hres = IHTMLWindow2_QueryInterface(window, &IID_IHTMLWindow6, (void**)&window6);
+    if(SUCCEEDED(hres)) {
+        ok(window6 != NULL, "window6 == NULL\n");
+        test_xdomainrequest(window6);
+        IHTMLWindow6_Release(window6);
+    }else {
+        win_skip("IHTMLWindow6 not supported!\n");
+    }
+
+    hres = IHTMLWindow2_QueryInterface(window, &IID_IHTMLDOMConstructorCollection, (void**)&ctor_col);
+    ok(hres == E_NOINTERFACE, "QueryInterface for IHTMLDOMConstructorCollection returned %08lx\n", hres);
 
     hres = IHTMLWindow2_QueryInterface(window, &IID_IHTMLWindow7, (void**)&window7);
     if(SUCCEEDED(hres)) {
@@ -7628,6 +7734,29 @@ static void test_xhr(IHTMLDocument2 *doc)
     IDispatchEx_Release(dispex);
 }
 
+static void test_xdr(IHTMLDocument2 *doc)
+{
+    IHTMLWindow2 *window;
+    IDispatchEx *dispex;
+    DISPID id;
+    BSTR str;
+    HRESULT hres;
+
+    hres = IHTMLDocument2_get_parentWindow(doc, &window);
+    ok(hres == S_OK, "get_parentWindow failed: %08lx\n", hres);
+
+    hres = IHTMLWindow2_QueryInterface(window, &IID_IDispatchEx, (void**)&dispex);
+    ok(hres == S_OK, "Could not get IDispatchEx iface: %08lx\n", hres);
+
+    str = SysAllocString(L"XDomainRequest");
+    hres = IDispatchEx_GetDispID(dispex, str, 0, &id);
+    ok(hres == S_OK, "GetDispID failed: %08lx\n", hres);
+    SysFreeString(str);
+
+    IHTMLWindow2_Release(window);
+    IDispatchEx_Release(dispex);
+}
+
 static void test_defaults(IHTMLDocument2 *doc)
 {
     IHTMLStyleSheetsCollection *stylesheetcol;
@@ -7701,6 +7830,7 @@ static void test_defaults(IHTMLDocument2 *doc)
     }
 
     test_xhr(doc);
+    test_xdr(doc);
 
     hres = IHTMLElement_QueryInterface(elem, &IID_IHTMLBodyElement, (void**)&body);
     ok(hres == S_OK, "Could not get IHTMBodyElement: %08lx\n", hres);
@@ -10526,12 +10656,12 @@ static void test_create_elems(IHTMLDocument2 *doc)
             test_elem_title((IUnknown*)comment, NULL);
             test_elem_set_title((IUnknown*)comment, L"comment title");
             test_elem_title((IUnknown*)comment, L"comment title");
-            test_comment_text((IUnknown*)comment, L"<!--testing-->", L"testing");
+            test_comment_text((IUnknown*)comment, L"<!--testing-->");
             test_elem_outerhtml((IUnknown*)comment, L"<!--testing-->");
             test_comment_attrs((IUnknown*)comment);
 
             node2 = clone_node((IUnknown*)comment, VARIANT_TRUE);
-            test_comment_text((IUnknown*)node2, L"<!--testing-->", L"testing");
+            test_comment_text((IUnknown*)node2, L"<!--testing-->");
             IHTMLDOMNode_Release(node2);
 
             test_elem_getelembytag((IUnknown*)comment, ET_COMMENT, 0, NULL);
@@ -10625,7 +10755,7 @@ static void test_doctype(IHTMLDocument2 *doc)
     type = get_node_type((IUnknown*)doctype);
     ok(type == 8, "type = %d\n", type);
 
-    test_comment_text((IUnknown*)doctype, L"<!DOCTYPE html>", L"DOCTYPE html");
+    test_comment_text((IUnknown*)doctype, L"<!DOCTYPE html>");
     test_elem_type((IUnknown*)doctype, ET_COMMENT);
     IHTMLDOMNode_Release(doctype);
 }
@@ -11088,8 +11218,6 @@ static void test_docfrag(IHTMLDocument2 *doc)
     frag = create_docfrag(doc);
 
     test_disp((IUnknown*)frag, &DIID_DispHTMLDocument, &CLSID_HTMLDocument, L"[object]");
-    if(is_ie9plus)
-        test_ifaces((IUnknown*)frag, doc_node_iids);
 
     frag_body = (void*)0xdeadbeef;
     hres = IHTMLDocument2_get_body(frag, &frag_body);
@@ -11122,11 +11250,6 @@ static void test_docfrag(IHTMLDocument2 *doc)
     div = get_elem_by_id(doc, L"divid", TRUE);
     test_node_append_child_discard((IUnknown*)div, (IUnknown*)frag);
     IHTMLElement_Release(div);
-
-    if(compat_mode >= COMPAT_IE9) {
-        IHTMLDocument2_Release(frag);
-        return;
-    }
 
     hres = IHTMLDocument2_get_all(doc, &col);
     ok(hres == S_OK, "get_all failed: %08lx\n", hres);
@@ -11245,6 +11368,68 @@ static void test_quirks_mode_offsetHeight(IHTMLDocument2 *doc)
     ok(hres == S_OK, "get_offsetHeight failed: %08lx\n", hres);
     todo_wine ok(oh == 500, "offsetHeight = %ld\n", oh);
     IHTMLElement_Release(elem);
+}
+
+static void test_quirks_mode_perf_toJSON(IHTMLDocument2 *doc)
+{
+    IHTMLPerformanceNavigation *nav;
+    IHTMLPerformanceTiming *timing;
+    IHTMLPerformance *perf;
+    DISPPARAMS dp = { 0 };
+    IHTMLWindow2 *window;
+    IDispatchEx *dispex;
+    DISPID dispid;
+    HRESULT hres;
+    VARIANT var;
+    BSTR bstr;
+
+    hres = IHTMLDocument2_get_parentWindow(doc, &window);
+    ok(hres == S_OK, "get_parentWindow failed: %08lx\n", hres);
+
+    hres = IHTMLWindow2_QueryInterface(window, &IID_IDispatchEx, (void**)&dispex);
+    ok(hres == S_OK, "QueryInterface(IID_IDispatchEx) failed: %08lx\n", hres);
+    IHTMLWindow2_Release(window);
+
+    bstr = SysAllocString(L"performance");
+    hres = IDispatchEx_GetDispID(dispex, bstr, fdexNameCaseSensitive, &dispid);
+    ok(hres == S_OK, "GetDispID(performance) failed: %08lx\n", hres);
+    SysFreeString(bstr);
+
+    V_VT(&var) = VT_EMPTY;
+    hres = IDispatchEx_InvokeEx(dispex, dispid, 0, DISPATCH_PROPERTYGET, &dp, &var, NULL, NULL);
+    ok(hres == S_OK, "InvokeEx(performance) failed: %08lx\n", hres);
+    ok(V_VT(&var) == VT_DISPATCH, "V_VT(performance) = %d\n", V_VT(&var));
+    ok(V_DISPATCH(&var) != NULL, "V_DISPATCH(performance) = NULL\n");
+    IDispatchEx_Release(dispex);
+
+    hres = IDispatch_QueryInterface(V_DISPATCH(&var), &IID_IHTMLPerformance, (void**)&perf);
+    ok(hres == S_OK, "QueryInterface(IID_IHTMLPerformance) failed: %08lx\n", hres);
+    ok(perf != NULL, "performance is NULL\n");
+    VariantClear(&var);
+
+    hres = IHTMLPerformance_toJSON(perf, &var);
+    ok(hres == E_UNEXPECTED, "toJSON() returned: %08lx\n", hres);
+    ok(V_VT(&var) == VT_EMPTY, "V_VT(toJSON()) = %d\n", V_VT(&var));
+
+    hres = IHTMLPerformance_get_navigation(perf, &nav);
+    ok(hres == S_OK, "get_navigation failed: %08lx\n", hres);
+    ok(nav != NULL, "performance.navigation is NULL\n");
+
+    hres = IHTMLPerformanceNavigation_toJSON(nav, &var);
+    ok(hres == E_UNEXPECTED, "navigation.toJSON() failed: %08lx\n", hres);
+    ok(V_VT(&var) == VT_EMPTY, "V_VT(navigation.toJSON()) = %d\n", V_VT(&var));
+    IHTMLPerformanceNavigation_Release(nav);
+
+    hres = IHTMLPerformance_get_timing(perf, &timing);
+    ok(hres == S_OK, "get_timing failed: %08lx\n", hres);
+    ok(timing != NULL, "performance.timing is NULL\n");
+
+    hres = IHTMLPerformanceTiming_toJSON(timing, &var);
+    ok(hres == E_UNEXPECTED, "timing.toJSON() failed: %08lx\n", hres);
+    ok(V_VT(&var) == VT_EMPTY, "V_VT(timing.toJSON()) = %d\n", V_VT(&var));
+    IHTMLPerformanceTiming_Release(timing);
+
+    IHTMLPerformance_Release(perf);
 }
 
 static IHTMLDocument2 *notif_doc;
@@ -11866,10 +12051,6 @@ static void test_quirks_mode(void)
                      " <meta http-equiv=\"x-ua-compatible\" content=\"IE=%s\" />"
                      "</head><body></body></html>", tests[i].str);
         run_domtest(buf, test_document_mode);
-        sprintf(buf, "<html><head>"
-                     " <meta http-equiv=\"x-ua-compatible\" content=\"IE=%s\" />"
-                     "</head><body></body></html>", tests[i].str);
-        run_domtest(buf, test_document_mode);
     }
 
     expected_document_mode = 8;
@@ -11882,24 +12063,6 @@ static void test_quirks_mode(void)
                 " <body>"
                 " </body>"
                 "</html>", test_document_mode);
-
-    for(i = 7; i <= 11; i++) {
-        char buf[128];
-        expected_document_mode = i;
-        sprintf(buf, "<!DOCTYPE html>\n<html><head>"
-                     " <meta http-equiv=\"x-ua-compatible\" content=\"IE=EmulateIE%u\" />"
-                     "</head><body></body></html>", i);
-        run_domtest(buf, test_document_mode);
-        expected_document_mode = i < 10 ? 5 : i;
-        sprintf(buf, "<html><head>"
-                     " <meta http-equiv=\"x-ua-compatible\" content=\"IE=EmulateIE%u\" />"
-                     "</head><body></body></html>", i);
-        run_domtest(buf, test_document_mode);
-        sprintf(buf, "<html><head>"
-                     " <meta http-equiv=\"x-ua-compatible\" content=\"IE=eMulaTeie%u\" />"
-                     "</head><body></body></html>", i);
-        run_domtest(buf, test_document_mode);
-    }
 }
 
 static void test_document_mode_lock(void)
@@ -11915,6 +12078,7 @@ static void test_document_mode_lock(void)
     IEventTarget *event_target;
     IPersistStreamInit *init;
     IHTMLWindow7 *window7;
+    IHTMLWindow6 *window6;
     IHTMLWindow5 *window5;
     IHTMLWindow2 *window;
     IDispatchEx *dispex;
@@ -11967,6 +12131,14 @@ static void test_document_mode_lock(void)
     ok(hres == S_OK, "get_XMLHttpRequest failed: %08lx\n", hres);
     ok(V_VT(&var) == VT_EMPTY, "V_VT(XMLHttpRequest) = %d\n", V_VT(&var));
     IHTMLWindow5_Release(window5);
+
+    V_VT(&var) = VT_NULL;
+    hres = IHTMLWindow2_QueryInterface(window, &IID_IHTMLWindow6, (void**)&window6);
+    ok(hres == S_OK, "Could not get IHTMLWindow6: %08lx\n", hres);
+    hres = IHTMLWindow6_get_XDomainRequest(window6, &var);
+    ok(hres == S_OK, "get_XDomainRequest failed: %08lx\n", hres);
+    ok(V_VT(&var) == VT_EMPTY, "V_VT(XDomainRequest) = %d\n", V_VT(&var));
+    IHTMLWindow6_Release(window6);
 
     hres = IHTMLWindow2_QueryInterface(window, &IID_IHTMLWindow7, (void**)&window7);
     ok(hres == S_OK, "Could not get IHTMLWindow7: %08lx\n", hres);
@@ -12272,11 +12444,8 @@ START_TEST(dom)
     run_domtest(emptydiv_str, test_docfrag);
     run_domtest(doc_blank, test_replacechild_elems);
     run_domtest(doctype_str, test_doctype);
-    if(is_ie9plus) {
-        compat_mode = COMPAT_IE9;
-        run_domtest(emptydiv_ie9_str, test_docfrag);
-        compat_mode = COMPAT_NONE;
-    }
+    run_domtest(doc_blank, test_quirks_mode_perf_toJSON);
+    run_domtest(doc_blank_ie8, test_quirks_mode_perf_toJSON);
 
     test_quirks_mode();
     test_document_mode_lock();

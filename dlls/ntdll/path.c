@@ -36,21 +36,21 @@ WINE_DEFAULT_DEBUG_CHANNEL(file);
 /***********************************************************************
  *             RtlDetermineDosPathNameType_U   (NTDLL.@)
  */
-RTL_PATH_TYPE WINAPI RtlDetermineDosPathNameType_U( PCWSTR path )
+DOS_PATHNAME_TYPE WINAPI RtlDetermineDosPathNameType_U( PCWSTR path )
 {
     if (IS_SEPARATOR(path[0]))
     {
-        if (!IS_SEPARATOR(path[1])) return RtlPathTypeRooted;                   /* "/foo" */
-        if (path[2] != '.' && path[2] != '?') return RtlPathTypeUncAbsolute;    /* "//foo" */
-        if (IS_SEPARATOR(path[3])) return RtlPathTypeLocalDevice;               /* "//./foo" or "//?/foo" */
-        if (path[3]) return RtlPathTypeUncAbsolute;                             /* "//.foo" or "//?foo" */
-        return RtlPathTypeRootLocalDevice;                                      /* "//." or "//?" */
+        if (!IS_SEPARATOR(path[1])) return ABSOLUTE_PATH;       /* "/foo" */
+        if (path[2] != '.' && path[2] != '?') return UNC_PATH;  /* "//foo" */
+        if (IS_SEPARATOR(path[3])) return DEVICE_PATH;          /* "//./foo" or "//?/foo" */
+        if (path[3]) return UNC_PATH;                           /* "//.foo" or "//?foo" */
+        return UNC_DOT_PATH;                                    /* "//." or "//?" */
     }
     else
     {
-        if (!path[0] || path[1] != ':') return RtlPathTypeRelative; /* "foo" */
-        if (IS_SEPARATOR(path[2])) return RtlPathTypeDriveAbsolute; /* "c:/foo" */
-        return RtlPathTypeDriveRelative;                            /* "c:foo" */
+        if (!path[0] || path[1] != ':') return RELATIVE_PATH;   /* "foo" */
+        if (IS_SEPARATOR(path[2])) return ABSOLUTE_DRIVE_PATH;  /* "c:/foo" */
+        return RELATIVE_DRIVE_PATH;                             /* "c:foo" */
     }
 }
 
@@ -78,15 +78,15 @@ ULONG WINAPI RtlIsDosDeviceName_U( PCWSTR dos_name )
 
     switch(RtlDetermineDosPathNameType_U( dos_name ))
     {
-    case RtlPathTypeUnknown:
-    case RtlPathTypeUncAbsolute:
+    case INVALID_PATH:
+    case UNC_PATH:
         return 0;
-    case RtlPathTypeLocalDevice:
+    case DEVICE_PATH:
         if (!wcsicmp( dos_name, L"\\\\.\\CON" ))
             return MAKELONG( sizeof(conW), 4 * sizeof(WCHAR) );  /* 4 is length of \\.\ prefix */
         return 0;
-    case RtlPathTypeDriveAbsolute:
-    case RtlPathTypeDriveRelative:
+    case ABSOLUTE_DRIVE_PATH:
+    case RELATIVE_DRIVE_PATH:
         start = dos_name + 2;  /* skip drive letter */
         break;
     default:
@@ -146,7 +146,13 @@ static BOOL is_valid_directory(LPCWSTR path)
     if (!RtlDosPathNameToNtPathName_U(path, &ntpath, NULL, NULL))
         return FALSE;
 
-    InitializeObjectAttributes( &attr, &ntpath, OBJ_CASE_INSENSITIVE, 0, NULL );
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.ObjectName = &ntpath;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
     nts = NtOpenFile(&handle, FILE_READ_ATTRIBUTES | SYNCHRONIZE, &attr, &io,
                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                      FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT);
@@ -265,11 +271,11 @@ NTSTATUS WINAPI RtlDosPathNameToNtPathName_U_WithStatus(const WCHAR *dos_path, U
     wcscpy(ntpath->Buffer, L"\\??\\");
     switch (RtlDetermineDosPathNameType_U(ptr))
     {
-    case RtlPathTypeUncAbsolute: /* \\foo */
+    case UNC_PATH: /* \\foo */
         offset = 2;
         wcscat(ntpath->Buffer, L"UNC\\");
         break;
-    case RtlPathTypeLocalDevice: /* \\.\foo */
+    case DEVICE_PATH: /* \\.\foo */
         offset = 4;
         break;
     default:
@@ -355,10 +361,10 @@ ULONG WINAPI RtlDosSearchPath_U(LPCWSTR paths, LPCWSTR search, LPCWSTR ext,
                                 ULONG buffer_size, LPWSTR buffer, 
                                 LPWSTR* file_part)
 {
-    RTL_PATH_TYPE type = RtlDetermineDosPathNameType_U(search);
+    DOS_PATHNAME_TYPE type = RtlDetermineDosPathNameType_U(search);
     ULONG len = 0;
 
-    if (type == RtlPathTypeRelative)
+    if (type == RELATIVE_PATH)
     {
         ULONG allocated = 0, needed, filelen;
         WCHAR *name = NULL;
@@ -414,7 +420,7 @@ ULONG WINAPI RtlDosSearchPath_U(LPCWSTR paths, LPCWSTR search, LPCWSTR ext,
 /******************************************************************
  *		collapse_path
  *
- * Helper for RtlGetFullPathName_UEx.
+ * Helper for RtlGetFullPathName_U.
  * Get rid of . and .. components in the path.
  */
 static inline void collapse_path( WCHAR *path, UINT mark )
@@ -505,10 +511,10 @@ static const WCHAR *skip_unc_prefix( const WCHAR *ptr )
 /******************************************************************
  *		get_full_path_helper
  *
- * Helper for RtlGetFullPathName_UEx.
+ * Helper for RtlGetFullPathName_U
  * Note: name and buffer are allowed to point to the same memory spot
  */
-static ULONG get_full_path_helper(LPCWSTR name, LPWSTR buffer, ULONG size, RTL_PATH_TYPE type)
+static ULONG get_full_path_helper(LPCWSTR name, LPWSTR buffer, ULONG size)
 {
     ULONG                       reqsize = 0, mark = 0, dep = 0, deplen;
     LPWSTR                      ins_str = NULL;
@@ -522,23 +528,23 @@ static ULONG get_full_path_helper(LPCWSTR name, LPWSTR buffer, ULONG size, RTL_P
 
     RtlAcquirePebLock();
 
-    if (NtCurrentTeb()->Tib.SubSystemTib)  /* FIXME: hack */
+    if (0 && NtCurrentTeb()->Tib.SubSystemTib)  /* FIXME: hack */
         cd = &((WIN16_SUBSYSTEM_TIB *)NtCurrentTeb()->Tib.SubSystemTib)->curdir.DosPath;
     else
         cd = &NtCurrentTeb()->Peb->ProcessParameters->CurrentDirectory.DosPath;
 
-    switch (type)
+    switch (RtlDetermineDosPathNameType_U(name))
     {
-    case RtlPathTypeUncAbsolute:    /* \\foo   */
+    case UNC_PATH:              /* \\foo   */
         ptr = skip_unc_prefix( name );
         mark = (ptr - name);
         break;
 
-    case RtlPathTypeLocalDevice:    /* \\.\foo */
+    case DEVICE_PATH:           /* \\.\foo */
         mark = 4;
         break;
 
-    case RtlPathTypeDriveAbsolute:  /* c:\foo  */
+    case ABSOLUTE_DRIVE_PATH:   /* c:\foo  */
         reqsize = sizeof(WCHAR);
         tmp[0] = name[0];
         ins_str = tmp;
@@ -546,7 +552,7 @@ static ULONG get_full_path_helper(LPCWSTR name, LPWSTR buffer, ULONG size, RTL_P
         mark = 3;
         break;
 
-    case RtlPathTypeDriveRelative:  /* c:foo   */
+    case RELATIVE_DRIVE_PATH:   /* c:foo   */
         dep = 2;
         if (wcsnicmp( name, cd->Buffer, 2 ))
         {
@@ -595,7 +601,7 @@ static ULONG get_full_path_helper(LPCWSTR name, LPWSTR buffer, ULONG size, RTL_P
         }
         /* fall through */
 
-    case RtlPathTypeRelative:   /* foo     */
+    case RELATIVE_PATH:         /* foo     */
         reqsize = cd->Length;
         ins_str = cd->Buffer;
         if (cd->Buffer[1] != ':')
@@ -606,7 +612,7 @@ static ULONG get_full_path_helper(LPCWSTR name, LPWSTR buffer, ULONG size, RTL_P
         else mark = 3;
         break;
 
-    case RtlPathTypeRooted:     /* \xxx    */
+    case ABSOLUTE_PATH:         /* \xxx    */
         if (name[0] == '/')  /* may be a Unix path */
         {
             char *unix_name;
@@ -661,7 +667,7 @@ static ULONG get_full_path_helper(LPCWSTR name, LPWSTR buffer, ULONG size, RTL_P
         }
         break;
 
-    case RtlPathTypeRootLocalDevice:    /* \\.     */
+    case UNC_DOT_PATH:         /* \\.     */
         reqsize = 4 * sizeof(WCHAR);
         dep = 3;
         tmp[0] = '\\';
@@ -672,7 +678,7 @@ static ULONG get_full_path_helper(LPCWSTR name, LPWSTR buffer, ULONG size, RTL_P
         mark = 4;
         break;
 
-    case RtlPathTypeUnknown:
+    case INVALID_PATH:
         goto done;
     }
 
@@ -713,41 +719,15 @@ done:
 DWORD WINAPI RtlGetFullPathName_U(const WCHAR* name, ULONG size, WCHAR* buffer,
                                   WCHAR** file_part)
 {
+    WCHAR*      ptr;
+    DWORD       dosdev;
+    DWORD       reqsize;
+
     TRACE("(%s %lu %p %p)\n", debugstr_w(name), size, buffer, file_part);
-
-    return RtlGetFullPathName_UEx(name, size, buffer, file_part, NULL);
-}
-
-
-/******************************************************************
- *		RtlGetFullPathName_UEx  (NTDLL.@)
- *
- * Returns the number of bytes written to buffer (not including the
- * terminating NULL) if the function succeeds, or the required number of bytes
- * (including the terminating NULL) if the buffer is too small.
- *
- * file_part will point to the filename part inside buffer (except if we use
- * DOS device name, in which case file_in_buf is NULL)
- *
- * type is an optional parameter that will receive the type of the path
- *
- */
-ULONG WINAPI RtlGetFullPathName_UEx(const WCHAR* name, ULONG size, WCHAR* buffer,
-                                    WCHAR** file_part, RTL_PATH_TYPE* type)
-{
-    WCHAR*          ptr;
-    DWORD           dosdev;
-    DWORD           reqsize;
-    RTL_PATH_TYPE   path_type;
-
-    TRACE("(%s %lu %p %p %p)\n", debugstr_w(name), size, buffer, file_part, type);
 
     if (!name || !*name) return 0;
 
     if (file_part) *file_part = NULL;
-
-    path_type = RtlDetermineDosPathNameType_U(name);
-    if (type) *type = path_type;
 
     /* check for DOS device name */
     dosdev = RtlIsDosDeviceName_U(name);
@@ -764,12 +744,12 @@ ULONG WINAPI RtlGetFullPathName_UEx(const WCHAR* name, ULONG size, WCHAR* buffer
         return sz + 8;
     }
 
-    reqsize = get_full_path_helper(name, buffer, size, path_type);
+    reqsize = get_full_path_helper(name, buffer, size);
     if (!reqsize) return 0;
     if (reqsize > size)
     {
         LPWSTR tmp = RtlAllocateHeap(GetProcessHeap(), 0, reqsize);
-        reqsize = get_full_path_helper(name, tmp, reqsize, path_type);
+        reqsize = get_full_path_helper(name, tmp, reqsize);
         if (reqsize + sizeof(WCHAR) > size)  /* it may have worked the second time */
         {
             RtlFreeHeap(GetProcessHeap(), 0, tmp);
@@ -903,7 +883,7 @@ ULONG WINAPI RtlGetCurrentDirectory_U(ULONG buflen, LPWSTR buf)
 
     RtlAcquirePebLock();
 
-    if (NtCurrentTeb()->Tib.SubSystemTib)  /* FIXME: hack */
+    if (0 && NtCurrentTeb()->Tib.SubSystemTib)  /* FIXME: hack */
         us = &((WIN16_SUBSYSTEM_TIB *)NtCurrentTeb()->Tib.SubSystemTib)->curdir.DosPath;
     else
         us = &NtCurrentTeb()->Peb->ProcessParameters->CurrentDirectory.DosPath;
@@ -934,20 +914,20 @@ ULONG WINAPI RtlGetCurrentDirectory_U(ULONG buflen, LPWSTR buf)
 NTSTATUS WINAPI RtlSetCurrentDirectory_U(const UNICODE_STRING* dir)
 {
     FILE_FS_DEVICE_INFORMATION device_info;
+    ULONG size, compare_size;
     OBJECT_ATTRIBUTES attr;
     UNICODE_STRING newdir;
     IO_STATUS_BLOCK io;
     CURDIR *curdir;
     HANDLE handle;
     NTSTATUS nts;
-    ULONG size;
     PWSTR ptr;
 
     newdir.Buffer = NULL;
 
     RtlAcquirePebLock();
 
-    if (NtCurrentTeb()->Tib.SubSystemTib)  /* FIXME: hack */
+    if (0 && NtCurrentTeb()->Tib.SubSystemTib)  /* FIXME: hack */
         curdir = &((WIN16_SUBSYSTEM_TIB *)NtCurrentTeb()->Tib.SubSystemTib)->curdir;
     else
         curdir = &NtCurrentTeb()->Peb->ProcessParameters->CurrentDirectory;
@@ -958,7 +938,29 @@ NTSTATUS WINAPI RtlSetCurrentDirectory_U(const UNICODE_STRING* dir)
         goto out;
     }
 
-    InitializeObjectAttributes( &attr, &newdir, OBJ_CASE_INSENSITIVE, 0, NULL );
+    size = newdir.Length / sizeof(WCHAR);
+    ptr = newdir.Buffer;
+    ptr += 4;  /* skip \??\ prefix */
+    size -= 4;
+
+    if (size && ptr[size - 1] == '\\') compare_size = size - 1;
+    else                               compare_size = size;
+
+    if (curdir->DosPath.Length == (compare_size + 1) * sizeof(WCHAR)
+        && !memcmp( curdir->DosPath.Buffer, ptr, compare_size * sizeof(WCHAR) ))
+    {
+        TRACE( "dir %s is the same as current.\n", debugstr_us(dir) );
+        nts = STATUS_SUCCESS;
+        goto out;
+    }
+
+    attr.Length = sizeof(attr);
+    attr.RootDirectory = 0;
+    attr.Attributes = OBJ_CASE_INSENSITIVE;
+    attr.ObjectName = &newdir;
+    attr.SecurityDescriptor = NULL;
+    attr.SecurityQualityOfService = NULL;
+
     nts = NtOpenFile( &handle, FILE_TRAVERSE | SYNCHRONIZE, &attr, &io, FILE_SHARE_READ | FILE_SHARE_WRITE,
                       FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT );
     if (nts != STATUS_SUCCESS) goto out;
@@ -976,10 +978,6 @@ NTSTATUS WINAPI RtlSetCurrentDirectory_U(const UNICODE_STRING* dir)
     curdir->Handle = handle;
 
     /* append trailing \ if missing */
-    size = newdir.Length / sizeof(WCHAR);
-    ptr = newdir.Buffer;
-    ptr += 4;  /* skip \??\ prefix */
-    size -= 4;
     if (size && ptr[size - 1] != '\\') ptr[size++] = '\\';
 
     /* convert \??\UNC\ path to \\ prefix */

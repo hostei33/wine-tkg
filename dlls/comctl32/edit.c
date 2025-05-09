@@ -2219,14 +2219,12 @@ static void EDIT_AdjustFormatRect(EDITSTATE *es)
 	    EDIT_UpdateScrollInfo(es);
 	}
 	else
-        {
-            /* Windows doesn't care to fix text placement for SL controls */
-            es->format_rect.bottom = es->format_rect.top + es->line_height;
+	/* Windows doesn't care to fix text placement for SL controls */
+		es->format_rect.bottom = es->format_rect.top + es->line_height;
 
-            /* Always stay within the client area */
-            GetClientRect(es->hwndSelf, &ClientRect);
-            es->format_rect.bottom = min(es->format_rect.bottom, ClientRect.bottom);
-        }
+	/* Always stay within the client area */
+	GetClientRect(es->hwndSelf, &ClientRect);
+	es->format_rect.bottom = min(es->format_rect.bottom, ClientRect.bottom);
 
 	if ((es->style & ES_MULTILINE) && !(es->style & ES_AUTOHSCROLL))
 		EDIT_BuildLineDefs_ML(es, 0, get_text_length(es), 0, NULL);
@@ -2234,14 +2232,6 @@ static void EDIT_AdjustFormatRect(EDITSTATE *es)
 	EDIT_SetCaretPos(es, es->selection_end, es->flags & EF_AFTER_WRAP);
 }
 
-static int EDIT_is_valid_format_rect(const EDITSTATE *es, const RECT *rc)
-{
-    if (IsRectEmpty(rc))
-        return 0;
-    if (es->text_width > (rc->right - rc->left) || (es->line_height * es->line_count) > (rc->bottom - rc->top))
-        return 0;
-    return 1;
-}
 
 /*********************************************************************
  *
@@ -2255,23 +2245,11 @@ static void EDIT_SetRectNP(EDITSTATE *es, const RECT *rc)
 {
 	LONG_PTR ExStyle;
 	INT bw, bh;
-        BOOL too_large = FALSE;
-        RECT edit_rect;
-
 	ExStyle = GetWindowLongPtrW(es->hwndSelf, GWL_EXSTYLE);
 
-        if (EDIT_is_valid_format_rect(es, rc))
-        {
-            CopyRect(&es->format_rect, rc);
-            GetClientRect(es->hwndSelf, &edit_rect);
-            too_large = (rc->bottom - rc->top) > (edit_rect.bottom - edit_rect.top);
-        }
-        else
-        {
-            GetClientRect(es->hwndSelf, &es->format_rect);
-        }
+	CopyRect(&es->format_rect, rc);
 
-        if (ExStyle & WS_EX_CLIENTEDGE && !too_large) {
+	if (ExStyle & WS_EX_CLIENTEDGE) {
 		es->format_rect.left++;
 		es->format_rect.right--;
 
@@ -2639,8 +2617,6 @@ static void EDIT_EM_ReplaceSel(EDITSTATE *es, BOOL can_undo, const WCHAR *lpsz_r
 	    if (!notify_parent(es, EN_CHANGE)) return;
 	}
 	EDIT_InvalidateUniscribeData(es);
-
-	NotifyWinEvent(EVENT_OBJECT_VALUECHANGE, es->hwndSelf, OBJID_CLIENT, 0);
 }
 
 
@@ -2910,7 +2886,6 @@ static BOOL EDIT_EM_Undo(EDITSTATE *es)
 	EDIT_EM_ScrollCaret(es);
 	Free(utext);
 
-	NotifyWinEvent(EVENT_OBJECT_VALUECHANGE, es->hwndSelf, OBJID_CLIENT, 0);
 	TRACE("after UNDO:insertion length = %d, deletion buffer = %s\n",
 			es->undo_insert_count, debugstr_w(es->undo_text));
 	return TRUE;
@@ -3030,9 +3005,6 @@ static inline void EDIT_WM_Cut(EDITSTATE *es)
 static LRESULT EDIT_WM_Char(EDITSTATE *es, WCHAR c)
 {
         BOOL control;
-
-	if (es->bCaptureState)
-		return 1;
 
 	control = GetKeyState(VK_CONTROL) & 0x8000;
 
@@ -3290,9 +3262,6 @@ static LRESULT EDIT_WM_KeyDown(EDITSTATE *es, INT key)
 	BOOL shift;
 	BOOL control;
 
-	if (es->bCaptureState)
-		return 1;
-
 	if (GetKeyState(VK_MENU) & 0x8000)
 		return 0;
 
@@ -3409,7 +3378,6 @@ static LRESULT EDIT_WM_KeyDown(EDITSTATE *es, INT key)
                 {
                     if (!notify_parent(es, EN_UPDATE)) break;
                     notify_parent(es, EN_CHANGE);
-                    EDIT_EM_ScrollCaret(es);
                 }
             }
             break;
@@ -3847,7 +3815,6 @@ static void EDIT_WM_SetText(EDITSTATE *es, LPCWSTR text)
     EDIT_EM_ScrollCaret(es);
     EDIT_UpdateScrollInfo(es);
     EDIT_InvalidateUniscribeData(es);
-    NotifyWinEvent(EVENT_OBJECT_VALUECHANGE, es->hwndSelf, OBJID_CLIENT, 0);
 }
 
 

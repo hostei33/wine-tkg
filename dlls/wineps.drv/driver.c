@@ -181,6 +181,8 @@ void PSDRV_MergeDevmodes( PSDRV_DEVMODE *dm1, const DEVMODEW *dm2, PRINTERINFO *
             TRACE("Trying to change to unsupported bin %d\n", dm2->dmDefaultSource);
     }
 
+   if (dm2->dmFields & DM_DEFAULTSOURCE )
+       dm1->dmPublic.dmDefaultSource = dm2->dmDefaultSource;
    if (dm2->dmFields & DM_PRINTQUALITY )
        dm1->dmPublic.dmPrintQuality = dm2->dmPrintQuality;
    if (dm2->dmFields & DM_COLOR )
@@ -700,15 +702,6 @@ DWORD WINAPI DrvDeviceCapabilities(HANDLE printer, WCHAR *device_name, WORD capa
                 lp[1] = res->resy;
                 lp += 2;
             }
-        }
-        if (!i)
-        {
-            if (output != NULL)
-            {
-                lp[0] = pi->ppd->DefaultResolution;
-                lp[1] = pi->ppd->DefaultResolution;
-            }
-            i = 1;
         }
         ret = i;
         break;

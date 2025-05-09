@@ -84,7 +84,6 @@ static void xslpattern_error(parser_param* param, void const* scanner, char cons
     XSLPattern              : Expr
                             {
                                 p->out = $1;
-                                (void)xslpattern_nerrs; /* avoid unused variable warning */
                             }
     ;
 

@@ -188,10 +188,6 @@ static BOOL is_matching_key(const struct dictionary *dict, const struct keyitem_
     {
         return hash == pair->hash && numeric_key_eq(key, &pair->key);
     }
-    else if (V_VT(&pair->key) == VT_EMPTY || V_VT(&pair->key) == VT_NULL)
-    {
-        return V_VT(&pair->key) == V_VT(key);
-    }
     else
     {
         WARN("Unexpected key type %#x.\n", V_VT(key));
@@ -559,17 +555,11 @@ static HRESULT WINAPI dictionary_Invoke(IDictionary *iface, DISPID dispIdMember,
     return hr;
 }
 
-static HRESULT WINAPI dictionary_putref_Item(IDictionary *iface, VARIANT *key, VARIANT *item)
+static HRESULT WINAPI dictionary_putref_Item(IDictionary *iface, VARIANT *Key, VARIANT *pRetItem)
 {
-    struct dictionary *dictionary = impl_from_IDictionary(iface);
-    struct keyitem_pair *pair;
+    FIXME("%p, %p, %p stub\n", iface, Key, pRetItem);
 
-    TRACE("%p, %s, %s.\n", iface, debugstr_variant(key), debugstr_variant(item));
-
-    if ((pair = get_keyitem_pair(dictionary, key)))
-        return VariantCopyInd(&pair->item, item);
-
-    return add_keyitem_pair(dictionary, key, item);
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI dictionary_put_Item(IDictionary *iface, VARIANT *key, VARIANT *item)
@@ -582,7 +572,7 @@ static HRESULT WINAPI dictionary_put_Item(IDictionary *iface, VARIANT *key, VARI
     if ((pair = get_keyitem_pair(dictionary, key)))
         return VariantCopyInd(&pair->item, item);
 
-    return add_keyitem_pair(dictionary, key, item);
+    return IDictionary_Add(iface, key, item);
 }
 
 static HRESULT WINAPI dictionary_get_Item(IDictionary *iface, VARIANT *key, VARIANT *item)
@@ -919,10 +909,6 @@ static HRESULT WINAPI dictionary_get_HashVal(IDictionary *iface, VARIANT *key, V
     case VT_R8|VT_BYREF:
     case VT_R8:
         return get_flt_hash(V_VT(key) & VT_BYREF ? *V_R8REF(key) : V_R8(key), &V_I4(hash));
-    case VT_EMPTY:
-    case VT_NULL:
-        V_I4(hash) = 0;
-        return S_OK;
     case VT_INT:
     case VT_UINT:
     case VT_I1:

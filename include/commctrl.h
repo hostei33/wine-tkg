@@ -59,7 +59,7 @@ enum _LI_METRIC
 WINCOMMCTRLAPI HRESULT WINAPI LoadIconWithScaleDown(HINSTANCE, const WCHAR *, int, int, HICON *);
 WINCOMMCTRLAPI HRESULT WINAPI LoadIconMetric(HINSTANCE, const WCHAR *, int, HICON *);
 
-#define COMCTL32_VERSION                6  /* dll version */
+#define COMCTL32_VERSION                5  /* dll version */
 
 #define ICC_LISTVIEW_CLASSES   0x00000001  /* listview, header */
 #define ICC_TREEVIEW_CLASSES   0x00000002  /* treeview, tooltips */
@@ -601,13 +601,14 @@ WINCOMMCTRLAPI BOOL       WINAPI ImageList_SetIconSize(HIMAGELIST,INT,INT);
 WINCOMMCTRLAPI BOOL       WINAPI ImageList_SetImageCount(HIMAGELIST,UINT);
 WINCOMMCTRLAPI BOOL       WINAPI ImageList_SetOverlayImage(HIMAGELIST,INT,INT);
 
-struct IStream;
-WINCOMMCTRLAPI HIMAGELIST WINAPI ImageList_Read(struct IStream*);
-WINCOMMCTRLAPI BOOL       WINAPI ImageList_Write(HIMAGELIST,struct IStream*);
-WINCOMMCTRLAPI HRESULT    WINAPI ImageList_WriteEx(HIMAGELIST,DWORD,struct IStream*);
+#ifdef __IStream_INTERFACE_DEFINED__
+WINCOMMCTRLAPI HIMAGELIST WINAPI ImageList_Read(LPSTREAM);
+WINCOMMCTRLAPI BOOL       WINAPI ImageList_Write(HIMAGELIST,IStream*);
+WINCOMMCTRLAPI HRESULT    WINAPI ImageList_WriteEx(HIMAGELIST,DWORD,IStream*);
 
 #define ILP_NORMAL    0
 #define ILP_DOWNLEVEL 1
+#endif
 
 #define ImageList_AddIcon(himl,hicon) ImageList_ReplaceIcon(himl,-1,hicon)
 #define ImageList_ExtractIcon(hi,himl,i) ImageList_GetIcon(himl,i,0)
@@ -2293,7 +2294,7 @@ static const WCHAR WC_PAGESCROLLERW[] = { 'S','y','s','P','a','g','e','r',0 };
 #define PGN_CALCSIZE            (PGN_FIRST-2)
 #define PGN_HOTITEMCHANGE       (PGN_FIRST-3)
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 
 typedef struct
 {
@@ -2306,7 +2307,7 @@ typedef struct
     INT  iScroll;
 } NMPGSCROLL, *LPNMPGSCROLL;
 
-#pragma pack(pop)
+#include <poppack.h>
 
 typedef struct
 {
@@ -2830,14 +2831,14 @@ typedef struct tagNMTVASYNCDRAW
     int iRetImageIndex;
 } NMTVASYNCDRAW;
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 typedef struct tagTVKEYDOWN
 {
     NMHDR hdr;
     WORD wVKey;
     UINT flags;
 } NMTVKEYDOWN, *LPNMTVKEYDOWN;
-#pragma pack(pop)
+#include <poppack.h>
 
 #define TV_KEYDOWN      NMTVKEYDOWN
 
@@ -3021,8 +3022,6 @@ typedef struct tagTVKEYDOWN
 #define TreeView_GetCheckState(hwndTV, hti) \
    ((((UINT)(SNDMSG((hwndTV), TVM_GETITEMSTATE, (WPARAM)(hti),  \
                      TVIS_STATEIMAGEMASK))) >> 12) -1)
-#define TreeView_SetCheckState(hwndTV, hti, check) \
-    TreeView_SetItemState(hwndTV, hti, INDEXTOSTATEIMAGEMASK((check) ? 2 : 1), TVIS_STATEIMAGEMASK)
 
 #define TreeView_SetLineColor(hwnd, clr) \
     (COLORREF)SNDMSG((hwnd), TVM_SETLINECOLOR, 0, (LPARAM)(clr))
@@ -3040,34 +3039,6 @@ typedef struct tagTVKEYDOWN
     (BOOL)SNDMSG((hwnd), TVM_SETUNICODEFORMAT, (WPARAM)(fUnicode), 0)
 #define TreeView_GetUnicodeFormat(hwnd) \
     (BOOL)SNDMSG((hwnd), TVM_GETUNICODEFORMAT, 0, 0)
-
-#define TreeView_SetExtendedStyle(hwnd, style, mask) \
-    (DWORD)SNDMSG((hwnd), TVM_SETEXTENDEDSTYLE, mask, style)
-
-#define TreeView_GetExtendedStyle(hwnd) \
-    (DWORD)SNDMSG((hwnd), TVM_GETEXTENDEDSTYLE, 0, 0)
-
-#define TreeView_SetAutoScrollInfo(hwnd, pps, updatetime) \
-    SNDMSG((hwnd), TVM_SETAUTOSCROLLINFO, (WPARAM)(pps), (LPARAM)(updatetime))
-
-#define TreeView_SetHot(hwnd, hitem) \
-    SNDMSG((hwnd), TVM_SETHOT, 0, (LPARAM)(hitem))
-
-#define TreeView_GetSelectedCount(hwnd) \
-    (DWORD)SNDMSG((hwnd), TVM_GETSELECTEDCOUNT, 0, 0)
-
-#define TreeView_ShowInfoTip(hwnd, hitem) \
-    (DWORD)SNDMSG((hwnd), TVM_SHOWINFOTIP, 0, (LPARAM)(hitem))
-
-#define TreeView_GetItemPartRect(hwnd, hitem, rect, part) \
-{ \
-    TVGETITEMPARTRECTINFO info; \
-    info.hti = (hitem); \
-    info.prc = (rect); \
-    info.partID = (part); \
-    SNDMSG((hwnd), TVM_GETITEMPARTRECT, 0, (LPARAM)&info); \
-}
-
 
 /* Listview control */
 
@@ -3692,14 +3663,14 @@ typedef struct tagLVDISPINFOW
 #define LV_DISPINFOA	NMLVDISPINFOA
 #define LV_DISPINFOW	NMLVDISPINFOW
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 typedef struct tagLVKEYDOWN
 {
   NMHDR hdr;
   WORD  wVKey;
   UINT flags;
 } NMLVKEYDOWN, *LPNMLVKEYDOWN;
-#pragma pack(pop)
+#include <poppack.h>
 
 #define LV_KEYDOWN     NMLVKEYDOWN
 
@@ -4240,7 +4211,7 @@ typedef struct tagLVITEMINDEX
     SNDMSG((hwnd), LVM_GETGROUPCOUNT, (WPARAM)0, (LPARAM)0)
 #define ListView_GetItemIndexRect(hwnd, index, subitem, code, prc) \
     (BOOL)SNDMSG((hwnd), LVM_GETITEMINDEXRECT, (WPARAM)(LVITEMINDEX*)(index), \
-      (prc ? ((((LPRECT)prc)->top = subitem), (((LPRECT)prc)->left = code), (LPARAM)prc) : (LPARAM)NULL))
+      (prc ? ((((LPRECT)prc)->top = subitem), (((LPRECT)prc)->left = code), (LPARAM)prc) : (LPARAM)NULL)
 #define ListView_SetItemIndexState(hwndLV, index, data, mask) \
 {   LV_ITEM macro; macro.stateMask = (mask); macro.state = data; \
     SNDMSG((hwndLV), LVM_SETITEMINDEXSTATE, (WPARAM)(LVITEMINDEX*)(index), (LPARAM)(LV_ITEM *)&macro); }
@@ -4447,14 +4418,14 @@ typedef struct tagTCITEMW
 #define TCN_GETOBJECT           (TCN_FIRST - 3)
 #define TCN_FOCUSCHANGE         (TCN_FIRST - 4)
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 typedef struct tagTCKEYDOWN
 {
     NMHDR hdr;
     WORD wVKey;
     UINT flags;
 } NMTCKEYDOWN;
-#pragma pack(pop)
+#include <poppack.h>
 
 #define TC_KEYDOWN              NMTCKEYDOWN
 
@@ -5451,7 +5422,7 @@ static const WCHAR WC_SCROLLBARW[] = { 'S','c','r','o','l','l','B','a','r',0 };
 
 #ifndef NOTASKDIALOG
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 
 enum _TASKDIALOG_FLAGS
 {
@@ -5588,7 +5559,7 @@ WINCOMMCTRLAPI HRESULT WINAPI TaskDialog(HWND owner, HINSTANCE hinst, const WCHA
         const WCHAR *content, TASKDIALOG_COMMON_BUTTON_FLAGS common_buttons, const WCHAR *icon, int *button);
 WINCOMMCTRLAPI HRESULT WINAPI TaskDialogIndirect(const TASKDIALOGCONFIG *, int *, int *, BOOL *);
 
-#pragma pack(pop)
+#include <poppack.h>
 
 #endif /* NOTASKDIALOG */
 

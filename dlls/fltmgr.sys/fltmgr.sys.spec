@@ -10,7 +10,7 @@
 @ stub FltAllocatePoolAlignedWithTag
 @ stub FltAttachVolume
 @ stub FltAttachVolumeAtAltitude
-@ stdcall FltBuildDefaultSecurityDescriptor(ptr long)
+@ stub FltBuildDefaultSecurityDescriptor
 @ stub FltCancelFileOpen
 @ stub FltCancelIo
 @ stub FltCbdqDisable
@@ -60,7 +60,7 @@
 @ stub FltFreeFileLock
 @ stub FltFreeGenericWorkItem
 @ stub FltFreePoolAlignedWithTag
-@ stdcall FltFreeSecurityDescriptor(ptr)
+@ stub FltFreeSecurityDescriptor
 @ stub FltFsControlFile
 @ stub FltGetBottomInstance
 @ stub FltGetContexts

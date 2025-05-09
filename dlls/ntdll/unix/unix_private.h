@@ -31,16 +31,6 @@
 
 struct msghdr;
 
-typedef struct
-{
-    union
-    {
-        NTSTATUS Status;
-        ULONG Pointer;
-    };
-    ULONG Information;
-} IO_STATUS_BLOCK32;
-
 #ifdef __i386__
 static const WORD current_machine = IMAGE_FILE_MACHINE_I386;
 #elif defined(__x86_64__)
@@ -108,7 +98,6 @@ struct ntdll_thread_data
     int                request_fd;    /* fd for sending server requests */
     int                reply_fd;      /* fd for receiving server replies */
     int                wait_fd[2];    /* fd for sleeping server requests */
-    BOOL               allow_writes;  /* ThreadAllowWrites flags */
     pthread_t          pthread_id;    /* pthread thread id */
     struct list        entry;         /* entry in TEB list */
     PRTL_THREAD_START_ROUTINE start;  /* thread entry point */
@@ -130,7 +119,6 @@ struct async_fileio
 {
     async_callback_t    *callback;
     struct async_fileio *next;
-    DWORD                size;
     HANDLE               handle;
 };
 
@@ -138,8 +126,9 @@ static const SIZE_T page_size = 0x1000;
 static const SIZE_T teb_size = 0x3800;  /* TEB64 + TEB32 + debug info */
 static const SIZE_T signal_stack_mask = 0xffff;
 static const SIZE_T signal_stack_size = 0x10000 - 0x3800;
-static const SIZE_T kernel_stack_size = 0x100000;
-static const SIZE_T min_kernel_stack  = 0x2000;
+extern SIZE_T kernel_stack_size;
+static const SIZE_T kernel_stack_guard_size = 0x1000;
+static const SIZE_T min_kernel_stack  = 0x3000;
 static const LONG teb_offset = 0x2000;
 
 #define FILE_WRITE_TO_END_OF_FILE      ((LONGLONG)-1)
@@ -151,7 +140,6 @@ extern void *pKiRaiseUserExceptionDispatcher;
 extern void *pKiUserExceptionDispatcher;
 extern void *pKiUserApcDispatcher;
 extern void *pKiUserCallbackDispatcher;
-extern void *pKiUserEmulationDispatcher;
 extern void *pLdrInitializeThunk;
 extern void *pRtlUserThreadStart;
 extern void *p__wine_ctrl_routine;
@@ -165,7 +153,6 @@ extern const char *home_dir;
 extern const char *data_dir;
 extern const char *build_dir;
 extern const char *config_dir;
-extern const char *wineloader;
 extern const char *user_name;
 extern const char **dll_paths;
 extern const char **system_dll_paths;
@@ -177,11 +164,14 @@ extern SIZE_T startup_info_size;
 extern BOOL is_prefix_bootstrap;
 extern int main_argc;
 extern char **main_argv;
+extern char **main_envp;
 extern WCHAR **main_wargv;
 extern const WCHAR system_dir[];
 extern unsigned int supported_machines_count;
 extern USHORT supported_machines[8];
 extern BOOL process_exiting;
+extern BOOL terminate_process_running;
+extern LONG terminate_process_exit_code;
 extern HANDLE keyed_event;
 extern timeout_t server_start_time;
 extern sigset_t server_block_set;
@@ -193,34 +183,40 @@ extern struct ldt_copy __wine_ldt_copy;
 
 extern BOOL ac_odyssey;
 extern BOOL fsync_simulate_sched_quantum;
+extern BOOL alert_simulate_sched_quantum;
+extern BOOL fsync_yield_to_waiters;
+extern BOOL no_priv_elevation;
+extern BOOL localsystem_sid;
+extern BOOL simulate_writecopy;
+extern long long ram_reporting_bias;
+extern BOOL wine_allocs_2g_limit;
 
 extern void init_environment(void);
 extern void init_startup_info(void);
 extern void *create_startup_info( const UNICODE_STRING *nt_image, ULONG process_flags,
                                   const RTL_USER_PROCESS_PARAMETERS *params,
-                                  const struct pe_image_info *pe_info, DWORD *info_size );
+                                  const pe_image_info_t *pe_info, DWORD *info_size );
 extern char **build_envp( const WCHAR *envW );
 extern char *get_alternate_wineloader( WORD machine );
-extern NTSTATUS exec_wineloader( char **argv, int socketfd, const struct pe_image_info *pe_info );
-extern NTSTATUS load_builtin( const struct pe_image_info *image_info, WCHAR *filename, USHORT machine,
-                              SECTION_IMAGE_INFORMATION *info, void **module, SIZE_T *size,
-                              ULONG_PTR limit_low, ULONG_PTR limit_high );
+extern NTSTATUS exec_wineloader( char **argv, int socketfd, const pe_image_info_t *pe_info );
+extern NTSTATUS load_builtin( const pe_image_info_t *image_info, WCHAR *filename, USHORT machine,
+                              void **addr_ptr, SIZE_T *size_ptr, ULONG_PTR limit_low, ULONG_PTR limit_high );
 extern BOOL is_builtin_path( const UNICODE_STRING *path, WORD *machine );
 extern NTSTATUS load_main_exe( const WCHAR *name, const char *unix_name, const WCHAR *curdir,
                                USHORT load_machine, WCHAR **image, void **module );
 extern NTSTATUS load_start_exe( WCHAR **image, void **module );
-extern ULONG_PTR redirect_arm64ec_rva( void *module, ULONG_PTR rva, const IMAGE_ARM64EC_METADATA *metadata );
 extern void start_server( BOOL debug );
 
 extern unsigned int server_call_unlocked( void *req_ptr );
 extern void server_enter_uninterrupted_section( pthread_mutex_t *mutex, sigset_t *sigset );
 extern void server_leave_uninterrupted_section( pthread_mutex_t *mutex, sigset_t *sigset );
-extern unsigned int server_select( const union select_op *select_op, data_size_t size, UINT flags,
-                                   timeout_t abs_timeout, struct context_data *context, struct user_apc *user_apc );
-extern unsigned int server_wait( const union select_op *select_op, data_size_t size, UINT flags,
+extern unsigned int server_select( const select_op_t *select_op, data_size_t size, UINT flags,
+                                   timeout_t abs_timeout, context_t *context, user_apc_t *user_apc );
+extern unsigned int server_wait( const select_op_t *select_op, data_size_t size, UINT flags,
                                  const LARGE_INTEGER *timeout );
-extern unsigned int server_queue_process_apc( HANDLE process, const union apc_call *call,
-                                              union apc_result *result );
+extern NTSTATUS wait_internal_server( HANDLE handle, BOOLEAN alertable, const LARGE_INTEGER *timeout );
+extern unsigned int server_queue_process_apc( HANDLE process, const apc_call_t *call,
+                                              apc_result_t *result );
 extern int server_get_unix_fd( HANDLE handle, unsigned int wanted_access, int *unix_fd,
                                int *needs_close, enum server_fd_type *type, unsigned int *options );
 extern void wine_server_send_fd( int fd );
@@ -265,12 +261,14 @@ extern void DECLSPEC_NORETURN abort_process( int status );
 extern void DECLSPEC_NORETURN exit_process( int status );
 extern void wait_suspend( CONTEXT *context );
 extern NTSTATUS send_debug_event( EXCEPTION_RECORD *rec, CONTEXT *context, BOOL first_chance, BOOL exception );
+extern BOOL validate_context_xstate( CONTEXT *context );
 extern NTSTATUS set_thread_context( HANDLE handle, const void *context, BOOL *self, USHORT machine );
 extern NTSTATUS get_thread_context( HANDLE handle, void *context, BOOL *self, USHORT machine );
 extern unsigned int alloc_object_attributes( const OBJECT_ATTRIBUTES *attr, struct object_attributes **ret,
                                              data_size_t *ret_len );
 extern NTSTATUS system_time_precise( void *args );
 
+extern void *steamclient_handle_fault( LPCVOID addr, DWORD err );
 extern void *anon_mmap_fixed( void *start, size_t size, int prot, int flags );
 extern void *anon_mmap_alloc( size_t size, int prot );
 extern void virtual_init(void);
@@ -283,16 +281,17 @@ extern NTSTATUS virtual_map_module( HANDLE mapping, void **module, SIZE_T *size,
                                     SECTION_IMAGE_INFORMATION *info, ULONG_PTR limit_low,
                                     ULONG_PTR limit_high, USHORT machine );
 extern NTSTATUS virtual_create_builtin_view( void *module, const UNICODE_STRING *nt_name,
-                                             struct pe_image_info *info, void *so_handle );
+                                             pe_image_info_t *info, void *so_handle );
 extern NTSTATUS virtual_relocate_module( void *module );
 extern TEB *virtual_alloc_first_teb(void);
 extern NTSTATUS virtual_alloc_teb( TEB **ret_teb );
 extern void virtual_free_teb( TEB *teb );
 extern NTSTATUS virtual_clear_tls_index( ULONG index );
+extern NTSTATUS virtual_set_tls_information( PROCESS_TLS_INFORMATION *t );
 extern NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR limit_low, ULONG_PTR limit_high,
                                             SIZE_T reserve_size, SIZE_T commit_size, BOOL guard_page );
 extern void virtual_map_user_shared_data(void);
-extern NTSTATUS virtual_handle_fault( EXCEPTION_RECORD *rec, void *stack );
+extern NTSTATUS virtual_handle_fault( void *addr, DWORD err, void *stack );
 extern unsigned int virtual_locked_server_call( void *req_ptr );
 extern ssize_t virtual_locked_read( int fd, void *addr, size_t size );
 extern ssize_t virtual_locked_pread( int fd, void *addr, size_t size, off_t offset );
@@ -304,12 +303,12 @@ extern BOOL virtual_check_buffer_for_write( void *ptr, SIZE_T size );
 extern SIZE_T virtual_uninterrupted_read_memory( const void *addr, void *buffer, SIZE_T size );
 extern NTSTATUS virtual_uninterrupted_write_memory( void *addr, const void *buffer, SIZE_T size );
 extern void virtual_set_force_exec( BOOL enable );
-extern void virtual_enable_write_exceptions( BOOL enable );
 extern void virtual_set_large_address_space(void);
-extern void virtual_fill_image_information( const struct pe_image_info *pe_info,
+extern void virtual_fill_image_information( const pe_image_info_t *pe_info,
                                             SECTION_IMAGE_INFORMATION *info );
 extern void *get_builtin_so_handle( void *module );
 extern NTSTATUS load_builtin_unixlib( void *module, const char *name );
+extern NTSTATUS unwind_builtin_dll( void *args );
 
 extern NTSTATUS get_thread_ldt_entry( HANDLE handle, void *data, ULONG len, ULONG *ret_len );
 extern void *get_native_context( CONTEXT *context );
@@ -318,6 +317,7 @@ extern BOOL get_thread_times( int unix_pid, int unix_tid, LARGE_INTEGER *kernel_
                               LARGE_INTEGER *user_time );
 extern void signal_init_threading(void);
 extern NTSTATUS signal_alloc_thread( TEB *teb );
+extern void set_thread_teb( TEB *teb );
 extern void signal_free_thread( TEB *teb );
 extern void signal_init_process(void);
 extern void DECLSPEC_NORETURN signal_start_thread( PRTL_THREAD_START_ROUTINE entry, void *arg,
@@ -332,8 +332,6 @@ extern NTSTATUS set_thread_wow64_context( HANDLE handle, const void *ctx, ULONG 
 extern void fill_vm_counters( VM_COUNTERS_EX *pvmi, int unix_pid );
 extern NTSTATUS open_hkcu_key( const char *path, HANDLE *key );
 
-extern NTSTATUS sync_ioctl( HANDLE file, ULONG code, void *in_buffer, ULONG in_size,
-                            void *out_buffer, ULONG out_size );
 extern NTSTATUS cdrom_DeviceIoControl( HANDLE device, HANDLE event, PIO_APC_ROUTINE apc, void *apc_user,
                                        IO_STATUS_BLOCK *io, UINT code, void *in_buffer,
                                        UINT in_size, void *out_buffer, UINT out_size );
@@ -364,10 +362,9 @@ extern NTSTATUS open_unix_file( HANDLE *handle, const char *unix_name, ACCESS_MA
 extern NTSTATUS get_device_info( int fd, struct _FILE_FS_DEVICE_INFORMATION *info );
 extern void init_files(void);
 extern void init_cpu_info(void);
-extern void file_complete_async( HANDLE handle, unsigned int options, HANDLE event, PIO_APC_ROUTINE apc, void *apc_user,
-                                 IO_STATUS_BLOCK *io, NTSTATUS status, ULONG_PTR information );
-extern void set_async_direct_result( HANDLE *async_handle, unsigned int options, IO_STATUS_BLOCK *io,
-                                     NTSTATUS status, ULONG_PTR information, BOOL mark_pending );
+extern void add_completion( HANDLE handle, ULONG_PTR value, NTSTATUS status, ULONG info, BOOL async );
+extern void set_async_direct_result( HANDLE *async_handle, NTSTATUS status, ULONG_PTR information, BOOL mark_pending );
+extern struct cpu_topology_override *get_cpu_topology_override(void);
 
 extern NTSTATUS unixcall_wine_dbg_write( void *args );
 extern NTSTATUS unixcall_wine_server_call( void *args );
@@ -390,6 +387,8 @@ extern NTSTATUS call_user_exception_dispatcher( EXCEPTION_RECORD *rec, CONTEXT *
 extern void call_raise_user_exception_dispatcher(void);
 
 #define IMAGE_DLLCHARACTERISTICS_PREFER_NATIVE 0x0010 /* Wine extension */
+
+extern const char * wine_debuginfostr_pc(void *pc);
 
 #define TICKSPERSEC 10000000
 #define SECS_1601_TO_1970  ((369 * 365 + 89) * (ULONGLONG)86400)
@@ -425,11 +424,11 @@ static inline BOOL is_inside_signal_stack( void *ptr )
             (char *)ptr < (char *)get_signal_stack() + signal_stack_size);
 }
 
-static inline BOOL is_ec_code( ULONG_PTR ptr )
+static inline BOOL is_inside_syscall_stack_guard( const char *stack_ptr )
 {
-    const UINT64 *map = (const UINT64 *)peb->EcCodeBitMap;
-    ULONG_PTR page = ptr / page_size;
-    return (map[page / 64] >> (page & 63)) & 1;
+    const char *kernel_stack = ntdll_get_thread_data()->kernel_stack;
+
+    return (stack_ptr >= kernel_stack && stack_ptr < kernel_stack + kernel_stack_guard_size);
 }
 
 static inline void mutex_lock( pthread_mutex_t *mutex )
@@ -442,10 +441,10 @@ static inline void mutex_unlock( pthread_mutex_t *mutex )
     if (!process_exiting) pthread_mutex_unlock( mutex );
 }
 
-static inline struct async_data server_async( HANDLE handle, struct async_fileio *user, HANDLE event,
-                                              PIO_APC_ROUTINE apc, void *apc_context, client_ptr_t iosb )
+static inline async_data_t server_async( HANDLE handle, struct async_fileio *user, HANDLE event,
+                                         PIO_APC_ROUTINE apc, void *apc_context, client_ptr_t iosb )
 {
-    struct async_data async;
+    async_data_t async;
     async.handle      = wine_server_obj_handle( handle );
     async.user        = wine_server_client_ptr( user );
     async.iosb        = iosb;
@@ -457,7 +456,7 @@ static inline struct async_data server_async( HANDLE handle, struct async_fileio
 
 static inline NTSTATUS wait_async( HANDLE handle, BOOL alertable )
 {
-    return NtWaitForSingleObject( handle, alertable, NULL );
+    return wait_internal_server( handle, alertable, NULL );
 }
 
 static inline BOOL in_wow64_call(void)
@@ -489,7 +488,11 @@ static inline void set_async_iosb( client_ptr_t iosb, NTSTATUS status, ULONG_PTR
 
     if (in_wow64_call())
     {
-        IO_STATUS_BLOCK32 *io = wine_server_get_ptr( iosb );
+        struct iosb32
+        {
+            NTSTATUS Status;
+            ULONG    Information;
+        } *io = wine_server_get_ptr( iosb );
         io->Information = info;
         WriteRelease( &io->Status, status );
     }
@@ -579,5 +582,7 @@ static inline NTSTATUS map_section( HANDLE mapping, void **ptr, SIZE_T *size, UL
     return NtMapViewOfSection( mapping, NtCurrentProcess(), ptr, user_space_wow_limit,
                                0, NULL, size, ViewShare, 0, protect );
 }
+
+BOOL WINAPI __wine_needs_override_large_address_aware(void);
 
 #endif /* __NTDLL_UNIX_PRIVATE_H */

@@ -22,7 +22,6 @@
 #define __SQLEXT_H
 
 #include <sql.h>
-#include <sqlucode.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -267,8 +267,8 @@ static void parse_header(const char *name, int *name_len, const char **value, in
     while (*p == ' ' || *p == '\t') ++p;
     *value = p;
     while (isprint(*p) || *p == '\t') ++p;
-    while (p > *value && isspace(p[-1])) --p; /* strip trailing LWS */
-    *value_len = p - *value;
+    while (isspace(*p)) --p; /* strip trailing LWS */
+    *value_len = p - *value + 1;
 }
 
 #define http_unknown_header http_unknown_header_64
@@ -638,7 +638,7 @@ static void receive_data(struct connection *conn)
     if (conn->available)
         return; /* waiting for an HttpReceiveHttpRequest() call */
     if (conn->req_id != HTTP_NULL_ID)
-        return; /* waiting for an HttpSendHttpResponse() or HttpSendResponseEntityBody() call */
+        return; /* waiting for an HttpSendHttpResponse() call */
 
     TRACE("Received %u bytes of data.\n", len);
 
@@ -1006,28 +1006,23 @@ static NTSTATUS http_send_response(struct request_queue *queue, IRP *irp)
     {
         if (send(conn->socket, response->buffer, response->len, 0) >= 0)
         {
-            /* Clean up the connection if we are not sending more response data. */
-            if (response->response_flags != HTTP_SEND_RESPONSE_FLAG_MORE_DATA)
+            if (conn->content_len)
             {
-                if (conn->content_len)
-                {
-                    /* Discard whatever entity body is left. */
-                    memmove(conn->buffer, conn->buffer + conn->content_len, conn->len - conn->content_len);
-                    conn->len -= conn->content_len;
-                }
-
-                conn->queue = NULL;
-                conn->req_id = HTTP_NULL_ID;
-                WSAEventSelect(conn->socket, request_event, FD_READ | FD_CLOSE);
-
-                /* We might have another request already in the buffer. */
-                if (parse_request(conn) < 0)
-                {
-                    WARN("Failed to parse request; shutting down connection.\n");
-                    send_400(conn);
-                }
+                /* Discard whatever entity body is left. */
+                memmove(conn->buffer, conn->buffer + conn->content_len, conn->len - conn->content_len);
+                conn->len -= conn->content_len;
             }
+
+            conn->queue = NULL;
+            conn->req_id = HTTP_NULL_ID;
+            WSAEventSelect(conn->socket, request_event, FD_READ | FD_CLOSE);
             irp->IoStatus.Information = response->len;
+            /* We might have another request already in the buffer. */
+            if (parse_request(conn) < 0)
+            {
+                WARN("Failed to parse request; shutting down connection.\n");
+                send_400(conn);
+            }
         }
         else
         {

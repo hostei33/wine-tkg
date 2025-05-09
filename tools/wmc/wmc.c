@@ -94,8 +94,7 @@ char *output_name = NULL;	/* The name given by the -o option */
 const char *input_name = NULL;	/* The name given on the command-line */
 char *header_name = NULL;	/* The name given by the -H option */
 
-static const char *bindir;
-const char *nlsdirs[3] = { NULL, DATADIR "/wine/nls", NULL };
+const char *nlsdirs[3] = { NULL, NLSDIR, NULL };
 
 int line_number = 1;		/* The current line */
 int char_number = 1;		/* The current char pos within the line */
@@ -142,6 +141,15 @@ static void cleanup_files(void)
 static void exit_on_signal( int sig )
 {
     exit(1);  /* this will call the atexit functions */
+}
+
+static void init_argv0_dir( const char *argv0 )
+{
+    char *dir = get_argv0_dir( argv0 );
+
+    if (!dir) return;
+    if (strendswith( dir, "/tools/wmc" )) nlsdirs[0] = strmake( "%s/../../nls", dir );
+    else nlsdirs[0] = strmake( "%s/%s", dir, BIN_TO_NLSDIR );
 }
 
 static void option_callback( int optc, char *optarg )
@@ -213,8 +221,7 @@ int main(int argc,char *argv[])
 
 	atexit( cleanup_files );
         init_signals( exit_on_signal );
-        bindir = get_bindir( argv[0] );
-        nlsdirs[0] = get_nlsdir( bindir, "/tools/wmc" );
+        init_argv0_dir( argv[0] );
 
 	/* First rebuild the commandline to put in destination */
 	/* Could be done through env[], but not all OS-es support it */

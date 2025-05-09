@@ -55,7 +55,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(shell);
  *
  * creates a CF_HDROP structure
  */
-HGLOBAL RenderHDROP(const ITEMIDLIST *pidlRoot, const ITEMIDLIST **apidl, unsigned int cidl)
+HGLOBAL RenderHDROP(LPITEMIDLIST pidlRoot, LPITEMIDLIST * apidl, UINT cidl)
 {
 	UINT i;
 	int rootlen = 0,size = 0;
@@ -107,7 +107,7 @@ HGLOBAL RenderHDROP(const ITEMIDLIST *pidlRoot, const ITEMIDLIST **apidl, unsign
 	return hGlobal;
 }
 
-HGLOBAL RenderSHELLIDLIST(const ITEMIDLIST *pidlRoot, const ITEMIDLIST **apidl, unsigned int cidl)
+HGLOBAL RenderSHELLIDLIST (LPITEMIDLIST pidlRoot, LPITEMIDLIST * apidl, UINT cidl)
 {
 	UINT i;
 	int offset = 0, sizePidl, size;
@@ -149,7 +149,7 @@ HGLOBAL RenderSHELLIDLIST(const ITEMIDLIST *pidlRoot, const ITEMIDLIST **apidl, 
 	return hGlobal;
 }
 
-HGLOBAL RenderFILENAMEA(const ITEMIDLIST *pidlRoot, const ITEMIDLIST **apidl, unsigned int cidl)
+HGLOBAL RenderFILENAMEA (LPITEMIDLIST pidlRoot, LPITEMIDLIST * apidl, UINT cidl)
 {
 	int size = 0;
 	char szTemp[MAX_PATH], *szFileName;
@@ -181,7 +181,7 @@ HGLOBAL RenderFILENAMEA(const ITEMIDLIST *pidlRoot, const ITEMIDLIST **apidl, un
 	return hGlobal;
 }
 
-HGLOBAL RenderFILENAMEW(const ITEMIDLIST *pidlRoot, const ITEMIDLIST **apidl, unsigned int cidl)
+HGLOBAL RenderFILENAMEW (LPITEMIDLIST pidlRoot, LPITEMIDLIST * apidl, UINT cidl)
 {
 	int size = 0;
 	WCHAR szTemp[MAX_PATH], *szFileName;

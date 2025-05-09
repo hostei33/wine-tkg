@@ -303,14 +303,12 @@ int TIFFWriteCustomDirectory(TIFF *tif, uint64_t *pdiroff)
 }
 
 /*
- * Similar to TIFFWriteDirectorySec(), but if the directory has already
+ * Similar to TIFFWriteDirectory(), but if the directory has already
  * been written once, it is relocated to the end of the file, in case it
  * has changed in size.  Note that this will result in the loss of the
  * previously used directory space.
  */
-
-static int TIFFRewriteDirectorySec(TIFF *tif, int isimage, int imagedone,
-                                   uint64_t *pdiroff)
+int TIFFRewriteDirectory(TIFF *tif)
 {
     static const char module[] = "TIFFRewriteDirectory";
 
@@ -466,20 +464,10 @@ static int TIFFRewriteDirectorySec(TIFF *tif, int isimage, int imagedone,
     }
 
     /*
-     * Now use TIFFWriteDirectorySec() normally.
+     * Now use TIFFWriteDirectory() normally.
      */
-    return TIFFWriteDirectorySec(tif, isimage, imagedone, pdiroff);
-} /*-- TIFFRewriteDirectorySec() --*/
 
-/*
- * Similar to TIFFWriteDirectory(), but if the directory has already
- * been written once, it is relocated to the end of the file, in case it
- * has changed in size.  Note that this will result in the loss of the
- * previously used directory space.
- */
-int TIFFRewriteDirectory(TIFF *tif)
-{
-    return TIFFRewriteDirectorySec(tif, TRUE, TRUE, NULL);
+    return TIFFWriteDirectory(tif);
 }
 
 static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
@@ -554,12 +542,7 @@ static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
     dirsize = 0;
     while (1)
     {
-        /* The first loop only determines "ndir" and uses TIFFLinkDirectory() to
-         * set the offset at which the IFD is to be written to the file.
-         * The second loop writes IFD entries to the file. */
         ndir = 0;
-        if (dir == NULL)
-            tif->tif_dir.td_dirdatasize_write = 0;
         if (isimage)
         {
             if (TIFFFieldSet(tif, FIELD_IMAGEDIMENSIONS))
@@ -869,7 +852,7 @@ static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
                     if ((o->field_bit >= FIELD_CODEC) &&
                         (TIFFFieldSet(tif, o->field_bit)))
                     {
-                        switch (o->set_field_type)
+                        switch (o->get_field_type)
                         {
                             case TIFF_SETGET_ASCII:
                             {
@@ -1102,18 +1085,8 @@ static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
                     break;
             }
         }
-        /* "break" if IFD has been written above in second pass.*/
         if (dir != NULL)
             break;
-
-        /* Evaluate IFD data size: Finally, add the size of the IFD tag entries
-         * themselves. */
-        if (!(tif->tif_flags & TIFF_BIGTIFF))
-            tif->tif_dir.td_dirdatasize_write += 2 + ndir * 12 + 4;
-        else
-            tif->tif_dir.td_dirdatasize_write += 8 + ndir * 20 + 8;
-
-        /* Setup a new directory within first pass. */
         dir = _TIFFmallocExt(tif, ndir * sizeof(TIFFDirEntry));
         if (dir == NULL)
         {
@@ -1122,58 +1095,18 @@ static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
         }
         if (isimage)
         {
-            /* Check, weather the IFD to be written is new or an already written
-             * IFD can be overwritten or needs to be re-written to a different
-             * location in the file because the IFD is extended with additional
-             * tags or the IFD data size is increased.
-             * - tif_diroff == 0, if a new directory has to be linked.
-             * - tif_diroff != 0, IFD has been re-read from file and will be
-             *   overwritten or re-written.
-             */
-            if (tif->tif_diroff == 0)
-            {
-                if (!TIFFLinkDirectory(tif))
-                    goto bad;
-            }
-            else if (tif->tif_dir.td_dirdatasize_write >
-                     tif->tif_dir.td_dirdatasize_read)
-            {
-                if (dir != NULL)
-                {
-                    _TIFFfreeExt(tif, dir);
-                    dir = NULL;
-                }
-                if (!TIFFRewriteDirectorySec(tif, isimage, imagedone, pdiroff))
-                    goto bad;
-                return (1);
-            }
+            if ((tif->tif_diroff == 0) && (!TIFFLinkDirectory(tif)))
+                goto bad;
         }
         else
-        {
-            /* For !isimage, which means custom-IFD like EXIFIFD or
-             * checkpointing an IFD, determine whether to overwrite or append at
-             * the end of the file.
-             */
-            if (!((tif->tif_dir.td_dirdatasize_read > 0) &&
-                  (tif->tif_dir.td_dirdatasize_write <=
-                   tif->tif_dir.td_dirdatasize_read)))
-            {
-                /* Append at end of file and increment to an even offset. */
-                tif->tif_diroff =
-                    (TIFFSeekFile(tif, 0, SEEK_END) + 1) & (~((toff_t)1));
-            }
-        }
-        /* Return IFD offset */
+            tif->tif_diroff =
+                (TIFFSeekFile(tif, 0, SEEK_END) + 1) & (~((toff_t)1));
         if (pdiroff != NULL)
             *pdiroff = tif->tif_diroff;
         if (!(tif->tif_flags & TIFF_BIGTIFF))
             dirsize = 2 + ndir * 12 + 4;
         else
             dirsize = 8 + ndir * 20 + 8;
-        /* Append IFD data stright after the IFD tag entries.
-         * Data that does not fit into an IFD tag entry is written to the file
-         * in the second pass of the while loop. That offset is stored in "dir".
-         */
         tif->tif_dataoff = tif->tif_diroff + dirsize;
         if (!(tif->tif_flags & TIFF_BIGTIFF))
             tif->tif_dataoff = (uint32_t)tif->tif_dataoff;
@@ -1185,12 +1118,16 @@ static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
         }
         if (tif->tif_dataoff & 1)
             tif->tif_dataoff++;
-    } /* while() */
+        if (isimage)
+        {
+            if (tif->tif_curdir == TIFF_NON_EXISTENT_DIR_NUMBER)
+                tif->tif_curdir = 0;
+            else
+                tif->tif_curdir++;
+        }
+    }
     if (isimage)
     {
-        /* For SubIFDs remember offset of SubIFD tag within main IFD.
-         * However, might be already done in TIFFWriteDirectoryTagSubifd() if
-         * there are more than one SubIFD. */
         if (TIFFFieldSet(tif, FIELD_SUBIFD) && (tif->tif_subifdoff == 0))
         {
             uint32_t na;
@@ -1211,8 +1148,6 @@ static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
                 tif->tif_subifdoff = tif->tif_diroff + 8 + na * 20 + 12;
         }
     }
-    /* Copy/swab IFD entries from "dir" into "dirmem",
-     * which is then written to file. */
     dirmem = _TIFFmallocExt(tif, dirsize);
     if (dirmem == NULL)
     {
@@ -1292,8 +1227,7 @@ static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
     dir = NULL;
     if (!SeekOK(tif, tif->tif_diroff))
     {
-        TIFFErrorExtR(tif, module,
-                      "IO error writing directory at seek to offset");
+        TIFFErrorExtR(tif, module, "IO error writing directory");
         goto bad;
     }
     if (!WriteOK(tif, dirmem, (tmsize_t)dirsize))
@@ -1302,82 +1236,17 @@ static int TIFFWriteDirectorySec(TIFF *tif, int isimage, int imagedone,
         goto bad;
     }
     _TIFFfreeExt(tif, dirmem);
-
-    /* Increment tif_curdir if IFD wasn't already written to file and no error
-     * occurred during IFD writing above. */
-    if (isimage && !tif->tif_dir.td_iswrittentofile)
-    {
-        if (!((tif->tif_flags & TIFF_INSUBIFD) &&
-              !(TIFFFieldSet(tif, FIELD_SUBIFD))))
-        {
-            /*-- Normal main-IFD case --*/
-            if (tif->tif_curdircount != TIFF_NON_EXISTENT_DIR_NUMBER)
-            {
-                tif->tif_curdir = tif->tif_curdircount;
-            }
-            else
-            {
-                /*ToDo SU: NEW_IFD_CURDIR_INCREMENTING:  Delete this
-                 * unexpected case after some testing time. */
-                /* Attention: tif->tif_curdircount is already set within
-                 * TIFFNumberOfDirectories() */
-                tif->tif_curdircount = TIFFNumberOfDirectories(tif);
-                tif->tif_curdir = tif->tif_curdircount;
-                TIFFErrorExtR(
-                    tif, module,
-                    "tif_curdircount is TIFF_NON_EXISTENT_DIR_NUMBER, "
-                    "not expected !! Line %d",
-                    __LINE__);
-                goto bad;
-            }
-        }
-        else
-        {
-            /*-- SubIFD case -- */
-            /* tif_curdir is always set to 0 for all SubIFDs. */
-            tif->tif_curdir = 0;
-        }
-    }
-    /* Increment tif_curdircount only if main-IFD of an image was not already
-     * present on file. */
-    /* Check in combination with (... && !(TIFFFieldSet(tif, FIELD_SUBIFD)))
-     * is necessary here because TIFF_INSUBIFD was already set above for the
-     * next SubIFD when this main-IFD (with FIELD_SUBIFD) is currently being
-     * written. */
-    if (isimage && !tif->tif_dir.td_iswrittentofile &&
-        !((tif->tif_flags & TIFF_INSUBIFD) &&
-          !(TIFFFieldSet(tif, FIELD_SUBIFD))))
-        tif->tif_curdircount++;
-
-    tif->tif_dir.td_iswrittentofile = TRUE;
-
-    /* Reset SubIFD writing stage after last SubIFD has been written. */
-    if (imagedone && (tif->tif_flags & TIFF_INSUBIFD) && tif->tif_nsubifd == 0)
-        tif->tif_flags &= ~TIFF_INSUBIFD;
-
-    /* Add or update this directory to the IFD list. */
-    if (!_TIFFCheckDirNumberAndOffset(tif, tif->tif_curdir, tif->tif_diroff))
-    {
-        TIFFErrorExtR(tif, module,
-                      "Starting directory %u at offset 0x%" PRIx64 " (%" PRIu64
-                      ") might cause an IFD loop",
-                      tif->tif_curdir, tif->tif_diroff, tif->tif_diroff);
-    }
-
     if (imagedone)
     {
         TIFFFreeDirectory(tif);
         tif->tif_flags &= ~TIFF_DIRTYDIRECT;
         tif->tif_flags &= ~TIFF_DIRTYSTRIP;
         (*tif->tif_cleanup)(tif);
-        /* Reset directory-related state for subsequent directories. */
+        /*
+         * Reset directory-related state for subsequent
+         * directories.
+         */
         TIFFCreateDirectory(tif);
-    }
-    else
-    {
-        /* IFD is only checkpointed to file (or a custom IFD like EXIF is
-         * written), thus set IFD data size written to file. */
-        tif->tif_dir.td_dirdatasize_read = tif->tif_dir.td_dirdatasize_write;
     }
     return (1);
 bad:
@@ -1532,6 +1401,11 @@ static int TIFFWriteDirectoryTagAscii(TIFF *tif, uint32_t *ndir,
                                       TIFFDirEntry *dir, uint16_t tag,
                                       uint32_t count, char *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (
         TIFFWriteDirectoryTagCheckedAscii(tif, ndir, dir, tag, count, value));
 }
@@ -1540,6 +1414,11 @@ static int TIFFWriteDirectoryTagUndefinedArray(TIFF *tif, uint32_t *ndir,
                                                TIFFDirEntry *dir, uint16_t tag,
                                                uint32_t count, uint8_t *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedUndefinedArray(tif, ndir, dir, tag,
                                                        count, value));
 }
@@ -1548,6 +1427,11 @@ static int TIFFWriteDirectoryTagByteArray(TIFF *tif, uint32_t *ndir,
                                           TIFFDirEntry *dir, uint16_t tag,
                                           uint32_t count, uint8_t *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedByteArray(tif, ndir, dir, tag, count,
                                                   value));
 }
@@ -1556,6 +1440,11 @@ static int TIFFWriteDirectoryTagSbyteArray(TIFF *tif, uint32_t *ndir,
                                            TIFFDirEntry *dir, uint16_t tag,
                                            uint32_t count, int8_t *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedSbyteArray(tif, ndir, dir, tag, count,
                                                    value));
 }
@@ -1564,6 +1453,11 @@ static int TIFFWriteDirectoryTagShort(TIFF *tif, uint32_t *ndir,
                                       TIFFDirEntry *dir, uint16_t tag,
                                       uint16_t value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedShort(tif, ndir, dir, tag, value));
 }
 
@@ -1571,6 +1465,11 @@ static int TIFFWriteDirectoryTagShortArray(TIFF *tif, uint32_t *ndir,
                                            TIFFDirEntry *dir, uint16_t tag,
                                            uint32_t count, uint16_t *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedShortArray(tif, ndir, dir, tag, count,
                                                    value));
 }
@@ -1586,9 +1485,8 @@ static int TIFFWriteDirectoryTagShortPerSample(TIFF *tif, uint32_t *ndir,
     int o;
     if (dir == NULL)
     {
-        /* only evaluate IFD data size and inc. ndir */
-        return (TIFFWriteDirectoryTagCheckedShortArray(
-            tif, ndir, dir, tag, tif->tif_dir.td_samplesperpixel, NULL));
+        (*ndir)++;
+        return (1);
     }
     m = _TIFFmallocExt(tif, tif->tif_dir.td_samplesperpixel * sizeof(uint16_t));
     if (m == NULL)
@@ -1608,6 +1506,11 @@ static int TIFFWriteDirectoryTagSshortArray(TIFF *tif, uint32_t *ndir,
                                             TIFFDirEntry *dir, uint16_t tag,
                                             uint32_t count, int16_t *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedSshortArray(tif, ndir, dir, tag, count,
                                                     value));
 }
@@ -1616,6 +1519,11 @@ static int TIFFWriteDirectoryTagLong(TIFF *tif, uint32_t *ndir,
                                      TIFFDirEntry *dir, uint16_t tag,
                                      uint32_t value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedLong(tif, ndir, dir, tag, value));
 }
 
@@ -1623,6 +1531,11 @@ static int TIFFWriteDirectoryTagLongArray(TIFF *tif, uint32_t *ndir,
                                           TIFFDirEntry *dir, uint16_t tag,
                                           uint32_t count, uint32_t *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedLongArray(tif, ndir, dir, tag, count,
                                                   value));
 }
@@ -1631,6 +1544,11 @@ static int TIFFWriteDirectoryTagSlongArray(TIFF *tif, uint32_t *ndir,
                                            TIFFDirEntry *dir, uint16_t tag,
                                            uint32_t count, int32_t *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedSlongArray(tif, ndir, dir, tag, count,
                                                    value));
 }
@@ -1654,9 +1572,8 @@ static int TIFFWriteDirectoryTagLong8Array(TIFF *tif, uint32_t *ndir,
     /* is this just a counting pass? */
     if (dir == NULL)
     {
-        /* only evaluate IFD data size and inc. ndir */
-        return (TIFFWriteDirectoryTagCheckedLong8Array(tif, ndir, dir, tag,
-                                                       count, value));
+        (*ndir)++;
+        return (1);
     }
 
     /* We always write Long8 for BigTIFF, no checking needed. */
@@ -1715,9 +1632,8 @@ static int TIFFWriteDirectoryTagSlong8Array(TIFF *tif, uint32_t *ndir,
     /* is this just a counting pass? */
     if (dir == NULL)
     {
-        /* only evaluate IFD data size and inc. ndir */
-        return (TIFFWriteDirectoryTagCheckedSlong8Array(tif, ndir, dir, tag,
-                                                        count, value));
+        (*ndir)++;
+        return (1);
     }
     /* We always write SLong8 for BigTIFF, no checking needed. */
     if (tif->tif_flags & TIFF_BIGTIFF)
@@ -1770,6 +1686,11 @@ static int TIFFWriteDirectoryTagRational(TIFF *tif, uint32_t *ndir,
                                          TIFFDirEntry *dir, uint16_t tag,
                                          double value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedRational(tif, ndir, dir, tag, value));
 }
 
@@ -1777,6 +1698,11 @@ static int TIFFWriteDirectoryTagRationalArray(TIFF *tif, uint32_t *ndir,
                                               TIFFDirEntry *dir, uint16_t tag,
                                               uint32_t count, float *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedRationalArray(tif, ndir, dir, tag,
                                                       count, value));
 }
@@ -1785,6 +1711,11 @@ static int TIFFWriteDirectoryTagSrationalArray(TIFF *tif, uint32_t *ndir,
                                                TIFFDirEntry *dir, uint16_t tag,
                                                uint32_t count, float *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedSrationalArray(tif, ndir, dir, tag,
                                                        count, value));
 }
@@ -1796,6 +1727,11 @@ static int TIFFWriteDirectoryTagRationalDoubleArray(TIFF *tif, uint32_t *ndir,
                                                     uint32_t count,
                                                     double *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedRationalDoubleArray(tif, ndir, dir, tag,
                                                             count, value));
 }
@@ -1806,6 +1742,11 @@ static int TIFFWriteDirectoryTagSrationalDoubleArray(TIFF *tif, uint32_t *ndir,
                                                      uint32_t count,
                                                      double *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedSrationalDoubleArray(
         tif, ndir, dir, tag, count, value));
 }
@@ -1814,6 +1755,11 @@ static int TIFFWriteDirectoryTagFloatArray(TIFF *tif, uint32_t *ndir,
                                            TIFFDirEntry *dir, uint16_t tag,
                                            uint32_t count, float *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedFloatArray(tif, ndir, dir, tag, count,
                                                    value));
 }
@@ -1822,6 +1768,11 @@ static int TIFFWriteDirectoryTagDoubleArray(TIFF *tif, uint32_t *ndir,
                                             TIFFDirEntry *dir, uint16_t tag,
                                             uint32_t count, double *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedDoubleArray(tif, ndir, dir, tag, count,
                                                     value));
 }
@@ -1830,6 +1781,11 @@ static int TIFFWriteDirectoryTagIfdArray(TIFF *tif, uint32_t *ndir,
                                          TIFFDirEntry *dir, uint16_t tag,
                                          uint32_t count, uint32_t *value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     return (TIFFWriteDirectoryTagCheckedIfdArray(tif, ndir, dir, tag, count,
                                                  value));
 }
@@ -1838,6 +1794,11 @@ static int TIFFWriteDirectoryTagShortLong(TIFF *tif, uint32_t *ndir,
                                           TIFFDirEntry *dir, uint16_t tag,
                                           uint32_t value)
 {
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     if (value <= 0xFFFF)
         return (TIFFWriteDirectoryTagCheckedShort(tif, ndir, dir, tag,
                                                   (uint16_t)value));
@@ -1863,7 +1824,7 @@ static int _WriteAsType(TIFF *tif, uint64_t strile_size,
              compression == COMPRESSION_WEBP || compression == COMPRESSION_JXL)
     {
         /* For a few select compression types, we assume that in the worst */
-        /* case the compressed size will be 10 times the uncompressed size. */
+        /* case the compressed size will be 10 times the uncompressed size */
         /* This is overly pessismistic ! */
         return strile_size >= uncompressed_threshold / 10;
     }
@@ -1895,16 +1856,15 @@ static int TIFFWriteDirectoryTagLongLong8Array(TIFF *tif, uint32_t *ndir,
     int o;
     int write_aslong4;
 
+    /* is this just a counting pass? */
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
+
     if (tif->tif_dir.td_deferstrilearraywriting)
     {
-        if (dir == NULL)
-        {
-            /* This is just a counting pass to count IFD entries.
-             * For deferstrilearraywriting no extra bytes will be written
-             * into IFD space. */
-            (*ndir)++;
-            return 1;
-        }
         return TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_NOTYPE, 0, 0,
                                          NULL);
     }
@@ -1912,10 +1872,12 @@ static int TIFFWriteDirectoryTagLongLong8Array(TIFF *tif, uint32_t *ndir,
     if (tif->tif_flags & TIFF_BIGTIFF)
     {
         int write_aslong8 = 1;
-        /* In the case of ByteCounts array, we may be able to write them on LONG
-         * if the strip/tilesize is not too big. Also do that for count > 1 in
-         * the case someone would want to create a single-strip file with a
-         * growing height, in which case using LONG8 will be safer. */
+        /* In the case of ByteCounts array, we may be able to write them on */
+        /* LONG if the strip/tilesize is not too big. */
+        /* Also do that for count > 1 in the case someone would want to create
+         */
+        /* a single-strip file with a growing height, in which case using */
+        /* LONG8 will be safer. */
         if (count > 1 && tag == TIFFTAG_STRIPBYTECOUNTS)
         {
             write_aslong8 = WriteAsLong8(tif, TIFFStripSize64(tif));
@@ -2027,6 +1989,13 @@ static int TIFFWriteDirectoryTagIfdIfd8Array(TIFF *tif, uint32_t *ndir,
     uint32_t *q;
     int o;
 
+    /* is this just a counting pass? */
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
+
     /* We always write IFD8 for BigTIFF, no checking needed. */
     if (tif->tif_flags & TIFF_BIGTIFF)
         return TIFFWriteDirectoryTagCheckedIfd8Array(tif, ndir, dir, tag, count,
@@ -2063,26 +2032,6 @@ static int TIFFWriteDirectoryTagIfdIfd8Array(TIFF *tif, uint32_t *ndir,
     return (o);
 }
 
-/*
- * Auxiliary function to determine the IFD data size to be written to the file.
- * The IFD data size is finally the size of the IFD tag entries plus the IFD
- * data that is written directly after the IFD tag entries.
- */
-static void EvaluateIFDdatasizeWrite(TIFF *tif, uint32_t count,
-                                     uint32_t typesize, uint32_t *ndir)
-{
-    uint64_t datalength = (uint64_t)count * typesize;
-    if (datalength > ((tif->tif_flags & TIFF_BIGTIFF) ? 0x8U : 0x4U))
-    {
-        /* LibTIFF increments write address to an even offset, thus datalength
-         * written is also incremented. */
-        if (datalength & 1)
-            datalength++;
-        tif->tif_dir.td_dirdatasize_write += datalength;
-    }
-    (*ndir)++;
-}
-
 static int TIFFWriteDirectoryTagColormap(TIFF *tif, uint32_t *ndir,
                                          TIFFDirEntry *dir)
 {
@@ -2090,13 +2039,12 @@ static int TIFFWriteDirectoryTagColormap(TIFF *tif, uint32_t *ndir,
     uint32_t m;
     uint16_t *n;
     int o;
-    m = (1 << tif->tif_dir.td_bitspersample);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
+    if (dir == NULL)
     {
-        EvaluateIFDdatasizeWrite(tif, 3 * m, sizeof(uint16_t), ndir);
-        return 1;
+        (*ndir)++;
+        return (1);
     }
-
+    m = (1 << tif->tif_dir.td_bitspersample);
     n = _TIFFmallocExt(tif, 3 * m * sizeof(uint16_t));
     if (n == NULL)
     {
@@ -2120,6 +2068,11 @@ static int TIFFWriteDirectoryTagTransferfunction(TIFF *tif, uint32_t *ndir,
     uint16_t n;
     uint16_t *o;
     int p;
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     /* TIFFTAG_TRANSFERFUNCTION expects (1 or 3) pointer to arrays with
      *  (1 << BitsPerSample) * uint16_t values.
      */
@@ -2133,9 +2086,9 @@ static int TIFFWriteDirectoryTagTransferfunction(TIFF *tif, uint32_t *ndir,
     {
         if (tif->tif_dir.td_transferfunction[i] == NULL)
         {
-            TIFFWarningExtR(tif, module,
-                            "Too few TransferFunctions provided. Tag "
-                            "not written to file");
+            TIFFWarningExtR(
+                tif, module,
+                "Too few TransferFunctions provided. Tag not written to file");
             return (1); /* Not an error; only tag is not written. */
         }
     }
@@ -2155,12 +2108,6 @@ static int TIFFWriteDirectoryTagTransferfunction(TIFF *tif, uint32_t *ndir,
                          m * sizeof(uint16_t)))
             n = 1;
     }
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, n * m, 2, ndir);
-        return 1;
-    }
-
     o = _TIFFmallocExt(tif, n * m * sizeof(uint16_t));
     if (o == NULL)
     {
@@ -2189,6 +2136,11 @@ static int TIFFWriteDirectoryTagSubifd(TIFF *tif, uint32_t *ndir,
     int n;
     if (tif->tif_dir.td_nsubifd == 0)
         return (1);
+    if (dir == NULL)
+    {
+        (*ndir)++;
+        return (1);
+    }
     m = tif->tif_dataoff;
     if (!(tif->tif_flags & TIFF_BIGTIFF))
     {
@@ -2226,12 +2178,6 @@ static int TIFFWriteDirectoryTagSubifd(TIFF *tif, uint32_t *ndir,
         n = TIFFWriteDirectoryTagCheckedIfd8Array(
             tif, ndir, dir, TIFFTAG_SUBIFD, tif->tif_dir.td_nsubifd,
             tif->tif_dir.td_subifd);
-
-    if (dir == NULL)
-        /* Just have evaluated IFD data size and incremented ndir
-         * above in sub-functions. */
-        return (n);
-
     if (!n)
         return (0);
     /*
@@ -2256,11 +2202,6 @@ static int TIFFWriteDirectoryTagCheckedAscii(TIFF *tif, uint32_t *ndir,
                                              uint32_t count, char *value)
 {
     assert(sizeof(char) == 1);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 1, ndir);
-        return 1;
-    }
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_ASCII, count,
                                       count, value));
 }
@@ -2272,11 +2213,6 @@ static int TIFFWriteDirectoryTagCheckedUndefinedArray(TIFF *tif, uint32_t *ndir,
                                                       uint8_t *value)
 {
     assert(sizeof(uint8_t) == 1);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 1, ndir);
-        return 1;
-    }
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_UNDEFINED,
                                       count, count, value));
 }
@@ -2287,11 +2223,6 @@ static int TIFFWriteDirectoryTagCheckedByteArray(TIFF *tif, uint32_t *ndir,
                                                  uint8_t *value)
 {
     assert(sizeof(uint8_t) == 1);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 1, ndir);
-        return 1;
-    }
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_BYTE, count,
                                       count, value));
 }
@@ -2302,11 +2233,6 @@ static int TIFFWriteDirectoryTagCheckedSbyteArray(TIFF *tif, uint32_t *ndir,
                                                   int8_t *value)
 {
     assert(sizeof(int8_t) == 1);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 1, ndir);
-        return 1;
-    }
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_SBYTE, count,
                                       count, value));
 }
@@ -2317,12 +2243,6 @@ static int TIFFWriteDirectoryTagCheckedShort(TIFF *tif, uint32_t *ndir,
 {
     uint16_t m;
     assert(sizeof(uint16_t) == 2);
-    if (dir == NULL)
-    {
-        /* No additional data to IFD data size just increment ndir. */
-        (*ndir)++;
-        return 1;
-    }
     m = value;
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabShort(&m);
@@ -2337,11 +2257,6 @@ static int TIFFWriteDirectoryTagCheckedShortArray(TIFF *tif, uint32_t *ndir,
 {
     assert(count < 0x80000000);
     assert(sizeof(uint16_t) == 2);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 2, ndir);
-        return 1;
-    }
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfShort(value, count);
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_SHORT, count,
@@ -2355,11 +2270,6 @@ static int TIFFWriteDirectoryTagCheckedSshortArray(TIFF *tif, uint32_t *ndir,
 {
     assert(count < 0x80000000);
     assert(sizeof(int16_t) == 2);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 2, ndir);
-        return 1;
-    }
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfShort((uint16_t *)value, count);
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_SSHORT, count,
@@ -2372,12 +2282,6 @@ static int TIFFWriteDirectoryTagCheckedLong(TIFF *tif, uint32_t *ndir,
 {
     uint32_t m;
     assert(sizeof(uint32_t) == 4);
-    if (dir == NULL)
-    {
-        /* No additional data to IFD data size just increment ndir. */
-        (*ndir)++;
-        return 1;
-    }
     m = value;
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabLong(&m);
@@ -2392,11 +2296,6 @@ static int TIFFWriteDirectoryTagCheckedLongArray(TIFF *tif, uint32_t *ndir,
 {
     assert(count < 0x40000000);
     assert(sizeof(uint32_t) == 4);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 4, ndir);
-        return 1;
-    }
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfLong(value, count);
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_LONG, count,
@@ -2410,11 +2309,6 @@ static int TIFFWriteDirectoryTagCheckedSlongArray(TIFF *tif, uint32_t *ndir,
 {
     assert(count < 0x40000000);
     assert(sizeof(int32_t) == 4);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 4, ndir);
-        return 1;
-    }
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfLong((uint32_t *)value, count);
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_SLONG, count,
@@ -2434,11 +2328,6 @@ static int TIFFWriteDirectoryTagCheckedLong8Array(TIFF *tif, uint32_t *ndir,
                       "LONG8 not allowed for ClassicTIFF");
         return (0);
     }
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 8, ndir);
-        return 1;
-    }
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfLong8(value, count);
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_LONG8, count,
@@ -2457,11 +2346,6 @@ static int TIFFWriteDirectoryTagCheckedSlong8Array(TIFF *tif, uint32_t *ndir,
         TIFFErrorExtR(tif, "TIFFWriteDirectoryTagCheckedSlong8Array",
                       "SLONG8 not allowed for ClassicTIFF");
         return (0);
-    }
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 8, ndir);
-        return 1;
     }
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfLong8((uint64_t *)value, count);
@@ -2486,16 +2370,15 @@ static int TIFFWriteDirectoryTagCheckedRational(TIFF *tif, uint32_t *ndir,
         TIFFErrorExtR(tif, module, "Not-a-number value is illegal");
         return 0;
     }
-
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
+    /*--Rational2Double: New function also used for non-custom rational tags.
+     *  However, could be omitted here, because
+     * TIFFWriteDirectoryTagCheckedRational() is not used by code for custom
+     * tags, only by code for named-tiff-tags like FIELD_RESOLUTION and
+     * FIELD_POSITION */
+    else
     {
-        tif->tif_dir.td_dirdatasize_write +=
-            (tif->tif_flags & TIFF_BIGTIFF) ? 0 : 0x8U;
-        (*ndir)++;
-        return 1;
+        DoubleToRational(value, &m[0], &m[1]);
     }
-
-    DoubleToRational(value, &m[0], &m[1]);
 
     if (tif->tif_flags & TIFF_SWAB)
     {
@@ -2519,11 +2402,6 @@ static int TIFFWriteDirectoryTagCheckedRationalArray(TIFF *tif, uint32_t *ndir,
     uint32_t nc;
     int o;
     assert(sizeof(uint32_t) == 4);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count * 2, sizeof(uint32_t), ndir);
-        return 1;
-    }
     m = _TIFFmallocExt(tif, count * 2 * sizeof(uint32_t));
     if (m == NULL)
     {
@@ -2555,11 +2433,6 @@ static int TIFFWriteDirectoryTagCheckedSrationalArray(TIFF *tif, uint32_t *ndir,
     uint32_t nc;
     int o;
     assert(sizeof(int32_t) == 4);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count * 2, sizeof(int32_t), ndir);
-        return 1;
-    }
     m = _TIFFmallocExt(tif, count * 2 * sizeof(int32_t));
     if (m == NULL)
     {
@@ -2592,11 +2465,6 @@ TIFFWriteDirectoryTagCheckedRationalDoubleArray(TIFF *tif, uint32_t *ndir,
     uint32_t nc;
     int o;
     assert(sizeof(uint32_t) == 4);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count * 2, sizeof(uint32_t), ndir);
-        return 1;
-    }
     m = _TIFFmallocExt(tif, count * 2 * sizeof(uint32_t));
     if (m == NULL)
     {
@@ -2627,11 +2495,6 @@ static int TIFFWriteDirectoryTagCheckedSrationalDoubleArray(
     uint32_t nc;
     int o;
     assert(sizeof(int32_t) == 4);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count * 2, sizeof(int32_t), ndir);
-        return 1;
-    }
     m = _TIFFmallocExt(tif, count * 2 * sizeof(int32_t));
     if (m == NULL)
     {
@@ -2953,11 +2816,6 @@ static int TIFFWriteDirectoryTagCheckedFloatArray(TIFF *tif, uint32_t *ndir,
 {
     assert(count < 0x40000000);
     assert(sizeof(float) == 4);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 4, ndir);
-        return 1;
-    }
     TIFFCvtNativeToIEEEFloat(tif, count, &value);
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfFloat(value, count);
@@ -2972,11 +2830,6 @@ static int TIFFWriteDirectoryTagCheckedDoubleArray(TIFF *tif, uint32_t *ndir,
 {
     assert(count < 0x20000000);
     assert(sizeof(double) == 8);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 8, ndir);
-        return 1;
-    }
     TIFFCvtNativeToIEEEDouble(tif, count, &value);
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfDouble(value, count);
@@ -2990,11 +2843,6 @@ static int TIFFWriteDirectoryTagCheckedIfdArray(TIFF *tif, uint32_t *ndir,
 {
     assert(count < 0x40000000);
     assert(sizeof(uint32_t) == 4);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 4, ndir);
-        return 1;
-    }
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfLong(value, count);
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_IFD, count,
@@ -3009,11 +2857,6 @@ static int TIFFWriteDirectoryTagCheckedIfd8Array(TIFF *tif, uint32_t *ndir,
     assert(count < 0x20000000);
     assert(sizeof(uint64_t) == 8);
     assert(tif->tif_flags & TIFF_BIGTIFF);
-    if (dir == NULL) /* Just evaluate IFD data size and increment ndir. */
-    {
-        EvaluateIFDdatasizeWrite(tif, count, 8, ndir);
-        return 1;
-    }
     if (tif->tif_flags & TIFF_SWAB)
         TIFFSwabArrayOfLong8(value, count);
     return (TIFFWriteDirectoryTagData(tif, ndir, dir, tag, TIFF_IFD8, count,
@@ -3130,15 +2973,15 @@ static int TIFFLinkDirectory(TIFF *tif)
                               "Error writing SubIFD directory link");
                 return (0);
             }
-
             /*
              * Advance to the next SubIFD or, if this is
-             * the last one configured, reverting back to the
-             * normal directory linkage is done in TIFFWriteDirectorySec()
-             * by tif->tif_flags &= ~TIFF_INSUBIFD;.
+             * the last one configured, revert back to the
+             * normal directory linkage.
              */
             if (--tif->tif_nsubifd)
                 tif->tif_subifdoff += 4;
+            else
+                tif->tif_flags &= ~TIFF_INSUBIFD;
             return (1);
         }
         else
@@ -3154,23 +2997,19 @@ static int TIFFLinkDirectory(TIFF *tif)
                               "Error writing SubIFD directory link");
                 return (0);
             }
-
             /*
              * Advance to the next SubIFD or, if this is
-             * the last one configured, reverting back to the
-             * normal directory linkage is done in TIFFWriteDirectorySec()
-             * by tif->tif_flags &= ~TIFF_INSUBIFD;.
+             * the last one configured, revert back to the
+             * normal directory linkage.
              */
             if (--tif->tif_nsubifd)
                 tif->tif_subifdoff += 8;
+            else
+                tif->tif_flags &= ~TIFF_INSUBIFD;
             return (1);
         }
     }
 
-    /*
-     * Handle main-IFDs
-     */
-    tdir_t ndir = 1; /* count current number of main-IFDs */
     if (!(tif->tif_flags & TIFF_BIGTIFF))
     {
         uint32_t m;
@@ -3191,26 +3030,18 @@ static int TIFFLinkDirectory(TIFF *tif)
                 TIFFErrorExtR(tif, tif->tif_name, "Error writing TIFF header");
                 return (0);
             }
-            if (!tif->tif_dir.td_iswrittentofile)
-                tif->tif_curdircount = 0;
             return (1);
         }
         /*
          * Not the first directory, search to the last and append.
          */
-        tdir_t dirn = 0;
-        if (tif->tif_lastdiroff != 0 &&
-            _TIFFGetDirNumberFromOffset(tif, tif->tif_lastdiroff, &dirn))
+        if (tif->tif_lastdiroff != 0)
         {
-            /* Start searching from the lastely written IFD. Thus get its IFD
-             * number. */
             nextdir = (uint32_t)tif->tif_lastdiroff;
-            ndir = dirn + 1;
         }
         else
         {
             nextdir = tif->tif_header.classic.tiff_diroff;
-            ndir = 1; /* start searching from the first IFD */
         }
 
         while (1)
@@ -3245,12 +3076,10 @@ static int TIFFLinkDirectory(TIFF *tif)
                 break;
             }
             nextdir = nextnextdir;
-            ndir++;
         }
     }
     else
     {
-        /*- BigTIFF -*/
         uint64_t m;
         uint64_t nextdir;
         m = tif->tif_diroff;
@@ -3269,26 +3098,18 @@ static int TIFFLinkDirectory(TIFF *tif)
                 TIFFErrorExtR(tif, tif->tif_name, "Error writing TIFF header");
                 return (0);
             }
-            if (!tif->tif_dir.td_iswrittentofile)
-                tif->tif_curdircount = 0;
             return (1);
         }
         /*
          * Not the first directory, search to the last and append.
          */
-        tdir_t dirn = 0;
-        if (tif->tif_lastdiroff != 0 &&
-            _TIFFGetDirNumberFromOffset(tif, tif->tif_lastdiroff, &dirn))
+        if (tif->tif_lastdiroff != 0)
         {
-            /* Start searching from the lastely written IFD. Thus get its IFD
-             * number. */
             nextdir = tif->tif_lastdiroff;
-            ndir = dirn + 1;
         }
         else
         {
             nextdir = tif->tif_header.big.tiff_diroff;
-            ndir = 1; /* start searching from the first IFD */
         }
         while (1)
         {
@@ -3305,9 +3126,9 @@ static int TIFFLinkDirectory(TIFF *tif)
                 TIFFSwabLong8(&dircount64);
             if (dircount64 > 0xFFFF)
             {
-                TIFFErrorExtR(tif, module,
-                              "Sanity check on tag count failed, "
-                              "likely corrupt TIFF");
+                TIFFErrorExtR(
+                    tif, module,
+                    "Sanity check on tag count failed, likely corrupt TIFF");
                 return (0);
             }
             dircount = (uint16_t)dircount64;
@@ -3331,19 +3152,7 @@ static int TIFFLinkDirectory(TIFF *tif)
                 break;
             }
             nextdir = nextnextdir;
-            ndir++;
         }
-    }
-    /* Offset of next IFD is written to file.
-     * Update number of main-IFDs in file.
-     * However, tif_curdircount shall count only newly written main-IFDs with
-     * entries and not only number of linked offsets! Thus, tif_curdircount is
-     * incremented at the end of TIFFWriteDirectorySec().
-     * TIFF_NON_EXISTENT_DIR_NUMBER means 'dont know number of IFDs'
-     * 0 means 'empty file opened for writing, but no IFD written yet' */
-    if (!tif->tif_dir.td_iswrittentofile && !(tif->tif_flags & TIFF_INSUBIFD))
-    {
-        tif->tif_curdircount = ndir;
     }
     return (1);
 }
@@ -3388,9 +3197,9 @@ int _TIFFRewriteField(TIFF *tif, uint16_t tag, TIFFDataType in_datatype,
     /* -------------------------------------------------------------------- */
     if (isMapped(tif))
     {
-        TIFFErrorExtR(tif, module,
-                      "Memory mapped files not currently supported for "
-                      "this operation.");
+        TIFFErrorExtR(
+            tif, module,
+            "Memory mapped files not currently supported for this operation.");
         return 0;
     }
 

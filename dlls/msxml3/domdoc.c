@@ -49,6 +49,27 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(msxml);
 
+/* not defined in older versions */
+#define XML_SAVE_FORMAT     1
+#define XML_SAVE_NO_DECL    2
+#define XML_SAVE_NO_EMPTY   4
+#define XML_SAVE_NO_XHTML   8
+#define XML_SAVE_XHTML     16
+#define XML_SAVE_AS_XML    32
+#define XML_SAVE_AS_HTML   64
+
+static const WCHAR PropertySelectionLanguageW[] = {'S','e','l','e','c','t','i','o','n','L','a','n','g','u','a','g','e',0};
+static const WCHAR PropertySelectionNamespacesW[] = {'S','e','l','e','c','t','i','o','n','N','a','m','e','s','p','a','c','e','s',0};
+static const WCHAR PropertyProhibitDTDW[] = {'P','r','o','h','i','b','i','t','D','T','D',0};
+static const WCHAR PropertyNewParserW[] = {'N','e','w','P','a','r','s','e','r',0};
+static const WCHAR PropValueXPathW[] = {'X','P','a','t','h',0};
+static const WCHAR PropValueXSLPatternW[] = {'X','S','L','P','a','t','t','e','r','n',0};
+static const WCHAR PropertyResolveExternalsW[] = {'R','e','s','o','l','v','e','E','x','t','e','r','n','a','l','s',0};
+static const WCHAR PropertyAllowXsltScriptW[] = {'A','l','l','o','w','X','s','l','t','S','c','r','i','p','t',0};
+static const WCHAR PropertyAllowDocumentFunctionW[] = {'A','l','l','o','w','D','o','c','u','m','e','n','t','F','u','n','c','t','i','o','n',0};
+static const WCHAR PropertyNormalizeAttributeValuesW[] = {'N','o','r','m','a','l','i','z','e','A','t','t','r','i','b','u','t','e','V','a','l','u','e','s',0};
+static const WCHAR PropertyValidateOnParse[] = L"ValidateOnParse";
+
 /* Anything that passes the test_get_ownerDocument()
  * tests can go here (data shared between all instances).
  * We need to preserve this when reloading a document,
@@ -241,7 +262,7 @@ static inline void clear_selectNsList(struct list* pNsList)
     select_ns_entry *ns, *ns2;
     LIST_FOR_EACH_ENTRY_SAFE( ns, ns2, pNsList, select_ns_entry, entry )
     {
-        free(ns);
+        heap_free( ns );
     }
     list_init(pNsList);
 }
@@ -249,7 +270,7 @@ static inline void clear_selectNsList(struct list* pNsList)
 static xmldoc_priv * create_priv(void)
 {
     xmldoc_priv *priv;
-    priv = malloc(sizeof(*priv));
+    priv = heap_alloc( sizeof (*priv) );
 
     if (priv)
     {
@@ -263,14 +284,14 @@ static xmldoc_priv * create_priv(void)
 
 static domdoc_properties *create_properties(MSXML_VERSION version)
 {
-    domdoc_properties *properties = malloc(sizeof(domdoc_properties));
+    domdoc_properties *properties = heap_alloc(sizeof(domdoc_properties));
 
     properties->refs = 1;
     list_init(&properties->selectNsList);
     properties->preserving = VARIANT_FALSE;
     properties->validating = VARIANT_TRUE;
     properties->schemaCache = NULL;
-    properties->selectNsStr = calloc(1, sizeof(xmlChar));
+    properties->selectNsStr = heap_alloc_zero(sizeof(xmlChar));
     properties->selectNsStr_len = 0;
 
     /* properties that are dependent on object versions */
@@ -285,7 +306,7 @@ static domdoc_properties *create_properties(MSXML_VERSION version)
 
 static domdoc_properties* copy_properties(domdoc_properties const* properties)
 {
-    domdoc_properties* pcopy = malloc(sizeof(domdoc_properties));
+    domdoc_properties* pcopy = heap_alloc(sizeof(domdoc_properties));
     select_ns_entry const* ns = NULL;
     select_ns_entry* new_ns = NULL;
     int len = (properties->selectNsStr_len+1)*sizeof(xmlChar);
@@ -303,13 +324,13 @@ static domdoc_properties* copy_properties(domdoc_properties const* properties)
         pcopy->XPath = properties->XPath;
         pcopy->selectNsStr_len = properties->selectNsStr_len;
         list_init( &pcopy->selectNsList );
-        pcopy->selectNsStr = malloc(len);
+        pcopy->selectNsStr = heap_alloc(len);
         memcpy((xmlChar*)pcopy->selectNsStr, properties->selectNsStr, len);
         offset = pcopy->selectNsStr - properties->selectNsStr;
 
         LIST_FOR_EACH_ENTRY( ns, (&properties->selectNsList), select_ns_entry, entry )
         {
-            new_ns = malloc(sizeof(select_ns_entry));
+            new_ns = heap_alloc(sizeof(select_ns_entry));
             memcpy(new_ns, ns, sizeof(select_ns_entry));
             new_ns->href += offset;
             new_ns->prefix += offset;
@@ -353,10 +374,10 @@ static void properties_release(domdoc_properties *properties)
         if (properties->schemaCache)
             IXMLDOMSchemaCollection2_Release(properties->schemaCache);
         clear_selectNsList(&properties->selectNsList);
-        free((xmlChar*)properties->selectNsStr);
+        heap_free((xmlChar*)properties->selectNsStr);
         if (properties->uri)
             IUri_Release(properties->uri);
-        free(properties);
+        heap_free(properties);
     }
 }
 
@@ -481,14 +502,13 @@ static void LIBXML2_LOG_CALLBACK sax_warning(void* ctx, char const* msg, ...)
     va_end(ap);
 }
 
-static void sax_serror(void* ctx, const xmlError* err)
+static void sax_serror(void* ctx, xmlErrorPtr err)
 {
     LIBXML2_CALLBACK_SERROR(doparse, err);
 }
 
 static xmlDocPtr doparse(domdoc* This, char const* ptr, int len, xmlCharEncoding encoding)
 {
-    char *ctx_encoding;
     xmlDocPtr doc = NULL;
     xmlParserCtxtPtr pctx;
     static xmlSAXHandler sax_handler = {
@@ -553,8 +573,6 @@ static xmlDocPtr doparse(domdoc* This, char const* ptr, int len, xmlCharEncoding
        pctx->myDoc = NULL;
     }
     pctx->sax = NULL;
-    ctx_encoding = (char *)pctx->encoding;
-    pctx->encoding = NULL;
     xmlFreeParserCtxt(pctx);
 
     /* TODO: put this in one of the SAX callbacks */
@@ -571,9 +589,9 @@ static xmlDocPtr doparse(domdoc* This, char const* ptr, int len, xmlCharEncoding
         sprintf(buff, "version=\"%s\"", doc->version ? (char*)doc->version : "1.0");
         xmlNodeAddContent( node, xmlbuff );
 
-        if (ctx_encoding)
+        if (doc->encoding)
         {
-            sprintf(buff, " encoding=\"%s\"", ctx_encoding);
+            sprintf(buff, " encoding=\"%s\"", doc->encoding);
             xmlNodeAddContent( node, xmlbuff );
         }
 
@@ -586,7 +604,6 @@ static xmlDocPtr doparse(domdoc* This, char const* ptr, int len, xmlCharEncoding
         xmldoc_link_xmldecl( doc, node );
     }
 
-    xmlFree( ctx_encoding );
     return doc;
 }
 
@@ -626,10 +643,10 @@ LONG xmldoc_release_refs(xmlDocPtr doc, LONG refs)
         LIST_FOR_EACH_ENTRY_SAFE( orphan, orphan2, &priv->orphans, orphan_entry, entry )
         {
             xmlFreeNode( orphan->node );
-            free( orphan );
+            heap_free( orphan );
         }
         properties_release(priv->properties);
-        free(doc->_private);
+        heap_free(doc->_private);
 
         xmlFreeDoc(doc);
     }
@@ -647,7 +664,7 @@ HRESULT xmldoc_add_orphan(xmlDocPtr doc, xmlNodePtr node)
     xmldoc_priv *priv = priv_from_xmlDocPtr(doc);
     orphan_entry *entry;
 
-    entry = malloc(sizeof(*entry));
+    entry = heap_alloc( sizeof (*entry) );
     if(!entry)
         return E_OUTOFMEMORY;
 
@@ -666,7 +683,7 @@ HRESULT xmldoc_remove_orphan(xmlDocPtr doc, xmlNodePtr node)
         if( entry->node == node )
         {
             list_remove( &entry->entry );
-            free( entry );
+            heap_free( entry );
             return S_OK;
         }
     }
@@ -992,7 +1009,7 @@ static ULONG WINAPI domdoc_Release( IXMLDOMDocument3 *iface )
 
         properties_release(This->properties);
         release_namespaces(This);
-        free(This);
+        heap_free(This);
     }
 
     return ref;
@@ -1047,9 +1064,11 @@ static HRESULT WINAPI domdoc_get_nodeName(
 {
     domdoc *This = impl_from_IXMLDOMDocument3( iface );
 
+    static const WCHAR documentW[] = {'#','d','o','c','u','m','e','n','t',0};
+
     TRACE("(%p)->(%p)\n", This, name);
 
-    return return_bstr(L"#document", name);
+    return return_bstr(documentW, name);
 }
 
 
@@ -1302,10 +1321,11 @@ static HRESULT WINAPI domdoc_get_nodeTypeString(
     BSTR *p)
 {
     domdoc *This = impl_from_IXMLDOMDocument3( iface );
+    static const WCHAR documentW[] = {'d','o','c','u','m','e','n','t',0};
 
     TRACE("(%p)->(%p)\n", This, p);
 
-    return return_bstr(L"document", p);
+    return return_bstr(documentW, p);
 }
 
 
@@ -2128,7 +2148,7 @@ static HRESULT WINAPI domdoc_createNode(
     case NODE_DOCUMENT_TYPE:
     case NODE_ENTITY:
     case NODE_NOTATION:
-        free(xml_name);
+        heap_free(xml_name);
         return E_INVALIDARG;
     default:
         FIXME("unhandled node type %d\n", node_type);
@@ -2137,8 +2157,8 @@ static HRESULT WINAPI domdoc_createNode(
     }
 
     *node = create_node(xmlnode);
-    free(xml_name);
-    free(href);
+    heap_free(xml_name);
+    heap_free(href);
 
     if(*node)
     {
@@ -2378,12 +2398,13 @@ static HRESULT WINAPI domdoc_get_parseError(
     IXMLDOMParseError** errorObj )
 {
     domdoc *This = impl_from_IXMLDOMDocument3( iface );
+    static const WCHAR err[] = {'e','r','r','o','r',0};
     BSTR error_string = NULL;
 
     FIXME("(%p)->(%p): creating a dummy parseError\n", iface, errorObj);
 
     if(This->error)
-        error_string = SysAllocString(L"error");
+        error_string = SysAllocString(err);
 
     *errorObj = create_parseError(This->error, NULL, error_string, NULL, 0, 0, 0);
     if(!*errorObj) return E_OUTOFMEMORY;
@@ -2556,9 +2577,10 @@ static char *xmldoc_encoding(IXMLDOMDocument3 *doc)
                 hr = IXMLDOMNode_get_attributes(node, &node_map);
                 if (hr == S_OK)
                 {
+                    static const WCHAR encodingW[] = {'e','n','c','o','d','i','n','g',0};
                     BSTR bstr;
 
-                    bstr = SysAllocString(L"encoding");
+                    bstr = SysAllocString(encodingW);
                     hr = IXMLDOMNamedNodeMap_getNamedItem(node_map, bstr, &item);
                     SysFreeString(bstr);
                     if (hr == S_OK)
@@ -2585,7 +2607,7 @@ static char *xmldoc_encoding(IXMLDOMDocument3 *doc)
         IXMLDOMNode_Release(node);
     }
 
-    if (!encoding && (encoding = malloc(sizeof("UTF-8"))))
+    if (!encoding && (encoding = heap_alloc(sizeof("UTF-8"))))
         strcpy(encoding, "UTF-8");
 
     return encoding;
@@ -2634,7 +2656,7 @@ static HRESULT WINAPI domdoc_save(
                 TRACE("using encoding %s\n", encoding ? debugstr_a(encoding) : "default");
                 ctx = xmlSaveToIO(domdoc_stream_save_writecallback,
                     domdoc_stream_save_closecallback, stream, encoding, XML_SAVE_NO_DECL);
-                free(encoding);
+                heap_free(encoding);
 
                 if(!ctx)
                 {
@@ -2662,7 +2684,7 @@ static HRESULT WINAPI domdoc_save(
             TRACE("using encoding %s\n", encoding ? debugstr_a(encoding) : "default");
             ctx = xmlSaveToIO(domdoc_save_writecallback, domdoc_save_closecallback,
                               handle, encoding, XML_SAVE_NO_DECL);
-            free(encoding);
+            heap_free(encoding);
 
             if (!ctx)
             {
@@ -2746,7 +2768,7 @@ static HRESULT WINAPI domdoc_put_preserveWhiteSpace(
 {
     domdoc *This = impl_from_IXMLDOMDocument3( iface );
     TRACE("(%p)->(%d)\n", This, isPreserving);
-    This->properties->preserving = isPreserving == VARIANT_TRUE ? VARIANT_TRUE : VARIANT_FALSE;
+    This->properties->preserving = isPreserving;
     return S_OK;
 }
 
@@ -3009,7 +3031,7 @@ static HRESULT WINAPI domdoc_setProperty(
 
     TRACE("(%p)->(%s %s)\n", This, debugstr_w(p), debugstr_variant(&value));
 
-    if (wcsicmp(p, L"SelectionLanguage") == 0)
+    if (lstrcmpiW(p, PropertySelectionLanguageW) == 0)
     {
         VARIANT varStr;
         HRESULT hr;
@@ -3026,9 +3048,9 @@ static HRESULT WINAPI domdoc_setProperty(
             bstr = V_BSTR(&value);
 
         hr = S_OK;
-        if (wcsicmp(bstr, L"XPath") == 0)
+        if (lstrcmpiW(bstr, PropValueXPathW) == 0)
             This->properties->XPath = TRUE;
-        else if (wcsicmp(bstr, L"XSLPattern") == 0)
+        else if (lstrcmpiW(bstr, PropValueXSLPatternW) == 0)
             This->properties->XPath = FALSE;
         else
             hr = E_FAIL;
@@ -3036,7 +3058,7 @@ static HRESULT WINAPI domdoc_setProperty(
         VariantClear(&varStr);
         return hr;
     }
-    else if (wcsicmp(p, L"SelectionNamespaces") == 0)
+    else if (lstrcmpiW(p, PropertySelectionNamespacesW) == 0)
     {
         xmlChar *nsStr = (xmlChar*)This->properties->selectNsStr;
         struct list *pNsList;
@@ -3058,7 +3080,7 @@ static HRESULT WINAPI domdoc_setProperty(
 
         pNsList = &(This->properties->selectNsList);
         clear_selectNsList(pNsList);
-        free(nsStr);
+        heap_free(nsStr);
         nsStr = xmlchar_from_wchar(bstr);
 
         TRACE("property value: \"%s\"\n", debugstr_w(bstr));
@@ -3084,7 +3106,7 @@ static HRESULT WINAPI domdoc_setProperty(
                 if (ns_entry)
                     memset(ns_entry, 0, sizeof(select_ns_entry));
                 else
-                    ns_entry = calloc(1, sizeof(select_ns_entry));
+                    ns_entry = heap_alloc_zero(sizeof(select_ns_entry));
 
                 while (*pTokBegin == ' ')
                     ++pTokBegin;
@@ -3161,14 +3183,14 @@ static HRESULT WINAPI domdoc_setProperty(
                     continue;
                 }
             }
-            free(ns_entry);
+            heap_free(ns_entry);
             xmlXPathFreeContext(ctx);
         }
 
         VariantClear(&varStr);
         return hr;
     }
-    else if (wcsicmp(p, L"ValidateOnParse") == 0)
+    else if (lstrcmpiW(p, PropertyValidateOnParse) == 0)
     {
         if (This->properties->version < MSXML4)
             return E_FAIL;
@@ -3178,13 +3200,12 @@ static HRESULT WINAPI domdoc_setProperty(
             return S_OK;
         }
     }
-    else if (wcsicmp(p, L"ProhibitDTD") == 0 ||
-             wcsicmp(p, L"NewParser") == 0 ||
-             wcsicmp(p, L"ResolveExternals") == 0 ||
-             wcsicmp(p, L"AllowXsltScript") == 0 ||
-             wcsicmp(p, L"NormalizeAttributeValues") == 0 ||
-             wcsicmp(p, L"AllowDocumentFunction") == 0 ||
-             wcsicmp(p, L"MaxElementDepth") == 0)
+    else if (lstrcmpiW(p, PropertyProhibitDTDW) == 0 ||
+             lstrcmpiW(p, PropertyNewParserW) == 0 ||
+             lstrcmpiW(p, PropertyResolveExternalsW) == 0 ||
+             lstrcmpiW(p, PropertyAllowXsltScriptW) == 0 ||
+             lstrcmpiW(p, PropertyNormalizeAttributeValuesW) == 0 ||
+             lstrcmpiW(p, PropertyAllowDocumentFunctionW) == 0)
     {
         /* Ignore */
         FIXME("Ignoring property %s, value %s\n", debugstr_w(p), debugstr_variant(&value));
@@ -3207,15 +3228,15 @@ static HRESULT WINAPI domdoc_getProperty(
     if (!var)
         return E_INVALIDARG;
 
-    if (wcsicmp(p, L"SelectionLanguage") == 0)
+    if (lstrcmpiW(p, PropertySelectionLanguageW) == 0)
     {
         V_VT(var) = VT_BSTR;
         V_BSTR(var) = This->properties->XPath ?
-                      SysAllocString(L"XPath") :
-                      SysAllocString(L"XSLPattern");
+                      SysAllocString(PropValueXPathW) :
+                      SysAllocString(PropValueXSLPatternW);
         return V_BSTR(var) ? S_OK : E_OUTOFMEMORY;
     }
-    else if (wcsicmp(p, L"SelectionNamespaces") == 0)
+    else if (lstrcmpiW(p, PropertySelectionNamespacesW) == 0)
     {
         int lenA, lenW;
         BSTR rebuiltStr, cur;
@@ -3228,7 +3249,7 @@ static HRESULT WINAPI domdoc_getProperty(
         pNsList = &This->properties->selectNsList;
         lenA = This->properties->selectNsStr_len;
         lenW = MultiByteToWideChar(CP_UTF8, 0, (LPCSTR)nsStr, lenA+1, NULL, 0);
-        rebuiltStr = malloc(lenW * sizeof(WCHAR));
+        rebuiltStr = heap_alloc(lenW*sizeof(WCHAR));
         MultiByteToWideChar(CP_UTF8, 0, (LPCSTR)nsStr, lenA+1, rebuiltStr, lenW);
         cur = rebuiltStr;
         /* this is fine because all of the chars that end tokens are ASCII*/
@@ -3247,10 +3268,10 @@ static HRESULT WINAPI domdoc_getProperty(
             }
         }
         V_BSTR(var) = SysAllocString(rebuiltStr);
-        free(rebuiltStr);
+        heap_free(rebuiltStr);
         return S_OK;
     }
-    else if (wcsicmp(p, L"ValidateOnParse") == 0)
+    else if (lstrcmpiW(p, PropertyValidateOnParse) == 0)
     {
         if (This->properties->version < MSXML4)
             return E_FAIL;
@@ -3516,11 +3537,11 @@ static HRESULT WINAPI ConnectionPoint_Advise(IConnectionPoint *iface, IUnknown *
                 break;
 
         if (i == This->sinks_size)
-            This->sinks = realloc(This->sinks, (++This->sinks_size) * sizeof(*This->sinks));
+            This->sinks = heap_realloc(This->sinks,(++This->sinks_size)*sizeof(*This->sinks));
     }
     else
     {
-        This->sinks = malloc(sizeof(*This->sinks));
+        This->sinks = heap_alloc(sizeof(*This->sinks));
         This->sinks_size = 1;
         i = 0;
     }
@@ -3732,7 +3753,7 @@ HRESULT get_domdoc_from_xmldoc(xmlDocPtr xmldoc, IXMLDOMDocument3 **document)
 {
     domdoc *doc;
 
-    doc = malloc(sizeof(*doc));
+    doc = heap_alloc( sizeof (*doc) );
     if( !doc )
         return E_OUTOFMEMORY;
 
@@ -3784,7 +3805,7 @@ HRESULT dom_document_create(MSXML_VERSION version, void **ppObj)
     if(FAILED(hr))
     {
         properties_release(properties_from_xmlDocPtr(xmldoc));
-        free(xmldoc->_private);
+        heap_free(xmldoc->_private);
         xmlFreeDoc(xmldoc);
         return hr;
     }

@@ -97,7 +97,7 @@ static ULONG WINAPI xmlelem_Release(IXMLElement *iface)
     if (ref == 0)
     {
         if (This->own) xmlFreeNode(This->node);
-        free(This);
+        heap_free(This);
     }
 
     return ref;
@@ -232,14 +232,15 @@ static HRESULT WINAPI xmlelem_setAttribute(IXMLElement *iface, BSTR strPropertyN
     value = xmlchar_from_wchar(V_BSTR(&PropertyValue));
     attr = xmlSetProp(This->node, name, value);
 
-    free(name);
-    free(value);
+    heap_free(name);
+    heap_free(value);
     return (attr) ? S_OK : S_FALSE;
 }
 
 static HRESULT WINAPI xmlelem_getAttribute(IXMLElement *iface, BSTR name,
     VARIANT *value)
 {
+    static const WCHAR xmllangW[] = { 'x','m','l',':','l','a','n','g',0 };
     xmlelem *This = impl_from_IXMLElement(iface);
     xmlChar *val = NULL;
 
@@ -255,7 +256,7 @@ static HRESULT WINAPI xmlelem_getAttribute(IXMLElement *iface, BSTR name,
         return E_INVALIDARG;
 
     /* case for xml:lang attribute */
-    if (!lstrcmpiW(name, L"xml:lang"))
+    if (!lstrcmpiW(name, xmllangW))
     {
         xmlNsPtr ns;
         ns = xmlSearchNs(This->node->doc, This->node, (xmlChar*)"xml");
@@ -284,7 +285,7 @@ static HRESULT WINAPI xmlelem_getAttribute(IXMLElement *iface, BSTR name,
             SysFreeString(attr_name);
         }
 
-        free(xml_name);
+        heap_free(xml_name);
     }
 
     if (val)
@@ -322,7 +323,7 @@ static HRESULT WINAPI xmlelem_removeAttribute(IXMLElement *iface, BSTR strProper
         hr = S_OK;
 
 done:
-    free(name);
+    heap_free(name);
     return hr;
 }
 
@@ -407,7 +408,7 @@ static HRESULT WINAPI xmlelem_put_text(IXMLElement *iface, BSTR p)
     content = xmlchar_from_wchar(p);
     xmlNodeSetContent(This->node, content);
 
-    free(content);
+    heap_free(content);
 
     return S_OK;
 }
@@ -487,7 +488,7 @@ HRESULT XMLElement_create(xmlNodePtr node, LPVOID *ppObj, BOOL own)
 
     *ppObj = NULL;
 
-    elem = malloc(sizeof(*elem));
+    elem = heap_alloc(sizeof (*elem));
     if(!elem)
         return E_OUTOFMEMORY;
 
@@ -584,7 +585,7 @@ static ULONG WINAPI xmlelem_collection_Release(IXMLElementCollection *iface)
     ref = InterlockedDecrement(&This->ref);
     if (ref == 0)
     {
-        free(This);
+        heap_free(This);
     }
 
     return ref;
@@ -814,7 +815,7 @@ static HRESULT XMLElementCollection_create(xmlNodePtr node, LPVOID *ppObj)
     if (!node->children)
         return S_FALSE;
 
-    collection = malloc(sizeof(*collection));
+    collection = heap_alloc(sizeof (*collection));
     if(!collection)
         return E_OUTOFMEMORY;
 

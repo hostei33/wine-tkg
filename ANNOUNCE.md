@@ -1,284 +1,327 @@
-The Wine development release 10.7 is now available.
+The Wine team is proud to announce that the stable release Wine 9.0
+is now available.
 
-What's new in this release:
-  - User fault fd support to improve write watches performance.
-  - Support for Float format conversions in WindowsCodecs.
-  - More work on the new PDB backend.
-  - Various bug fixes.
+This release represents a year of development effort and over 7,000
+individual changes. It contains a large number of improvements that
+are listed below. The main highlights are the new WoW64 architecture
+and the experimental Wayland driver.
 
-The source is available at <https://dl.winehq.org/wine/source/10.x/wine-10.7.tar.xz>
+The source is available at <https://dl.winehq.org/wine/source/9.0/wine-9.0.tar.xz>
 
 Binary packages for various distributions will be available
-from the respective [download sites][1].
+from <https://www.winehq.org/download>
 
-You will find documentation [here][2].
+You will find documentation on <https://www.winehq.org/documentation>
 
 Wine is available thanks to the work of many people.
-See the file [AUTHORS][3] for the complete list.
+See the file [AUTHORS][1] for the complete list.
 
-[1]: https://gitlab.winehq.org/wine/wine/-/wikis/Download
-[2]: https://gitlab.winehq.org/wine/wine/-/wikis/Documentation
-[3]: https://gitlab.winehq.org/wine/wine/-/raw/wine-10.7/AUTHORS
+[1]: https://gitlab.winehq.org/wine/wine/-/raw/wine-9.0/AUTHORS
 
-----------------------------------------------------------------
 
-### Bugs fixed in 10.7 (total 14):
+## What's new in Wine 9.0
 
- - #18803  PokerStars windows disappear on alert
- - #18926  In Winamp, the "send to..." submenu in the playlist menu does not appear
- - #20172  Button "Alt Gr" triggers access violation in Teach2000
- - #31775  Misaligned icons in icon bar
- - #33624  winhelp: Popups appear with bogus scrollbars which disappear when you click them
- - #37706  ScrollWindowEx() returns ERROR if the window is not visible (in the Windows API sense); real Windows returns NULLREGION
- - #38379  Barnham Junction fails to start "Cannot create file C\users\username\Temp\BBC*.tmp\Sim Resources\Barnham Junction\Nameboard.bmp"
- - #48792  HeidiSQL: some icons completely grayed out
- - #50226  Native Access 1.13.5 Setup PC.exe Installer installs infinitely
- - #50851  The procedure entry point RasClearConnectionStatistics could not be located in the dynamic link library RASAPI32.dll
- - #56107  Comdlg32/Color - Cross not painted
- - #57684  Games do not receive keyboard input in virtual desktop mode
- - #58072  LVSCW_AUTOSIZE does not include the size of the state imagelist
- - #58082  Race condition in GlobalMemoryStatusEx() implementation
+### WoW64
 
-### Changes since 10.6:
-```
-Adam Markowski (1):
-      po: Update Polish translation.
+- All transitions from Windows to Unix code go through the NT syscall
+  interface. This is a major milestone that marks the completion of the
+  multi-year re-architecturing work to convert modules to PE format and
+  introduce a proper boundary between the Windows and Unix worlds.
 
-Akihiro Sagawa (3):
-      cmd: Use the OEM code page if GetConsoleOutputCP fails.
-      cmd/tests: Add updated code page test in batch file.
-      cmd: Use the console output code page to read batch files.
+- All modules that call a Unix library contain WoW64 thunks to enable calling
+  the 64-bit Unix library from 32-bit PE code. This means that it is possible to
+  run 32-bit Windows applications on a purely 64-bit Unix installation. This is
+  called the _new WoW64 mode_, as opposed to the _old WoW64 mode_ where 32-bit
+  applications run inside a 32-bit Unix process.
 
-Alex Henrie (2):
-      gdi32: Limit source string length in logfont_AtoW (ASan).
-      gdi32: Ensure null termination in logfont_AtoW.
+- The new WoW64 mode is not yet enabled by default. It can be enabled by passing
+  the `--enable-archs=i386,x86_64` option to configure. This is expected to work
+  for most applications, but there are still some limitations, in particular:
+  - Lack of support for 16-bit code.
+  - Reduced OpenGL performance and lack of `ARB_buffer_storage` extension
+    support.
 
-Alexander Morozov (3):
-      ntoskrnl.exe/tests: Test some Io functions with FDO and PDO.
-      ntoskrnl.exe/tests: Test that calling some Io functions does not result in receiving IRP_MN_QUERY_ID.
-      ntoskrnl.exe: Fix getting DevicePropertyEnumeratorName.
+- The new WoW64 mode finally allows 32-bit applications to run on recent macOS
+  versions that removed support for 32-bit Unix processes.
 
-Alexandre Julliard (25):
-      ntdll: Round the virtual heap size to a page boundary.
-      kernel32/tests: Don't use _ReadWriteBarrier on ARM platforms.
-      configure: Default to MSVC mode with LLVM cross-compilers.
-      configure: Move cross-compiler checks before header checks.
-      configure: Make the missing PE compiler notice a warning.
-      configure: Use a standard pkg-config check for Alsa.
-      include: Use pragma push/pop.
-      tools: Use pragma push/pop.
-      dlls: Use pragma push/pop.
-      programs: Use pragma push/pop.
-      configure: Re-enable pragma pack warnings.
-      urlmon/tests: Run the ftp tests against test.winehq.org.
-      wininet/tests: Run the ftp tests against test.winehq.org.
-      include: Avoid long types on the Unix side.
-      ntdll: Remove redundant casts.
-      win32u: Remove redundant casts.
-      winex11: Remove redundant casts.
-      winemac: Remove redundant casts.
-      wineandroid: Remove redundant casts.
-      winewayland: Remove redundant casts.
-      tools: Fix tracing of empty strarray.
-      tools: Use booleans where appropriate.
-      tools: Generate syscall macros directly with the right offset.
-      tools: Add a platform-independent name for the ALL_SYSCALLS macros.
-      ntdll: Add a test for invalid syscall numbers.
 
-Alexandros Frantzis (3):
-      winewayland: Support building with older EGL headers.
-      winewayland: Always check the role to determine whether a surface is a toplevel.
-      winewayland: Introduce helper to check whether a surface is toplevel.
+### Wayland driver
 
-Attila Fidan (1):
-      winewayland: Require wl_pointer for pointer constraints.
+- There is an experimental Wayland graphics driver. It's still a work in
+  progress, but already implements many features, such as basic window
+  management, multiple monitors, high-DPI scaling, relative motion events, and
+  Vulkan support.
 
-Aurimas Fišeras (2):
-      po: Update Lithuanian translation.
-      po: Update Lithuanian translation.
+- The Wayland driver is not yet enabled by default. It can be enabled through
+  the `HKCU\Software\Wine\Drivers` registry key by running:
 
-Bernhard Übelacker (4):
-      ntoskrnl.exe/tests: Remove unused function pointers.
-      spoolss: Avoid buffer-overflow when setting numentries (ASan).
-      d3d11/tests: Add broken to test_nv12.
-      gdi32/tests: Remove one test for NtGdiMakeFontDir.
+      wine reg.exe add HKCU\\Software\\Wine\\Drivers /v Graphics /d x11,wayland
 
-Billy Laws (2):
-      ntdll: Allow mem{cpy,move} optimisation now -fno-builtins is used.
-      ntdll: Check arm64ec TEB frames are valid before popping them.
+  and then making sure that the `DISPLAY` environment variable is unset.
 
-Brendan McGrath (3):
-      mf: Update state and start clock for both paused and stopped.
-      mf: Reset audio client on flush.
-      winegstreamer: Handle the Stream Group Done event.
 
-Brendan Shanks (2):
-      win32u: Enter font_lock in NtGdiMakeFontDir.
-      win32u: Raise realized font handle limit to 5000.
+### ARM64
 
-Charlotte Pabst (1):
-      mfplat/tests: Don't assume video processor MFT can provide samples.
+- The completion of the PE/Unix separation means that it's possible to run
+  existing Windows binaries on ARM64.
 
-Dmitry Timoshkov (3):
-      user32/tests: Add more ScrollWindowEx() tests.
-      win32u: Fix return value of ScrollWindowEx() for invisible windows.
-      windowscodecs: Also initialize FlipRotator.bpp field.
+- The loader supports loading ARM64X and ARM64EC modules.
 
-Elizabeth Figura (4):
-      wined3d/glsl: Move clip distance enabling to shader_glsl_apply_draw_state().
-      wined3d/glsl: Move GL_FRAMEBUFFER_SRGB application to shader_glsl_apply_draw_state().
-      wined3d: Move SRGB write enable to wined3d_extra_ps_args.
-      wined3d: Move the clip plane mask to wined3d_extra_vs_args.
+- The 32-bit x86 emulation interface is implemented. No emulation library is
+  provided with Wine at this point, but an external library that exports the
+  interface can be used, by specifying its name in the
+  `HKLM\Software\Microsoft\Wow64\x86` registry key. The [FEX emulator][2]
+  implements this interface when built as PE.
 
-Eric Pouech (9):
-      dbghelp: Move typedef handling to the new PDB backend.
-      dbghelp: Add user field to function and inline sites.
-      dbghelp: Move reading inlinee line number information to PDB backend.
-      dbghelp: Directly store compiland's name in symt_compiland.
-      dbghelp: Use symref_t to describe a symbol's container.
-      cmd: Factor out code_page when searching for a label.
-      conhost: Add support for ESC in win32 edit mode.
-      conhost: Handle ctrl-break unconditionally.
-      conhost: Handle ctrl-c from unix console in ReadConsoleW + control.
+- There is initial support for building Wine for the ARM64EC architecture, using
+  an experimental LLVM toolchain. Once the toolchain is ready, this will be used
+  to do a proper ARM64X build and enable 64-bit x86 emulation.
 
-Esme Povirk (7):
-      oleaut32: Use apartment-less WIC.
-      oleaut32: Copy palette from WIC source for indexed formats.
-      gdiplus: Limit clip region calculation to device rectangle.
-      gdiplus: Don't trace old values in GdipSetMatrixElements.
-      appwiz.cpl: Report addon download failures.
-      comctl32: Implement EVENT_OBJECT_STATECHANGE for progress control.
-      comctl32: Implement EVENT_OBJECT_VALUECHANGE for progress bars.
+[2]: https://fex-emu.com
 
-Francisco Casas (1):
-      d2d1: Compile shaders on device creation instead of device context creation.
 
-Gabriel Ivăncescu (9):
-      mshtml: Rename struct constructor to stub_constructor.
-      mshtml: Consolidate the functional constructors into a common struct implementation.
-      mshtml: Define the constructor's prototype on mshtml side.
-      mshtml: Define "create" from XMLHttpRequest constructor as a jscript prop in IE9+ modes.
-      mshtml: Return proper string from functional constructors' toString in IE9+ modes.
-      mshtml: Store the object_id of the last object in the prototype chain that contains the needed prop.
-      mshtml: Validate builtin host functions in IE9+ using prototype_id rather than tid where possible.
-      mshtml: Use designated initializers for the Location dispex data.
-      mshtml: Remove unused struct mutation_observer_ctor.
+### Graphics
 
-Hans Leidekker (3):
-      odbc32: Fix replicating unixODBC data sources.
-      include: Fix typos in exclusiveto attributes.
-      msv1_0: Drop the ntlm_auth check.
+- The PostScript driver is reimplemented to work from Windows-format spool files
+  and avoid any direct calls from the Unix side.
 
-Jinoh Kang (4):
-      Revert "kernel32/tests: Don't use _ReadWriteBarrier on ARM platforms."
-      kernel32/tests: Don't use _ReadWriteBarrier() on clang.
-      kernel32/tests: Run store_buffer_litmus_test() in a single-iteration loop.
-      kernel32/tests: Shorten time for negative half of litmus test for FlushProcessWriteBuffers().
+- WinRT theming supports a dark theme option, with a corresponding toggle in
+  WineCfg.
 
-Keno Fischer (1):
-      ntdll: Make server requests robust to spurious short writes.
+- The Vulkan driver supports up to version 1.3.272 of the Vulkan spec.
 
-Louis Lenders (1):
-      combase: Add stub for RoOriginateErrorW.
+- A number of GdiPlus functions are optimized for better graphics performance.
 
-Marc-Aurel Zent (4):
-      server: Store process base priority separately.
-      server: Use process base priority in set_thread_base_priority.
-      ntdll: Implement ProcessBasePriority class in NtSetInformationProcess.
-      ntdll/tests: Add tests for setting process base priority.
 
-Michael Stefaniuc (2):
-      maintainers: Remove myself as the Stable maintainer.
-      dmsynth: Don't report an underrun when current equals write position.
+### Direct3D
 
-Mohamad Al-Jaf (4):
-      windows.media.mediacontrol: Fix a memory leak.
-      windows.devices.enumeration: Guard against WindowsDuplicateString() failure.
-      windows.system.profile.systemid/tests: Add ISystemIdentificationInfo::get_Id() tests.
-      windows.system.profile.systemid: Implement ISystemIdentificationInfo::get_Id().
+- The multi-threaded command stream sleeps instead of spinning when not
+  processing rendering commands. This lowers power consumption in programs which
+  do not occupy the command stream's entire available bandwidth. Power
+  consumption should be comparable to when the multi-threaded command stream is
+  disabled.
 
-Nikolay Sivov (23):
-      include: Add newer winhttp option constants.
-      comctl32/tests: Add a column width test for LVSCW_AUTOSIZE with a state imagelist.
-      comctl32/listview: Use state icon width when autosizing columns.
-      winedump: Fix a crash in 'dump' command.
-      include: Change the schannel.h guard name.
-      include: Add WINHTTP_SECURITY_INFO type.
-      windowscodecs/tests: Remove A->W test data conversion.
-      windowscodecs/tests: Add some tests for encoder info.
-      windowscodecs: Fix JPEG encoder information strings.
-      windowscodecs: Fix TIFF encoder information strings.
-      shell32: Simplify error handling when FolderItemVerbs object is created.
-      shell32: Fix use-after-free at FolderItemVerbs creation (ASan).
-      windows.ui/tests: Remove tests for exact color values.
-      uiautomationcore: Fix BSTR buffer overrun (ASan).
-      comdlg32/colordlg: Fix color picker cursor painting.
-      windowscodecs/png: Fix byte-swapping mode usage in the encoder.
-      windowscodecs/tests: Add a test for big-endian TIFF image data handling.
-      windowscodecs/tiff: Remove unnecessary image data byte-swaping.
-      windowscodecs/converter: Add 24bppBGR -> 128bppRGBAFloat conversion path.
-      windowscodecs/converter: Add 32bppBGRA - > 128bppRGBAFloat conversion path.
-      windowscodecs/converter: Add 128bppRGBAFloat -> 32bppBGRA conversion path.
-      windowscodecs/converter: Add 96bppRGBFloat -> 128bppRGBFloat conversion path.
-      windowscodecs/converter: Add 96bppRGBFloat -> 32bppBGRA conversion path.
+- Direct3D 10 effects support many more instructions.
 
-Pali Rohár (2):
-      win87em: Fix __FPMATH symbol name.
-      krnl386: Set carry flag for unimplemented DPMI 0800h call (Physical Address Mapping).
+- Various optimizations have been made to core WineD3D and the Vulkan backend.
 
-Paul Gofman (6):
-      opengl32: Don't distinguish WGL_SWAP_EXCHANGE_ARB and WGL_SWAP_UNDEFINED_ARB when filtering in wglChoosePixelFormatARB().
-      kernel32/tests: Add more tests for write watches.
-      ntdll: Use UFFD for write watches support if available.
-      wbemprox: Implement Win32_CacheMemory table.
-      netapi32: Fix service names in NetStatisticsGet().
-      ntdll: Make sure NT flag is not set before iretq in wine_syscall_dispatcher_return on x86-64.
+- The Vulkan renderer properly validates that required features are supported by
+  the underlying device, and reports the corresponding Direct3D feature level to
+  the application.
 
-Piotr Caban (18):
-      msvcr110/tests: Link to msvcr110.
-      msvcr70/tests: Link to msvcr70.
-      msvcr71/tests: Link to msvcr71.
-      include: Add _FCbuild() declaration.
-      include: Add vsscanf declaration.
-      include: Add function declarations used in msvcr120 tests.
-      msvcr120/tests: Link to msvcr120.
-      msvcrt: Fix memory leaks in create_locinfo.
-      makefiles: Use -fno-builtin for CRT tests.
-      msvcr80/tests: Link to msvcr80.
-      include: Add functions used by msvcr90 tests.
-      msvcr90/tests: Link to msvcr90.
-      msvcrt: Avoid dynamic allocation when storing locale name.
-      msvcrt: Use LC_MAX constant in create_locinfo.
-      secur32/tests: Make NTLM server challenge blob human-readable.
-      secur32/tests: Use one copy of server challenge reply in NTLM tests.
-      secur32/tests: Fix NTLM tests on Windows 11 by accepting NTLMv2 in test server response.
-      secur32/tests: Don't accept NTLMv1 type 3 message in NTLM tests.
+- `D3DXFillTextureTX` and `D3DXFillCubeTextureTX` are implemented.
 
-Rastislav Stanik (1):
-      kernelbase: Fix race condition in GlobalMemoryStatusEx().
+- The legacy OpenGL ARB shader backend supports shadow sampling via
+  `ARB_fragment_program_shadow`.
 
-Rémi Bernon (12):
-      d3d9/tests: Skip some d3d12 tests instead of crashing.
-      win32u: Use the driver_funcs interface for osmesa pixel formats.
-      win32u: Add an opengl_driver_funcs entry to implement wglGetProcAddress.
-      opengl32: Generate error messages in null functions.
-      opengl32: Pass null GL funcs to __wine_get_wgl_driver.
-      win32u: Add procedure loading to generic OpenGL code.
-      win32u: Add a generic wglSwapBuffers implementation.
-      wineandroid: Use the generic wglSwapBuffers implementation.
-      winemac: Use the generic wglSwapBuffers implementation.
-      winewayland: Use the generic wglSwapBuffers implementation.
-      winex11: Use the generic wglSwapBuffers implementation.
-      win32u: Add nulldrv swap_buffers implementation.
+- The HLSL compiler supports matrix majority compilation flags.
 
-Stefan Dösinger (3):
-      odbc32: Don't call wcslen in debugstr_sqlwstr.
-      odbc32: Retlen may be NULL in SQLGetData.
-      msvcrt: Add truncf to the import library.
+- `D3DXLoadMeshHierarchyFromX` and related functions support user data loading
+  via `ID3DXLoadUserData`.
 
-Tim Clem (1):
-      comctl32: Track initial taskdialog layout on a per-dialog basis.
 
-Yuxuan Shui (1):
-      winegstreamer: Make sure WMSyncReader never reads in the background.
-```
+### Audio / Video
+
+- The foundation of several of the DirectMusic modules is implemented. Many
+  tests are added to validate the behavior of the dmime sequencer and the
+  dmsynth MIDI synthesizer.
+
+- DLS1 and DLS2 sound font loading is implemented, as well as SF2 format for
+  compatibility with Linux standard MIDI sound fonts.
+
+- MIDI playback is implemented in dmsynth, with the integration of the software
+  synthesizer from the FluidSynth library, and using DirectSound for audio
+  output.
+
+- Doppler shift is supported in DirectSound.
+
+- The Indeo IV50 Video for Windows decoder is implemented.
+
+
+### DirectShow
+
+- The Windows Media Video (WMV) decoder DirectX Media Object (DMO) is
+  implemented.
+
+- The DirectShow Audio Capture filter is implemented.
+
+- The DirectShow MPEG‑1 Stream Splitter filter supports video and system streams
+  as well as audio streams.
+
+- The DirectShow MPEG‑1 Video Decoder filter is implemented.
+
+
+### Input devices
+
+- DirectInput action maps are implemented, improving compatibility with many old
+  games that use this to map controller inputs to in-game actions.
+
+
+### Desktop integration
+
+- URL/URI protocol associations are exported as URL handlers to the Linux
+  desktop.
+
+- Monitor information like name and model id are retrieved from the physical
+  monitor's Extended Display Identification Data (EDID).
+
+- In full-screen desktop mode, the desktop window can be closed through the
+  "Exit desktop" entry in the Start menu.
+
+
+### Internationalization
+
+- IME implementation is improved, with better support for native Windows IME
+  implementations. Many tests are added to validate the expected behavior of
+  these custom IMEs.
+
+- Linux IME integration is improved, using over-the-spot or on-the-spot input
+  styles whenever possible, and more accurate IME message sequences.
+
+- Locale data is generated from the Unicode CLDR database version 44. The
+  following additional locales are supported: `bew-ID`, `blo-BJ`, `csw-CA`,
+  `ie-EE`, `mic-CA`, `prg-PL`, `skr-PK`, `tyv-RU`, `vmw-MZ`, `xnr-IN`, and
+  `za-CN`.
+
+- The user interface is translated to Georgian, bringing the total of full
+  translations to 16 languages, with partial translations to another 31
+  languages.
+
+- Unicode character tables are based on version 15.1.0 of the Unicode Standard.
+
+- The timezone data is generated from the IANA timezone database version 2023c.
+
+- Locales using a script name, like `zh-Hans`, are also supported on macOS.
+
+
+### Kernel
+
+- The default Windows version for new prefixes is set to Windows 10.
+
+- Address space layout randomization (ASLR) is supported for modern PE binaries,
+  to avoid issues with address space conflicts. Note that the selected load
+  addresses are not yet properly randomized.
+
+- The Low Fragmentation Heap (LFH) is implemented for better memory allocation
+  performance.
+
+- The virtual memory allocator supports memory placeholders, to allow
+  applications to reserve virtual space.
+
+- The 64-bit loader and preloader are built as position-independent executables
+  (PIE), to free up some of the 32-bit address space.
+
+- Stack unwinding works correctly across NT syscalls and user callbacks.
+
+
+### Internet and networking
+
+- All builtin MSHTML objects are proper Gecko cycle collector participants.
+
+- Synchronous XMLHttpRequest mode is supported in MSHTML.
+
+- WeakMap object is implemented in JScript.
+
+- The Gecko engine is updated to version 2.47.4.
+
+- Network interface change notifications are implemented.
+
+
+### Cryptography and security
+
+- Smart cards are supported in the Winscard dll, using the Unix PCSClite
+  library.
+
+- Diffie-Hellman keys are supported in BCrypt.
+
+- The Negotiate security package is implemented.
+
+
+### Mono / .NET
+
+- The Mono engine is updated to version [8.1.0][3].
+
+[3]: https://github.com/madewokherd/wine-mono/releases/tag/wine-mono-8.1.0
+
+
+### Builtin applications
+
+- The Wine Debugger (winedbg) uses the Zydis library for more accurate x86
+  disassembly.
+
+- WineCfg supports selecting old (pre-XP) Windows versions also in 64-bit
+  prefixes, to enable using ancient applications with the new WoW64 mode.
+
+- All graphical builtin applications report errors with a message box instead of
+  printing messages on the console.
+
+- The `systeminfo` application prints various data from the Windows Management
+  Instrumentation database.
+
+- The `klist` application lists Kerberos tickets.
+
+- The `taskkill` application supports terminating child processes.
+
+- The `start` application supports a `/machine` option to select the
+  architecture to use when running hybrid x86/ARM executables.
+
+- Most of the functionality of the `tasklist` application is implemented.
+
+- The `findstr` application provides basic functionality.
+
+
+### Development tools
+
+- The WineDump tool supports printing the contents of Windows registry files
+  (REGF format), as well as printing data for both architectures in hybrid
+  x86/ARM64 PE files.
+  
+- The `composable`, `default_overload`, `deprecated`, and `protected` attributes
+  are supported in the IDL compiler.
+
+- The `libwine.so` library is removed. It was no longer used, and deprecated
+  since Wine 6.0. Winelib ELF applications that were built with Wine 5.0 or
+  older will need a rebuild to run on Wine 9.0.
+
+
+### Bundled libraries
+
+- The FluidSynth library version 2.3.3 is bundled and used for DirectMusic.
+
+- The math library of Musl version 1.2.3 is bundled and used for the math
+  functions of the C runtime.
+
+- The Zydis library version is 4.0.0 is bundled and used for x86 disassembly
+  support.
+
+- Vkd3d is updated to the upstream release 1.10.
+
+- Faudio is updated to the upstream release 23.12.
+
+- LDAP is updated to the upstream release 2.5.16.
+
+- LCMS2 is updated to the upstream release 2.15.
+
+- LibMPG123 is updated to the upstream release 1.32.2.
+
+- LibPng is updated to the upstream release 1.6.40.
+
+- LibTiff is updated to the upstream release 4.6.0.
+
+- LibXml2 is updated to the upstream release 2.11.5.
+
+- LibXslt is updated to the upstream release 1.1.38.
+
+- Zlib is updated to the upstream release 1.3.
+
+
+### External dependencies
+
+- The Wayland client library, as well as the xkbcommon and xkbregistry
+  libraries, are used when building the Wayland driver.
+
+- The PCSClite library is used for smart card support. On macOS, the PCSC
+  framework can be used as an alternative to PCSClite.
+
+- For PE builds, a cross-compiler that supports `.seh` directives for exception
+  handling is required on all platforms except i386.

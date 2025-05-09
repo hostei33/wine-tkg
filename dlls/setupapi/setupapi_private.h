@@ -19,7 +19,6 @@
 #ifndef __SETUPAPI_PRIVATE_H
 #define __SETUPAPI_PRIVATE_H
 
-#include <stdbool.h>
 #include <windef.h>
 #include <winuser.h>
 
@@ -71,8 +70,6 @@ static inline WCHAR *strdupAtoW( const char *str )
     }
     return ret;
 }
-
-bool array_reserve(void **elements, size_t *capacity, size_t count, size_t size);
 
 /* exported functions not in public headers */
 

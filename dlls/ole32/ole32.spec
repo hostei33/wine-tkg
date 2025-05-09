@@ -254,7 +254,6 @@
 @ stdcall RegisterDragDrop(long ptr)
 @ stdcall ReleaseStgMedium(ptr)
 @ stdcall RevokeDragDrop(long)
-@ stdcall RoGetAgileReference(long ptr ptr ptr) combase.RoGetAgileReference
 @ stdcall SNB_UserFree(ptr ptr)
 @ stdcall SNB_UserMarshal(ptr ptr ptr)
 @ stdcall SNB_UserSize(ptr long ptr)

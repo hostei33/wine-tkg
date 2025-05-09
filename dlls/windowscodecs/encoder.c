@@ -479,7 +479,7 @@ static HRESULT WINAPI CommonEncoderFrame_GetMetadataQueryWriter(IWICBitmapFrameE
     if (!(encoder->parent->encoder_info.flags & ENCODER_FLAGS_SUPPORTS_METADATA))
         return WINCODEC_ERR_UNSUPPORTEDOPERATION;
 
-    return MetadataQueryWriter_CreateInstanceFromBlockWriter(&encoder->IWICMetadataBlockWriter_iface, ppIMetadataQueryWriter);
+    return MetadataQueryWriter_CreateInstance(&encoder->IWICMetadataBlockWriter_iface, NULL, ppIMetadataQueryWriter);
 }
 
 static const IWICBitmapFrameEncodeVtbl CommonEncoderFrame_Vtbl = {
@@ -889,7 +889,7 @@ HRESULT CommonEncoder_CreateInstance(struct encoder *encoder,
     This->frame_count = 0;
     This->uncommitted_frame = FALSE;
     This->committed = FALSE;
-    InitializeCriticalSectionEx(&This->lock, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&This->lock);
     This->lock.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": CommonEncoder.lock");
 
     ret = IWICBitmapEncoder_QueryInterface(&This->IWICBitmapEncoder_iface, iid, ppv);

@@ -173,7 +173,7 @@ static CertificateChainEngine *get_chain_engine(HCERTCHAINENGINE handle, BOOL al
             if(default_cu_engine != handle)
                 CertFreeCertificateChainEngine(handle);
         }
-        CertControlStore(default_cu_engine->hWorld, 0, CERT_STORE_CTRL_RESYNC, NULL);
+
         return default_cu_engine;
     }
 
@@ -187,7 +187,7 @@ static CertificateChainEngine *get_chain_engine(HCERTCHAINENGINE handle, BOOL al
             if(default_lm_engine != handle)
                 CertFreeCertificateChainEngine(handle);
         }
-        CertControlStore(default_lm_engine->hWorld, 0, CERT_STORE_CTRL_RESYNC, NULL);
+
         return default_lm_engine;
     }
 
@@ -1662,8 +1662,6 @@ static void dump_extension(const CERT_EXTENSION *ext)
         dump_name_constraints(ext);
     else if (!strcmp(ext->pszObjId, szOID_CERT_POLICIES))
         dump_cert_policies(ext);
-    else if (!strcmp(ext->pszObjId, szOID_APPLICATION_CERT_POLICIES))
-        FIXME("szOID_APPLICATION_CERT_POLICIES\n");
     else if (!strcmp(ext->pszObjId, szOID_ENHANCED_KEY_USAGE))
         dump_enhanced_key_usage(ext);
     else if (!strcmp(ext->pszObjId, szOID_NETSCAPE_CERT_TYPE))
@@ -1737,6 +1735,13 @@ static BOOL CRYPT_KeyUsageValid(CertificateChainEngine *engine,
          &usage, &size);
         if (!ret)
             return FALSE;
+        else if (usage.cbData > 2)
+        {
+            /* The key usage extension only defines 9 bits => no more than 2
+             * bytes are needed to encode all known usages.
+             */
+            return FALSE;
+        }
         else
         {
             /* The only bit relevant to chain validation is the keyCertSign
@@ -1814,8 +1819,6 @@ static BOOL CRYPT_CriticalExtensionsSupported(PCCERT_CONTEXT cert)
             else if (!strcmp(oid, szOID_SUBJECT_ALT_NAME2))
                 ret = TRUE;
             else if (!strcmp(oid, szOID_CERT_POLICIES))
-                ret = TRUE;
-            else if (!strcmp(oid, szOID_APPLICATION_CERT_POLICIES))
                 ret = TRUE;
             else if (!strcmp(oid, szOID_ENHANCED_KEY_USAGE))
                 ret = TRUE;
@@ -2704,7 +2707,6 @@ static void CRYPT_VerifyChainRevocation(PCERT_CHAIN_CONTEXT chain,
 
                     switch (revocationStatus.dwError)
                     {
-                    case CRYPT_E_REVOCATION_OFFLINE:
                     case CRYPT_E_NO_REVOCATION_CHECK:
                     case CRYPT_E_NO_REVOCATION_DLL:
                     case CRYPT_E_NOT_IN_REVOCATION_DATABASE:
@@ -2713,6 +2715,9 @@ static void CRYPT_VerifyChainRevocation(PCERT_CHAIN_CONTEXT chain,
                          */
                         error = CERT_TRUST_REVOCATION_STATUS_UNKNOWN |
                          CERT_TRUST_IS_OFFLINE_REVOCATION;
+                        break;
+                    case CRYPT_E_REVOCATION_OFFLINE:
+                        error = CERT_TRUST_IS_OFFLINE_REVOCATION;
                         break;
                     case CRYPT_E_REVOKED:
                         error = CERT_TRUST_IS_REVOKED;
@@ -2984,24 +2989,6 @@ static void find_element_with_error(PCCERT_CHAIN_CONTEXT chain, DWORD error,
                 *iElement = j;
                 return;
             }
-}
-
-static BOOL find_chain_first_element_with_error(PCCERT_CHAIN_CONTEXT chain, DWORD error, LONG *chain_idx,
-                                                LONG *element_idx)
-{
-    unsigned int i;
-
-    for (i = 0; i < chain->cChain; i++)
-    {
-        if (!chain->rgpChain[i]->cElement) continue;
-        if (chain->rgpChain[i]->rgpElement[0]->TrustStatus.dwErrorStatus & error)
-        {
-            *chain_idx = i;
-            *element_idx = 0;
-            return TRUE;
-        }
-    }
-    return FALSE;
 }
 
 static BOOL WINAPI verify_base_policy(LPCSTR szPolicyOID,
@@ -3516,7 +3503,7 @@ static BOOL WINAPI verify_ssl_policy(LPCSTR szPolicyOID,
     }
     else if (pChainContext->TrustStatus.dwErrorStatus &
      CERT_TRUST_IS_NOT_VALID_FOR_USAGE &&
-     !(checks & SECURITY_FLAG_IGNORE_WRONG_USAGE) && !(baseChecks & CERT_CHAIN_POLICY_IGNORE_WRONG_USAGE_FLAG))
+     !(checks & SECURITY_FLAG_IGNORE_WRONG_USAGE))
     {
         pPolicyStatus->dwError = CERT_E_WRONG_USAGE;
         find_element_with_error(pChainContext,
@@ -3526,18 +3513,19 @@ static BOOL WINAPI verify_ssl_policy(LPCSTR szPolicyOID,
     else if (pChainContext->TrustStatus.dwErrorStatus &
      CERT_TRUST_IS_REVOKED && !(checks & SECURITY_FLAG_IGNORE_REVOCATION))
     {
-        pPolicyStatus->dwError = CRYPT_E_REVOKED;
+        pPolicyStatus->dwError = CERT_E_REVOKED;
         find_element_with_error(pChainContext,
          CERT_TRUST_IS_REVOKED, &pPolicyStatus->lChainIndex,
          &pPolicyStatus->lElementIndex);
     }
     else if (pChainContext->TrustStatus.dwErrorStatus &
-     CERT_TRUST_REVOCATION_STATUS_UNKNOWN &&
-     !(checks & SECURITY_FLAG_IGNORE_REVOCATION) && !(baseChecks & CERT_CHAIN_POLICY_IGNORE_END_REV_UNKNOWN_FLAG)
-     && find_chain_first_element_with_error(pChainContext, CERT_TRUST_REVOCATION_STATUS_UNKNOWN,
-                                            &pPolicyStatus->lChainIndex, &pPolicyStatus->lElementIndex))
+     CERT_TRUST_IS_OFFLINE_REVOCATION &&
+     !(checks & SECURITY_FLAG_IGNORE_REVOCATION))
     {
-        pPolicyStatus->dwError = CRYPT_E_REVOCATION_OFFLINE;
+        pPolicyStatus->dwError = CERT_E_REVOCATION_FAILURE;
+        find_element_with_error(pChainContext,
+         CERT_TRUST_IS_OFFLINE_REVOCATION, &pPolicyStatus->lChainIndex,
+         &pPolicyStatus->lElementIndex);
     }
     else if (pChainContext->TrustStatus.dwErrorStatus &
      CERT_TRUST_HAS_NOT_SUPPORTED_CRITICAL_EXT)
@@ -3857,7 +3845,8 @@ BOOL WINAPI CertVerifyCertificateChainPolicy(LPCSTR szPolicyOID,
         if (!set)
             set = CryptInitOIDFunctionSet(
              CRYPT_OID_VERIFY_CERTIFICATE_CHAIN_POLICY_FUNC, 0);
-        CryptGetOIDFunctionAddress(set, 0, szPolicyOID, 0, (void **)&verifyPolicy, &hFunc);
+        CryptGetOIDFunctionAddress(set, X509_ASN_ENCODING, szPolicyOID, 0,
+         (void **)&verifyPolicy, &hFunc);
     }
     if (verifyPolicy)
         ret = verifyPolicy(szPolicyOID, pChainContext, pPolicyPara,

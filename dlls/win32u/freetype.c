@@ -256,6 +256,8 @@ MAKE_FUNCPTR(FcStrSetMember);
 #define GET_BE_DWORD(x) RtlUlongByteSwap(x)
 #endif
 
+#define MS_EBDT_TAG MS_MAKE_TAG('E','B','D','T')
+
 /* 'gasp' flags */
 #define GASP_GRIDFIT 0x01
 #define GASP_DOGRAY  0x02
@@ -332,7 +334,7 @@ static char *find_cache_dir(void)
 {
     FSRef ref;
     OSErr err;
-    static char cached_path[PATH_MAX];
+    static char cached_path[MAX_PATH];
     static const char *wine = "/Wine", *fonts = "/Fonts";
 
     if(*cached_path) return cached_path;
@@ -487,7 +489,7 @@ static char **expand_mac_font(const char *path)
             {
                 int fd;
 
-                snprintf(output, output_len, "%s/%s_%04x.ttf", out_dir, filename, font_id);
+                sprintf(output, "%s/%s_%04x.ttf", out_dir, filename, font_id);
 
                 fd = open(output, O_CREAT | O_EXCL | O_WRONLY, 0600);
                 if(fd != -1 || errno == EEXIST)
@@ -553,8 +555,11 @@ static BOOL is_hinting_enabled(void)
 
     if (enabled == -1)
     {
+        const char *sgi;
+
+        if ((sgi = getenv("SteamGameId")) && !strcmp(sgi, "563560")) enabled = FALSE;
         /* Use the >= 2.2.0 function if available */
-        if (pFT_Get_TrueType_Engine_Type)
+        else if (pFT_Get_TrueType_Engine_Type)
         {
             FT_TrueTypeEngineType type = pFT_Get_TrueType_Engine_Type(library);
             enabled = (type == FT_TRUETYPE_ENGINE_TYPE_PATENTED);
@@ -1180,6 +1185,8 @@ static struct unix_face *unix_face_create( const char *unix_name, void *data_ptr
     struct stat st;
     DWORD face_count;
     int fd, length;
+    FT_Error error;
+    FT_ULong len;
 
     TRACE( "unix_name %s, face_index %u, data_ptr %p, data_size %u, flags %#x\n",
            unix_name, face_index, data_ptr, data_size, flags );
@@ -1276,7 +1283,20 @@ static struct unix_face *unix_face_create( const char *unix_name, void *data_ptr
         else
             This->weight = This->ntm_flags & NTM_BOLD ? FW_BOLD : FW_NORMAL;
         This->font_version = get_font_version( This->ft_face );
-        if (!This->scalable) get_bitmap_size( This->ft_face, &This->size );
+        if (!This->scalable)
+        {
+            error = pFT_Load_Sfnt_Table( This->ft_face, RtlUlongByteSwap(MS_EBDT_TAG), 0, NULL, &len );
+            if (error == FT_Err_Table_Missing)
+            {
+                WARN( "EBDT table is missing in bitmap only font %s.\n",
+                      debugstr_w(ft_face_get_family_name( This->ft_face, system_lcid )));
+                pFT_Done_Face( This->ft_face );
+                free( This );
+                This = NULL;
+                goto done;
+            }
+            get_bitmap_size( This->ft_face, &This->size );
+        }
         get_fontsig( This->ft_face, &This->fs );
     }
     else
@@ -1325,9 +1345,9 @@ static int add_unix_face( const char *unix_name, const WCHAR *file, void *data_p
                         unix_face->font_version, flags, unix_face->scalable ? NULL : &unix_face->size );
 
     TRACE("fsCsb = %08x %08x/%08x %08x %08x %08x\n",
-          unix_face->fs.fsCsb[0], unix_face->fs.fsCsb[1],
-          unix_face->fs.fsUsb[0], unix_face->fs.fsUsb[1],
-          unix_face->fs.fsUsb[2], unix_face->fs.fsUsb[3]);
+          (int)unix_face->fs.fsCsb[0], (int)unix_face->fs.fsCsb[1],
+          (int)unix_face->fs.fsUsb[0], (int)unix_face->fs.fsUsb[1],
+          (int)unix_face->fs.fsUsb[2], (int)unix_face->fs.fsUsb[3]);
 
     if (num_faces) *num_faces = unix_face->num_faces;
     unix_face_destroy( unix_face );
@@ -1445,7 +1465,7 @@ static BOOL ReadFontDir(const char *dirname, BOOL external_fonts)
 {
     DIR *dir;
     struct dirent *dent;
-    char path[PATH_MAX];
+    char path[MAX_PATH];
 
     TRACE("Loading fonts from %s\n", debugstr_a(dirname));
 
@@ -1462,7 +1482,7 @@ static BOOL ReadFontDir(const char *dirname, BOOL external_fonts)
 
 	TRACE("Found %s in %s\n", debugstr_a(dent->d_name), debugstr_a(dirname));
 
-	snprintf(path, sizeof(path), "%s/%s", dirname, dent->d_name);
+	sprintf(path, "%s/%s", dirname, dent->d_name);
 
 	if(stat(path, &statbuf) == -1)
 	{
@@ -2159,7 +2179,7 @@ static int load_VDMX(struct gdi_font *font, int height)
     if(freetype_get_font_data(font, MS_VDMX_TAG, offset, &group, sizeof(group)) != GDI_ERROR) {
 	USHORT recs;
 	BYTE startsz, endsz;
-	VDMX_vTable *vTable;
+	WORD *vTable;
 
 	recs = GET_BE_WORD(group.recs);
 	startsz = group.startsz;
@@ -2167,8 +2187,8 @@ static int load_VDMX(struct gdi_font *font, int height)
 
 	TRACE("recs=%d  startsz=%d  endsz=%d\n", recs, startsz, endsz);
 
-	vTable = malloc( recs * sizeof(*vTable) );
-	result = freetype_get_font_data(font, MS_VDMX_TAG, offset + sizeof(group), vTable, recs * sizeof(*vTable));
+	vTable = malloc( recs * sizeof(VDMX_vTable) );
+	result = freetype_get_font_data(font, MS_VDMX_TAG, offset + sizeof(group), vTable, recs * sizeof(VDMX_vTable));
 	if(result == GDI_ERROR) {
 	    FIXME("Failed to retrieve vTable\n");
 	    goto end;
@@ -2176,9 +2196,9 @@ static int load_VDMX(struct gdi_font *font, int height)
 
 	if(height > 0) {
 	    for(i = 0; i < recs; i++) {
-                SHORT yMax = GET_BE_WORD(vTable[i].yMax);
-                SHORT yMin = GET_BE_WORD(vTable[i].yMin);
-                ppem = GET_BE_WORD(vTable[i].yPelHeight);
+                SHORT yMax = GET_BE_WORD(vTable[(i * 3) + 1]);
+                SHORT yMin = GET_BE_WORD(vTable[(i * 3) + 2]);
+                ppem = GET_BE_WORD(vTable[i * 3]);
 
 		if(yMax + -yMin == height) {
 		    font->yMax = yMax;
@@ -2191,9 +2211,9 @@ static int load_VDMX(struct gdi_font *font, int height)
 			ppem = 0;
 			goto end; /* failed */
 		    }
-		    font->yMax = GET_BE_WORD(vTable[i].yMax);
-		    font->yMin = GET_BE_WORD(vTable[i].yMin);
-                    ppem = GET_BE_WORD(vTable[i].yPelHeight);
+		    font->yMax = GET_BE_WORD(vTable[(i * 3) + 1]);
+		    font->yMin = GET_BE_WORD(vTable[(i * 3) + 2]);
+                    ppem = GET_BE_WORD(vTable[i * 3]);
                     TRACE("ppem %d found; height=%d  yMax=%d  yMin=%d\n", ppem, height, font->yMax, font->yMin);
 		    break;
 		}
@@ -2212,7 +2232,7 @@ static int load_VDMX(struct gdi_font *font, int height)
 
 	    for(i = 0; i < recs; i++) {
 		USHORT yPelHeight;
-		yPelHeight = GET_BE_WORD(vTable[i].yPelHeight);
+		yPelHeight = GET_BE_WORD(vTable[i * 3]);
 
 		if(yPelHeight > ppem)
                 {
@@ -2221,8 +2241,8 @@ static int load_VDMX(struct gdi_font *font, int height)
                 }
 
 		if(yPelHeight == ppem) {
-		    font->yMax = GET_BE_WORD(vTable[i].yMax);
-		    font->yMin = GET_BE_WORD(vTable[i].yMin);
+		    font->yMax = GET_BE_WORD(vTable[(i * 3) + 1]);
+		    font->yMin = GET_BE_WORD(vTable[(i * 3) + 2]);
                     TRACE("ppem %d found; yMax=%d  yMin=%d\n", ppem, font->yMax, font->yMin);
 		    break;
 		}
@@ -2446,7 +2466,7 @@ static BOOL freetype_load_font( struct gdi_font *font )
         /* load the VDMX table if we have one */
         font->ppem = load_VDMX( font, font->lf.lfHeight );
         if (font->ppem == 0) font->ppem = calc_ppem_for_height( ft_face, font->lf.lfHeight );
-        TRACE( "height %d => ppem %d\n", font->lf.lfHeight, font->ppem );
+        TRACE( "height %d => ppem %d\n", (int)font->lf.lfHeight, font->ppem );
         height = font->ppem;
         font->ttc_item_offset = get_ttc_offset( ft_face, font->face_index );
         font->otm.otmEMSquare = ft_face->units_per_EM;
@@ -2492,7 +2512,7 @@ static UINT freetype_get_aa_flags( struct gdi_font *font, UINT aa_flags, BOOL an
             if (get_gasp_flags( font, &gasp_flags ) && !(gasp_flags & GASP_DOGRAY))
             {
                 TRACE( "font %s %d aa disabled by GASP\n",
-                       debugstr_w(font->lf.lfFaceName), font->lf.lfHeight );
+                       debugstr_w(font->lf.lfFaceName), (int)font->lf.lfHeight );
                 aa_flags = GGO_BITMAP;
             }
         }
@@ -3409,9 +3429,12 @@ static unsigned int get_bezier_glyph_outline(FT_Outline *outline, unsigned int b
     return needed;
 }
 
-static FT_Int get_load_flags( UINT format )
+static FT_Int get_load_flags( UINT format, BOOL vertical_metrics, BOOL force_no_bitmap )
 {
     FT_Int load_flags = FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH;
+
+    if (vertical_metrics) load_flags |= FT_LOAD_VERTICAL_LAYOUT;
+    if (force_no_bitmap || format != GGO_BITMAP) load_flags |= FT_LOAD_NO_BITMAP;
 
     if (format & GGO_UNHINTED)
         return load_flags | FT_LOAD_NO_HINTING;
@@ -3440,21 +3463,28 @@ static FT_Int get_load_flags( UINT format )
     return load_flags;
 }
 
+static BOOL is_curve_format(UINT format)
+{
+    format &= ~(GGO_GLYPH_INDEX | GGO_UNHINTED);
+    return format == GGO_BEZIER || format == GGO_NATIVE;
+}
+
 /*************************************************************
  * freetype_get_glyph_outline
  */
 static UINT freetype_get_glyph_outline( struct gdi_font *font, UINT glyph, UINT format,
                                         GLYPHMETRICS *lpgm, ABC *abc, UINT buflen, void *buf,
-                                        const MAT2 *lpmat, BOOL tategaki )
+                                        const MAT2 *lpmat, BOOL tategaki, UINT aa_flags )
 {
     struct gdi_font *base_font = font->base_font ? font->base_font : font;
     FT_Face ft_face = get_ft_face( font );
     FT_Glyph_Metrics metrics;
     FT_Error err;
     FT_BBox bbox;
-    FT_Int load_flags = get_load_flags(format);
+    FT_Int load_flags;
     FT_Matrix transform_matrices[3], *matrices = NULL;
     BOOL vertical_metrics;
+    UINT effective_format = format;
 
     TRACE("%p, %04x, %08x, %p, %08x, %p, %p\n", font, glyph, format, lpgm, buflen, buf, lpmat);
 
@@ -3462,20 +3492,23 @@ static UINT freetype_get_glyph_outline( struct gdi_font *font, UINT glyph, UINT 
           font->matrix.eM11, font->matrix.eM12,
           font->matrix.eM21, font->matrix.eM22);
 
-    format &= ~GGO_UNHINTED;
-
     matrices = get_transform_matrices( font, tategaki, lpmat, transform_matrices );
 
+    if (aa_flags && !is_curve_format( format )) effective_format = aa_flags | (format & GGO_GLYPH_INDEX);
     vertical_metrics = (tategaki && FT_HAS_VERTICAL(ft_face));
     /* there is a freetype bug where vertical metrics are only
        properly scaled and correct in 2.4.0 or greater */
     if (vertical_metrics && FT_SimpleVersion < FT_VERSION_VALUE(2, 4, 0))
         vertical_metrics = FALSE;
-
-    if (matrices || format != GGO_BITMAP) load_flags |= FT_LOAD_NO_BITMAP;
-    if (vertical_metrics) load_flags |= FT_LOAD_VERTICAL_LAYOUT;
+    load_flags = get_load_flags(effective_format, vertical_metrics, !!matrices);
 
     err = pFT_Load_Glyph(ft_face, glyph, load_flags & FT_LOAD_NO_HINTING ? load_flags : load_flags | FT_LOAD_PEDANTIC);
+    if (err && format != effective_format)
+    {
+        WARN("Failed to load glyph %#x, retrying with GGO_METRICS. Error %#x.\n", glyph, err);
+        load_flags = get_load_flags(effective_format, vertical_metrics, !!matrices);
+        err = pFT_Load_Glyph(ft_face, glyph, load_flags & FT_LOAD_NO_HINTING ? load_flags : load_flags | FT_LOAD_PEDANTIC);
+    }
     if (err && !(load_flags & FT_LOAD_NO_HINTING))
     {
         WARN("Failed to load glyph %#x, retrying without hinting. Error %#x.\n", glyph, err);
@@ -3487,6 +3520,8 @@ static UINT freetype_get_glyph_outline( struct gdi_font *font, UINT glyph, UINT 
         WARN("Failed to load glyph %#x, error %#x.\n", glyph, err);
         return GDI_ERROR;
     }
+
+    format &= ~GGO_UNHINTED;
 
     metrics = ft_face->glyph->metrics;
     if(font->fake_bold) {

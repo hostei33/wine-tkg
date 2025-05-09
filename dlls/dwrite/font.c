@@ -1820,8 +1820,8 @@ static HRESULT WINAPI dwritefontface3_GetRecommendedRenderingMode(IDWriteFontFac
 
         hr = IDWriteRenderingParams_QueryInterface(params, &IID_IDWriteRenderingParams3, (void**)&params3);
         if (hr == S_OK) {
-            mode = IDWriteRenderingParams3_GetRenderingMode1(params3);
-            *gridfit_mode = IDWriteRenderingParams3_GetGridFitMode(params3);
+            *rendering_mode = IDWriteRenderingParams3_GetRenderingMode1(params3);
+            mode = IDWriteRenderingParams3_GetGridFitMode(params3);
             IDWriteRenderingParams3_Release(params3);
         }
         else
@@ -3402,38 +3402,11 @@ static HRESULT WINAPI dwritefontcollection_GetFontFromFontFace(IDWriteFontCollec
     return hr;
 }
 
-static HRESULT fontset_create_from_font_collection(struct dwrite_fontcollection *collection, IDWriteFontSet1 **fontset)
-{
-    struct dwrite_font_data **fonts;
-    size_t count = 0, i, j, k = 0;
-    HRESULT hr;
-
-    *fontset = NULL;
-
-    for (i = 0; i < collection->count; ++i)
-        count += collection->family_data[i]->count;
-
-    if (!(fonts = calloc(count, sizeof(*fonts))))
-        return E_OUTOFMEMORY;
-
-    for (i = 0; i < collection->count; ++i)
-        for (j = 0; j < collection->family_data[i]->count; ++j)
-            fonts[k++] = collection->family_data[i]->fonts[j];
-
-    hr = fontset_create_from_font_data(collection->factory, fonts, count, fontset);
-
-    free(fonts);
-
-    return hr;
-}
-
 static HRESULT WINAPI dwritefontcollection1_GetFontSet(IDWriteFontCollection3 *iface, IDWriteFontSet **fontset)
 {
-    struct dwrite_fontcollection *collection = impl_from_IDWriteFontCollection3(iface);
+    FIXME("%p, %p.\n", iface, fontset);
 
-    TRACE("%p, %p.\n", iface, fontset);
-
-    return fontset_create_from_font_collection(collection, (IDWriteFontSet1 **)fontset);
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI dwritefontcollection1_GetFontFamily(IDWriteFontCollection3 *iface, UINT32 index,
@@ -3496,11 +3469,9 @@ static DWRITE_FONT_FAMILY_MODEL WINAPI dwritefontcollection2_GetFontFamilyModel(
 
 static HRESULT WINAPI dwritefontcollection2_GetFontSet(IDWriteFontCollection3 *iface, IDWriteFontSet1 **fontset)
 {
-    struct dwrite_fontcollection *collection = impl_from_IDWriteFontCollection3(iface);
+    FIXME("%p, %p.\n", iface, fontset);
 
-    TRACE("%p, %p.\n", iface, fontset);
-
-    return fontset_create_from_font_collection(collection, fontset);
+    return E_NOTIMPL;
 }
 
 static HANDLE WINAPI dwritefontcollection3_GetExpirationEvent(IDWriteFontCollection3 *iface)
@@ -6022,7 +5993,7 @@ void init_local_fontfile_loader(void)
     local_fontfile_loader.IDWriteLocalFontFileLoader_iface.lpVtbl = &localfontfileloadervtbl;
     local_fontfile_loader.refcount = 1;
     list_init(&local_fontfile_loader.streams);
-    InitializeCriticalSectionEx(&local_fontfile_loader.cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&local_fontfile_loader.cs);
     local_fontfile_loader.cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": localfileloader.lock");
 }
 

@@ -54,12 +54,11 @@ HRESULT create_view( enum view_type type, enum wbm_namespace ns, const WCHAR *pa
 
     case VIEW_TYPE_SELECT:
     {
-        struct table *table = create_table( ns, class );
+        struct table *table = grab_table( ns, class );
         HRESULT hr;
 
         if (table && (hr = append_table( view, table )) != S_OK)
         {
-            release_table( table );
             free( view );
             return hr;
         }
@@ -632,7 +631,7 @@ static HRESULT get_antecedent_table( enum wbm_namespace ns, const WCHAR *assoccl
     }
 
     if ((hr = do_query( ns, str, &query )) != S_OK) goto done;
-    if (query->view->table_count) *table = grab_table( query->view->table[0] );
+    if (query->view->table_count) *table = addref_table( query->view->table[0] );
     else *table = NULL;
 
 done:
@@ -702,9 +701,12 @@ static HRESULT exec_select_view( struct view *view )
     if (!view->table_count) return S_OK;
 
     table = view->table[0];
-    if (table->fill) status = table->fill( table, view->cond );
+    if (table->fill)
+    {
+        clear_table( table );
+        status = table->fill( table, view->cond );
+    }
     if (status == FILL_STATUS_FAILED) return WBEM_E_FAILED;
-
     if (!table->num_rows) return S_OK;
 
     len = min( table->num_rows, 16 );
@@ -1332,9 +1334,6 @@ HRESULT to_longlong( VARIANT *var, LONGLONG *val, CIMTYPE *type )
         *val = 0;
         return S_OK;
     }
-    if (V_VT( var ) & VT_BYREF)
-        var = V_VARIANTREF( var );
-
     if (V_VT( var ) & VT_ARRAY)
     {
         *val = (INT_PTR)to_array( var, type );

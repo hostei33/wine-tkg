@@ -142,7 +142,7 @@ new_fluid_midi_file(const char *buffer, size_t length)
     FLUID_MEMSET(mf, 0, sizeof(fluid_midi_file));
 
     mf->c = -1;
-    mf->running_status = 0;
+    mf->running_status = -1;
 
     mf->buffer = buffer;
     mf->buf_len = (int)length;
@@ -357,13 +357,8 @@ fluid_midi_file_read_mthd(fluid_midi_file *mf)
     }
 
     mf->type = mthd[9];
-    if(!(mf->type == 0 || mf->type == 1))
-    {
-        FLUID_LOG(FLUID_ERR,
-                  "Sorry, but MIDI Format %d is not supported by this player", mf->type);
-        return FLUID_FAILED;
-    }
-    mf->ntracks = (signed)((unsigned)(mthd[10]) << 8 | (unsigned) mthd[11]);
+    mf->ntracks = (unsigned) mthd[11];
+    mf->ntracks += (unsigned int)(mthd[10]) << 16;
 
     if((signed char)mthd[12] < 0)
     {
@@ -637,7 +632,6 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
     /* read the delta-time of the event */
     if(fluid_midi_file_read_varlen(mf) != FLUID_OK)
     {
-        FLUID_LOG(FLUID_DBG, "Reading delta-time failed unexpectedly (track=%d)", track->num);
         return FLUID_FAILED;
     }
 
@@ -657,7 +651,7 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
     {
         if((mf->running_status & 0x80) == 0)
         {
-            FLUID_LOG(FLUID_ERR, "Undefined status and invalid running status (0x%X, 0x%X)", status, mf->running_status);
+            FLUID_LOG(FLUID_ERR, "Undefined status and invalid running status");
             return FLUID_FAILED;
         }
 
@@ -666,12 +660,14 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
     }
 
     /* check what message we have */
-    if(status == MIDI_SYSEX)    /* system exclusive */
+
+    mf->running_status = status;
+
+    if(status == MIDI_SYSEX)    /* system exclusif */
     {
         /* read the length of the message */
         if(fluid_midi_file_read_varlen(mf) != FLUID_OK)
         {
-            FLUID_LOG(FLUID_DBG, "Failed to read length of SYSEX msg (track=%d)", track->num);
             return FLUID_FAILED;
         }
 
@@ -690,7 +686,6 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
             /* read the data of the message */
             if(fluid_midi_file_read(mf, metadata, mf->varlen) != FLUID_OK)
             {
-                FLUID_LOG(FLUID_DBG, "Failed to read data of SYSEX msg (track=%d)", track->num);
                 FLUID_FREE(metadata);
                 return FLUID_FAILED;
             }
@@ -738,7 +733,6 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
         /* get the length of the data part */
         if(fluid_midi_file_read_varlen(mf) != FLUID_OK)
         {
-            FLUID_LOG(FLUID_DBG, "Failed to read length of META msg (track=%d)", track->num);
             return FLUID_FAILED;
         }
 
@@ -771,7 +765,6 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
                     FLUID_FREE(dyn_buf);
                 }
 
-                FLUID_LOG(FLUID_DBG, "Failed to read meta msg (track=%d)", track->num);
                 return FLUID_FAILED;
             }
         }
@@ -939,7 +932,6 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
             break;
 
         default:
-            FLUID_LOG(FLUID_INFO, "Ignoring unrecognized meta event type 0x%X", type);
             break;
         }
 
@@ -954,8 +946,7 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
     }
     else     /* channel messages */
     {
-        // remember current status (not applicable to SYSEX and META events!)
-        mf->running_status = status;
+
         type = status & 0xf0;
         channel = status & 0x0f;
 
@@ -1024,7 +1015,7 @@ fluid_midi_file_read_event(fluid_midi_file *mf, fluid_track_t *track)
 
         default:
             /* Can't possibly happen !? */
-            FLUID_LOG(FLUID_ERR, "Unrecognized MIDI event 0x%X", status);
+            FLUID_LOG(FLUID_ERR, "Unrecognized MIDI event");
             return FLUID_FAILED;
         }
 
@@ -1067,7 +1058,7 @@ fluid_midi_file_get_division(fluid_midi_file *midifile)
  * @return New MIDI event structure or NULL when out of memory.
  */
 fluid_midi_event_t *
-new_fluid_midi_event(void)
+new_fluid_midi_event()
 {
     fluid_midi_event_t *evt;
     evt = FLUID_NEW(fluid_midi_event_t);
@@ -1650,23 +1641,6 @@ fluid_player_handle_reset_synth(void *data, const char *name, int value)
     player->reset_synth_between_songs = value;
 }
 
-static int check_for_on_notes(fluid_synth_t *synth)
-{
-    fluid_voice_t* v[1024];
-    unsigned int i, res=FALSE;
-    fluid_synth_get_voicelist(synth, v, FLUID_N_ELEMENTS(v), -1);
-    for(i=0; i<FLUID_N_ELEMENTS(v) && v[i] != NULL; i++)
-    {
-        fluid_voice_t *vv = v[i];
-        if(vv != NULL && fluid_voice_is_on(vv))
-        {
-            res = TRUE;
-            FLUID_LOG(FLUID_DBG, "Voice is on! channel %d, key %d", fluid_voice_get_channel(vv), fluid_voice_get_key(vv));
-        }
-    }
-    return res;
-}
-
 /**
  * Create a new MIDI player.
  * @param synth Fluid synthesizer instance to create player for
@@ -2223,16 +2197,10 @@ fluid_player_callback(void *data, unsigned int msec)
                 /* The first time we notice we've run out of MIDI events but there are still active voices, disable all hold pedals */
                 if(!player->end_pedals_disabled)
                 {
-                    if(check_for_on_notes(synth))
-                    {
-                        FLUID_LOG(FLUID_WARN, "End of the MIDI file reached, but not all notes have received a note off event! OFFing them now! Run with --verbose to spot pending voices.");
-                    }
-
                     for(i = 0; i < synth->midi_channels; i++)
                     {
                         fluid_synth_cc(player->synth, i, SUSTAIN_SWITCH, 0);
                         fluid_synth_cc(player->synth, i, SOSTENUTO_SWITCH, 0);
-                        fluid_synth_cc(player->synth, i, ALL_NOTES_OFF, 0);
                     }
 
                     player->end_pedals_disabled = 1;
@@ -2300,7 +2268,6 @@ fluid_player_play(fluid_player_t *player)
     if(!player->use_system_timer)
     {
         fluid_sample_timer_reset(player->synth, player->sample_timer);
-        player->cur_msec = 0;
     }
 
     /* If we're at the end of the playlist and there are no loops left, loop once */
@@ -2701,7 +2668,7 @@ int fluid_player_get_midi_tempo(fluid_player_t *player)
  * new_fluid_midi_parser
  */
 fluid_midi_parser_t *
-new_fluid_midi_parser(void)
+new_fluid_midi_parser()
 {
     fluid_midi_parser_t *parser;
     parser = FLUID_NEW(fluid_midi_parser_t);

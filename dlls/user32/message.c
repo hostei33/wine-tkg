@@ -24,6 +24,7 @@
 #include "user_private.h"
 #include "controls.h"
 #include "dde.h"
+#include "wine/server.h"
 #include "wine/debug.h"
 #include "wine/exception.h"
 
@@ -332,9 +333,10 @@ static HGLOBAL dde_get_pair(HGLOBAL shm)
  *
  * Post a DDE message
  */
-NTSTATUS post_dde_message( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, DWORD dest_tid )
+BOOL post_dde_message( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, DWORD dest_tid, DWORD type )
 {
-    struct post_dde_message_call_params params = { .dest_tid = dest_tid };
+    void*       ptr = NULL;
+    int         size = 0;
     UINT_PTR    uiLo, uiHi;
     LPARAM      lp;
     HGLOBAL     hunlock = 0;
@@ -342,7 +344,7 @@ NTSTATUS post_dde_message( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, DW
     ULONGLONG   hpack;
 
     if (!UnpackDDElParam( msg, lparam, &uiLo, &uiHi ))
-        return STATUS_INVALID_PARAMETER;
+        return FALSE;
 
     lp = lparam;
     switch (msg)
@@ -362,8 +364,8 @@ NTSTATUS post_dde_message( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, DW
             {
                 hpack = pack_ptr( h );
                 /* send back the value of h on the other side */
-                params.ptr = &hpack;
-                params.size = sizeof(hpack);
+                ptr = &hpack;
+                size = sizeof(hpack);
                 lp = uiLo;
                 TRACE( "send dde-ack %Ix %08Ix => %p\n", uiLo, uiHi, h );
             }
@@ -380,34 +382,34 @@ NTSTATUS post_dde_message( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, DW
     case WM_DDE_POKE:
         if (uiLo)
         {
-            params.size = GlobalSize( (HGLOBAL)uiLo ) ;
-            if ((msg == WM_DDE_ADVISE && params.size < sizeof(DDEADVISE)) ||
-                (msg == WM_DDE_DATA   && params.size < FIELD_OFFSET(DDEDATA, Value)) ||
-                (msg == WM_DDE_POKE   && params.size < FIELD_OFFSET(DDEPOKE, Value)))
-                return STATUS_INVALID_PARAMETER;
+            size = GlobalSize( (HGLOBAL)uiLo ) ;
+            if ((msg == WM_DDE_ADVISE && size < sizeof(DDEADVISE)) ||
+                (msg == WM_DDE_DATA   && size < FIELD_OFFSET(DDEDATA, Value)) ||
+                (msg == WM_DDE_POKE   && size < FIELD_OFFSET(DDEPOKE, Value)))
+                return FALSE;
         }
-        else if (msg != WM_DDE_DATA) return STATUS_INVALID_PARAMETER;
+        else if (msg != WM_DDE_DATA) return FALSE;
 
         lp = uiHi;
         if (uiLo)
         {
-            if ((params.ptr = GlobalLock( (HGLOBAL)uiLo) ))
+            if ((ptr = GlobalLock( (HGLOBAL)uiLo) ))
             {
-                DDEDATA *dde_data = params.ptr;
+                DDEDATA *dde_data = ptr;
                 TRACE("unused %d, fResponse %d, fRelease %d, fDeferUpd %d, fAckReq %d, cfFormat %d\n",
                        dde_data->unused, dde_data->fResponse, dde_data->fRelease,
                        dde_data->reserved, dde_data->fAckReq, dde_data->cfFormat);
                 hunlock = (HGLOBAL)uiLo;
             }
         }
-        TRACE( "send ddepack %u %Ix\n", params.size, uiHi );
+        TRACE( "send ddepack %u %Ix\n", size, uiHi );
         break;
     case WM_DDE_EXECUTE:
         if (lparam)
         {
-            if ((params.ptr = GlobalLock( (HGLOBAL)lparam) ))
+            if ((ptr = GlobalLock( (HGLOBAL)lparam) ))
             {
-                params.size = GlobalSize( (HGLOBAL)lparam );
+                size = GlobalSize( (HGLOBAL)lparam );
                 /* so that the other side can send it back on ACK */
                 lp = lparam;
                 hunlock = (HGLOBAL)lparam;
@@ -415,12 +417,32 @@ NTSTATUS post_dde_message( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, DW
         }
         break;
     }
-
-    res = NtUserMessageCall( hwnd, msg, wparam, lp, &params, NtUserPostDdeCall, FALSE );
-    if (!res) FreeDDElParam( msg, lparam );
+    SERVER_START_REQ( send_message )
+    {
+        req->id      = dest_tid;
+        req->type    = type;
+        req->flags   = 0;
+        req->win     = wine_server_user_handle( hwnd );
+        req->msg     = msg;
+        req->wparam  = wparam;
+        req->lparam  = lp;
+        req->timeout = TIMEOUT_INFINITE;
+        if (size) wine_server_add_data( req, ptr, size );
+        if ((res = wine_server_call( req )))
+        {
+            if (res == STATUS_INVALID_PARAMETER)
+                /* FIXME: find a STATUS_ value for this one */
+                SetLastError( ERROR_INVALID_THREAD_ID );
+            else
+                SetLastError( RtlNtStatusToDosError(res) );
+        }
+        else
+            FreeDDElParam( msg, lparam );
+    }
+    SERVER_END_REQ;
     if (hunlock) GlobalUnlock(hunlock);
 
-    return res;
+    return !res;
 }
 
 /***********************************************************************
@@ -658,6 +680,15 @@ BOOL WINAPI SendMessageCallbackW( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 
 
 /***********************************************************************
+ *		ReplyMessage  (USER32.@)
+ */
+BOOL WINAPI ReplyMessage( LRESULT result )
+{
+    return NtUserReplyMessage( result );
+}
+
+
+/***********************************************************************
  *		InSendMessage  (USER32.@)
  */
 BOOL WINAPI InSendMessage(void)
@@ -703,6 +734,34 @@ BOOL WINAPI PostThreadMessageA( DWORD thread, UINT msg, WPARAM wparam, LPARAM lp
     return NtUserPostThreadMessage( thread, msg, wparam, lparam );
 }
 
+
+/***********************************************************************
+ *		PostQuitMessage  (USER32.@)
+ *
+ * Posts a quit message to the current thread's message queue.
+ *
+ * PARAMS
+ *  exit_code [I] Exit code to return from message loop.
+ *
+ * RETURNS
+ *  Nothing.
+ *
+ * NOTES
+ *  This function is not the same as calling:
+ *|PostThreadMessage(GetCurrentThreadId(), WM_QUIT, exit_code, 0);
+ *  It instead sets a flag in the message queue that signals it to generate
+ *  a WM_QUIT message when there are no other pending sent or posted messages
+ *  in the queue.
+ */
+void WINAPI PostQuitMessage( INT exit_code )
+{
+    SERVER_START_REQ( post_quit_message )
+    {
+        req->exit_code = exit_code;
+        wine_server_call( req );
+    }
+    SERVER_END_REQ;
+}
 
 /***********************************************************************
  *		PeekMessageW  (USER32.@)
@@ -938,7 +997,7 @@ DWORD WINAPI GetMessagePos(void)
  */
 LONG WINAPI GetMessageTime(void)
 {
-    return NtUserGetThreadState( UserThreadStateMessageTime );
+    return NtUserGetThreadInfo()->message_time;
 }
 
 
@@ -948,7 +1007,7 @@ LONG WINAPI GetMessageTime(void)
  */
 LPARAM WINAPI GetMessageExtraInfo(void)
 {
-    return NtUserGetThreadState( UserThreadStateExtraInfo );
+    return NtUserGetThreadInfo()->message_extra;
 }
 
 
@@ -961,6 +1020,16 @@ LPARAM WINAPI SetMessageExtraInfo(LPARAM lParam)
     LONG old_value = thread_info->message_extra;
     thread_info->message_extra = lParam;
     return old_value;
+}
+
+
+/***********************************************************************
+ *		GetCurrentInputMessageSource (USER32.@)
+ */
+BOOL WINAPI GetCurrentInputMessageSource( INPUT_MESSAGE_SOURCE *source )
+{
+    *source = NtUserGetThreadInfo()->msg_source;
+    return TRUE;
 }
 
 
@@ -1191,6 +1260,15 @@ BOOL WINAPI SetMessageQueue( INT size )
 }
 
 
+/***********************************************************************
+ *		MessageBeep (USER32.@)
+ */
+BOOL WINAPI MessageBeep( UINT i )
+{
+    return NtUserMessageBeep( i );
+}
+
+
 /******************************************************************
  *      SetTimer (USER32.@)
  */
@@ -1211,6 +1289,15 @@ UINT_PTR WINAPI SetSystemTimer( HWND hwnd, UINT_PTR id, UINT timeout, void *unkn
 }
 
 
+/***********************************************************************
+ *		KillSystemTimer (USER32.@)
+ */
+BOOL WINAPI KillSystemTimer( HWND hwnd, UINT_PTR id )
+{
+    return NtUserKillSystemTimer( hwnd, id );
+}
+
+
 /**********************************************************************
  *		IsGUIThread  (USER32.@)
  */
@@ -1227,7 +1314,15 @@ BOOL WINAPI IsGUIThread( BOOL convert )
  */
 BOOL WINAPI IsHungAppWindow( HWND hWnd )
 {
-    return HandleToUlong( NtUserQueryWindow( hWnd, WindowIsHung ));
+    BOOL ret;
+
+    SERVER_START_REQ( is_window_hung )
+    {
+        req->win = wine_server_user_handle( hWnd );
+        ret = !wine_server_call_err( req ) && reply->is_hung;
+    }
+    SERVER_END_REQ;
+    return ret;
 }
 
 /******************************************************************

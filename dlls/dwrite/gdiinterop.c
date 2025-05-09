@@ -347,7 +347,7 @@ static HRESULT WINAPI rendertarget_DrawGlyphRun(IDWriteBitmapRenderTarget1 *ifac
     DWRITE_RENDERING_MODE1 rendermode;
     DWRITE_GRID_FIT_MODE gridfitmode;
     DWRITE_TEXTURE_TYPE texturetype;
-    DWRITE_MATRIX m, scale = { 0 };
+    DWRITE_GLYPH_RUN scaled_run;
     IDWriteFontFace3 *fontface;
     RECT target_rect, bounds;
     HRESULT hr;
@@ -429,10 +429,9 @@ static HRESULT WINAPI rendertarget_DrawGlyphRun(IDWriteBitmapRenderTarget1 *ifac
         return hr;
     }
 
-    m = target->m;
-    scale.m11 = scale.m22 = target->ppdip;
-    dwrite_matrix_multiply(&m, &scale);
-    hr = IDWriteFactory7_CreateGlyphRunAnalysis(target->factory, run, &m, rendermode, measuring_mode,
+    scaled_run = *run;
+    scaled_run.fontEmSize *= target->ppdip;
+    hr = IDWriteFactory7_CreateGlyphRunAnalysis(target->factory, &scaled_run, &target->m, rendermode, measuring_mode,
             gridfitmode, target->antialiasmode, originX, originY, &analysis);
     if (FAILED(hr))
     {
@@ -479,10 +478,6 @@ static HRESULT WINAPI rendertarget_DrawGlyphRun(IDWriteBitmapRenderTarget1 *ifac
         }
 
         free(bitmap);
-    }
-    else if (bbox_ret)
-    {
-        *bbox_ret = bounds;
     }
 
     IDWriteGlyphRunAnalysis_Release(analysis);

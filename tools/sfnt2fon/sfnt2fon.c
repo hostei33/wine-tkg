@@ -42,7 +42,7 @@
 #include "basetsd.h"
 #include "../tools.h"
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 
 typedef struct
 {
@@ -137,7 +137,7 @@ typedef struct
 } FT_Version_t;
 static FT_Version_t FT_Version;
 
-#pragma pack(pop)
+#include "poppack.h"
 
 unsigned char *output_buffer = NULL;
 size_t output_buffer_pos = 0;
@@ -881,15 +881,12 @@ int main(int argc, char **argv)
         name = get_face_name( info[i] );
         fontdir_len += 0x74 + strlen(name) + 1;
         if(i == 0) {
-            snprintf(non_resident_name, sizeof(non_resident_name),
-                     "FONTRES 100,%d,%d : %s %d",
-                     info[i]->hdr.fi.dfVertRes, info[i]->hdr.fi.dfHorizRes,
-                     name, info[i]->hdr.fi.dfPoints );
+            sprintf(non_resident_name, "FONTRES 100,%d,%d : %s %d",
+                    info[i]->hdr.fi.dfVertRes, info[i]->hdr.fi.dfHorizRes,
+                    name, info[i]->hdr.fi.dfPoints );
             strcpy(resident_name, name);
         } else {
-            snprintf(non_resident_name + strlen(non_resident_name),
-                     sizeof(non_resident_name) - strlen(non_resident_name),
-                     ",%d", info[i]->hdr.fi.dfPoints );
+            sprintf(non_resident_name + strlen(non_resident_name), ",%d", info[i]->hdr.fi.dfPoints );
         }
     }
 

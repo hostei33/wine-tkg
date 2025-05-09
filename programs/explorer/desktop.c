@@ -24,7 +24,6 @@
 #define COBJMACROS
 #define OEMRESOURCE
 #include <windows.h>
-#include <winternl.h>
 #include <rpc.h>
 #include <shlobj.h>
 #include <shellapi.h>
@@ -33,14 +32,13 @@
 
 #include "wine/debug.h"
 #include "explorer_private.h"
-#include "resource.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(explorer);
 
 #define DESKTOP_CLASS_ATOM ((LPCWSTR)MAKEINTATOM(32769))
 #define DESKTOP_ALL_ACCESS 0x01ff
 
-static const WCHAR default_driver[] = L"mac,x11,wayland";
+static const WCHAR default_driver[] = {'m','a','c',',','x','1','1',0};
 
 static BOOL using_root = TRUE;
 
@@ -273,8 +271,7 @@ static void draw_launchers( HDC hdc, RECT update_rect )
                        DT_CENTER|DT_WORDBREAK|DT_EDITCONTROL|DT_END_ELLIPSIS );
     }
 
-    font = SelectObject( hdc, font );
-    DeleteObject( font );
+    SelectObject( hdc, font );
     SetTextColor( hdc, color );
     SetBkMode( hdc, mode );
 }
@@ -436,8 +433,7 @@ static BOOL get_icon_text_metrics( HWND hwnd, TEXTMETRICW *tm )
     SystemParametersInfoW( SPI_GETICONTITLELOGFONT, sizeof(lf), &lf, 0 );
     hfont = SelectObject( hdc, CreateFontIndirectW( &lf ) );
     ret = GetTextMetricsW( hdc, tm );
-    hfont = SelectObject( hdc, hfont );
-    DeleteObject( hfont );
+    SelectObject( hdc, hfont );
     ReleaseDC( hwnd, hdc );
     return ret;
 }
@@ -615,18 +611,6 @@ static void initialize_launchers( HWND hwnd )
     }
 }
 
-static void wait_named_mutex( const WCHAR *name )
-{
-    HANDLE mutex;
-
-    mutex = CreateMutexW( NULL, TRUE, name );
-    if (GetLastError() == ERROR_ALREADY_EXISTS)
-    {
-        TRACE( "waiting for mutex %s\n", debugstr_w( name ));
-        WaitForSingleObject( mutex, INFINITE );
-    }
-}
-
 /**************************************************************************
  *		wait_clipboard_mutex
  *
@@ -636,6 +620,7 @@ static BOOL wait_clipboard_mutex(void)
 {
     static const WCHAR prefix[] = L"__wine_clipboard_";
     WCHAR buffer[MAX_PATH + ARRAY_SIZE( prefix )];
+    HANDLE mutex;
 
     memcpy( buffer, prefix, sizeof(prefix) );
     if (!GetUserObjectInformationW( GetProcessWindowStation(), UOI_NAME,
@@ -645,7 +630,12 @@ static BOOL wait_clipboard_mutex(void)
         ERR( "failed to get winstation name\n" );
         return FALSE;
     }
-    wait_named_mutex( buffer );
+    mutex = CreateMutexW( NULL, TRUE, buffer );
+    if (GetLastError() == ERROR_ALREADY_EXISTS)
+    {
+        TRACE( "waiting for mutex %s\n", debugstr_w( buffer ));
+        WaitForSingleObject( mutex, INFINITE );
+    }
     return TRUE;
 }
 
@@ -706,87 +696,6 @@ static DWORD WINAPI clipboard_thread( void *arg )
     return 0;
 }
 
-static HANDLE fullscreen_process;
-
-static LRESULT WINAPI display_settings_restorer_wndproc( HWND hwnd, UINT message, WPARAM wp, LPARAM lp )
-{
-    TRACE( "got msg %04x wp %Ix lp %Ix\n", message, wp, lp );
-
-    switch(message)
-    {
-    case WM_USER + 0:
-        TRACE( "fullscreen process id %Iu.\n", lp );
-
-        if (fullscreen_process)
-        {
-            CloseHandle( fullscreen_process );
-            fullscreen_process = NULL;
-        }
-
-        if (lp)
-            fullscreen_process = OpenProcess( SYNCHRONIZE, FALSE, lp );
-
-        return 0;
-    }
-
-    return DefWindowProcW( hwnd, message, wp, lp );
-}
-
-static DWORD WINAPI display_settings_restorer_thread( void *param )
-{
-    static const WCHAR *display_settings_restorer_classname = L"__wine_display_settings_restorer";
-    DWORD wait_result;
-    WNDCLASSW class;
-    MSG msg;
-
-    SetThreadDescription( GetCurrentThread(), L"wine_explorer_display_settings_restorer" );
-
-    wait_named_mutex( L"__wine_display_settings_restorer_mutex" );
-
-    memset( &class, 0, sizeof(class) );
-    class.lpfnWndProc   = display_settings_restorer_wndproc;
-    class.lpszClassName = display_settings_restorer_classname;
-
-    if (!RegisterClassW( &class ) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
-    {
-        ERR( "could not register display settings restorer window class err %lu\n", GetLastError() );
-        return 0;
-    }
-    if (!CreateWindowW( display_settings_restorer_classname, NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, 0, 0, NULL ))
-    {
-        WARN( "failed to create display settings restorer window err %lu\n", GetLastError() );
-        UnregisterClassW( display_settings_restorer_classname, NULL );
-        return 0;
-    }
-
-    for (;;)
-    {
-        if (PeekMessageW( &msg, NULL, 0, 0, PM_REMOVE ))
-        {
-            if (msg.message == WM_QUIT)
-                break;
-            DispatchMessageW( &msg );
-            continue;
-        }
-
-        wait_result = MsgWaitForMultipleObjects( fullscreen_process ? 1 : 0, &fullscreen_process,
-                                                 FALSE, INFINITE, QS_ALLINPUT );
-        if (wait_result == WAIT_FAILED)
-            break;
-        if (!fullscreen_process || wait_result != WAIT_OBJECT_0)
-            continue;
-
-        TRACE( "restoring display settings on process exit\n" );
-
-        ChangeDisplaySettingsExW( NULL, NULL, NULL, 0, NULL );
-
-        CloseHandle( fullscreen_process );
-        fullscreen_process = NULL;
-    }
-
-    return 0;
-}
-
 static WNDPROC desktop_orig_wndproc;
 
 /* window procedure for the desktop window */
@@ -842,7 +751,7 @@ static LRESULT WINAPI desktop_wnd_proc( HWND hwnd, UINT message, WPARAM wp, LPAR
             BeginPaint( hwnd, &ps );
             if (!using_root)
             {
-                PaintDesktop( ps.hdc );
+                if (ps.fErase) PaintDesktop( ps.hdc );
                 draw_launchers( ps.hdc, ps.rcPaint );
             }
             EndPaint( hwnd, &ps );
@@ -932,71 +841,9 @@ static BOOL get_default_enable_shell( const WCHAR *name )
     return result;
 }
 
-static BOOL get_default_enable_launchers(void)
-{
-    BOOL result;
-    DWORD size = sizeof(result);
-
-    if (!RegGetValueW( HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-                       L"NoDesktop", RRF_RT_REG_DWORD, NULL, &result, &size ))
-        return !result;
-
-    if (!RegGetValueW( HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-                       L"NoDesktop", RRF_RT_REG_DWORD, NULL, &result, &size ))
-        return !result;
-
-    return TRUE;
-}
-
-static BOOL get_default_show_systray( const WCHAR *name )
-{
-    HKEY hkey;
-    BOOL found = FALSE;
-    BOOL result;
-    DWORD size = sizeof(result);
-
-    /* @@ Wine registry key: HKCU\Software\Wine\Explorer\Desktops */
-    if (name && !RegOpenKeyW( HKEY_CURRENT_USER, L"Software\\Wine\\Explorer\\Desktops", &hkey ))
-    {
-        if (!RegGetValueW( hkey, name, L"ShowSystray", RRF_RT_REG_DWORD, NULL, &result, &size ))
-            found = TRUE;
-        RegCloseKey( hkey );
-    }
-
-    /* Try again with a global Explorer setting */
-    /* @@ Wine registry key: HKCU\Software\Wine\Explorer */
-    if (!found && !RegOpenKeyW( HKEY_CURRENT_USER, L"Software\\Wine\\Explorer", &hkey ))
-    {
-        if (!RegGetValueW( hkey, NULL, L"ShowSystray", RRF_RT_REG_DWORD, NULL, &result, &size ))
-            found = TRUE;
-        RegCloseKey( hkey );
-    }
-
-    /* Default on */
-    if (!found) result = TRUE;
-    return result;
-}
-
-static BOOL get_no_tray_items_display(void)
-{
-    BOOL result;
-    DWORD size = sizeof(result);
-
-    if (!RegGetValueW( HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-                       L"NoTrayItemsDisplay", RRF_RT_REG_DWORD, NULL, &result, &size ))
-        return result;
-
-    if (!RegGetValueW( HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-                       L"NoTrayItemsDisplay", RRF_RT_REG_DWORD, NULL, &result, &size ))
-        return result;
-
-    return FALSE;
-}
-
 static void load_graphics_driver( const WCHAR *driver, GUID *guid )
 {
     static const WCHAR device_keyW[] = L"System\\CurrentControlSet\\Control\\Video\\{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\\0000";
-    static const WCHAR video_keyW[]  = L"System\\CurrentControlSet\\Control\\Video\\0000";
 
     WCHAR buffer[MAX_PATH], libname[32], *name, *next;
     WCHAR key[ARRAY_SIZE( device_keyW ) + 39];
@@ -1042,7 +889,7 @@ static void load_graphics_driver( const WCHAR *driver, GUID *guid )
             strcpy( error, "The graphics driver is missing. Check your build!" );
             break;
         case ERROR_DLL_INIT_FAILED:
-            strcpy( error, "Make sure that your display server is running and that its variables are set." );
+            strcpy( error, "Make sure that your X server is running and that $DISPLAY is set correctly." );
             break;
         default:
             sprintf( error, "Unknown error (%lu).", GetLastError() );
@@ -1052,10 +899,6 @@ static void load_graphics_driver( const WCHAR *driver, GUID *guid )
     }
 
     TRACE( "display %s driver %s\n", debugstr_guid(guid), debugstr_w(libname) );
-
-    /* create video key first without REG_OPTION_VOLATILE attribute */
-    if (!RegCreateKeyExW( HKEY_LOCAL_MACHINE, video_keyW, 0, NULL, 0, KEY_SET_VALUE, NULL, &hkey, NULL ))
-        RegCloseKey( hkey );
 
     swprintf( key, ARRAY_SIZE(key), device_keyW, guid->Data1, guid->Data2, guid->Data3,
               guid->Data4[0], guid->Data4[1], guid->Data4[2], guid->Data4[3],
@@ -1096,7 +939,6 @@ static void initialize_display_settings( unsigned int width, unsigned int height
 {
     DISPLAY_DEVICEW device = {.cb = sizeof(DISPLAY_DEVICEW)};
     DWORD i = 0, flags = CDS_GLOBAL | CDS_UPDATEREGISTRY;
-    HANDLE thread;
 
     /* Store current display mode in the registry */
     while (EnumDisplayDevicesW( NULL, i++, &device, 0 ))
@@ -1129,38 +971,34 @@ static void initialize_display_settings( unsigned int width, unsigned int height
         if (ChangeDisplaySettingsExW( NULL, &devmode, 0, flags, NULL ))
             ERR( "Failed to set primary display settings.\n" );
     }
-
-    thread = CreateThread( NULL, 0, display_settings_restorer_thread, NULL, 0, NULL );
-    if (thread) CloseHandle( thread );
 }
 
 static void set_desktop_window_title( HWND hwnd, const WCHAR *name )
 {
+    static const WCHAR desktop_nameW[] = L"Wine desktop";
     static const WCHAR desktop_name_separatorW[] = L" - ";
-    WCHAR desktop_titleW[64];
     WCHAR *window_titleW = NULL;
     int window_title_len;
 
-    LoadStringW( NULL, IDS_DESKTOP_TITLE, desktop_titleW, ARRAY_SIZE(desktop_titleW) );
-
-    if (!name[0] || !wcscmp( name, L"Default" ))
+    if (!name[0])
     {
-        SetWindowTextW( hwnd, desktop_titleW );
+        SetWindowTextW( hwnd, desktop_nameW );
         return;
     }
 
-    window_title_len = (wcslen(name) + wcslen(desktop_titleW)) * sizeof(WCHAR)
-                     + sizeof(desktop_name_separatorW);
+    window_title_len = lstrlenW(name) * sizeof(WCHAR)
+                     + sizeof(desktop_name_separatorW)
+                     + sizeof(desktop_nameW);
     window_titleW = malloc( window_title_len );
     if (!window_titleW)
     {
-        SetWindowTextW( hwnd, desktop_titleW );
+        SetWindowTextW( hwnd, desktop_nameW );
         return;
     }
 
     lstrcpyW( window_titleW, name );
     lstrcatW( window_titleW, desktop_name_separatorW );
-    lstrcatW( window_titleW, desktop_titleW );
+    lstrcatW( window_titleW, desktop_nameW );
 
     SetWindowTextW( hwnd, window_titleW );
     free( window_titleW );
@@ -1171,31 +1009,76 @@ static inline BOOL is_whitespace(WCHAR c)
     return c == ' ' || c == '\t';
 }
 
-/* Set the shell window if appropriate for the current desktop. We should set
-   the shell window on the "Default" desktop on a visible window station, but
-   not for other desktops. */
-static void set_shell_window( HWND hwnd )
+static HANDLE start_tabtip_process(void)
 {
-    HWINSTA winsta;
-    USEROBJECTFLAGS flags;
-    HDESK desk;
-    WCHAR desk_name[MAX_PATH];
+    static const WCHAR tabtip_started_event[] = L"TABTIP_STARTED_EVENT";
+    PROCESS_INFORMATION pi;
+    STARTUPINFOW si = { sizeof(si) };
+    HANDLE wait_handles[2];
 
-    if (!(winsta = GetProcessWindowStation()) ||
-        !GetUserObjectInformationW( winsta, UOI_FLAGS, &flags, sizeof(flags), NULL ) ||
-        !(flags.dwFlags & WSF_VISIBLE))
+    if (!CreateProcessW(L"C:\\windows\\system32\\tabtip.exe", NULL,
+                        NULL, NULL, TRUE, DETACHED_PROCESS, NULL, NULL, &si, &pi))
     {
-        return;
+        WINE_ERR("Couldn't start tabtip.exe: error %lu\n", GetLastError());
+        return FALSE;
+    }
+    CloseHandle(pi.hThread);
+
+    wait_handles[0] = CreateEventW(NULL, TRUE, FALSE, tabtip_started_event);
+    wait_handles[1] = pi.hProcess;
+
+    /* wait for the event to become available or the process to exit */
+    if ((WaitForMultipleObjects(2, wait_handles, FALSE, INFINITE)) == WAIT_OBJECT_0 + 1)
+    {
+        DWORD exit_code;
+        GetExitCodeProcess(pi.hProcess, &exit_code);
+        WINE_ERR("Unexpected termination of tabtip.exe - exit code %ld\n", exit_code);
+        CloseHandle(wait_handles[0]);
+        return pi.hProcess;
     }
 
-    if (!(desk = GetThreadDesktop( GetCurrentThreadId() )) ||
-        !GetUserObjectInformationW( desk, UOI_NAME, desk_name, ARRAY_SIZE( desk_name ), NULL ) ||
-        wcscmp( desk_name, L"Default" ))
+    CloseHandle(wait_handles[0]);
+    return pi.hProcess;
+}
+
+static void start_xalia_process(void)
+{
+    PROCESS_INFORMATION pi;
+    STARTUPINFOW si = { sizeof(si) };
+    WCHAR use_envvar[2];
+    LPWSTR path;
+    LPCWSTR path_suffix = L"/../xalia/xalia.exe";
+    DWORD ret, buffersize;
+
+    /* check if xalia is enabled */
+    ret = GetEnvironmentVariableW(L"PROTON_USE_XALIA", use_envvar, ARRAY_SIZE(use_envvar));
+    if (!ret || (ret <= ARRAY_SIZE(use_envvar) && lstrcmpW(use_envvar, L"0") == 0))
+        return;
+
+    /* locate xalia.exe */
+    ret = GetEnvironmentVariableW(L"WINEDATADIR", NULL, 0);
+    if (ret == 0)
+        return;
+
+    buffersize = ret + lstrlenW(path_suffix);
+    path = HeapAlloc(GetProcessHeap(), 0, buffersize * sizeof(*path));
+
+    GetEnvironmentVariableW(L"WINEDATADIR", path, ret);
+    if (!memcmp(path, L"\\??\\", 8))  path[1] = '\\';  /* change \??\ into \\?\ */
+    lstrcatW(path, path_suffix);
+
+    /* setup environment */
+    SetEnvironmentVariableW(L"XALIA_WINE_SYSTEM_PROCESS", L"1");
+
+    if (!CreateProcessW(path, NULL,
+                        NULL, NULL, TRUE, DETACHED_PROCESS, NULL, NULL, &si, &pi))
     {
+        WINE_ERR("Couldn't start xalia.exe: error %lu\n", GetLastError());
         return;
     }
-
-    SetShellWindow( hwnd );
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return;
 }
 
 /* main desktop management function */
@@ -1205,16 +1088,16 @@ void manage_desktop( WCHAR *arg )
     GUID guid;
     MSG msg;
     HWND hwnd;
+    HANDLE tabtip = NULL;
     unsigned int width, height;
     WCHAR *cmdline = NULL, *driver = NULL;
     WCHAR *p = arg;
     const WCHAR *name = NULL;
-    BOOL enable_shell, enable_launchers, show_systray, no_tray_items;
+    BOOL enable_shell = FALSE;
     void (WINAPI *pShellDDEInit)( BOOL ) = NULL;
     HMODULE shell32;
     HANDLE thread;
     DWORD id;
-    NTSTATUS status;
 
     /* get the rest of the command line (if any) */
     while (*p && !is_whitespace(*p)) p++;
@@ -1244,10 +1127,8 @@ void manage_desktop( WCHAR *arg )
         if (!get_default_desktop_size( name, &width, &height )) width = height = 0;
     }
 
-    enable_shell = name ? get_default_enable_shell( name ) : FALSE;
-    enable_launchers = get_default_enable_launchers();
-    show_systray = get_default_show_systray( name );
-    no_tray_items = get_no_tray_items_display();
+    if (name)
+        enable_shell = get_default_enable_shell( name );
 
     UuidCreate( &guid );
     TRACE( "display guid %s\n", debugstr_guid(&guid) );
@@ -1257,8 +1138,8 @@ void manage_desktop( WCHAR *arg )
     {
         DEVMODEW devmode = {.dmPelsWidth = width, .dmPelsHeight = height};
         /* magic: desktop "root" means use the root window */
-        if ((using_root = !wcsicmp( name, L"root" ))) desktop = CreateDesktopW( name, NULL, NULL, DF_WINE_ROOT_DESKTOP, DESKTOP_ALL_ACCESS, NULL );
-        else desktop = CreateDesktopW( name, NULL, &devmode, DF_WINE_VIRTUAL_DESKTOP, DESKTOP_ALL_ACCESS, NULL );
+        if ((using_root = !wcsicmp( name, L"root" ))) desktop = CreateDesktopW( name, NULL, NULL, 0, DESKTOP_ALL_ACCESS, NULL );
+        else desktop = CreateDesktopW( name, NULL, &devmode, DF_WINE_CREATE_DESKTOP, DESKTOP_ALL_ACCESS, NULL );
         if (!desktop)
         {
             ERR( "failed to create desktop %s error %ld\n", debugstr_w(name), GetLastError() );
@@ -1266,10 +1147,6 @@ void manage_desktop( WCHAR *arg )
         }
         SetThreadDesktop( desktop );
     }
-
-    /* the desktop process should always have an admin token */
-    status = NtSetInformationProcess( GetCurrentProcess(), ProcessWineGrantAdminToken, NULL, 0 );
-    if (status) WARN( "couldn't set admin token for desktop, error %08lx\n", status );
 
     /* create the desktop window */
     hwnd = CreateWindowExW( 0, DESKTOP_CLASS_ATOM, NULL,
@@ -1295,8 +1172,10 @@ void manage_desktop( WCHAR *arg )
         initialize_display_settings( width, height );
         initialize_appbar();
 
-        initialize_systray( using_root, enable_shell, show_systray, no_tray_items );
-        if (!using_root && enable_launchers) initialize_launchers( hwnd );
+        if (using_root) enable_shell = FALSE;
+
+        initialize_systray( using_root, enable_shell );
+        if (!using_root) initialize_launchers( hwnd );
 
         if ((shell32 = LoadLibraryW( L"shell32.dll" )) &&
             (pShellDDEInit = (void *)GetProcAddress( shell32, (LPCSTR)188)))
@@ -1324,19 +1203,27 @@ void manage_desktop( WCHAR *arg )
     desktopshellbrowserwindow_init();
     shellwindows_init();
 
-    /* Ideally we would set the window of an IShellView here, but we never
-       actually create one, so the desktop window itself will have to do. */
-    set_shell_window( hwnd );
-
     /* run the desktop message loop */
     if (hwnd)
     {
+        /* FIXME: hack, run tabtip.exe on startup. */
+        tabtip = start_tabtip_process();
+
+        start_xalia_process();
+
         TRACE( "desktop message loop starting on hwnd %p\n", hwnd );
         while (GetMessageW( &msg, 0, 0, 0 )) DispatchMessageW( &msg );
         TRACE( "desktop message loop exiting for hwnd %p\n", hwnd );
     }
 
     if (pShellDDEInit) pShellDDEInit( FALSE );
+
+    if (tabtip)
+    {
+        TerminateProcess( tabtip, 0 );
+        WaitForSingleObject( tabtip, INFINITE );
+        CloseHandle( tabtip );
+    }
 
     ExitProcess( 0 );
 }
@@ -2571,7 +2458,7 @@ static void shellwindows_init(void)
     CoInitialize(NULL);
 
     shellwindows.IShellWindows_iface.lpVtbl = &shellwindowsvtbl;
-    InitializeCriticalSectionEx(&shellwindows.cs, 0, RTL_CRITICAL_SECTION_FLAG_FORCE_DEBUG_INFO);
+    InitializeCriticalSection(&shellwindows.cs);
     shellwindows.cs.DebugInfo->Spare[0] = (DWORD_PTR)(__FILE__ ": shellwindows.cs");
 
     hr = CoRegisterClassObject(&CLSID_ShellWindows,

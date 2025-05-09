@@ -4329,13 +4329,13 @@ static void test_swapchain_resize(IUnknown *device, BOOL is_d3d12)
     present_queue[1] = device;
     if (IDXGISwapChain_QueryInterface(swapchain, &IID_IDXGISwapChain3, (void **)&swapchain3) == E_NOINTERFACE)
     {
-        win_skip("IDXGISwapChain3 is not supported.\n");
+        skip("IDXGISwapChain3 is not supported.\n");
     }
     else if (!is_d3d12)
     {
         hr = IDXGISwapChain3_ResizeBuffers1(swapchain3, 2, 320, 240,
                 DXGI_FORMAT_B8G8R8A8_UNORM, 0, node_mask, present_queue);
-        todo_wine ok(hr == DXGI_ERROR_INVALID_CALL, "Got unexpected hr %#lx.\n", hr);
+        ok(hr == DXGI_ERROR_INVALID_CALL, "Got unexpected hr %#lx.\n", hr);
         IDXGISwapChain3_Release(swapchain3);
     }
     else
@@ -4978,9 +4978,6 @@ static void test_swapchain_backbuffer_index(IUnknown *device, BOOL is_d3d12)
     {
         swapchain_desc.BufferCount = 4;
         swapchain_desc.SwapEffect = swap_effects[i];
-        /* Not supported (and not needed) by the D3D10 tests. */
-        if (is_d3d12)
-            swapchain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
         expected_hr = is_d3d12 && !is_flip_model(swap_effects[i]) ? DXGI_ERROR_INVALID_CALL : S_OK;
         hr = IDXGIFactory_CreateSwapChain(factory, device, &swapchain_desc, &swapchain);
         ok(hr == expected_hr, "Got unexpected hr %#lx, expected %#lx.\n", hr, expected_hr);
@@ -7146,9 +7143,9 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
     ok(frame_latency == 3, "Got unexpected frame latency %#x.\n", frame_latency);
 
     wait_result = WaitForSingleObject(semaphore, 0);
-    ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
+    todo_wine ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
     wait_result = WaitForSingleObject(semaphore, 0);
-    ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
+    todo_wine ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
     wait_result = WaitForSingleObject(semaphore, 100);
     ok(wait_result == WAIT_TIMEOUT, "Got unexpected wait result %#lx.\n", wait_result);
 
@@ -7187,6 +7184,7 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
     for (i = 0; i < 5; i++)
     {
         wait_result = WaitForSingleObject(semaphore, 100);
+        todo_wine_if(i != 0)
         ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
     }
 
@@ -7224,6 +7222,7 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
         for (i = 0; i < 3; i++)
         {
             wait_result = WaitForSingleObject(semaphore, 100);
+            todo_wine_if(i != 0)
             ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
         }
 
@@ -7238,6 +7237,7 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
         for (i = 0; i < 4; i++)
         {
             wait_result = WaitForSingleObject(semaphore, 100);
+            todo_wine_if(i != 0)
             ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
         }
 

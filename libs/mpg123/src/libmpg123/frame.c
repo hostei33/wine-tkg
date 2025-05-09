@@ -9,7 +9,7 @@
 #define WANT_GETCPUFLAGS
 #include "mpg123lib_intern.h"
 #include "getcpuflags.h"
-#include "../common/debug.h"
+#include "debug.h"
 
 static void frame_fixed_reset(mpg123_handle *fr);
 
@@ -193,12 +193,13 @@ int INT123_frame_outbuffer(mpg123_handle *fr)
 		{
 			fr->err = MPG123_BAD_BUFFER;
 			if(NOQUIET)
-				merror("have external buffer of size %zu, need %zu", fr->buffer.size, size);
+				merror( "have external buffer of size %"SIZE_P", need %"SIZE_P
+				,	(size_p)fr->buffer.size, (size_p)size );
 			return MPG123_ERR;
 		}
 	}
 
-	debug1("need frame buffer of %zu", size);
+	debug1("need frame buffer of %"SIZE_P, (size_p)size);
 	if(fr->buffer.rdata != NULL && fr->buffer.size != size)
 	{
 		free(fr->buffer.rdata);
@@ -221,7 +222,7 @@ int INT123_frame_outbuffer(mpg123_handle *fr)
 
 int attribute_align_arg mpg123_replace_buffer(mpg123_handle *mh, void *data, size_t size)
 {
-	debug2("replace buffer with %p size %zu", data, size);
+	debug2("replace buffer with %p size %"SIZE_P, data, (size_p)size);
 	if(mh == NULL) return MPG123_BAD_HANDLE;
 	/* Will accept any size, the error comes later... */
 	if(data == NULL)
@@ -511,7 +512,6 @@ static void frame_fixed_reset(mpg123_handle *fr)
 {
 	frame_icy_reset(fr);
 	INT123_open_bad(fr);
-	memset(&(fr->hdr), 0, sizeof(fr->hdr));
 	fr->to_decode = FALSE;
 	fr->to_ignore = FALSE;
 	fr->metaflags = 0;
@@ -525,12 +525,15 @@ static void frame_fixed_reset(mpg123_handle *fr)
 	fr->clip = 0;
 	fr->oldhead = 0;
 	fr->firsthead = 0;
+	fr->lay = 0;
 	fr->vbr = MPG123_CBR;
 	fr->abr_rate = 0;
 	fr->track_frames = 0;
 	fr->track_samples = -1;
+	fr->framesize=0; 
 	fr->mean_frames = 0;
 	fr->mean_framesize = 0;
+	fr->freesize = 0;
 	fr->lastscale = -1;
 	fr->rva.level[0] = -1;
 	fr->rva.level[1] = -1;
@@ -565,7 +568,8 @@ static void frame_fixed_reset(mpg123_handle *fr)
 	fr->icy.next = 0;
 #endif
 	fr->halfphase = 0; /* here or indeed only on first-time init? */
-	fr->hdr.freeformat_framesize = fr->p.freeformat_framesize;
+	fr->error_protection = 0;
+	fr->freeformat_framesize = fr->p.freeformat_framesize;
 	fr->enc_delay = -1;
 	fr->enc_padding = -1;
 	memset(fr->id3buf, 0, sizeof(fr->id3buf));
@@ -624,7 +628,7 @@ int attribute_align_arg mpg123_framedata(mpg123_handle *mh, unsigned long *heade
 
 	if(header    != NULL) *header    = mh->oldhead;
 	if(bodydata  != NULL) *bodydata  = mh->bsbuf;
-	if(bodybytes != NULL) *bodybytes = mh->hdr.framesize;
+	if(bodybytes != NULL) *bodybytes = mh->framesize;
 
 	return MPG123_OK;
 }
@@ -897,9 +901,9 @@ static int64_t ignoreframe(mpg123_handle *fr)
 {
 	int64_t preshift = fr->p.preframes;
 	/* Layer 3 _really_ needs at least one frame before. */
-	if(fr->hdr.lay==3 && preshift < 1) preshift = 1;
+	if(fr->lay==3 && preshift < 1) preshift = 1;
 	/* Layer 1 & 2 reall do not need more than 2. */
-	if(fr->hdr.lay!=3 && preshift > 2) preshift = 2;
+	if(fr->lay!=3 && preshift > 2) preshift = 2;
 
 	return fr->firstframe - preshift;
 }
@@ -946,7 +950,7 @@ void INT123_frame_set_frameseek(mpg123_handle *fr, int64_t fe)
 void INT123_frame_skip(mpg123_handle *fr)
 {
 #ifndef NO_LAYER3
-	if(fr->hdr.lay == 3) INT123_set_pointer(fr, 1, 512);
+	if(fr->lay == 3) INT123_set_pointer(fr, 1, 512);
 #endif
 }
 

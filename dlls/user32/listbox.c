@@ -452,11 +452,8 @@ static void LISTBOX_UpdatePage( LB_DESCR *descr )
 static void LISTBOX_UpdateSize( LB_DESCR *descr )
 {
     RECT rect;
-    LONG style = GetWindowLongW( descr->self, GWL_STYLE );
 
     GetClientRect( descr->self, &rect );
-    if (style & WS_HSCROLL)
-        rect.bottom += GetSystemMetrics(SM_CYHSCROLL);
     descr->width  = rect.right - rect.left;
     descr->height = rect.bottom - rect.top;
     if (!(descr->style & LBS_NOINTEGRALHEIGHT) && !(descr->style & LBS_OWNERDRAWVARIABLE))
@@ -611,7 +608,7 @@ static void LISTBOX_PaintItem( LB_DESCR *descr, HDC hdc, const RECT *rect,
     if (index < descr->nb_items)
     {
         item_str = get_item_string(descr, index);
-        selected = !(descr->style & LBS_NOSEL) && is_item_selected(descr, index);
+        selected = is_item_selected(descr, index);
     }
 
     focused = !ignoreFocus && descr->focus_item == index && descr->caret_on && descr->in_focus;
@@ -1638,8 +1635,6 @@ static LRESULT LISTBOX_InsertItem( LB_DESCR *descr, INT index,
               descr->self, index, str ? debugstr_w(str) : "", get_item_height(descr, index));
     }
 
-    NtUserNotifyWinEvent( EVENT_OBJECT_CREATE, descr->self, OBJID_CLIENT, index + 1 );
-
     /* Repaint the items */
 
     LISTBOX_UpdateScroll( descr );
@@ -1738,8 +1733,6 @@ static LRESULT LISTBOX_RemoveItem( LB_DESCR *descr, INT index )
 
     /* We need to invalidate the original rect instead of the updated one. */
     LISTBOX_InvalidateItems( descr, index );
-
-    NtUserNotifyWinEvent( EVENT_OBJECT_DESTROY, descr->self, OBJID_CLIENT, index + 1 );
 
     if (descr->nb_items == 1)
     {
@@ -2167,8 +2160,6 @@ static LRESULT LISTBOX_HandleLButtonDown( LB_DESCR *descr, DWORD keys, INT x, IN
         LISTBOX_MoveCaret( descr, index, FALSE );
         LISTBOX_SetSelection( descr, index,
                               TRUE, (descr->style & LBS_NOTIFY) != 0 );
-        NtUserNotifyWinEvent( EVENT_OBJECT_FOCUS, descr->self, OBJID_CLIENT, index + 1 );
-        NtUserNotifyWinEvent( EVENT_OBJECT_SELECTION, descr->self, OBJID_CLIENT, index + 1 );
     }
 
     if (!descr->lphc)
@@ -2236,7 +2227,7 @@ static LRESULT LISTBOX_HandleLButtonDownCombo( LB_DESCR *descr, UINT msg, DWORD 
         /* Check the Non-Client Area */
         screenMousePos = mousePos;
         hWndOldCapture = GetCapture();
-        NtUserReleaseCapture();
+        ReleaseCapture();
         GetWindowRect(descr->self, &screenRect);
         ClientToScreen(descr->self, &screenMousePos);
 
@@ -2288,12 +2279,12 @@ static LRESULT LISTBOX_HandleLButtonDownCombo( LB_DESCR *descr, UINT msg, DWORD 
 static LRESULT LISTBOX_HandleLButtonUp( LB_DESCR *descr )
 {
     if (LISTBOX_Timer != LB_TIMER_NONE)
-        NtUserKillSystemTimer( descr->self, LB_TIMER_ID );
+        KillSystemTimer( descr->self, LB_TIMER_ID );
     LISTBOX_Timer = LB_TIMER_NONE;
     if (descr->captured)
     {
         descr->captured = FALSE;
-        if (GetCapture() == descr->self) NtUserReleaseCapture();
+        if (GetCapture() == descr->self) ReleaseCapture();
         if ((descr->style & LBS_NOTIFY) && descr->nb_items)
             SEND_NOTIFICATION( descr, LBN_SELCHANGE );
     }
@@ -2345,7 +2336,7 @@ static LRESULT LISTBOX_HandleSystemTimer( LB_DESCR *descr )
 {
     if (!LISTBOX_HandleTimer( descr, descr->focus_item, LISTBOX_Timer ))
     {
-        NtUserKillSystemTimer( descr->self, LB_TIMER_ID );
+        KillSystemTimer( descr->self, LB_TIMER_ID );
         LISTBOX_Timer = LB_TIMER_NONE;
     }
     return 0;
@@ -2397,7 +2388,7 @@ static void LISTBOX_HandleMouseMove( LB_DESCR *descr,
     if (dir != LB_TIMER_NONE)
         NtUserSetSystemTimer( descr->self, LB_TIMER_ID, LB_SCROLL_TIMEOUT );
     else if (LISTBOX_Timer != LB_TIMER_NONE)
-        NtUserKillSystemTimer( descr->self, LB_TIMER_ID );
+        KillSystemTimer( descr->self, LB_TIMER_ID );
     LISTBOX_Timer = dir;
 }
 
@@ -2953,12 +2944,7 @@ LRESULT ListBoxWndProc_common( HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         if (IS_MULTISELECT(descr)) return LB_ERR;
         LISTBOX_SetCaretIndex( descr, wParam, TRUE );
         ret = LISTBOX_SetSelection( descr, wParam, TRUE, FALSE );
-        if (ret != LB_ERR)
-        {
-            ret = descr->selected_item;
-            NtUserNotifyWinEvent( EVENT_OBJECT_FOCUS, descr->self, OBJID_CLIENT, ret + 1 );
-            NtUserNotifyWinEvent( EVENT_OBJECT_SELECTION, descr->self, OBJID_CLIENT, ret + 1 );
-        }
+	if (ret != LB_ERR) ret = descr->selected_item;
 	return ret;
 
     case LB_GETSELCOUNT:
@@ -3097,7 +3083,6 @@ LRESULT ListBoxWndProc_common( HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
         if (descr->focus_item != -1)
             LISTBOX_DrawFocusRect( descr, TRUE );
         SEND_NOTIFICATION( descr, LBN_SETFOCUS );
-        NtUserNotifyWinEvent( EVENT_OBJECT_FOCUS, descr->self, OBJID_CLIENT, descr->focus_item + 1 );
         return 0;
     case WM_KILLFOCUS:
         LISTBOX_HandleLButtonUp( descr ); /* Release capture if we have it */

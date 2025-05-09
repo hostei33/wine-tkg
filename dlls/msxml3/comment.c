@@ -107,7 +107,7 @@ static ULONG WINAPI domcomment_Release(IXMLDOMComment *iface)
     if (!ref)
     {
         destroy_xmlnode(&comment->node);
-        free(comment);
+        heap_free(comment);
     }
 
     return ref;
@@ -158,9 +158,11 @@ static HRESULT WINAPI domcomment_get_nodeName(
 {
     domcomment *This = impl_from_IXMLDOMComment( iface );
 
+    static const WCHAR commentW[] = {'#','c','o','m','m','e','n','t',0};
+
     TRACE("(%p)->(%p)\n", This, p);
 
-    return return_bstr(L"#comment", p);
+    return return_bstr(commentW, p);
 }
 
 static HRESULT WINAPI domcomment_get_nodeValue(
@@ -349,10 +351,11 @@ static HRESULT WINAPI domcomment_get_nodeTypeString(
     BSTR* p)
 {
     domcomment *This = impl_from_IXMLDOMComment( iface );
+    static const WCHAR commentW[] = {'c','o','m','m','e','n','t',0};
 
     TRACE("(%p)->(%p)\n", This, p);
 
-    return return_bstr(L"comment", p);
+    return return_bstr(commentW, p);
 }
 
 static HRESULT WINAPI domcomment_get_text(
@@ -823,7 +826,7 @@ IUnknown* create_comment( xmlNodePtr comment )
 {
     domcomment *This;
 
-    This = malloc(sizeof(*This));
+    This = heap_alloc( sizeof *This );
     if ( !This )
         return NULL;
 

@@ -491,8 +491,12 @@ static const builtin_prop_t Math_props[] = {
 };
 
 static const builtin_info_t Math_info = {
-    .class = JSCLASS_MATH,    .props_cnt = ARRAY_SIZE(Math_props),
-    .props = Math_props,
+    JSCLASS_MATH,
+    NULL,
+    ARRAY_SIZE(Math_props),
+    Math_props,
+    NULL,
+    NULL
 };
 
 HRESULT create_math(script_ctx_t *ctx, jsdisp_t **ret)

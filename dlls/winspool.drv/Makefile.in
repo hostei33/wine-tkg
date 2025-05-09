@@ -8,6 +8,5 @@ UNIX_LIBS    = $(APPLICATIONSERVICES_LIBS)
 SOURCES = \
 	cups.c \
 	info.c \
-	winspool.drv.spec \
 	winspool.rc \
 	wspool.c

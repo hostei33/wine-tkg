@@ -102,11 +102,11 @@
 @ stub PropVariantGetInt16Elem
 @ stub PropVariantGetInt32Elem
 @ stub PropVariantGetInt64Elem
-@ stdcall PropVariantGetStringElem(ptr long ptr)
+@ stub PropVariantGetStringElem
 @ stub PropVariantGetUInt16Elem
 @ stub PropVariantGetUInt32Elem
 @ stub PropVariantGetUInt64Elem
-@ stdcall PropVariantToBSTR(ptr ptr)
+@ stub PropVariantToBSTR
 @ stdcall PropVariantToBoolean(ptr ptr)
 @ stub PropVariantToBooleanVector
 @ stub PropVariantToBooleanVectorAlloc
@@ -150,7 +150,7 @@
 @ stub PropVariantToUInt64Vector
 @ stub PropVariantToUInt64VectorAlloc
 @ stub PropVariantToUInt64WithDefault
-@ stdcall PropVariantToVariant(ptr ptr)
+@ stub PropVariantToVariant
 @ stub StgDeserializePropVariant
 @ stub StgSerializePropVariant
 @ stub VariantCompare
@@ -188,7 +188,7 @@
 @ stub VariantToInt64Array
 @ stub VariantToInt64ArrayAlloc
 @ stub VariantToInt64WithDefault
-@ stdcall VariantToPropVariant(ptr ptr)
+@ stub VariantToPropVariant
 @ stub VariantToStrRet
 @ stdcall VariantToString(ptr ptr long)
 @ stub VariantToStringAlloc

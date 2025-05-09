@@ -951,8 +951,7 @@ static
     int
     uv_encode(double u, double v, int em) /* encode (u',v') coordinates */
 {
-    unsigned int vi;
-    int ui;
+    register int vi, ui;
 
     /* check for NaN */
     if (u != u || v != v)
@@ -981,9 +980,8 @@ static
     int
     uv_decode(double *up, double *vp, int c) /* decode (u',v') index */
 {
-    unsigned int upper, lower;
-    int ui;
-    unsigned int vi;
+    int upper, lower;
+    register int ui, vi;
 
     if (c < 0 || c >= UV_NDIVS)
         return (-1);

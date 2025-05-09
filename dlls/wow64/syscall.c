@@ -19,7 +19,6 @@
  */
 
 #include <stdarg.h>
-#include <setjmp.h>
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -27,7 +26,7 @@
 #include "winbase.h"
 #include "winnt.h"
 #include "winternl.h"
-#include "rtlsupportapi.h"
+#include "wine/exception.h"
 #include "wine/unixlib.h"
 #include "wine/asm.h"
 #include "wow64_private.h"
@@ -78,7 +77,7 @@ struct user_callback_frame
     void                      **ret_ptr;
     ULONG                      *ret_len;
     NTSTATUS                    status;
-    jmp_buf                     jmpbuf;
+    __wine_jmp_buf              jmpbuf;
 };
 
 /* stack frame for user APCs */
@@ -101,22 +100,21 @@ static BOOLEAN  (WINAPI *pBTCpuIsProcessorFeaturePresent)(UINT);
 static void     (WINAPI *pBTCpuProcessInit)(void);
 static NTSTATUS (WINAPI *pBTCpuSetContext)(HANDLE,HANDLE,void *,void *);
 static void     (WINAPI *pBTCpuThreadInit)(void);
-static void     (WINAPI *pBTCpuSimulate)(void) __attribute__((used));
+static void     (WINAPI *pBTCpuSimulate)(void);
 static void *   (WINAPI *p__wine_get_unix_opcode)(void);
 static void *   (WINAPI *pKiRaiseUserExceptionDispatcher)(void);
-void     (WINAPI *pBTCpuFlushInstructionCache2)( const void *, SIZE_T ) = NULL;
-void     (WINAPI *pBTCpuFlushInstructionCacheHeavy)( const void *, SIZE_T ) = NULL;
-NTSTATUS (WINAPI *pBTCpuNotifyMapViewOfSection)( void *, void *, void *, SIZE_T, ULONG, ULONG ) = NULL;
-void     (WINAPI *pBTCpuNotifyMemoryAlloc)( void *, SIZE_T, ULONG, ULONG, BOOL, NTSTATUS ) = NULL;
-void     (WINAPI *pBTCpuNotifyMemoryDirty)( void *, SIZE_T ) = NULL;
-void     (WINAPI *pBTCpuNotifyMemoryFree)( void *, SIZE_T, ULONG, BOOL, NTSTATUS ) = NULL;
-void     (WINAPI *pBTCpuNotifyMemoryProtect)( void *, SIZE_T, ULONG, BOOL, NTSTATUS ) = NULL;
-void     (WINAPI *pBTCpuNotifyReadFile)( HANDLE, void *, SIZE_T, BOOL, NTSTATUS ) = NULL;
-void     (WINAPI *pBTCpuNotifyUnmapViewOfSection)( void *, BOOL, NTSTATUS ) = NULL;
+void (WINAPI *pBTCpuNotifyFlushInstructionCache2)( const void *, SIZE_T ) = NULL;
+void (WINAPI *pBTCpuNotifyMapViewOfSection)( void * ) = NULL;
+void (WINAPI *pBTCpuNotifyMemoryAlloc)( void *, SIZE_T, ULONG, ULONG ) = NULL;
+void (WINAPI *pBTCpuNotifyMemoryDirty)( void *, SIZE_T ) = NULL;
+void (WINAPI *pBTCpuNotifyMemoryFree)( void *, SIZE_T, ULONG ) = NULL;
+void (WINAPI *pBTCpuNotifyMemoryProtect)( void *, SIZE_T, ULONG ) = NULL;
+void (WINAPI *pBTCpuNotifyUnmapViewOfSection)( void * ) = NULL;
 NTSTATUS (WINAPI *pBTCpuResetToConsistentState)( EXCEPTION_POINTERS * ) = NULL;
-void     (WINAPI *pBTCpuUpdateProcessorInformation)( SYSTEM_CPU_INFORMATION * ) = NULL;
-void     (WINAPI *pBTCpuProcessTerm)( HANDLE, BOOL, NTSTATUS ) = NULL;
-void     (WINAPI *pBTCpuThreadTerm)( HANDLE, LONG ) = NULL;
+void (WINAPI *pBTCpuUpdateProcessorInformation)( SYSTEM_CPU_INFORMATION * ) = NULL;
+void (WINAPI *pBTCpuThreadTerm)( HANDLE ) = NULL;
+
+void *dummy = RtlUnwind;
 
 BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, void *reserved )
 {
@@ -129,7 +127,7 @@ void __cdecl __wine_spec_unimplemented_stub( const char *module, const char *fun
     EXCEPTION_RECORD record;
 
     record.ExceptionCode    = EXCEPTION_WINE_STUB;
-    record.ExceptionFlags   = EXCEPTION_NONCONTINUABLE;
+    record.ExceptionFlags   = EH_NONCONTINUABLE;
     record.ExceptionRecord  = NULL;
     record.ExceptionAddress = __wine_spec_unimplemented_stub;
     record.NumberParameters = 2;
@@ -186,8 +184,7 @@ static NTSTATUS get_context_return_value( void *wow_context )
 /**********************************************************************
  *           call_user_exception_dispatcher
  */
-static void __attribute__((used)) call_user_exception_dispatcher( EXCEPTION_RECORD32 *rec, void *ctx32_ptr,
-                                                                  void *ctx64_ptr )
+static void call_user_exception_dispatcher( EXCEPTION_RECORD32 *rec, void *ctx32_ptr, void *ctx64_ptr )
 {
     switch (current_machine)
     {
@@ -200,12 +197,17 @@ static void __attribute__((used)) call_user_exception_dispatcher( EXCEPTION_RECO
                 ULONG              context_ptr;   /* 004 */
                 EXCEPTION_RECORD32 rec;           /* 008 */
                 I386_CONTEXT       context;       /* 058 */
+                CONTEXT_EX32       context_ex;    /* 324 */
+                BYTE xstate[sizeof(XSTATE)+64];   /* 33c */
+                DWORD             align;          /* 4bc */
             } *stack;
             I386_CONTEXT ctx = { CONTEXT_I386_ALL };
             CONTEXT_EX *context_ex, *src_ex = NULL;
-            ULONG flags, context_length;
+            ULONG flags;
 
             C_ASSERT( offsetof(struct exc_stack_layout32, context) == 0x58 );
+            C_ASSERT( offsetof(struct exc_stack_layout32, xstate) == 0x33c );
+            C_ASSERT( sizeof(struct exc_stack_layout32) == 0x4c0 );
 
             pBTCpuGetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
 
@@ -229,24 +231,32 @@ static void __attribute__((used)) call_user_exception_dispatcher( EXCEPTION_RECO
             flags = ctx.ContextFlags;
             if (src_ex) flags |= CONTEXT_I386_XSTATE;
 
-            RtlGetExtendedContextLength( flags, &context_length );
-
-            stack = (struct exc_stack_layout32 *)ULongToPtr( (ctx.Esp - offsetof(struct exc_stack_layout32, context) - context_length) & ~3 );
+            stack = (struct exc_stack_layout32 *)ULongToPtr( ctx.Esp & ~3 ) - 1;
             stack->rec_ptr     = PtrToUlong( &stack->rec );
             stack->context_ptr = PtrToUlong( &stack->context );
             stack->rec         = *rec;
             stack->context     = ctx;
             RtlInitializeExtendedContext( &stack->context, flags, &context_ex );
-            if (src_ex) RtlCopyExtendedContext( context_ex, WOW64_CONTEXT_XSTATE, src_ex );
-
             /* adjust Eip for breakpoints in software emulation (hardware exceptions already adjust Rip) */
             if (rec->ExceptionCode == EXCEPTION_BREAKPOINT && (wow64info->CpuFlags & WOW64_CPUFLAGS_SOFTWARE))
                 stack->context.Eip--;
 
+            if (src_ex)
+            {
+                XSTATE *src_xs = (XSTATE *)((char *)src_ex + src_ex->XState.Offset);
+                XSTATE *dst_xs = (XSTATE *)((char *)context_ex + context_ex->XState.Offset);
+
+                dst_xs->Mask = src_xs->Mask & ~(ULONG64)3;
+                dst_xs->CompactionMask = src_xs->CompactionMask;
+                if ((dst_xs->Mask & 4) &&
+                    src_ex->XState.Length >= sizeof(XSTATE) &&
+                    context_ex->XState.Length >= sizeof(XSTATE))
+                    memcpy( &dst_xs->YmmContext, &src_xs->YmmContext, sizeof(dst_xs->YmmContext) );
+            }
+
             ctx.Esp = PtrToUlong( stack );
             ctx.Eip = pLdrSystemDllInitBlock->pKiUserExceptionDispatcher;
             ctx.EFlags &= ~(0x100|0x400|0x40000);
-            ctx.ContextFlags = CONTEXT_I386_CONTROL;
             pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
 
             TRACE( "exception %08lx dispatcher %08lx stack %08lx eip %08lx\n",
@@ -274,7 +284,6 @@ static void __attribute__((used)) call_user_exception_dispatcher( EXCEPTION_RECO
             ctx.Pc = pLdrSystemDllInitBlock->pKiUserExceptionDispatcher;
             if (ctx.Pc & 1) ctx.Cpsr |= 0x20;
             else ctx.Cpsr &= ~0x20;
-            ctx.ContextFlags = CONTEXT_ARM_FULL;
             pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
 
             TRACE( "exception %08lx dispatcher %08lx stack %08lx pc %08lx\n",
@@ -288,17 +297,18 @@ static void __attribute__((used)) call_user_exception_dispatcher( EXCEPTION_RECO
 /**********************************************************************
  *           call_raise_user_exception_dispatcher
  */
-static void __attribute__((used)) call_raise_user_exception_dispatcher( ULONG code )
+static void call_raise_user_exception_dispatcher( ULONG code )
 {
-    NtCurrentTeb32()->ExceptionCode = code;
+    TEB32 *teb32 = (TEB32 *)((char *)NtCurrentTeb() + NtCurrentTeb()->WowTebOffset);
+
+    teb32->ExceptionCode = code;
 
     switch (current_machine)
     {
     case IMAGE_FILE_MACHINE_I386:
         {
-            I386_CONTEXT ctx;
+            I386_CONTEXT ctx = { CONTEXT_I386_ALL };
 
-            ctx.ContextFlags = CONTEXT_I386_CONTROL;
             pBTCpuGetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
             ctx.Esp -= sizeof(ULONG);
             *(ULONG *)ULongToPtr( ctx.Esp ) = ctx.Eip;
@@ -309,9 +319,8 @@ static void __attribute__((used)) call_raise_user_exception_dispatcher( ULONG co
 
     case IMAGE_FILE_MACHINE_ARMNT:
         {
-            ARM_CONTEXT ctx;
+            ARM_CONTEXT ctx = { CONTEXT_ARM_ALL };
 
-            ctx.ContextFlags = CONTEXT_ARM_CONTROL;
             pBTCpuGetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
             ctx.Pc = (ULONG_PTR)pKiRaiseUserExceptionDispatcher;
             pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
@@ -322,82 +331,40 @@ static void __attribute__((used)) call_raise_user_exception_dispatcher( ULONG co
 
 
 /* based on RtlRaiseException: call NtRaiseException with context setup to return to caller */
-void WINAPI raise_exception( EXCEPTION_RECORD32 *rec32, void *ctx32,
-                             BOOL first_chance, EXCEPTION_RECORD *rec );
-#ifdef __aarch64__
+void WINAPI raise_exception( EXCEPTION_RECORD *rec, CONTEXT *context, BOOL first_chance );
+#ifdef __x86_64__
 __ASM_GLOBAL_FUNC( raise_exception,
-                   "sub sp, sp, #0x390\n\t"    /* sizeof(context) */
-                   ".seh_stackalloc 0x390\n\t"
-                   "stp x29, x30, [sp, #-48]!\n\t"
-                   ".seh_save_fplr_x 48\n\t"
-                   ".seh_endprologue\n\t"
-                   ".seh_handler raise_exception_handler, @except\n\t"
-                   "stp x0, x1, [sp, #16]\n\t"
-                   "stp x2, x3, [sp, #32]\n\t"
-                   "add x0, sp, #48\n\t"
-                   "bl RtlCaptureContext\n\t"
-                   "add x1, sp, #48\n\t"       /* context */
-                   "adr x2, 1f\n\t"            /* return address */
-                   "str x2, [x1, #0x108]\n\t"  /* context->Pc */
-                   "ldp x2, x0, [sp, #32]\n\t" /* first_chance, rec */
-                   "bl NtRaiseException\n"
-                   "raise_exception_ret:\n\t"
-                   "ldp x0, x1, [sp, #16]\n\t" /* rec32, ctx32 */
-                   "add x2, sp, #48\n\t"       /* context */
-                   "bl call_user_exception_dispatcher\n"
-                   "1:\tnop\n\t"
-                   "ldp x29, x30, [sp], #48\n\t"
-                   "add sp, sp, #0x390\n\t"
-                   "ret" )
-__ASM_GLOBAL_FUNC( raise_exception_handler,
-                   "stp x29, x30, [sp, #-16]!\n\t"
-                   ".seh_save_fplr_x 16\n\t"
-                   ".seh_endprologue\n\t"
-                   "ldr w4, [x0, #4]\n\t"      /* record->ExceptionFlags */
-                   "tst w4, #6\n\t"            /* EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND */
-                   "b.ne 1f\n\t"
-                   "mov x2, x0\n\t"            /* rec */
-                   "mov x0, x1\n\t"            /* frame */
-                   "adr x1, raise_exception_ret\n\t"
-                   "bl RtlUnwind\n"
-                   "1:\tmov w0, #1\n\t"        /* ExceptionContinueSearch */
-                   "ldp x29, x30, [sp], #16\n\t"
-                   "ret" )
-#else
-__ASM_GLOBAL_FUNC( raise_exception,
-                   "sub $0x4d8,%rsp\n\t"       /* sizeof(context) + alignment */
-                   ".seh_stackalloc 0x4d8\n\t"
-                   ".seh_endprologue\n\t"
-                   ".seh_handler raise_exception_handler, @except\n\t"
-                   "movq %rcx,0x4e0(%rsp)\n\t"
-                   "movq %rdx,0x4e8(%rsp)\n\t"
-                   "movq %r8,0x4f0(%rsp)\n\t"
-                   "movq %r9,0x4f8(%rsp)\n\t"
-                   "movq %rsp,%rcx\n\t"
-                   "call RtlCaptureContext\n\t"
-                   "movq %rsp,%rdx\n\t"        /* context */
-                   "leaq 1f(%rip),%rax\n\t"    /* return address */
-                   "movq %rax,0xf8(%rdx)\n\t"  /* context->Rip */
-                   "movq 0x4f8(%rsp),%rcx\n\t" /* rec */
-                   "movq 0x4f0(%rsp),%r8\n\t"  /* first_chance */
-                   "call NtRaiseException\n"
-                   "raise_exception_ret:\n\t"
-                   "mov 0x4e0(%rsp),%rcx\n\t"  /* rec32 */
-                   "mov 0x4e8(%rsp),%rdx\n\t"  /* ctx32 */
-                   "movq %rsp,%r8\n\t"         /* context */
-                   "call call_user_exception_dispatcher\n"
-                   "1:\tnop\n\t"
-                   "add $0x4d8,%rsp\n\t"
-                   "ret" )
-__ASM_GLOBAL_FUNC( raise_exception_handler,
                    "sub $0x28,%rsp\n\t"
-                   ".seh_stackalloc 0x28\n\t"
-                   ".seh_endprologue\n\t"
-                   "movq %rcx,%r8\n\t"         /* rec */
-                   "movq %rdx,%rcx\n\t"        /* frame */
-                   "leaq raise_exception_ret(%rip),%rdx\n\t"
-                   "call RtlUnwind\n\t"
-                   "int3" )
+                   __ASM_SEH(".seh_stackalloc 0x28\n\t")
+                   __ASM_SEH(".seh_endprologue\n\t")
+                   __ASM_CFI(".cfi_adjust_cfa_offset 0x28\n\t")
+                   "movq %rcx,(%rsp)\n\t"
+                   "movq %rdx,%rcx\n\t"
+                   "call " __ASM_NAME("RtlCaptureContext") "\n\t"
+                   "leaq 0x30(%rsp),%rax\n\t"   /* orig stack pointer */
+                   "movq %rax,0x98(%rdx)\n\t"   /* context->Rsp */
+                   "movq (%rsp),%rcx\n\t"       /* original first parameter */
+                   "movq 0x28(%rsp),%rax\n\t"   /* return address */
+                   "movq %rax,0xf8(%rdx)\n\t"   /* context->Rip */
+                   "call " __ASM_NAME("NtRaiseException") )
+#elif defined(__aarch64__)
+__ASM_GLOBAL_FUNC( raise_exception,
+                   "stp x29, x30, [sp, #-32]!\n\t"
+                   __ASM_SEH(".seh_save_fplr_x 32\n\t")
+                   __ASM_SEH(".seh_endprologue\n\t")
+                   __ASM_CFI(".cfi_def_cfa x29, 32\n\t")
+                   __ASM_CFI(".cfi_offset x30, -24\n\t")
+                   __ASM_CFI(".cfi_offset x29, -32\n\t")
+                   "mov x29, sp\n\t"
+                   "stp x0, x1, [sp, #16]\n\t"
+                   "mov x0, x1\n\t"
+                   "bl " __ASM_NAME("RtlCaptureContext") "\n\t"
+                   "ldp x0, x1, [sp, #16]\n\t"    /* orig parameters */
+                   "ldp x4, x5, [sp]\n\t"         /* frame pointer, return address */
+                   "stp x4, x5, [x1, #0xf0]\n\t"  /* context->Fp, Lr */
+                   "add x4, sp, #32\n\t"          /* orig stack pointer */
+                   "stp x4, x5, [x1, #0x100]\n\t" /* context->Sp, Pc */
+                   "bl " __ASM_NAME("NtRaiseException") )
 #endif
 
 
@@ -424,23 +391,6 @@ NTSTATUS WINAPI wow64_NtAllocateLocallyUniqueId( UINT *args )
     return NtAllocateLocallyUniqueId( luid );
 }
 
-/**********************************************************************
- *           wow64_NtAllocateReserveObject
- */
-NTSTATUS WINAPI wow64_NtAllocateReserveObject( UINT *args )
-{
-    ULONG *handle_ptr = get_ptr( &args );
-    OBJECT_ATTRIBUTES32 *attr32 = get_ptr( &args );
-    MEMORY_RESERVE_OBJECT_TYPE type = get_ulong( &args );
-    NTSTATUS status;
-
-    struct object_attr64 attr;
-    HANDLE handle = 0;
-
-    status = NtAllocateReserveObject( &handle, objattr_32to64( &attr, attr32 ), type );
-    put_handle( handle_ptr, handle );
-    return status;
-}
 
 /**********************************************************************
  *           wow64_NtAllocateUuids
@@ -472,8 +422,7 @@ NTSTATUS WINAPI wow64_NtCallbackReturn( UINT *args )
     *frame->ret_ptr = ret_ptr;
     *frame->ret_len = ret_len;
     frame->status = status;
-    longjmp( frame->jmpbuf, 1 );
-    return STATUS_SUCCESS;
+    __wine_longjmp( &frame->jmpbuf, 1 );
 }
 
 
@@ -489,39 +438,24 @@ NTSTATUS WINAPI wow64_NtClose( UINT *args )
 
 
 /**********************************************************************
- *           wow64_NtContinueEx
+ *           wow64_NtContinue
  */
-NTSTATUS WINAPI wow64_NtContinueEx( UINT *args )
+NTSTATUS WINAPI wow64_NtContinue( UINT *args )
 {
     void *context = get_ptr( &args );
-    KCONTINUE_ARGUMENT *cont_args = get_ptr( &args );
+    BOOLEAN alertable = get_ulong( &args );
 
     NTSTATUS status = get_context_return_value( context );
     struct user_apc_frame *frame = NtCurrentTeb()->TlsSlots[WOW64_TLS_APCLIST];
-    BOOL alertable;
 
     pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, context );
 
     while (frame && frame->wow_context != context) frame = frame->prev_frame;
     NtCurrentTeb()->TlsSlots[WOW64_TLS_APCLIST] = frame ? frame->prev_frame : NULL;
-    if (frame) NtContinueEx( frame->context, cont_args );
-
-    if ((UINT_PTR)cont_args > 0xff)
-        alertable = cont_args->ContinueFlags & KCONTINUE_FLAG_TEST_ALERT;
-    else
-        alertable = !!cont_args;
+    if (frame) NtContinue( frame->context, alertable );
 
     if (alertable) NtTestAlert();
     return status;
-}
-
-
-/**********************************************************************
- *           wow64_NtContinue
- */
-NTSTATUS WINAPI wow64_NtContinue( UINT *args )
-{
-    return wow64_NtContinueEx( args );
 }
 
 
@@ -629,8 +563,20 @@ NTSTATUS WINAPI wow64_NtRaiseException( UINT *args )
     void *context32 = get_ptr( &args );
     BOOL first_chance = get_ulong( &args );
 
+    EXCEPTION_RECORD *rec = exception_record_32to64( rec32 );
+    CONTEXT context;
+
     pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, context32 );
-    raise_exception( rec32, context32, first_chance, exception_record_32to64( rec32 ));
+
+    __TRY
+    {
+        raise_exception( rec, &context, first_chance );
+    }
+    __EXCEPT_ALL
+    {
+        call_user_exception_dispatcher( rec32, context32, &context );
+    }
+    __ENDTRY
     return STATUS_SUCCESS;
 }
 
@@ -644,6 +590,19 @@ NTSTATUS WINAPI wow64_NtSetContextThread( UINT *args )
     WOW64_CONTEXT *context = get_ptr( &args );
 
     return RtlWow64SetThreadContext( handle, context );
+}
+
+
+/**********************************************************************
+ *           wow64___wine_dbg_ftrace
+ */
+NTSTATUS WINAPI wow64___wine_dbg_ftrace( UINT *args )
+{
+    const char *str = get_ptr( &args );
+    ULONG len = get_ulong( &args );
+    ULONG ctx = get_ulong( &args );
+
+    return __wine_dbg_ftrace( (char *)str, len, ctx );
 }
 
 
@@ -841,17 +800,14 @@ static DWORD WINAPI process_init( RTL_RUN_ONCE *once, void *param, void **contex
     GET_PTR( BTCpuResetToConsistentState );
     GET_PTR( BTCpuSetContext );
     GET_PTR( BTCpuSimulate );
-    GET_PTR( BTCpuFlushInstructionCache2 );
-    GET_PTR( BTCpuFlushInstructionCacheHeavy );
+    GET_PTR( BTCpuNotifyFlushInstructionCache2 );
     GET_PTR( BTCpuNotifyMapViewOfSection );
     GET_PTR( BTCpuNotifyMemoryAlloc );
     GET_PTR( BTCpuNotifyMemoryDirty );
     GET_PTR( BTCpuNotifyMemoryFree );
     GET_PTR( BTCpuNotifyMemoryProtect );
-    GET_PTR( BTCpuNotifyReadFile );
     GET_PTR( BTCpuNotifyUnmapViewOfSection );
     GET_PTR( BTCpuUpdateProcessorInformation );
-    GET_PTR( BTCpuProcessTerm );
     GET_PTR( BTCpuThreadTerm );
     GET_PTR( __wine_get_unix_opcode );
 
@@ -884,7 +840,11 @@ static DWORD WINAPI process_init( RTL_RUN_ONCE *once, void *param, void **contex
  */
 static void thread_init(void)
 {
-    NtCurrentTeb32()->WOW32Reserved = PtrToUlong( pBTCpuGetBopCode() );
+    TEB32 *teb32 = (TEB32 *)((char *)NtCurrentTeb() + NtCurrentTeb()->WowTebOffset);
+    void *cpu_area_ctx;
+
+    teb32->WOW32Reserved = PtrToUlong( pBTCpuGetBopCode() );
+    RtlWow64GetCurrentCpuArea( NULL, &cpu_area_ctx, NULL );
     NtCurrentTeb()->TlsSlots[WOW64_TLS_WOW64INFO] = wow64info;
     if (pBTCpuThreadInit) pBTCpuThreadInit();
 
@@ -893,36 +853,35 @@ static void thread_init(void)
     {
     case IMAGE_FILE_MACHINE_I386:
         {
-            I386_CONTEXT *ctx_ptr, ctx = { CONTEXT_I386_FULL };
+            I386_CONTEXT *ctx_ptr, *ctx = cpu_area_ctx;
             ULONG *stack;
 
-            pBTCpuGetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
-            ctx_ptr = (I386_CONTEXT *)ULongToPtr( ctx.Esp ) - 1;
-            *ctx_ptr = ctx;
+            ctx_ptr = (I386_CONTEXT *)ULongToPtr( ctx->Esp ) - 1;
+            *ctx_ptr = *ctx;
+
             stack = (ULONG *)ctx_ptr;
             *(--stack) = 0;
             *(--stack) = 0;
             *(--stack) = 0;
             *(--stack) = PtrToUlong( ctx_ptr );
             *(--stack) = 0xdeadbabe;
-            ctx.Esp = PtrToUlong( stack );
-            ctx.Eip = pLdrSystemDllInitBlock->pLdrInitializeThunk;
-            pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
+            ctx->Esp = PtrToUlong( stack );
+            ctx->Eip = pLdrSystemDllInitBlock->pLdrInitializeThunk;
+            pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, ctx );
         }
         break;
 
     case IMAGE_FILE_MACHINE_ARMNT:
         {
-            ARM_CONTEXT *ctx_ptr, ctx = { CONTEXT_ARM_FULL };
+            ARM_CONTEXT *ctx_ptr, *ctx = cpu_area_ctx;
 
-            pBTCpuGetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
-            ctx_ptr = (ARM_CONTEXT *)ULongToPtr( ctx.Sp & ~15 ) - 1;
-            *ctx_ptr = ctx;
+            ctx_ptr = (ARM_CONTEXT *)ULongToPtr( ctx->Sp & ~15 ) - 1;
+            *ctx_ptr = *ctx;
 
-            ctx.R0 = PtrToUlong( ctx_ptr );
-            ctx.Sp = PtrToUlong( ctx_ptr );
-            ctx.Pc = pLdrSystemDllInitBlock->pLdrInitializeThunk;
-            pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
+            ctx->R0 = PtrToUlong( ctx_ptr );
+            ctx->Sp = PtrToUlong( ctx_ptr );
+            ctx->Pc = pLdrSystemDllInitBlock->pLdrInitializeThunk;
+            pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, ctx );
         }
         break;
 
@@ -950,66 +909,18 @@ static void free_temp_data(void)
 
 
 /**********************************************************************
- *           wow64_syscall
+ *           syscall_filter
  */
-#ifdef __aarch64__
-NTSTATUS wow64_syscall( UINT *args, ULONG_PTR thunk );
-__ASM_GLOBAL_FUNC( wow64_syscall,
-                   "stp x29, x30, [sp, #-16]!\n\t"
-                   ".seh_save_fplr_x 16\n\t"
-                   ".seh_endprologue\n\t"
-                   ".seh_handler wow64_syscall_handler, @except\n"
-                   "blr x1\n\t"
-                   "b 1f\n"
-                   "wow64_syscall_ret:\n\t"
-                   "eor w1, w0, #0xc0000000\n\t"
-                   "cmp w1, #8\n\t"                /* STATUS_INVALID_HANDLE */
-                   "b.ne 1f\n\t"
-                   "bl call_raise_user_exception_dispatcher\n"
-                   "1:\tldp x29, x30, [sp], #16\n\t"
-                   "ret" )
-__ASM_GLOBAL_FUNC( wow64_syscall_handler,
-                   "stp x29, x30, [sp, #-16]!\n\t"
-                   ".seh_save_fplr_x 16\n\t"
-                   ".seh_endprologue\n\t"
-                   "ldr w4, [x0, #4]\n\t"          /* record->ExceptionFlags */
-                   "tst w4, #6\n\t"                /* EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND */
-                   "b.ne 1f\n\t"
-                   "mov x2, x0\n\t"                /* record */
-                   "mov x0, x1\n\t"                /* frame */
-                   "adr x1, wow64_syscall_ret\n\t" /* target */
-                   "ldr w3, [x2]\n\t"              /* retval = record->ExceptionCode */
-                   "bl RtlUnwind\n\t"
-                   "1:\tmov w0, #1\n\t"            /* ExceptionContinueSearch */
-                   "ldp x29, x30, [sp], #16\n\t"
-                   "ret" )
-#else
-NTSTATUS wow64_syscall( UINT *args, ULONG_PTR thunk );
-__ASM_GLOBAL_FUNC( wow64_syscall,
-                   "subq $0x28, %rsp\n\t"
-                   ".seh_stackalloc 0x28\n\t"
-                   ".seh_endprologue\n\t"
-                   ".seh_handler wow64_syscall_handler, @except\n\t"
-                   "call *%rdx\n\t"
-                   "jmp 1f\n"
-                   "wow64_syscall_ret:\n\t"
-                   "cmpl $0xc0000008,%eax\n\t"     /* STATUS_INVALID_HANDLE */
-                   "jne 1f\n\t"
-                   "movl %eax,%ecx\n\t"
-                   "call call_raise_user_exception_dispatcher\n"
-                   "1:\taddq $0x28, %rsp\n\t"
-                   "ret" )
-__ASM_GLOBAL_FUNC( wow64_syscall_handler,
-                   "subq $0x28,%rsp\n\t"
-                   ".seh_stackalloc 0x28\n\t"
-                   ".seh_endprologue\n\t"
-                   "movl (%rcx),%r9d\n\t"          /* retval = rec->ExceptionCode */
-                   "movq %rcx,%r8\n\t"             /* rec */
-                   "movq %rdx,%rcx\n\t"            /* frame */
-                   "leaq wow64_syscall_ret(%rip),%rdx\n\t"
-                   "call RtlUnwind\n\t"
-                   "int3" )
-#endif
+static LONG CALLBACK syscall_filter( EXCEPTION_POINTERS *ptrs )
+{
+    switch (ptrs->ExceptionRecord->ExceptionCode)
+    {
+    case STATUS_INVALID_HANDLE:
+        call_raise_user_exception_dispatcher( ptrs->ExceptionRecord->ExceptionCode );
+        break;
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
 
 
 /**********************************************************************
@@ -1021,80 +932,54 @@ NTSTATUS WINAPI Wow64SystemServiceEx( UINT num, UINT *args )
     UINT id = num & 0xfff;
     const SYSTEM_SERVICE_TABLE *table = &syscall_tables[(num >> 12) & 3];
 
-    if (id >= table->ServiceLimit)
+    if (id >= table->ServiceLimit || !table->ServiceTable[id])
     {
         ERR( "unsupported syscall %04x\n", num );
         return STATUS_INVALID_SYSTEM_SERVICE;
     }
-    status = wow64_syscall( args, table->ServiceTable[id] );
+    __TRY
+    {
+        syscall_thunk thunk = (syscall_thunk)table->ServiceTable[id];
+        status = thunk( args );
+    }
+    __EXCEPT( syscall_filter )
+    {
+        status = GetExceptionCode();
+    }
+    __ENDTRY
     free_temp_data();
     return status;
 }
 
 
 /**********************************************************************
+ *           simulate_filter
+ */
+static LONG CALLBACK simulate_filter( EXCEPTION_POINTERS *ptrs )
+{
+    Wow64PassExceptionToGuest( ptrs );
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+
+/**********************************************************************
  *           cpu_simulate
  */
-#ifdef __aarch64__
-extern void DECLSPEC_NORETURN cpu_simulate(void);
-__ASM_GLOBAL_FUNC( cpu_simulate,
-                   "stp x29, x30, [sp, #-16]!\n\t"
-                   ".seh_save_fplr_x 16\n\t"
-                   ".seh_endprologue\n\t"
-                   ".seh_handler cpu_simulate_handler, @except\n"
-                   ".Lcpu_simulate_loop:\n\t"
-                   "adrp x16, pBTCpuSimulate\n\t"
-                   "ldr x16, [x16, :lo12:pBTCpuSimulate]\n\t"
-                   "blr x16\n\t"
-                   "b .Lcpu_simulate_loop" )
-__ASM_GLOBAL_FUNC( cpu_simulate_handler,
-                   "stp x29, x30, [sp, #-48]!\n\t"
-                   ".seh_save_fplr_x 48\n\t"
-                   "stp x19, x20, [sp, #16]\n\t"
-                   ".seh_save_regp x19, 16\n\t"
-                   ".seh_endprologue\n\t"
-                   "mov x19, x0\n\t"            /* record */
-                   "mov x20, x1\n\t"            /* frame */
-                   "ldr w4, [x0, #4]\n\t"       /* record->ExceptionFlags */
-                   "tst w4, #6\n\t"             /* EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND */
-                   "b.ne 1f\n\t"
-                   "stp x0, x2, [sp, #32]\n\t"  /* record, context */
-                   "add x0, sp, #32\n\t"
-                   "bl Wow64PassExceptionToGuest\n\t"
-                   "mov x0, x20\n\t"            /* frame */
-                   "adr x1, .Lcpu_simulate_loop\n\t" /* target */
-                   "mov x2, x19\n\t"            /* record */
-                   "bl RtlUnwind\n\t"
-                   "1:\tmov w0, #1\n\t"         /* ExceptionContinueSearch */
-                   "ldp x19, x20, [sp, #16]\n\t"
-                   "ldp x29, x30, [sp], #48\n\t"
-                   "ret" )
-#else
-extern void DECLSPEC_NORETURN cpu_simulate(void);
-__ASM_GLOBAL_FUNC( cpu_simulate,
-                   "subq $0x28, %rsp\n\t"
-                   ".seh_stackalloc 0x28\n\t"
-                   ".seh_endprologue\n\t"
-                   ".seh_handler cpu_simulate_handler, @except\n\t"
-                   ".Lcpu_simulate_loop:\n\t"
-                   "call *pBTCpuSimulate(%rip)\n\t"
-                   "jmp .Lcpu_simulate_loop" )
-__ASM_GLOBAL_FUNC( cpu_simulate_handler,
-                   "subq $0x38, %rsp\n\t"
-                   ".seh_stackalloc 0x38\n\t"
-                   ".seh_endprologue\n\t"
-                   "movq %rcx,%rsi\n\t"         /* record */
-                   "movq %rcx,0x20(%rsp)\n\t"
-                   "movq %rdx,%rdi\n\t"         /* frame */
-                   "movq %r8,0x28(%rsp)\n\t"    /* context */
-                   "leaq 0x20(%rsp),%rcx\n\t"
-                   "call Wow64PassExceptionToGuest\n\t"
-                   "movq %rdi,%rcx\n\t"         /* frame */
-                   "leaq .Lcpu_simulate_loop(%rip), %rdx\n\t"  /* target */
-                   "movq %rsi,%r8\n\t"          /* record */
-                   "call RtlUnwind\n\t"
-                   "int3" )
-#endif
+static void cpu_simulate(void)
+{
+    for (;;)
+    {
+        __TRY
+        {
+            pBTCpuSimulate();
+        }
+        __EXCEPT( simulate_filter )
+        {
+            /* restart simulation loop */
+        }
+        __ENDTRY
+    }
+}
 
 
 /**********************************************************************
@@ -1207,7 +1092,7 @@ NTSTATUS WINAPI Wow64KiUserCallbackDispatcher( ULONG id, void *args, ULONG len,
                                                void **ret_ptr, ULONG *ret_len )
 {
     WOW64_CPURESERVED *cpu = NtCurrentTeb()->TlsSlots[WOW64_TLS_CPURESERVED];
-    TEB32 *teb32 = NtCurrentTeb32();
+    TEB32 *teb32 = (TEB32 *)((char *)NtCurrentTeb() + NtCurrentTeb()->WowTebOffset);
     ULONG teb_frame = teb32->Tib.ExceptionList;
     struct user_callback_frame frame;
     USHORT flags = cpu->Flags;
@@ -1255,7 +1140,7 @@ NTSTATUS WINAPI Wow64KiUserCallbackDispatcher( ULONG id, void *args, ULONG len,
             ctx.Eip = pLdrSystemDllInitBlock->pKiUserCallbackDispatcher;
             pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
 
-            if (!setjmp( frame.jmpbuf ))
+            if (!__wine_setjmpex( &frame.jmpbuf, NULL ))
                 cpu_simulate();
             else
                 pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &orig_ctx );
@@ -1280,7 +1165,7 @@ NTSTATUS WINAPI Wow64KiUserCallbackDispatcher( ULONG id, void *args, ULONG len,
             ctx.Pc = pLdrSystemDllInitBlock->pKiUserCallbackDispatcher;
             pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx );
 
-            if (!setjmp( frame.jmpbuf ))
+            if (!__wine_setjmpex( &frame.jmpbuf, NULL ))
                 cpu_simulate();
             else
                 pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &orig_ctx );
@@ -1380,12 +1265,12 @@ void WINAPI Wow64ProcessPendingCrossProcessItems(void)
 
     if (flush)
     {
-        if (pBTCpuFlushInstructionCacheHeavy) pBTCpuFlushInstructionCacheHeavy( NULL, 0 );
+        if (pBTCpuNotifyFlushInstructionCache2) pBTCpuNotifyFlushInstructionCache2( NULL, ~0ull );
         while (entry)
         {
             next = entry->next;
             RtlWow64PushCrossProcessWorkOntoFreeList( &list->free_list, entry );
-            entry = next ? CROSS_PROCESS_LIST_ENTRY( &list->work_list, next ) : NULL;
+            entry = CROSS_PROCESS_LIST_ENTRY( &list->work_list, next );
         }
         return;
     }
@@ -1395,39 +1280,35 @@ void WINAPI Wow64ProcessPendingCrossProcessItems(void)
         switch (entry->id)
         {
         case CrossProcessPreVirtualAlloc:
+            /* FIXME */
+            break;
         case CrossProcessPostVirtualAlloc:
             if (!pBTCpuNotifyMemoryAlloc) break;
-            pBTCpuNotifyMemoryAlloc( (void *)entry->addr, entry->size, entry->args[0], entry->args[1],
-                                     entry->id == CrossProcessPostVirtualAlloc, entry->args[2] );
+            if (entry->args[2]) break;
+            pBTCpuNotifyMemoryAlloc( (void *)entry->addr, entry->size, entry->args[0], entry->args[1] );
             break;
         case CrossProcessPreVirtualFree:
-        case CrossProcessPostVirtualFree:
             if (!pBTCpuNotifyMemoryFree) break;
-            pBTCpuNotifyMemoryFree( (void *)entry->addr, entry->size, entry->args[0],
-                                     entry->id == CrossProcessPostVirtualFree, entry->args[1] );
+            pBTCpuNotifyMemoryFree( (void *)entry->addr, entry->size, entry->args[0] );
+            break;
+        case CrossProcessPostVirtualFree:
+            /* FIXME */
             break;
         case CrossProcessPreVirtualProtect:
-        case CrossProcessPostVirtualProtect:
             if (!pBTCpuNotifyMemoryProtect) break;
-            pBTCpuNotifyMemoryProtect( (void *)entry->addr, entry->size, entry->args[0],
-                                       entry->id == CrossProcessPostVirtualProtect, entry->args[1] );
+            pBTCpuNotifyMemoryProtect( (void *)entry->addr, entry->size, entry->args[0] );
+            break;
+        case CrossProcessPostVirtualProtect:
+            /* FIXME */
             break;
         case CrossProcessFlushCache:
-            if (!pBTCpuFlushInstructionCache2) break;
-            pBTCpuFlushInstructionCache2( (void *)entry->addr, entry->size );
-            break;
-        case CrossProcessFlushCacheHeavy:
-            if (!pBTCpuFlushInstructionCacheHeavy) break;
-            pBTCpuFlushInstructionCacheHeavy( (void *)entry->addr, entry->size );
-            break;
-        case CrossProcessMemoryWrite:
-            if (!pBTCpuNotifyMemoryDirty) break;
-            pBTCpuNotifyMemoryDirty( (void *)entry->addr, entry->size );
+            if (!pBTCpuNotifyFlushInstructionCache2) break;
+            pBTCpuNotifyFlushInstructionCache2( (void *)entry->addr, entry->size );
             break;
         }
         next = entry->next;
         RtlWow64PushCrossProcessWorkOntoFreeList( &list->free_list, entry );
-        entry = next ? CROSS_PROCESS_LIST_ENTRY( &list->work_list, next ) : NULL;
+        entry = CROSS_PROCESS_LIST_ENTRY( &list->work_list, next );
     }
 }
 
@@ -1438,6 +1319,7 @@ void WINAPI Wow64ProcessPendingCrossProcessItems(void)
 NTSTATUS WINAPI Wow64RaiseException( int code, EXCEPTION_RECORD *rec )
 {
     EXCEPTION_RECORD32 rec32;
+    CONTEXT context;
     BOOL first_chance = TRUE;
     union
     {
@@ -1461,13 +1343,11 @@ NTSTATUS WINAPI Wow64RaiseException( int code, EXCEPTION_RECORD *rec )
             int_rec.ExceptionCode = EXCEPTION_INT_DIVIDE_BY_ZERO;
             break;
         case 0x01:  /* single-step */
-            ctx32.i386.EFlags &= ~0x100;
-            pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx32.i386 );
             int_rec.ExceptionCode = EXCEPTION_SINGLE_STEP;
             break;
         case 0x03:  /* breakpoint */
             int_rec.ExceptionCode = EXCEPTION_BREAKPOINT;
-            int_rec.ExceptionAddress = (void *)(ULONG_PTR)(ctx32.i386.Eip - 1);
+            int_rec.ExceptionAddress = (void *)(ULONG_PTR)(ctx32.i386.Eip + 1);
             int_rec.NumberParameters = 1;
             break;
         case 0x04:  /* overflow */
@@ -1485,18 +1365,15 @@ NTSTATUS WINAPI Wow64RaiseException( int code, EXCEPTION_RECORD *rec )
         case 0x0c:  /* stack fault */
             int_rec.ExceptionCode = EXCEPTION_STACK_OVERFLOW;
             break;
-        case 0x0d:  /* general protection fault */
-            int_rec.ExceptionCode = EXCEPTION_PRIV_INSTRUCTION;
-            break;
         case 0x29:  /* __fastfail */
             int_rec.ExceptionCode = STATUS_STACK_BUFFER_OVERRUN;
-            int_rec.ExceptionFlags = EXCEPTION_NONCONTINUABLE;
+            int_rec.ExceptionFlags = EH_NONCONTINUABLE;
             int_rec.NumberParameters = 1;
             int_rec.ExceptionInformation[0] = ctx32.i386.Ecx;
             first_chance = FALSE;
             break;
         case 0x2d:  /* debug service */
-            ctx32.i386.Eip += 3;
+            ctx32.i386.Eip++;
             pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx32.i386 );
             int_rec.ExceptionCode    = EXCEPTION_BREAKPOINT;
             int_rec.ExceptionAddress = (void *)(ULONG_PTR)ctx32.i386.Eip;
@@ -1504,6 +1381,8 @@ NTSTATUS WINAPI Wow64RaiseException( int code, EXCEPTION_RECORD *rec )
             int_rec.ExceptionInformation[0] = ctx32.i386.Eax;
             break;
         default:
+            ctx32.i386.Eip -= 2;
+            pBTCpuSetContext( GetCurrentThread(), GetCurrentProcess(), NULL, &ctx32.i386 );
             int_rec.ExceptionCode = EXCEPTION_ACCESS_VIOLATION;
             int_rec.ExceptionAddress = (void *)(ULONG_PTR)ctx32.i386.Eip;
             int_rec.NumberParameters = 2;
@@ -1521,7 +1400,14 @@ NTSTATUS WINAPI Wow64RaiseException( int code, EXCEPTION_RECORD *rec )
     }
 
     exception_record_64to32( &rec32, rec );
-    raise_exception( &rec32, &ctx32, first_chance, rec );
-
+    __TRY
+    {
+        raise_exception( rec, &context, first_chance );
+    }
+    __EXCEPT_ALL
+    {
+        call_user_exception_dispatcher( &rec32, &ctx32, NULL );
+    }
+    __ENDTRY
     return STATUS_SUCCESS;
 }

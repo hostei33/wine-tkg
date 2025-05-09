@@ -20,7 +20,6 @@ SOURCES = \
 	jscript.rc \
 	jscript_classes.idl \
 	jscript_main.c \
-	jsdisp.idl \
 	jsglobal.idl \
 	json.c \
 	jsregexp.c \

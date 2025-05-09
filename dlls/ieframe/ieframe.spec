@@ -6,6 +6,5 @@
 @ stdcall -private DllRegisterServer()
 @ stdcall -private DllUnregisterServer()
 @ stdcall IEGetWriteableHKCU(ptr)
-@ stdcall IERefreshElevationPolicy()
 @ stdcall OpenURL(long long str long)
 @ stdcall SetQueryNetSessionCount(long)

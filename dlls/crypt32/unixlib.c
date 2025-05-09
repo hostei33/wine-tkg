@@ -130,9 +130,7 @@ static NTSTATUS process_attach( void *args )
 
     if (TRACE_ON( crypt ))
     {
-        char *env = getenv("GNUTLS_DEBUG_LEVEL");
-        int level = env ? atoi(env) : 4;
-        pgnutls_global_set_log_level(level);
+        pgnutls_global_set_log_level( 4 );
         pgnutls_global_set_log_function( gnutls_log );
     }
 
@@ -620,12 +618,13 @@ static const char * const CRYPT_knownLocations[] = {
  "/usr/share/ca-certificates/ca-bundle.crt",
  "/usr/local/share/certs/",
  "/etc/sfw/openssl/certs",
- "/etc/security/cacerts",  /* Android */
- "/data/data/com.winlator/files/rootfs/etc/ca-certificates/cacert.pem",
+ "/etc/security/cacerts",
+"/data/data/com.winlator/files/rootfs/etc/ca-certificates/cacert.pem",  /* Android */
 };
 
 static void load_root_certs(void)
 {
+    const char *additional_dir;
     unsigned int i;
 
 #ifdef __APPLE__
@@ -663,6 +662,9 @@ static void load_root_certs(void)
 
     for (i = 0; i < ARRAY_SIZE(CRYPT_knownLocations) && list_empty(&root_cert_list); i++)
         import_certs_from_path( CRYPT_knownLocations[i], TRUE );
+
+    if ((additional_dir = getenv( "WINE_ADDITIONAL_CERTS_DIR" )))
+        import_certs_from_path( additional_dir, TRUE );
 }
 
 static NTSTATUS enum_root_certs( void *args )

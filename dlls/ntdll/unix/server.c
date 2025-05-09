@@ -49,10 +49,6 @@
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
 #endif
-#include <sys/ioctl.h>
-#ifdef HAVE_LINUX_IOCTL_H
-#include <linux/ioctl.h>
-#endif
 #ifdef HAVE_SYS_PRCTL_H
 # include <sys/prctl.h>
 #endif
@@ -88,22 +84,8 @@
 #include "ddk/wdm.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(server);
-
-/* just in case... */
-#undef EXT2_IOC_GETFLAGS
-#undef EXT2_IOC_SETFLAGS
-#undef EXT4_CASEFOLD_FL
-
-#ifdef __linux__
-
-/* Define the ext2 ioctls for handling extra attributes */
-#define EXT2_IOC_GETFLAGS _IOR('f', 1, long)
-#define EXT2_IOC_SETFLAGS _IOW('f', 2, long)
-
-/* Case-insensitivity attribute */
-#define EXT4_CASEFOLD_FL 0x40000000
-
-#endif
+WINE_DECLARE_DEBUG_CHANNEL(client);
+WINE_DECLARE_DEBUG_CHANNEL(ftrace);
 
 #ifndef MSG_CMSG_CLOEXEC
 #define MSG_CMSG_CLOEXEC 0
@@ -178,7 +160,7 @@ static DECLSPEC_NORETURN void server_protocol_error( const char *err, ... )
     va_list args;
 
     va_start( args, err );
-    fprintf( stderr, "wine client error:%x: ", GetCurrentThreadId() );
+    fprintf( stderr, "wine client error:%x: ", (int)GetCurrentThreadId() );
     vfprintf( stderr, err, args );
     va_end( args );
     abort_thread(1);
@@ -190,7 +172,7 @@ static DECLSPEC_NORETURN void server_protocol_error( const char *err, ... )
  */
 static DECLSPEC_NORETURN void server_protocol_perror( const char *err )
 {
-    fprintf( stderr, "wine client error:%x: ", GetCurrentThreadId() );
+    fprintf( stderr, "wine client error:%x: ", (int)GetCurrentThreadId() );
     perror( err );
     abort_thread(1);
 }
@@ -203,27 +185,18 @@ static DECLSPEC_NORETURN void server_protocol_perror( const char *err )
  */
 static unsigned int send_request( const struct __server_request_info *req )
 {
-    int request_fd = ntdll_get_thread_data()->request_fd;
+    unsigned int i;
+    int ret;
 
     if (!req->u.req.request_header.request_size)
     {
-        data_size_t to_write = sizeof(req->u.req);
-        const char *write_ptr = (const char *)&req->u.req;
+        if ((ret = write( ntdll_get_thread_data()->request_fd, &req->u.req,
+                          sizeof(req->u.req) )) == sizeof(req->u.req)) return STATUS_SUCCESS;
 
-        for (;;)
-        {
-            ssize_t ret = write( request_fd, write_ptr, to_write );
-            if (ret == to_write) return STATUS_SUCCESS;
-            if (ret < 0) break;
-            to_write -= ret;
-            write_ptr += ret;
-        }
     }
     else
     {
-        data_size_t to_write = sizeof(req->u.req) + req->u.req.request_header.request_size;
         struct iovec vec[__SERVER_MAX_DATA+1];
-        unsigned int i, j;
 
         vec[0].iov_base = (void *)&req->u.req;
         vec[0].iov_len = sizeof(req->u.req);
@@ -232,30 +205,11 @@ static unsigned int send_request( const struct __server_request_info *req )
             vec[i+1].iov_base = (void *)req->data[i].ptr;
             vec[i+1].iov_len = req->data[i].size;
         }
-
-        for (;;)
-        {
-            ssize_t ret = writev( request_fd, vec, i + 1 );
-            if (ret == to_write) return STATUS_SUCCESS;
-            if (ret < 0) break;
-            to_write -= ret;
-            for (j = 0; j < i + 1; j++)
-            {
-                if (ret >= vec[j].iov_len)
-                {
-                    ret -= vec[j].iov_len;
-                    vec[j].iov_len = 0;
-                }
-                else
-                {
-                    vec[j].iov_base = (char *)vec[j].iov_base + ret;
-                    vec[j].iov_len -= ret;
-                    break;
-                }
-            }
-        }
+        if ((ret = writev( ntdll_get_thread_data()->request_fd, vec, i+1 )) ==
+            req->u.req.request_header.request_size + sizeof(req->u.req)) return STATUS_SUCCESS;
     }
 
+    if (ret >= 0) server_protocol_error( "partial write %d\n", ret );
     if (errno == EPIPE) abort_thread(0);
     if (errno == EFAULT) return STATUS_ACCESS_VIOLATION;
     server_protocol_perror( "write" );
@@ -311,8 +265,13 @@ unsigned int server_call_unlocked( void *req_ptr )
     struct __server_request_info * const req = req_ptr;
     unsigned int ret;
 
-    if ((ret = send_request( req ))) return ret;
-    return wait_reply( req );
+    FTRACE_BLOCK_START("req %s", req->name)
+    TRACE_(client)("%s start\n", req->name); \
+    if (!(ret = send_request( req )))
+        ret = wait_reply( req );
+    TRACE_(client)("%s end\n", req->name);
+    FTRACE_BLOCK_END()
+    return ret;
 }
 
 
@@ -404,7 +363,7 @@ static int wait_select_reply( void *cookie )
 /***********************************************************************
  *              invoke_user_apc
  */
-static NTSTATUS invoke_user_apc( CONTEXT *context, const struct user_apc *apc, NTSTATUS status )
+static NTSTATUS invoke_user_apc( CONTEXT *context, const user_apc_t *apc, NTSTATUS status )
 {
     return call_user_apc_dispatcher( context, apc->args[0], apc->args[1], apc->args[2],
                                      wine_server_get_ptr( apc->func ), status );
@@ -414,7 +373,7 @@ static NTSTATUS invoke_user_apc( CONTEXT *context, const struct user_apc *apc, N
 /***********************************************************************
  *              invoke_system_apc
  */
-static void invoke_system_apc( const union apc_call *call, union apc_result *result, BOOL self )
+static void invoke_system_apc( const apc_call_t *call, apc_result_t *result, BOOL self )
 {
     SIZE_T size, bits;
     void *addr;
@@ -737,21 +696,21 @@ static void invoke_system_apc( const union apc_call *call, union apc_result *res
 /***********************************************************************
  *              server_select
  */
-unsigned int server_select( const union select_op *select_op, data_size_t size, UINT flags,
-                            timeout_t abs_timeout, struct context_data *context, struct user_apc *user_apc )
+unsigned int server_select( const select_op_t *select_op, data_size_t size, UINT flags,
+                            timeout_t abs_timeout, context_t *context, user_apc_t *user_apc )
 {
     unsigned int ret;
     int cookie;
     obj_handle_t apc_handle = 0;
     BOOL suspend_context = !!context;
-    union apc_result result;
+    apc_result_t result;
     sigset_t old_set;
     int signaled;
     data_size_t reply_size;
     struct
     {
-        union apc_call call;
-        struct context_data context[2];
+        apc_call_t call;
+        context_t  context[2];
     } reply_data;
 
     memset( &result, 0, sizeof(result) );
@@ -790,12 +749,14 @@ unsigned int server_select( const union select_op *select_op, data_size_t size, 
 
             /* don't signal multiple times */
             if (size >= sizeof(select_op->signal_and_wait) && select_op->op == SELECT_SIGNAL_AND_WAIT)
-                size = offsetof( union select_op, signal_and_wait.signal );
+                size = offsetof( select_op_t, signal_and_wait.signal );
         }
         pthread_sigmask( SIG_SETMASK, &old_set, NULL );
         if (signaled) break;
 
+        FTRACE_BLOCK_START("select_reply")
         ret = wait_select_reply( &cookie );
+        FTRACE_BLOCK_END()
     }
     while (ret == STATUS_USER_APC || ret == STATUS_KERNEL_APC);
 
@@ -813,12 +774,12 @@ unsigned int server_select( const union select_op *select_op, data_size_t size, 
 /***********************************************************************
  *              server_wait
  */
-unsigned int server_wait( const union select_op *select_op, data_size_t size, UINT flags,
+unsigned int server_wait( const select_op_t *select_op, data_size_t size, UINT flags,
                           const LARGE_INTEGER *timeout )
 {
     timeout_t abs_timeout = timeout ? timeout->QuadPart : TIMEOUT_INFINITE;
     unsigned int ret;
-    struct user_apc apc;
+    user_apc_t apc;
 
     if (abs_timeout < 0)
     {
@@ -844,23 +805,8 @@ unsigned int server_wait( const union select_op *select_op, data_size_t size, UI
  */
 NTSTATUS WINAPI NtContinue( CONTEXT *context, BOOLEAN alertable )
 {
-    return NtContinueEx( context, ULongToPtr(alertable) );
-}
-
-
-/***********************************************************************
- *              NtContinueEx  (NTDLL.@)
- */
-NTSTATUS WINAPI NtContinueEx( CONTEXT *context, KCONTINUE_ARGUMENT *args )
-{
-    struct user_apc apc;
+    user_apc_t apc;
     NTSTATUS status;
-    BOOL alertable;
-
-    if ((UINT_PTR)args > 0xff)
-        alertable = args->ContinueFlags & KCONTINUE_FLAG_TEST_ALERT;
-    else
-        alertable = !!args;
 
     if (alertable)
     {
@@ -876,7 +822,7 @@ NTSTATUS WINAPI NtContinueEx( CONTEXT *context, KCONTINUE_ARGUMENT *args )
  */
 NTSTATUS WINAPI NtTestAlert(void)
 {
-    struct user_apc apc;
+    user_apc_t apc;
     NTSTATUS status;
 
     status = server_select( NULL, 0, SELECT_INTERRUPTIBLE | SELECT_ALERTABLE, 0, NULL, &apc );
@@ -888,7 +834,7 @@ NTSTATUS WINAPI NtTestAlert(void)
 /***********************************************************************
  *           server_queue_process_apc
  */
-unsigned int server_queue_process_apc( HANDLE process, const union apc_call *call, union apc_result *result )
+unsigned int server_queue_process_apc( HANDLE process, const apc_call_t *call, apc_result_t *result )
 {
     for (;;)
     {
@@ -941,30 +887,35 @@ void wine_server_send_fd( int fd )
     struct send_fd data;
     struct msghdr msghdr;
     struct iovec vec;
-    char cmsg_buffer[256];
-    struct cmsghdr *cmsg;
     int ret;
 
-    msghdr.msg_name    = NULL;
-    msghdr.msg_namelen = 0;
-    msghdr.msg_iov     = &vec;
-    msghdr.msg_iovlen  = 1;
-    msghdr.msg_control = cmsg_buffer;
+#ifdef HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS
+    msghdr.msg_accrights    = (void *)&fd;
+    msghdr.msg_accrightslen = sizeof(fd);
+#else  /* HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS */
+    char cmsg_buffer[256];
+    struct cmsghdr *cmsg;
+    msghdr.msg_control    = cmsg_buffer;
     msghdr.msg_controllen = sizeof(cmsg_buffer);
-    msghdr.msg_flags   = 0;
-
-    vec.iov_base = (void *)&data;
-    vec.iov_len  = sizeof(data);
-
-    data.tid = GetCurrentThreadId();
-    data.fd  = fd;
-
+    msghdr.msg_flags      = 0;
     cmsg = CMSG_FIRSTHDR( &msghdr );
     cmsg->cmsg_len   = CMSG_LEN( sizeof(fd) );
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type  = SCM_RIGHTS;
     *(int *)CMSG_DATA(cmsg) = fd;
     msghdr.msg_controllen = cmsg->cmsg_len;
+#endif  /* HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS */
+
+    msghdr.msg_name    = NULL;
+    msghdr.msg_namelen = 0;
+    msghdr.msg_iov     = &vec;
+    msghdr.msg_iovlen  = 1;
+
+    vec.iov_base = (void *)&data;
+    vec.iov_len  = sizeof(data);
+
+    data.tid = GetCurrentThreadId();
+    data.fd  = fd;
 
     for (;;)
     {
@@ -986,17 +937,22 @@ int receive_fd( obj_handle_t *handle )
 {
     struct iovec vec;
     struct msghdr msghdr;
-    char cmsg_buffer[256];
     int ret, fd = -1;
+
+#ifdef HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS
+    msghdr.msg_accrights    = (void *)&fd;
+    msghdr.msg_accrightslen = sizeof(fd);
+#else  /* HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS */
+    char cmsg_buffer[256];
+    msghdr.msg_control    = cmsg_buffer;
+    msghdr.msg_controllen = sizeof(cmsg_buffer);
+    msghdr.msg_flags      = 0;
+#endif  /* HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS */
 
     msghdr.msg_name    = NULL;
     msghdr.msg_namelen = 0;
     msghdr.msg_iov     = &vec;
     msghdr.msg_iovlen  = 1;
-    msghdr.msg_control = cmsg_buffer;
-    msghdr.msg_controllen = sizeof(cmsg_buffer);
-    msghdr.msg_flags   = 0;
-
     vec.iov_base = (void *)handle;
     vec.iov_len  = sizeof(*handle);
 
@@ -1004,6 +960,7 @@ int receive_fd( obj_handle_t *handle )
     {
         if ((ret = recvmsg( fd_socket, &msghdr, MSG_CMSG_CLOEXEC )) > 0)
         {
+#ifndef HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS
             struct cmsghdr *cmsg;
             for (cmsg = CMSG_FIRSTHDR( &msghdr ); cmsg; cmsg = CMSG_NXTHDR( &msghdr, cmsg ))
             {
@@ -1017,6 +974,7 @@ int receive_fd( obj_handle_t *handle )
                 }
 #endif
             }
+#endif  /* HAVE_STRUCT_MSGHDR_MSG_ACCRIGHTS */
             if (fd != -1) fcntl( fd, F_SETFD, FD_CLOEXEC ); /* in case MSG_CMSG_CLOEXEC is not supported */
             return fd;
         }
@@ -1301,35 +1259,25 @@ int server_pipe( int fd[2] )
 static const char *init_server_dir( dev_t dev, ino_t ino )
 {
     char *dir = NULL;
+    int p;
+    char tmp[2 * sizeof(dev) + 2 * sizeof(ino) + 2];
+
+    if (dev != (unsigned long)dev)
+        p = snprintf( tmp, sizeof(tmp), "%lx%08lx-", (unsigned long)((unsigned long long)dev >> 32), (unsigned long)dev );
+    else
+        p = snprintf( tmp, sizeof(tmp), "%lx-", (unsigned long)dev );
+
+    if (ino != (unsigned long)ino)
+        snprintf( tmp + p, sizeof(tmp) - p, "%lx%08lx", (unsigned long)((unsigned long long)ino >> 32), (unsigned long)ino );
+    else
+        snprintf( tmp + p, sizeof(tmp) - p, "%lx", (unsigned long)ino );
 
 #ifdef __ANDROID__  /* there's no /tmp dir on Android */
-    asprintf( &dir, "%s/.wineserver/server-%llx-%llx", config_dir, (unsigned long long)dev, (unsigned long long)ino );
+    asprintf( &dir, "%s/.wineserver/server-%s", config_dir, tmp );
 #else
-    asprintf( &dir, "/data/data/com.winlator/files/rootfs/tmp/.wine-%u/server-%llx-%llx", getuid(), (unsigned long long)dev, (unsigned long long)ino );
+    asprintf( &dir, "/data/data/com.winlator/files/rootfs/tmp/.wine-%u/server-%s", getuid(), tmp );
 #endif
     return dir;
-}
-
-
-/***********************************************************************
- *           set_case_insensitive
- *
- * Make the supplied directory case insensitive, if available.
- */
-static void set_case_insensitive(const char *dir)
-{
-#if defined(EXT2_IOC_GETFLAGS) && defined(EXT2_IOC_SETFLAGS) && defined(EXT4_CASEFOLD_FL)
-    int flags, fd;
-
-    if ((fd = open(dir, O_RDONLY | O_NONBLOCK | O_LARGEFILE)) == -1)
-        return;
-    if (ioctl(fd, EXT2_IOC_GETFLAGS, &flags) != -1 && !(flags & EXT4_CASEFOLD_FL))
-    {
-        flags |= EXT4_CASEFOLD_FL;
-        ioctl(fd, EXT2_IOC_SETFLAGS, &flags);
-    }
-    close(fd);
-#endif
 }
 
 
@@ -1369,9 +1317,8 @@ static int setup_config_dir(void)
     if (!mkdir( "dosdevices", 0777 ))
     {
         mkdir( "drive_c", 0777 );
-        set_case_insensitive( "drive_c" );
         symlink( "../drive_c", "dosdevices/c:" );
-        symlink( "/data/data/com.winlator/files/rootfs/", "dosdevices/z:" );
+        symlink( "/data/data/com.winlator/files/rootfs", "dosdevices/z:" );
     }
     else if (errno != EEXIST) fatal_perror( "cannot create %s/dosdevices", config_dir );
 
@@ -1635,8 +1582,8 @@ size_t server_init_process(void)
 
         if (is_win64 && arch && !strcmp( arch, "win32" ))
             fatal_error( "WINEARCH is set to 'win32' but this is not supported in wow64 mode.\n" );
-        if (arch && strcmp( arch, "win32" ) && strcmp( arch, "win64" ) && strcmp( arch, "wow64" ))
-            fatal_error( "WINEARCH set to invalid value '%s', it must be win32, win64, or wow64.\n", arch );
+        if (arch && strcmp( arch, "win32" ) && strcmp( arch, "win64" ))
+            fatal_error( "WINEARCH set to invalid value '%s', it must be either win32 or win64.\n", arch );
 
         fd_socket = server_connect();
     }
@@ -1672,7 +1619,7 @@ size_t server_init_process(void)
                                (version > SERVER_PROTOCOL_VERSION) ? "wine" : "wineserver" );
 #if defined(__linux__) && defined(HAVE_PRCTL)
     /* work around Ubuntu's ptrace breakage */
-    if (server_pid != -1) prctl( 0x59616d61 /* PR_SET_PTRACER */, server_pid );
+    if (server_pid != -1) prctl( 0x59616d61 /* PR_SET_PTRACER */, PR_SET_PTRACER_ANY );
 #endif
 
     /* ignore SIGPIPE so that we get an EPIPE error instead  */
@@ -1723,8 +1670,8 @@ size_t server_init_process(void)
     {
         if (is_win64)
             fatal_error( "'%s' is a 32-bit installation, it cannot support 64-bit applications.\n", config_dir );
-        if (arch && (!strcmp( arch, "win64" ) || !strcmp( arch, "wow64" )))
-            fatal_error( "WINEARCH set to %s but '%s' is a 32-bit installation.\n", arch, config_dir );
+        if (arch && !strcmp( arch, "win64" ))
+            fatal_error( "WINEARCH set to win64 but '%s' is a 32-bit installation.\n", config_dir );
     }
 
     set_thread_id( NtCurrentTeb(), pid, tid );
@@ -1741,7 +1688,8 @@ size_t server_init_process(void)
  */
 void server_init_process_done(void)
 {
-    void *teb;
+    struct cpu_topology_override *cpu_override = get_cpu_topology_override();
+    void *entry, *teb;
     unsigned int status;
     int suspend;
     FILE_FS_DEVICE_INFORMATION info;
@@ -1765,6 +1713,8 @@ void server_init_process_done(void)
     /* Signal the parent process to continue */
     SERVER_START_REQ( init_process_done )
     {
+        if (cpu_override)
+            wine_server_add_data( req, cpu_override, sizeof(*cpu_override) );
         req->teb      = wine_server_client_ptr( teb );
         req->peb      = NtCurrentTeb64() ? NtCurrentTeb64()->Peb : wine_server_client_ptr( peb );
 #ifdef __i386__
@@ -1772,11 +1722,12 @@ void server_init_process_done(void)
 #endif
         status = wine_server_call( req );
         suspend = reply->suspend;
+        entry = wine_server_get_ptr( reply->entry );
     }
     SERVER_END_REQ;
 
     assert( !status );
-    signal_start_thread( main_image_info.TransferAddress, peb, suspend, NtCurrentTeb() );
+    signal_start_thread( entry, peb, suspend, NtCurrentTeb() );
 }
 
 
@@ -1807,31 +1758,6 @@ void server_init_thread( void *entry_point, BOOL *suspend )
     close( reply_pipe );
 }
 
-NTSTATUS WINAPI NtAllocateReserveObject( HANDLE *handle, const OBJECT_ATTRIBUTES *attr,
-                                         MEMORY_RESERVE_OBJECT_TYPE type )
-{
-    struct object_attributes *objattr;
-    unsigned int ret;
-    data_size_t len;
-
-    TRACE("(%p, %p, %d)\n", handle, attr, type);
-
-    *handle = 0;
-    if ((ret = alloc_object_attributes( attr, &objattr, &len ))) return ret;
-
-    SERVER_START_REQ( allocate_reserve_object )
-    {
-        req->type = type;
-        wine_server_add_data( req, objattr, len );
-        if (!(ret = wine_server_call( req )))
-            *handle = wine_server_ptr_handle( reply->handle );
-    }
-    SERVER_END_REQ;
-
-    free( objattr );
-    return ret;
-}
-
 
 /******************************************************************************
  *           NtDuplicateObject
@@ -1847,8 +1773,8 @@ NTSTATUS WINAPI NtDuplicateObject( HANDLE source_process, HANDLE source, HANDLE 
 
     if ((options & DUPLICATE_CLOSE_SOURCE) && source_process != NtCurrentProcess())
     {
-        union apc_call call;
-        union apc_result result;
+        apc_call_t call;
+        apc_result_t result;
 
         memset( &call, 0, sizeof(call) );
 
@@ -1911,16 +1837,6 @@ NTSTATUS WINAPI NtCompareObjects( HANDLE first, HANDLE second )
     SERVER_END_REQ;
 
     return status;
-}
-
-
-/**************************************************************************
- *           NtCompareTokens   (NTDLL.@)
- */
-NTSTATUS WINAPI NtCompareTokens( HANDLE first, HANDLE second, BOOLEAN *equal )
-{
-    FIXME( "%p,%p,%p: stub\n", first, second, equal );
-    return STATUS_NOT_IMPLEMENTED;
 }
 
 

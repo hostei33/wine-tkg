@@ -515,7 +515,7 @@ static void test_reader_create(void)
     IXmlResolver *resolver;
     IUnknown *input, *unk;
     IXmlReader *reader;
-    LONG_PTR dtd;
+    DtdProcessing dtd;
     XmlNodeType nodetype;
     HRESULT hr;
 
@@ -578,10 +578,10 @@ static void test_reader_create(void)
     hr = IXmlReader_SetProperty(reader, XmlReaderProperty_XmlResolver, 0);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
-    dtd = -1;
-    hr = IXmlReader_GetProperty(reader, XmlReaderProperty_DtdProcessing, &dtd);
+    dtd = 2;
+    hr = IXmlReader_GetProperty(reader, XmlReaderProperty_DtdProcessing, (LONG_PTR*)&dtd);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok(dtd == DtdProcessing_Prohibit, "got %Id\n", dtd);
+    ok(dtd == DtdProcessing_Prohibit, "got %d\n", dtd);
 
     dtd = 2;
     hr = IXmlReader_SetProperty(reader, XmlReaderProperty_DtdProcessing, dtd);

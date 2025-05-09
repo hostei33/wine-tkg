@@ -1379,12 +1379,9 @@ static void test_TCM_SETITEMEXTRA(void)
 
 static void test_TCS_OWNERDRAWFIXED(void)
 {
-    struct
-    {
-        TCITEMHEADERA h;
-        BYTE lparam[sizeof(LPARAM)+1];
-    } item;
-    ULONG_PTR itemdata;
+    LPARAM lparam;
+    ULONG_PTR itemdata, itemdata2;
+    TCITEMA item;
     HWND hTab;
     BOOL ret;
 
@@ -1393,8 +1390,11 @@ static void test_TCS_OWNERDRAWFIXED(void)
 
     ok(GetParent(hTab) == NULL, "got %p, expected null parent\n", GetParent(hTab));
 
-    item.h.mask = TCIF_PARAM;
-    memset(item.lparam, 0xde, sizeof(LPARAM));
+    /* set some item data */
+    memset(&lparam, 0xde, sizeof(LPARAM));
+
+    item.mask = TCIF_PARAM;
+    item.lParam = lparam;
     ret = SendMessageA(hTab, TCM_SETITEMA, 0, (LPARAM)&item);
     ok(ret == TRUE, "got %d\n", ret);
 
@@ -1423,8 +1423,9 @@ static void test_TCS_OWNERDRAWFIXED(void)
     ok(ret == TRUE, "got %d\n", ret);
 
     /* set some item data */
-    item.h.mask = TCIF_PARAM;
-    memset(item.lparam, 0xde, sizeof(item.lparam));
+    memset(&lparam, 0xde, sizeof(LPARAM));
+    item.mask = TCIF_PARAM;
+    item.lParam = lparam;
 
     ret = SendMessageA(hTab, TCM_INSERTITEMA, 0, (LPARAM)&item);
     ok(ret == 0, "got %d\n", ret);
@@ -1452,8 +1453,9 @@ static void test_TCS_OWNERDRAWFIXED(void)
     ret = SendMessageA(hTab, TCM_SETITEMEXTRA, sizeof(LPARAM)-1, 0);
     ok(ret == TRUE, "got %d\n", ret);
 
-    item.h.mask = TCIF_PARAM;
-    memset(item.lparam, 0xde, sizeof(LPARAM));
+    memset(&lparam, 0xde, sizeof(lparam));
+    item.mask = TCIF_PARAM;
+    item.lParam = lparam;
 
     ret = SendMessageA(hTab, TCM_INSERTITEMA, 0, (LPARAM)&item);
     ok(ret == 0, "got %d\n", ret);
@@ -1463,12 +1465,11 @@ static void test_TCS_OWNERDRAWFIXED(void)
     ShowWindow(hTab, SW_SHOW);
     RedrawWindow(hTab, NULL, 0, RDW_UPDATENOW);
 
-    itemdata = 0;
-    memset(&itemdata, 0xde, min(4, sizeof(LPARAM)-1));
-    todo_wine_if(sizeof(void *) == 4)
-    ok(g_drawitem.itemData == itemdata ||
-       broken(sizeof(void *) == 4 && g_drawitem.itemData == 0xdededede), /* Win7-32-bit */
-       "got 0x%Ix, expected 0x%Ix\n", g_drawitem.itemData, itemdata);
+    itemdata = itemdata2 = 0;
+    memset(&itemdata, 0xde, 4);
+    memset(&itemdata2, 0xde, sizeof(LPARAM)-1);
+    ok(g_drawitem.itemData == itemdata || broken(g_drawitem.itemData == itemdata2) /* win98 */,
+        "got 0x%Ix, expected 0x%Ix\n", g_drawitem.itemData, itemdata);
 
     DestroyWindow(hTab);
 }

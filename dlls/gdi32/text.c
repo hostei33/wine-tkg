@@ -71,7 +71,6 @@ WINE_DEFAULT_DEBUG_CHANNEL(bidi);
 #define WINE_GCPW_LOOSE_RTL 3
 #define WINE_GCPW_DIR_MASK 3
 #define WINE_GCPW_LOOSE_MASK 2
-#define WINE_GCPW_DISABLE_REORDERING 0x10000000
 
 #define odd(x) ((x) & 1)
 
@@ -351,8 +350,7 @@ static BOOL BIDI_Reorder( HDC hDC,               /* [in] Display DC */
                           INT uCountOut,         /* [in] Size of output buffer */
                           UINT *lpOrder,         /* [out] Logical -> Visual order map */
                           WORD **lpGlyphs,       /* [out] reordered, mirrored, shaped glyphs to display */
-                          INT *cGlyphs,          /* [out] number of glyphs generated */
-                          WORD **cluster_map )   /* [out] cluster map for returned glyphs */
+                          INT *cGlyphs )         /* [out] number of glyphs generated */
 {
     WORD *chartype = NULL;
     BYTE *levels = NULL;
@@ -590,30 +588,19 @@ static BOOL BIDI_Reorder( HDC hDC,               /* [in] Display DC */
             }
 
             for (j = 0; j < nItems; j++)
-            {
                 runOrder[j] = pItems[j].a.s.uBidiLevel;
-                visOrder[j] = j;
-                if (dwWineGCP_Flags & WINE_GCPW_DISABLE_REORDERING)
-                    pItems[j].a.fLogicalOrder = TRUE;
-            }
 
-            if (!(dwWineGCP_Flags & WINE_GCPW_DISABLE_REORDERING))
-                ScriptLayout(nItems, runOrder, visOrder, NULL);
+            ScriptLayout(nItems, runOrder, visOrder, NULL);
 
             for (j = 0; j < nItems; j++)
             {
-                const WCHAR *text;
-                WORD *cluster_map;
                 int k;
                 int cChars,cOutGlyphs;
-
                 curItem = &pItems[visOrder[j]];
 
                 cChars = pItems[visOrder[j]+1].iCharPos - curItem->iCharPos;
 
-                text = lpString + done + curItem->iCharPos;
-                cluster_map = pwLogClust + done + curItem->iCharPos;
-                res = ScriptShape(hDC, &psc, text, cChars, cMaxGlyphs, &curItem->a, run_glyphs, cluster_map, psva, &cOutGlyphs);
+                res = ScriptShape(hDC, &psc, lpString + done + curItem->iCharPos, cChars, cMaxGlyphs, &curItem->a, run_glyphs, pwLogClust, psva, &cOutGlyphs);
                 while (res == E_OUTOFMEMORY)
                 {
                     WORD *new_run_glyphs = HeapReAlloc(GetProcessHeap(), 0, run_glyphs, sizeof(*run_glyphs) * cMaxGlyphs * 2);
@@ -634,7 +621,7 @@ static BOOL BIDI_Reorder( HDC hDC,               /* [in] Display DC */
                     run_glyphs = new_run_glyphs;
                     psva = new_psva;
                     cMaxGlyphs *= 2;
-                    res = ScriptShape(hDC, &psc, text, cChars, cMaxGlyphs, &curItem->a, run_glyphs, cluster_map, psva, &cOutGlyphs);
+                    res = ScriptShape(hDC, &psc, lpString + done + curItem->iCharPos, cChars, cMaxGlyphs, &curItem->a, run_glyphs, pwLogClust, psva, &cOutGlyphs);
                 }
                 if (res)
                 {
@@ -666,11 +653,6 @@ static BOOL BIDI_Reorder( HDC hDC,               /* [in] Display DC */
                     *lpGlyphs = new_glyphs;
                     for (k = 0; k < cOutGlyphs; k++)
                         (*lpGlyphs)[glyph_i+k] = run_glyphs[k];
-
-                    /* Fix item cluster map indices to be usable with returned glyph array. */
-                    for (k = 0; k < cChars; ++k)
-                        cluster_map[k] += glyph_i;
-
                     glyph_i += cOutGlyphs;
                 }
             }
@@ -682,11 +664,6 @@ static BOOL BIDI_Reorder( HDC hDC,               /* [in] Display DC */
     }
     if (cGlyphs)
         *cGlyphs = glyph_i;
-    if (cluster_map)
-    {
-        *cluster_map = pwLogClust;
-        pwLogClust = NULL;
-    }
 
     ret = TRUE;
 cleanup:
@@ -780,11 +757,10 @@ static void text_metric_ex_WtoA(const NEWTEXTMETRICEXW *tmW, NEWTEXTMETRICEXA *t
 
 static void logfont_AtoW( const LOGFONTA *fontA, LPLOGFONTW fontW )
 {
-    int len = MultiByteToWideChar( CP_ACP, 0, fontA->lfFaceName,
-                                   strnlen( fontA->lfFaceName, LF_FACESIZE ),
-                                   fontW->lfFaceName, LF_FACESIZE );
-    fontW->lfFaceName[min( len, LF_FACESIZE - 1 )] = 0;
     memcpy( fontW, fontA, sizeof(LOGFONTA) - LF_FACESIZE );
+    MultiByteToWideChar( CP_ACP, 0, fontA->lfFaceName, -1, fontW->lfFaceName,
+                         LF_FACESIZE );
+    fontW->lfFaceName[LF_FACESIZE - 1] = 0;
 }
 
 static void logfont_WtoA( const LOGFONTW *fontW, LPLOGFONTA fontA )
@@ -976,7 +952,7 @@ BOOL WINAPI ExtTextOutW( HDC hdc, INT x, INT y, UINT flags, const RECT *rect,
             ? WINE_GCPW_FORCE_RTL : WINE_GCPW_FORCE_LTR;
 
         BIDI_Reorder( hdc, str, count, GCP_REORDER, bidi_flags, NULL, 0, NULL,
-                      &glyphs, &glyphs_count, NULL );
+                      &glyphs, &glyphs_count );
 
         flags |= ETO_IGNORELANGUAGE;
         if (glyphs)
@@ -1209,7 +1185,7 @@ DWORD WINAPI GetCharacterPlacementW( HDC hdc, const WCHAR *str, INT count, INT m
     else
     {
         BIDI_Reorder( NULL, str, count, flags, WINE_GCPW_FORCE_LTR, result->lpOutString,
-                      set_cnt, result->lpOrder, NULL, NULL, NULL );
+                      set_cnt, result->lpOrder, NULL, NULL );
     }
 
     if (flags & GCP_USEKERNING)
@@ -1341,106 +1317,13 @@ INT WINAPI GetTextFaceW( HDC hdc, INT count, WCHAR *name )
     return NtGdiGetTextFaceW( hdc, count, name, FALSE );
 }
 
-static unsigned int get_char_cluster_size(unsigned int start, unsigned int count, const WORD *cluster_map,
-        WORD *first_glyph, WORD *last_glyph)
-{
-    unsigned int i, size = 1;
-
-    *first_glyph = cluster_map[start];
-    *last_glyph = *first_glyph;
-
-    for (i = start + 1; i < count; ++i)
-    {
-        if (cluster_map[i] != *first_glyph)
-        {
-            *last_glyph = cluster_map[i] - 1;
-            break;
-        }
-        size++;
-    }
-
-    return size;
-}
-
-static int get_cluster_extent(const INT *dxs, WORD first_glyph, WORD last_glyph)
-{
-    int extent = dxs[last_glyph];
-
-    if (first_glyph)
-        extent -= dxs[first_glyph - 1];
-    return extent;
-}
-
 /***********************************************************************
  *           GetTextExtentExPointW    (GDI32.@)
  */
 BOOL WINAPI GetTextExtentExPointW( HDC hdc, const WCHAR *str, INT count, INT max_ext,
                                    INT *nfit, INT *dxs, SIZE *size )
 {
-    WORD *glyphs = NULL, *cluster_map = NULL;
-    unsigned int i, j;
-    DC_ATTR *dc_attr;
-    int glyphs_count;
-    UINT bidi_flags;
-    BOOL ret = TRUE;
-
-    if (!(dc_attr = get_dc_attr( hdc ))) return FALSE;
-    if (count < 0) return FALSE;
-
-    bidi_flags = dc_attr->text_align & TA_RTLREADING ? WINE_GCPW_FORCE_RTL : WINE_GCPW_FORCE_LTR;
-    bidi_flags |= WINE_GCPW_DISABLE_REORDERING;
-
-    if (nfit) *nfit = 0;
-
-    BIDI_Reorder( hdc, str, count, GCP_REORDER, bidi_flags, NULL, 0, NULL,
-                  &glyphs, &glyphs_count, &cluster_map );
-
-    if (glyphs)
-    {
-        BOOL need_extents = dxs || nfit;
-        INT *glyph_dxs = NULL;
-
-        if (need_extents)
-        {
-            if (!(glyph_dxs = HeapAlloc( GetProcessHeap(), 0, glyphs_count * sizeof(*glyph_dxs) )))
-                ret = FALSE;
-        }
-
-        if (ret)
-            ret = NtGdiGetTextExtentExW( hdc, glyphs, glyphs_count, 0, NULL, glyph_dxs, size, 1 );
-
-        if (ret && need_extents)
-        {
-            unsigned int cluster_size, cluster_extent;
-            WORD first_glyph, last_glyph;
-            int extents = 0;
-
-            for (i = 0; i < count; i += cluster_size)
-            {
-                cluster_size = get_char_cluster_size(i, count, cluster_map, &first_glyph, &last_glyph);
-                cluster_extent = get_cluster_extent(glyph_dxs, first_glyph, last_glyph);
-
-                if (extents + cluster_extent > max_ext) break;
-                if (nfit) *nfit += cluster_size;
-
-                if (dxs)
-                {
-                    for (j = 0; j < cluster_size; ++j)
-                        dxs[i + j] = extents + cluster_extent / cluster_size;
-                }
-
-                extents += cluster_extent;
-            }
-        }
-
-        HeapFree( GetProcessHeap(), 0, glyphs );
-        HeapFree( GetProcessHeap(), 0, glyph_dxs );
-        HeapFree( GetProcessHeap(), 0, cluster_map );
-    }
-    else
-        ret = NtGdiGetTextExtentExW( hdc, str, count, max_ext, nfit, dxs, size, 0 );
-
-    return ret;
+    return NtGdiGetTextExtentExW( hdc, str, count, max_ext, nfit, dxs, size, 0 );
 }
 
 /***********************************************************************
@@ -2602,7 +2485,44 @@ HANDLE WINAPI AddFontMemResourceEx( void *ptr, DWORD size, void *dv, DWORD *coun
 static const char dos_string[0x40] = "This is a TrueType resource file";
 static const char FONTRES[] = {'F','O','N','T','R','E','S',':'};
 
-#pragma pack(push,2)
+#include <pshpack1.h>
+struct fontdir
+{
+    WORD   num_of_resources;
+    WORD   res_id;
+    WORD   dfVersion;
+    DWORD  dfSize;
+    CHAR   dfCopyright[60];
+    WORD   dfType;
+    WORD   dfPoints;
+    WORD   dfVertRes;
+    WORD   dfHorizRes;
+    WORD   dfAscent;
+    WORD   dfInternalLeading;
+    WORD   dfExternalLeading;
+    BYTE   dfItalic;
+    BYTE   dfUnderline;
+    BYTE   dfStrikeOut;
+    WORD   dfWeight;
+    BYTE   dfCharSet;
+    WORD   dfPixWidth;
+    WORD   dfPixHeight;
+    BYTE   dfPitchAndFamily;
+    WORD   dfAvgWidth;
+    WORD   dfMaxWidth;
+    BYTE   dfFirstChar;
+    BYTE   dfLastChar;
+    BYTE   dfDefaultChar;
+    BYTE   dfBreakChar;
+    WORD   dfWidthBytes;
+    DWORD  dfDevice;
+    DWORD  dfFace;
+    DWORD  dfReserved;
+    CHAR   szFaceName[LF_FACESIZE];
+};
+#include <poppack.h>
+
+#include <pshpack2.h>
 
 struct ne_typeinfo
 {
@@ -2631,7 +2551,7 @@ struct rsrc_tab
     BYTE fontdir_res_name[8];
 };
 
-#pragma pack(pop)
+#include <poppack.h>
 
 static BOOL create_fot( const WCHAR *resource, const WCHAR *font_file, const struct fontdir *fontdir )
 {
@@ -2641,7 +2561,6 @@ static BOOL create_fot( const WCHAR *resource, const WCHAR *font_file, const str
     BYTE *ptr, *start;
     BYTE import_name_len, res_name_len, non_res_name_len, font_file_len;
     char *font_fileA, *last_part, *ext;
-    const char *face_name;
     IMAGE_DOS_HEADER dos;
     IMAGE_OS2_HEADER ne =
     {
@@ -2681,8 +2600,7 @@ static BOOL create_fot( const WCHAR *resource, const WCHAR *font_file, const str
     if (ext) res_name_len = ext - last_part;
     else res_name_len = import_name_len - 1;
 
-    face_name = fontdir->szFaceName + strlen( fontdir->szFaceName ) + 1;  /* skip family name */
-    non_res_name_len = sizeof( FONTRES ) + strlen( face_name );
+    non_res_name_len = sizeof( FONTRES ) + strlen( fontdir->szFaceName );
 
     ne.ne_cbnrestab = 1 + non_res_name_len + 2 + 1; /* len + string + (WORD) ord_num + 1 byte eod */
     ne.ne_restab = ne.ne_rsrctab + sizeof(rsrc_tab);
@@ -2694,7 +2612,7 @@ static BOOL create_fot( const WCHAR *resource, const WCHAR *font_file, const str
     rsrc_tab.scalable_name.off = (ne.ne_nrestab + ne.ne_cbnrestab + 0xf) >> 4;
     rsrc_tab.scalable_name.len = (font_file_len + 0xf) >> 4;
     rsrc_tab.fontdir_name.off  = rsrc_tab.scalable_name.off + rsrc_tab.scalable_name.len;
-    rsrc_tab.fontdir_name.len  = (sizeof(*fontdir) + 0xf) >> 4;
+    rsrc_tab.fontdir_name.len  = (fontdir->dfSize + 0xf) >> 4;
 
     size = (rsrc_tab.fontdir_name.off + rsrc_tab.fontdir_name.len) << 4;
     start = ptr = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, size );
@@ -2723,13 +2641,13 @@ static BOOL create_fot( const WCHAR *resource, const WCHAR *font_file, const str
     ptr = start + ne.ne_nrestab;
     *ptr++ = non_res_name_len;
     memcpy( ptr, FONTRES, sizeof(FONTRES) );
-    memcpy( ptr + sizeof(FONTRES), face_name, strlen( face_name ));
+    memcpy( ptr + sizeof(FONTRES), fontdir->szFaceName, strlen( fontdir->szFaceName ) );
 
     ptr = start + (rsrc_tab.scalable_name.off << 4);
     memcpy( ptr, font_fileA, font_file_len );
 
     ptr = start + (rsrc_tab.fontdir_name.off << 4);
-    memcpy( ptr, fontdir, sizeof(*fontdir) );
+    memcpy( ptr, fontdir, fontdir->dfSize );
 
     file = CreateFileW( resource, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL );
     if (file != INVALID_HANDLE_VALUE)
@@ -2751,10 +2669,12 @@ static BOOL create_fot( const WCHAR *resource, const WCHAR *font_file, const str
 BOOL WINAPI CreateScalableFontResourceW( DWORD hidden, const WCHAR *resource_file,
                                          const WCHAR *font_file, const WCHAR *font_path )
 {
-    WCHAR path[MAX_PATH];
-    struct fontdir fontdir;
+    WCHAR path[MAX_PATH], face_name[128];
+    struct fontdir fontdir = { 0 };
     UNICODE_STRING nt_name;
-    ULONG ret;
+    TEXTMETRICW otm;
+    UINT em_square;
+    BOOL ret;
 
     TRACE("(%ld, %s, %s, %s)\n", hidden, debugstr_w(resource_file),
           debugstr_w(font_file), debugstr_w(font_path) );
@@ -2770,11 +2690,45 @@ BOOL WINAPI CreateScalableFontResourceW( DWORD hidden, const WCHAR *resource_fil
         if (!RtlDosPathNameToNtPathName_U( path, &nt_name, NULL, NULL )) goto done;
     }
     else if (!RtlDosPathNameToNtPathName_U( font_file, &nt_name, NULL, NULL )) goto done;
-
-    ret = NtGdiMakeFontDir( hidden, (BYTE *)&fontdir, sizeof(fontdir),
-                            nt_name.Buffer, nt_name.Length + sizeof(WCHAR) );
+    ret = __wine_get_file_outline_text_metric( nt_name.Buffer, &otm, &em_square, face_name );
     RtlFreeUnicodeString( &nt_name );
-    if (ret) return create_fot( resource_file, font_file, &fontdir );
+    if (!ret) goto done;
+    if (!(otm.tmPitchAndFamily & TMPF_TRUETYPE)) goto done;
+
+    fontdir.num_of_resources  = 1;
+    fontdir.res_id            = 0;
+    fontdir.dfVersion         = 0x200;
+    fontdir.dfSize            = sizeof(fontdir);
+    strcpy( fontdir.dfCopyright, "Wine fontdir" );
+    fontdir.dfType            = 0x4003;  /* 0x0080 set if private */
+    fontdir.dfPoints          = em_square;
+    fontdir.dfVertRes         = 72;
+    fontdir.dfHorizRes        = 72;
+    fontdir.dfAscent          = otm.tmAscent;
+    fontdir.dfInternalLeading = otm.tmInternalLeading;
+    fontdir.dfExternalLeading = otm.tmExternalLeading;
+    fontdir.dfItalic          = otm.tmItalic;
+    fontdir.dfUnderline       = otm.tmUnderlined;
+    fontdir.dfStrikeOut       = otm.tmStruckOut;
+    fontdir.dfWeight          = otm.tmWeight;
+    fontdir.dfCharSet         = otm.tmCharSet;
+    fontdir.dfPixWidth        = 0;
+    fontdir.dfPixHeight       = otm.tmHeight;
+    fontdir.dfPitchAndFamily  = otm.tmPitchAndFamily;
+    fontdir.dfAvgWidth        = otm.tmAveCharWidth;
+    fontdir.dfMaxWidth        = otm.tmMaxCharWidth;
+    fontdir.dfFirstChar       = otm.tmFirstChar;
+    fontdir.dfLastChar        = otm.tmLastChar;
+    fontdir.dfDefaultChar     = otm.tmDefaultChar;
+    fontdir.dfBreakChar       = otm.tmBreakChar;
+    fontdir.dfWidthBytes      = 0;
+    fontdir.dfDevice          = 0;
+    fontdir.dfFace            = FIELD_OFFSET( struct fontdir, szFaceName );
+    fontdir.dfReserved        = 0;
+    WideCharToMultiByte( CP_ACP, 0, face_name, -1, fontdir.szFaceName, LF_FACESIZE, NULL, NULL );
+
+    if (hidden) fontdir.dfType |= 0x80;
+    return create_fot( resource_file, font_file, &fontdir );
 
 done:
     SetLastError( ERROR_INVALID_PARAMETER );

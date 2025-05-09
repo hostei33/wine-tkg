@@ -49,7 +49,7 @@ typedef struct _HID_DEVICE_ATTRIBUTES
     USHORT Reserved[11];
 } HID_DEVICE_ATTRIBUTES, *PHID_DEVICE_ATTRIBUTES;
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 typedef struct _HID_DESCRIPTOR
 {
     UCHAR   bLength;
@@ -63,7 +63,7 @@ typedef struct _HID_DESCRIPTOR
         USHORT  wReportLength;
     } DescriptorList[1];
 } HID_DESCRIPTOR, *PHID_DESCRIPTOR;
-#pragma pack(pop)
+#include <poppack.h>
 
 #define HID_HID_DESCRIPTOR_TYPE 0x21
 #define HID_REPORT_DESCRIPTOR_TYPE 0x22

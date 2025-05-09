@@ -656,7 +656,7 @@ static void test_provider_funcs(void)
 #define RVA_IDATA 0x3000
 #define FILE_TOTAL 0x600
 #define RVA_TOTAL 0x4000
-#pragma pack(push,1)
+#include <pshpack1.h>
 struct Imports {
     IMAGE_IMPORT_DESCRIPTOR descriptors[2];
     IMAGE_THUNK_DATA32 original_thunks[2];
@@ -735,7 +735,7 @@ static struct _PeImage {
     /* final alignment */
     {0}
 };
-#pragma pack(pop)
+#include <poppack.h>
 
 static void test_sip_create_indirect_data(void)
 {
@@ -832,7 +832,6 @@ static void test_wintrust(void)
     LONG r;
     HRESULT hr;
     WCHAR pathW[MAX_PATH];
-    CRYPT_PROVIDER_DATA *prov_data;
 
     memset(&wtd, 0, sizeof(wtd));
     wtd.cbStruct = sizeof(wtd);
@@ -868,30 +867,10 @@ static void test_wintrust(void)
     ok(r == S_OK, "WinVerifyTrust failed: %08lx\n", r);
     wtd.dwStateAction = WTD_STATEACTION_VERIFY;
     SetLastError(0xdeadbeef);
-    wtd.hWVTStateData = NULL;
     hr = WinVerifyTrustEx(INVALID_HANDLE_VALUE, &generic_action_v2, &wtd);
     ok(hr == GetLastError(), "expected %08lx, got %08lx\n", GetLastError(), hr);
     ok(hr == TRUST_E_NOSIGNATURE || hr == CRYPT_E_FILE_ERROR,
      "expected TRUST_E_NOSIGNATURE or CRYPT_E_FILE_ERROR, got %08lx\n", hr);
-    prov_data = WTHelperProvDataFromStateData(wtd.hWVTStateData);
-    ok(!!prov_data, "got NULL.\n");
-    ok(prov_data->hWndParent == INVALID_HANDLE_VALUE, "got %p.\n", prov_data->hWndParent);
-    wtd.dwStateAction = WTD_STATEACTION_CLOSE;
-    SetLastError(0xdeadbeef);
-    r = WinVerifyTrust(INVALID_HANDLE_VALUE, &generic_action_v2, &wtd);
-    ok(GetLastError() == 0xdeadbeef, "expected 0xdeadbeef, got %08lx\n", GetLastError());
-    ok(r == S_OK, "WinVerifyTrust failed: %08lx\n", r);
-
-    wtd.dwStateAction = WTD_STATEACTION_VERIFY;
-    SetLastError(0xdeadbeef);
-    wtd.hWVTStateData = NULL;
-    hr = WinVerifyTrustEx(NULL, &generic_action_v2, &wtd);
-    ok(hr == GetLastError(), "expected %08lx, got %08lx\n", GetLastError(), hr);
-    ok(hr == TRUST_E_NOSIGNATURE || hr == CRYPT_E_FILE_ERROR,
-     "expected TRUST_E_NOSIGNATURE or CRYPT_E_FILE_ERROR, got %08lx\n", hr);
-    prov_data = WTHelperProvDataFromStateData(wtd.hWVTStateData);
-    ok(!!prov_data, "got NULL.\n");
-    ok(!prov_data->hWndParent, "got %p.\n", prov_data->hWndParent);
     wtd.dwStateAction = WTD_STATEACTION_CLOSE;
     SetLastError(0xdeadbeef);
     r = WinVerifyTrust(INVALID_HANDLE_VALUE, &generic_action_v2, &wtd);
@@ -1913,47 +1892,6 @@ static void test_multiple_signatures(void)
     DeleteFileW(pathW);
 }
 
-static BOOL (WINAPI *pCryptCATAdminCalcHashFromFileHandle)(HANDLE,DWORD*,BYTE*,DWORD);
-
-static void test_pe_image_hash(void)
-{
-    static const char expected[] =
-        {0x8a,0xd5,0x45,0x53,0x3d,0x67,0xdf,0x2f,0x78,0xe0,0x55,0x0a,0xe0,0xd9,0x7a,0x28,0x3e,0xbf,0x45,0x2b};
-    WCHAR path[MAX_PATH];
-    HANDLE file;
-    BYTE sha1[20];
-    DWORD size, count;
-    HMODULE wintrust = GetModuleHandleA("wintrust.dll");
-    BOOL ret;
-
-    pCryptCATAdminCalcHashFromFileHandle = (void *)GetProcAddress(wintrust, "CryptCATAdminCalcHashFromFileHandle");
-    if (!pCryptCATAdminCalcHashFromFileHandle)
-    {
-        win_skip("hash function missing\n");
-        return;
-    }
-
-    file = create_temp_file(path);
-    WriteFile(file, &bin, sizeof(bin), &count, NULL);
-
-    size = sizeof(sha1);
-    memset(sha1, 0, sizeof(sha1));
-    ret = pCryptCATAdminCalcHashFromFileHandle(file, &size, sha1, 0);
-    ok(ret, "got %lu\n", GetLastError());
-    ok(!memcmp(sha1, expected, sizeof(sha1)), "wrong hash\n");
-
-    CloseHandle(file);
-    DeleteFileW(path);
-}
-
-static void test_WTHelperGetProvCertFromChain(void)
-{
-    CRYPT_PROVIDER_CERT *cert;
-
-    cert = WTHelperGetProvCertFromChain(NULL, 0);
-    ok(!cert, "got certificate\n");
-}
-
 START_TEST(softpub)
 {
     InitFunctionPtrs();
@@ -1962,7 +1900,5 @@ START_TEST(softpub)
     test_wintrust();
     test_wintrust_digest();
     test_get_known_usages();
-    test_WTHelperGetProvCertFromChain();
     test_multiple_signatures();
-    test_pe_image_hash();
 }

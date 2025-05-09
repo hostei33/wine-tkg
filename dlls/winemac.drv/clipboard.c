@@ -251,6 +251,12 @@ static const char *debugstr_format(UINT id)
 }
 
 
+static CFTypeRef pasteboard_from_handle(UINT64 handle)
+{
+    return (CFTypeRef)(UINT_PTR)handle;
+}
+
+
 /**************************************************************************
  *              insert_clipboard_format
  */
@@ -280,7 +286,7 @@ static WINE_CLIPFORMAT *insert_clipboard_format(UINT id, CFStringRef type)
         if (!NtUserGetClipboardFormatName(format->format_id, buffer, ARRAY_SIZE(buffer)))
         {
             WARN("failed to get name for format %s; error 0x%08x\n", debugstr_format(format->format_id),
-                 RtlGetLastWin32Error());
+                 (unsigned int)RtlGetLastWin32Error());
             free(format);
             return NULL;
         }
@@ -1124,52 +1130,129 @@ static CFDataRef export_unicodetext_to_utf16(void *data, size_t size)
     return ret;
 }
 
-struct format_entry *get_format_entries(CFTypeRef pasteboard, UINT *entries_size)
-{
-    struct format_entry *entries = NULL;
-    CFStringRef type;
-    CFArrayRef types;
-    size_t size = 0;
-    CFIndex i;
-    char *tmp;
 
-    TRACE("pasteboard %p\n", pasteboard);
+/**************************************************************************
+ *              macdrv_dnd_get_data
+ */
+NTSTATUS macdrv_dnd_get_data(void *arg)
+{
+    struct dnd_get_data_params *params = arg;
+    CFTypeRef pasteboard = pasteboard_from_handle(params->handle);
+    CFArrayRef types;
+    CFIndex count;
+    CFIndex i;
+    CFStringRef type, best_type;
+    WINE_CLIPFORMAT* best_format = NULL;
+    unsigned int status = STATUS_SUCCESS;
+
+    TRACE("pasteboard %p, desired_format %s\n", pasteboard, debugstr_format(params->format));
 
     types = macdrv_copy_pasteboard_types(pasteboard);
-    if (!types) return NULL;
-
-    for (i = 0; i < CFArrayGetCount(types); i++)
+    if (!types)
     {
-        WINE_CLIPFORMAT *format;
-        size_t import_size;
-        CFDataRef data;
-        void *import;
+        WARN("Failed to copy pasteboard types\n");
+        return STATUS_NO_MEMORY;
+    }
+
+    count = CFArrayGetCount(types);
+    TRACE("got %ld types\n", count);
+
+    for (i = 0; (!best_format || best_format->synthesized) && i < count; i++)
+    {
+        WINE_CLIPFORMAT* format;
 
         type = CFArrayGetValueAtIndex(types, i);
-        if (!(format = format_for_type(type))) continue;
 
-        data = macdrv_copy_pasteboard_data(pasteboard, type);
-        import = format->import_func(data, &import_size);
-
-        if ((tmp = realloc(entries, size + sizeof(*entries) + import_size)))
+        if ((format = format_for_type(type)))
         {
-            struct format_entry *entry = (struct format_entry *)(tmp + size);
-            entry->format = format->format_id;
-            entry->size = import_size;
-            memcpy(entry->data, import, import_size);
+            TRACE("for type %s got format %p/%s\n", debugstr_cf(type), format, debugstr_format(format->format_id));
 
-            entries = (struct format_entry *)tmp;
-            size += sizeof(*entry) + import_size;
+            if (format->format_id == params->format)
+            {
+                /* The best format is the matching one which is not synthesized.  Failing that,
+                   the best format is the first matching synthesized format. */
+                if (!format->synthesized || !best_format)
+                {
+                    best_type = type;
+                    best_format = format;
+                }
+            }
         }
+    }
 
-        free(import);
+    if (best_format)
+    {
+        CFDataRef pasteboard_data = macdrv_copy_pasteboard_data(pasteboard, best_type);
+
+        TRACE("got pasteboard data for type %s: %s\n", debugstr_cf(best_type), debugstr_cf(pasteboard_data));
+
+        if (pasteboard_data)
+        {
+            size_t size;
+            void *import = best_format->import_func(pasteboard_data, &size);
+            if (import)
+            {
+                if (size > params->size) status = STATUS_BUFFER_OVERFLOW;
+                else memcpy(params->data, import, size);
+                params->size = size;
+                free(import);
+            }
+            CFRelease(pasteboard_data);
+        }
     }
 
     CFRelease(types);
-
-    *entries_size = size;
-    return entries;
+    TRACE(" -> %#x\n", status);
+    return status;
 }
+
+
+/**************************************************************************
+ *              macdrv_pasteboard_has_format
+ */
+NTSTATUS macdrv_dnd_have_format(void *arg)
+{
+    struct dnd_have_format_params *params = arg;
+    CFTypeRef pasteboard = pasteboard_from_handle(params->handle);
+    CFArrayRef types;
+    int count;
+    UINT i;
+    BOOL found = FALSE;
+
+    TRACE("pasteboard %p, desired_format %s\n", pasteboard, debugstr_format(params->format));
+
+    types = macdrv_copy_pasteboard_types(pasteboard);
+    if (!types)
+    {
+        WARN("Failed to copy pasteboard types\n");
+        return FALSE;
+    }
+
+    count = CFArrayGetCount(types);
+    TRACE("got %d types\n", count);
+
+    for (i = 0; i < count; i++)
+    {
+        CFStringRef type = CFArrayGetValueAtIndex(types, i);
+        WINE_CLIPFORMAT* format = format_for_type(type);
+
+        if (format)
+        {
+            TRACE("for type %s got format %s\n", debugstr_cf(type), debugstr_format(format->format_id));
+
+            if (format->format_id == params->format)
+            {
+                found = TRUE;
+                break;
+            }
+        }
+    }
+
+    CFRelease(types);
+    TRACE(" -> %d\n", found);
+    return found;
+}
+
 
 /**************************************************************************
  *              get_formats_for_pasteboard_types
@@ -1266,6 +1349,51 @@ static WINE_CLIPFORMAT** get_formats_for_pasteboard_types(CFArrayRef types, UINT
 
     *num_formats = pos;
     return formats;
+}
+
+
+/**************************************************************************
+ *              get_formats_for_pasteboard
+ */
+static WINE_CLIPFORMAT** get_formats_for_pasteboard(CFTypeRef pasteboard, UINT *num_formats)
+{
+    CFArrayRef types;
+    WINE_CLIPFORMAT** formats;
+
+    TRACE("pasteboard %s\n", debugstr_cf(pasteboard));
+
+    types = macdrv_copy_pasteboard_types(pasteboard);
+    if (!types)
+    {
+        WARN("Failed to copy pasteboard types\n");
+        return NULL;
+    }
+
+    formats = get_formats_for_pasteboard_types(types, num_formats);
+    CFRelease(types);
+    return formats;
+}
+
+
+/**************************************************************************
+ *              macdrv_dnd_get_formats
+ */
+NTSTATUS macdrv_dnd_get_formats(void *arg)
+{
+    struct dnd_get_formats_params *params = arg;
+    CFTypeRef pasteboard = pasteboard_from_handle(params->handle);
+    WINE_CLIPFORMAT** formats;
+    UINT count, i;
+
+    formats = get_formats_for_pasteboard(pasteboard, &count);
+    if (!formats)
+        return 0;
+    count = min(count, ARRAYSIZE(params->formats));
+
+    for (i = 0; i < count; i++)
+        params->formats[i] = formats[i]->format_id;
+
+    return count;
 }
 
 
@@ -1436,7 +1564,7 @@ static void update_clipboard(void)
     static BOOL updating;
 
     TRACE("is_clipboard_owner %d last_clipboard_update %u now %u\n",
-          is_clipboard_owner, last_clipboard_update, NtGetTickCount());
+          is_clipboard_owner, last_clipboard_update, (unsigned int)NtGetTickCount());
 
     if (updating) return;
     updating = TRUE;
@@ -1618,4 +1746,26 @@ void macdrv_lost_pasteboard_ownership(HWND hwnd)
     TRACE("win %p\n", hwnd);
     if (!macdrv_is_pasteboard_owner(clipboard_cocoa_window))
         grab_win32_clipboard();
+}
+
+
+/**************************************************************************
+ *              macdrv_dnd_release
+ */
+NTSTATUS macdrv_dnd_release(void *arg)
+{
+    UINT64 handle = *(UINT64 *)arg;
+    CFRelease(pasteboard_from_handle(handle));
+    return 0;
+}
+
+
+/**************************************************************************
+ *              macdrv_dnd_retain
+ */
+NTSTATUS macdrv_dnd_retain(void *arg)
+{
+    UINT64 handle = *(UINT64 *)arg;
+    CFRetain(pasteboard_from_handle(handle));
+    return 0;
 }

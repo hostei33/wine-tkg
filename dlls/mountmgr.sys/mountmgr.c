@@ -44,21 +44,14 @@ struct mount_point
 static struct list mount_points_list = LIST_INIT(mount_points_list);
 static HKEY mount_key;
 
-void set_mount_point_id( struct mount_point *mount, const void *id, unsigned int id_len, int drive )
+void set_mount_point_id( struct mount_point *mount, const void *id, unsigned int id_len )
 {
-    WCHAR logicalW[] = {'\\','\\','.','\\','a',':',0};
     free( mount->id );
     mount->id_len = max( MIN_ID_LEN, id_len );
     if ((mount->id = calloc( mount->id_len, 1 )))
     {
         memcpy( mount->id, id, id_len );
-        if (drive < 0)
-            RegSetValueExW( mount_key, mount->link.Buffer, 0, REG_BINARY, mount->id, mount->id_len );
-        else
-        {
-            logicalW[4] = 'a' + drive;
-            RegSetValueExW( mount_key, mount->link.Buffer, 0, REG_BINARY, (BYTE*)logicalW, sizeof(logicalW) );
-        }
+        RegSetValueExW( mount_key, mount->link.Buffer, 0, REG_BINARY, mount->id, mount->id_len );
     }
     else mount->id_len = 0;
 }
@@ -264,7 +257,7 @@ static NTSTATUS define_unix_drive( const void *in_buff, SIZE_T insize )
         case DRIVE_RAMDISK:   type = DEVICE_RAMDISK; break;
         case DRIVE_FIXED:     type = DEVICE_HARDDISK_VOL; break;
         }
-        return add_dos_device( letter - 'a', NULL, device, mount_point, type, NULL, NULL, NULL );
+        return add_dos_device( letter - 'a', NULL, device, mount_point, type, NULL, NULL );
     }
     else
     {
@@ -451,11 +444,11 @@ static void CALLBACK device_op( ULONG_PTR arg1, ULONG_PTR arg2, ULONG_PTR arg3 )
     {
     case ADD_DOS_DEVICE:
         add_dos_device( -1, info.udi, info.device, info.mount_point,
-                        info.type, info.guid, info.label, info.scsi_info );
+                        info.type, info.guid, info.scsi_info );
         break;
     case ADD_VOLUME:
         add_volume( info.udi, info.device, info.mount_point, DEVICE_HARDDISK_VOL,
-                    info.guid, info.serial, info.label, info.scsi_info );
+                    info.guid, info.serial, info.scsi_info );
         break;
     case REMOVE_DEVICE:
         if (!remove_dos_device( -1, info.udi )) remove_volume( info.udi );

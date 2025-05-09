@@ -27,7 +27,7 @@
 #include "wine/winbase16.h"
 #include "wine/winuser16.h"
 
-#pragma pack(push,1)
+#include "pshpack1.h"
 typedef struct _MOUSEINFO
 {
     BYTE msExist;
@@ -40,7 +40,7 @@ typedef struct _MOUSEINFO
     WORD msYRes;
     WORD msMouseCommPort;
 } MOUSEINFO, *LPMOUSEINFO;
-#pragma pack(pop)
+#include "poppack.h"
 
 static FARPROC16 DefMouseEventProc;
 

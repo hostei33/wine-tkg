@@ -29,14 +29,9 @@
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
 #include <wsipx.h>
-#include <afunix.h>
 #include <wsnwlink.h>
 #include <mswsock.h>
 #include <mstcpip.h>
-#include <bthsdpdef.h>
-#include <bluetoothapis.h>
-#include <bthdef.h>
-#include <ws2bth.h>
 #include <stdio.h>
 #include "wine/test.h"
 
@@ -3190,7 +3185,7 @@ static void test_UDP(void)
     /* peer 0 receives data from all other peers */
     static const TIMEVAL timeout_zero = {0};
     struct sock_info peer[NUM_UDP_PEERS];
-    char buf[16], sockaddr_buf[1024];
+    char buf[16];
     int ss, i, n_recv, n_sent, ret;
     struct sockaddr_in6 addr6;
     struct sockaddr_in addr;
@@ -3221,38 +3216,11 @@ static void test_UDP(void)
         ok ( peer[i].addr.sin_port != htons ( 0 ), "UDP: bind() did not associate port\n" );
     }
 
-    /* Test that specifying a too small fromlen for recvfrom() shouldn't write unnecessary data */
-    n_sent = sendto ( peer[1].s, buf, sizeof(buf), 0, (struct sockaddr *)&peer[0].addr, sizeof(peer[0].addr) );
-    ok ( n_sent == sizeof(buf), "UDP: sendto() sent wrong amount of data or socket error: %d\n", n_sent );
-
-    sockaddr_buf[0] = 'A';
-    ss = 1;
-    n_recv = recvfrom ( peer[0].s, buf, sizeof(buf), 0, (struct sockaddr *)sockaddr_buf, &ss );
-    todo_wine
-    ok ( n_recv == SOCKET_ERROR, "UDP: recvfrom() succeeded\n" );
-    ok ( sockaddr_buf[0] == 'A', "UDP: marker got overwritten\n" );
-    if ( n_recv == SOCKET_ERROR )
-    {
-        ss = sizeof ( peer[0].addr );
-        n_recv = recvfrom ( peer[0].s, buf, sizeof(buf), 0, (struct sockaddr *)sockaddr_buf, &ss );
-        ok ( n_recv == sizeof(buf), "UDP: recvfrom() failed\n" );
-    }
-
-    /* Test that specifying a large fromlen for recvfrom() shouldn't write unnecessary data besides the socket address */
-    n_sent = sendto ( peer[1].s, buf, sizeof(buf), 0, (struct sockaddr *)&peer[0].addr, sizeof(peer[0].addr) );
-    ok ( n_sent == sizeof(buf), "UDP: sendto() sent wrong amount of data or socket error: %d\n", n_sent );
-
-    sockaddr_buf[1023] = 'B';
-    ss = sizeof(sockaddr_buf);
-    n_recv = recvfrom ( peer[0].s, buf, sizeof(buf), 0, (struct sockaddr *)sockaddr_buf, &ss );
-    ok ( n_recv == sizeof(buf), "UDP: recvfrom() received wrong amount of data or socket error: %d\n", n_recv );
-    ok ( sockaddr_buf[1023] == 'B', "UDP: marker got overwritten\n" );
-
     /* test getsockname() */
     ok ( peer[0].addr.sin_port == htons ( SERVERPORT ), "UDP: getsockname returned incorrect peer port\n" );
 
     for ( i = 1; i < NUM_UDP_PEERS; i++ ) {
-        /* send client's port */
+        /* send client's ip */
         memcpy( buf, &peer[i].addr.sin_port, sizeof(peer[i].addr.sin_port) );
         n_sent = sendto ( peer[i].s, buf, sizeof(buf), 0, (struct sockaddr*) &peer[0].addr, sizeof(peer[0].addr) );
         ok ( n_sent == sizeof(buf), "UDP: sendto() sent wrong amount of data or socket error: %d\n", n_sent );
@@ -3384,7 +3352,8 @@ static void test_WSASocket(void)
     {
         SetLastError( 0xdeadbeef );
         sock = WSASocketA( tests[i].family, tests[i].type, tests[i].protocol, NULL, 0, 0 );
-        ok(WSAGetLastError() == tests[i].error, "Test %u: got wrong error %u\n", i, WSAGetLastError());
+        todo_wine_if (i == 7)
+            ok(WSAGetLastError() == tests[i].error, "Test %u: got wrong error %u\n", i, WSAGetLastError());
         if (tests[i].error)
         {
             ok(sock == INVALID_SOCKET, "Test %u: expected failure\n", i);
@@ -3716,51 +3685,6 @@ static void test_WSASocket(void)
           closesocket(sock);
         }
     }
-
-    /* Bluetooth RFCOMM socket tests */
-    SetLastError(0xdeadbeef);
-    sock = WSASocketA(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM, NULL, 0, 0);
-    if (sock == INVALID_SOCKET)
-    {
-        err = WSAGetLastError();
-        ok(err == WSAEAFNOSUPPORT || err == WSAEPROTONOSUPPORT, "got error %d\n", err);
-        skip("Bluetooth is not supported\n");
-    }
-    else
-    {
-        WSAPROTOCOL_INFOA info;
-        closesocket(sock);
-
-        sock = WSASocketA(0, SOCK_STREAM, BTHPROTO_RFCOMM, NULL, 0, 0 );
-        ok(sock != INVALID_SOCKET, "Failed to create socket: %d\n", WSAGetLastError());
-
-        size = sizeof(socktype);
-        socktype = 0xdead;
-        err = getsockopt(sock, SOL_SOCKET, SO_TYPE, (char *) &socktype, &size);
-        ok(!err,"getsockopt failed with %d\n", WSAGetLastError());
-        ok(socktype == SOCK_STREAM, "Wrong socket type, expected %d received %d\n",
-           SOCK_STREAM, socktype);
-
-        size = sizeof(WSAPROTOCOL_INFOA);
-        err = getsockopt(sock, SOL_SOCKET, SO_PROTOCOL_INFOA, (char *) &info, &size);
-        ok(!err,"getsockopt failed with %d\n", WSAGetLastError());
-        ok(info.iProtocol == BTHPROTO_RFCOMM, "expected protocol %d, received %d\n",
-           BTHPROTO_RFCOMM, info.iProtocol);
-        ok(info.iAddressFamily == AF_BTH, "expected family %d, received %d\n",
-           AF_IPX, info.iProtocol);
-        ok(info.iSocketType == SOCK_STREAM, "expected type %d, received %d\n",
-           SOCK_DGRAM, info.iSocketType);
-        closesocket(sock);
-
-        /* SOCK_DGRAM is not supported by Bluetooth */
-        SetLastError(0xdeadbeef);
-        ok(WSASocketA(AF_BTH, SOCK_DGRAM, BTHPROTO_RFCOMM, NULL, 0, 0) == INVALID_SOCKET,
-           "WSASocketA should have failed\n");
-        err = WSAGetLastError();
-        ok(err == WSAEAFNOSUPPORT, "Expected 10047, received %d\n", err);
-
-        closesocket(sock);
-    }
 }
 
 static void test_WSADuplicateSocket(void)
@@ -4061,11 +3985,8 @@ static void test_WSAConnectByName(void)
     ret = WSAConnectByNameA(s, "winehq.org", "https", NULL, NULL, NULL, NULL, NULL, NULL);
     err = WSAGetLastError();
     ok(!ret, "WSAConnectByNameA should have failed\n");
-    ok(err == WSAEINVAL ||
-       err == WSAEFAULT ||   /* win10 >= 1809 */
-       err == WSAEOPNOTSUPP, /* win7, win8, win10 <= 1507 */
-       "expected error %u (WSAEINVAL) or %u (WSAEFAULT) or %u (WSAEOPNOTSUPP), got %u\n",
-       WSAEINVAL, WSAEFAULT, WSAEOPNOTSUPP, err);
+    ok(err == WSAEINVAL || err == WSAEFAULT, "expected error %u (WSAEINVAL) or %u (WSAEFAULT), got %u\n",
+       WSAEINVAL, WSAEFAULT, err); /* WSAEFAULT win10 >= 1809 */
     closesocket(s);
 
     /* Passing non-null as the reserved parameter */
@@ -12733,11 +12654,6 @@ static void test_bind(void)
     s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
     WSASetLastError(0xdeadbeef);
-    ret = bind(s, (const struct sockaddr *)&invalid_addr, sizeof(invalid_addr));
-    ok(ret == -1, "expected failure\n");
-    ok(WSAGetLastError() == WSAEADDRNOTAVAIL, "got error %u\n", WSAGetLastError());
-
-    WSASetLastError(0xdeadbeef);
     ret = bind(s, (const struct sockaddr *)&bind_addr, sizeof(bind_addr));
     ok(!ret, "expected success\n");
     ok(!WSAGetLastError() || WSAGetLastError() == 0xdeadbeef /* win <7 */, "got error %u\n", WSAGetLastError());
@@ -12816,45 +12732,6 @@ static void test_bind(void)
     }
 
     free(adapters);
-}
-
-static void test_bind_bluetooth(void)
-{
-    SOCKADDR_BTH addr = {0};
-    SOCKET sock, sock2;
-    INT err, ret;
-
-    sock = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
-    err = WSAGetLastError();
-    if (sock == INVALID_SOCKET)
-    {
-        ok(err == WSAEAFNOSUPPORT || err == WSAEPROTONOSUPPORT, "got error %d\n", err);
-        skip("Bluetooth is not supported\n");
-        return;
-    }
-
-    addr.addressFamily = AF_BTH;
-    addr.btAddr = 0;
-    addr.port = 200;
-    ret = bind(sock, (struct sockaddr *)&addr, sizeof(addr));
-    err = WSAGetLastError();
-    ok(ret == -1, "expected bind to fail\n");
-    ok(err == WSAEADDRNOTAVAIL || err == WSAENETDOWN, "got error %d\n", err);
-
-    addr.port = 20;
-    ret = bind(sock, (struct sockaddr *)&addr, sizeof(addr));
-    err = WSAGetLastError();
-    ok(!ret || err == WSAENETDOWN, "got error %d\n", err);
-
-    sock2 = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
-    ok(sock2 != INVALID_SOCKET, "got error %d\n", WSAGetLastError());
-    addr.port = BT_PORT_ANY;
-    ret = bind(sock2, (struct sockaddr *)&addr, sizeof(addr));
-    err = WSAGetLastError();
-    ok(!ret || err == WSAENETDOWN, "got error %d\n", err);
-
-    closesocket(sock);
-    closesocket(sock2);
 }
 
 /* Test calling methods on a socket which is currently connecting. */
@@ -14474,343 +14351,6 @@ static void test_send_buffering(void)
     closesocket(client);
 }
 
-static void test_afunix(void)
-{
-    SOCKET listener, client, server = 0;
-    SOCKADDR_UN addr = { AF_UNIX, "test_afunix.sock" };
-    char serverBuf[] = "ws2_32/AF_UNIX socket test";
-    char clientBuf[sizeof(serverBuf)] = { 0 };
-
-    char paths[4][sizeof(addr.sun_path)] = { "./tmp.sock", "../tmp.sock" };
-    char dosPath[sizeof(addr.sun_path)];
-    WCHAR dosWidePath[sizeof(addr.sun_path)];
-    UNICODE_STRING ntPath = { 0 };
-    SOCKADDR_UN outAddr = { 0 };
-    int outAddrSize = sizeof(outAddr);
-    SOCKADDR_UN truncatedAddr = { 0 };
-    ULONG zero = 0;
-    ULONG one = 1;
-    int ret;
-
-    /* Test connection and send/recv */
-    listener = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (listener == INVALID_SOCKET && GetLastError() == WSAEAFNOSUPPORT)
-    {
-        win_skip("AF_UNIX sockets are unsupported, skipping...\n");
-        return;
-    }
-
-    ok(listener != INVALID_SOCKET, "Could not create Unix socket: %lu\n",
-        GetLastError());
-
-    ret = bind(listener, (SOCKADDR *)&addr, 0);
-    ok(ret && GetLastError() == WSAEFAULT, "Incorrect error: %lu\n", GetLastError());
-    ret = bind(listener, (SOCKADDR *)&addr, 2);
-    ok(!ret, "Could not bind Unix socket: %lu\n", GetLastError());
-    ret = listen(listener, 1);
-    ok(!ret, "Could not listen on Unix socket: %lu\n", GetLastError());
-    closesocket(listener);
-
-    listener = socket(AF_UNIX, SOCK_STREAM, 0);
-    ok(listener != INVALID_SOCKET, "Could not create Unix socket: %lu\n",
-        GetLastError());
-    ret = bind(listener, (SOCKADDR *)&addr, 3);
-    ok(!ret, "Could not bind Unix socket: %lu\n", GetLastError());
-
-    memcpy(&truncatedAddr, &addr, 3);
-    ret = getsockname(listener, (SOCKADDR *)&outAddr, &outAddrSize);
-    ok(!ret, "Could not get info on Unix socket: %lu\n", GetLastError());
-    ok(!memcmp(truncatedAddr.sun_path, outAddr.sun_path, sizeof(addr.sun_path)),
-        "getsockname returned incorrect path '%s' for provided path '%s'\n",
-        outAddr.sun_path,
-        truncatedAddr.sun_path);
-    ok(outAddrSize == sizeof(outAddr.sun_family) + strlen(outAddr.sun_path) + 1,
-        "getsockname returned incorrect size '%d' for provided path '%s'\n",
-        outAddrSize,
-        truncatedAddr.sun_path);
-    closesocket(listener);
-    ret = DeleteFileA(truncatedAddr.sun_path);
-    ok(ret, "DeleteFileA on socket file failed: %lu\n", GetLastError());
-    ok(GetFileAttributesA(truncatedAddr.sun_path) == INVALID_FILE_ATTRIBUTES &&
-        GetLastError() == ERROR_FILE_NOT_FOUND,
-        "Failed to delete socket file at path '%s'\n",
-        truncatedAddr.sun_path);
-
-    listener = socket(AF_UNIX, SOCK_STREAM, 0);
-    ok(listener != INVALID_SOCKET, "Could not create Unix socket: %lu\n",
-        GetLastError());
-
-    ret = bind(listener, (SOCKADDR *)&addr, sizeof(SOCKADDR_UN));
-    ok(!ret, "Could not bind Unix socket: %lu\n", GetLastError());
-
-    ret = listen(listener, 1);
-    ok(!ret, "Could not listen on Unix socket: %lu\n", GetLastError());
-
-    client = socket(AF_UNIX, SOCK_STREAM, 0);
-    ok(client != INVALID_SOCKET, "Failed to create second Unix socket: %lu\n",
-        GetLastError());
-
-    ret = ioctlsocket(client, FIONBIO, &one);
-    ok(!ret, "Could not set AF_UNIX socket to nonblocking: %lu; skipping connection\n", GetLastError());
-    if (!ret)
-    {
-        ret = connect(client, (SOCKADDR *)&addr, sizeof(addr));
-        ok(!ret || (ret == SOCKET_ERROR && GetLastError() == WSAEWOULDBLOCK),
-            "Error when connecting to Unix socket: %lu\n",
-            GetLastError());
-        server = accept(listener, NULL, NULL);
-        ok(server != INVALID_SOCKET, "Could not accept Unix socket connection: %lu\n",
-            GetLastError());
-        ret = ioctlsocket(client, FIONBIO, &zero);
-        ok(!ret, "Could not set AF_UNIX socket to blocking: %lu\n", GetLastError());
-    }
-
-    ret = send(server, serverBuf, sizeof(serverBuf), 0);
-    ok(ret == sizeof(serverBuf), "Incorrect return value from send: %d\n", ret);
-    ret = recv(client, clientBuf, sizeof(serverBuf), 0);
-    ok(ret == sizeof(serverBuf), "Incorrect return value from recv: %d\n", ret);
-    ok(!memcmp(serverBuf, clientBuf, sizeof(serverBuf)), "Data mismatch over Unix socket\n");
-
-    memset(clientBuf, 0, sizeof(clientBuf));
-
-    ret = sendto(server, serverBuf, sizeof(serverBuf), 0, NULL, 0);
-    ok(ret == sizeof(serverBuf), "Incorrect return value from sendto: %d\n", ret);
-    ret = recvfrom(client, clientBuf, sizeof(serverBuf), 0, NULL, 0);
-    ok(ret == sizeof(serverBuf), "Incorrect return value from recvfrom: %d\n", ret);
-    ok(!memcmp(serverBuf, clientBuf, sizeof(serverBuf)), "Data mismatch over Unix socket\n");
-
-    memset(serverBuf, 0, sizeof(serverBuf));
-
-    ret = send(client, clientBuf, sizeof(clientBuf), 0);
-    ok(ret == sizeof(clientBuf), "Incorrect return value from send: %d\n", ret);
-    ret = recv(server, serverBuf, sizeof(clientBuf), 0);
-    ok(ret == sizeof(serverBuf), "Incorrect return value from recv: %d\n", ret);
-    ok(!memcmp(serverBuf, clientBuf, sizeof(clientBuf)), "Data mismatch over Unix socket\n");
-
-    memset(serverBuf, 0, sizeof(serverBuf));
-
-    ret = sendto(client, clientBuf, sizeof(clientBuf), 0, NULL, 0);
-    ok(ret == sizeof(clientBuf), "Incorrect return value from sendto: %d\n", ret);
-    ret = recvfrom(server, serverBuf, sizeof(clientBuf), 0, NULL, 0);
-    ok(ret == sizeof(serverBuf), "Incorrect return value from recvfrom: %d\n", ret);
-    ok(!memcmp(serverBuf, clientBuf, sizeof(clientBuf)), "Data mismatch over Unix socket\n");
-
-    closesocket(listener);
-    closesocket(client);
-    closesocket(server);
-
-    /* Test socket file deletion */
-    ret = DeleteFileA("test_afunix.sock");
-    ok(ret, "DeleteFileA on socket file failed: %lu\n", GetLastError());
-    ok(GetFileAttributesA("test_afunix.sock") == INVALID_FILE_ATTRIBUTES &&
-        GetLastError() == ERROR_FILE_NOT_FOUND,
-        "Failed to delete socket file at path '%s'\n",
-        addr.sun_path);
-
-    /* Test failure modes */
-    listener = socket(AF_UNIX, SOCK_STREAM, 0);
-    ok(listener != INVALID_SOCKET, "Could not create Unix socket: %lu\n",
-        GetLastError());
-    ret = bind(listener, (SOCKADDR *)&addr, sizeof(SOCKADDR_UN));
-    ok(!ret, "Could not bind Unix socket to path '%s': %lu\n", addr.sun_path, GetLastError());
-    closesocket(listener);
-    listener = socket(AF_UNIX, SOCK_STREAM, 0);
-    ok(listener != INVALID_SOCKET, "Could not create Unix socket: %lu\n",
-        GetLastError());
-    ret = bind(listener, (SOCKADDR *)&addr, sizeof(SOCKADDR_UN));
-    ok(ret && GetLastError() == WSAEADDRINUSE,
-        "Bound Unix socket to path '%s' despite existing socket file: %lu\n",
-        addr.sun_path,
-        GetLastError());
-    closesocket(listener);
-    ret = DeleteFileA(addr.sun_path);
-    ok(ret, "DeleteFileA on socket file failed: %lu\n", GetLastError());
-    ok(GetFileAttributesA("test_afunix.sock") == INVALID_FILE_ATTRIBUTES &&
-        GetLastError() == ERROR_FILE_NOT_FOUND,
-        "Failed to delete socket file at path '%s'\n",
-        addr.sun_path);
-
-    /* Test different path types (relative, NT, etc.) */
-    GetTempPathA(sizeof(paths[0]) - 1, paths[2]);
-    strcat(paths[2], "tmp.sock");
-    MultiByteToWideChar(CP_ACP, 0, paths[2], -1, dosWidePath, sizeof(dosPath));
-    RtlDosPathNameToNtPathName_U(dosWidePath, &ntPath, NULL, NULL);
-    RtlUnicodeToMultiByteN(paths[3], sizeof(addr.sun_path) - 1, NULL, ntPath.Buffer, ntPath.Length);
-
-    for (int i = 0; i < sizeof(paths) / sizeof(paths[0]); i++)
-    {
-        memcpy(addr.sun_path, paths[i], sizeof(paths[i]));
-
-        listener = socket(AF_UNIX, SOCK_STREAM, 0);
-        ok(listener != INVALID_SOCKET, "Could not create Unix socket: %lu\n",
-            GetLastError());
-
-        ret = bind(listener, (SOCKADDR *)&addr, sizeof(SOCKADDR_UN));
-        ok(!ret, "Could not bind Unix socket to path '%s': %lu\n", addr.sun_path, GetLastError());
-
-        ret = listen(listener, 1);
-        ok(!ret, "Could not listen on Unix socket: %lu\n", GetLastError());
-
-        client = socket(AF_UNIX, SOCK_STREAM, 0);
-        ok(client != INVALID_SOCKET, "Failed to create second Unix socket: %lu\n",
-            GetLastError());
-
-        ret = ioctlsocket(client, FIONBIO, &one);
-        ok(!ret, "Could not set AF_UNIX socket to nonblocking: %lu; skipping connection\n", GetLastError());
-        if (!ret)
-        {
-            ret = connect(client, (SOCKADDR *)&addr, sizeof(addr));
-            ok(!ret || (ret == SOCKET_ERROR && GetLastError() == WSAEWOULDBLOCK),
-                "Error when connecting to Unix socket: %lu\n",
-                GetLastError());
-            server = accept(listener, NULL, NULL);
-            ok(server != INVALID_SOCKET, "Could not accept Unix socket connection: %lu\n",
-                GetLastError());
-            ret = ioctlsocket(client, FIONBIO, &zero);
-            ok(!ret, "Could not set AF_UNIX socket to blocking: %lu\n", GetLastError());
-        }
-
-        memset(&outAddr, 0, sizeof(outAddr));
-        outAddrSize = sizeof(outAddr);
-        ret = getsockname(listener, (SOCKADDR *)&outAddr, &outAddrSize);
-        ok(!ret, "Could not get info on Unix socket: %lu\n", GetLastError());
-        ok(!memcmp(addr.sun_path, outAddr.sun_path, sizeof(addr.sun_path)),
-            "getsockname returned incorrect path '%s' for provided path '%s'\n",
-            outAddr.sun_path,
-            addr.sun_path);
-        ok(outAddrSize == sizeof(outAddr.sun_family) + strlen(outAddr.sun_path) + 1,
-            "getsockname returned incorrect size '%d' for provided path '%s'\n",
-            outAddrSize,
-            addr.sun_path);
-
-        memset(&outAddr, 0, sizeof(outAddr));
-        outAddrSize = sizeof(outAddr);
-        ret = getsockname(client, (SOCKADDR *)&outAddr, &outAddrSize);
-        ok(!ret, "Could not get info on Unix socket: %lu\n", GetLastError());
-        ok(!memcmp((char[108]){0}, outAddr.sun_path, sizeof(addr.sun_path)),
-            "getsockname returned incorrect path '%s' for provided path '%s'\n",
-            outAddr.sun_path,
-            addr.sun_path);
-        ok(outAddrSize == sizeof(outAddr),
-            "getsockname returned incorrect size '%d' for provided path '%s'\n",
-            outAddrSize,
-            addr.sun_path);
-
-        memset(&outAddr, 0, sizeof(outAddr));
-        outAddrSize = sizeof(outAddr);
-        ret = getsockname(server, (SOCKADDR *)&outAddr, &outAddrSize);
-        ok(!ret, "Could not get info on Unix socket: %lu\n", GetLastError());
-        ok(!memcmp(addr.sun_path, outAddr.sun_path, sizeof(addr.sun_path)),
-            "getsockname returned incorrect path '%s' for provided path '%s'\n",
-            outAddr.sun_path,
-            addr.sun_path);
-        ok(outAddrSize == sizeof(outAddr.sun_family) + strlen(outAddr.sun_path) + 1,
-            "getsockname returned incorrect size '%d' for provided path '%s'\n",
-            outAddrSize,
-            addr.sun_path);
-
-        memset(&outAddr, 0, sizeof(outAddr));
-        outAddrSize = sizeof(outAddr);
-        ret = getpeername(listener, (SOCKADDR *)&outAddr, &outAddrSize);
-        ok(ret == -1, "Got info on Unix socket: %lu\n", GetLastError());
-        ok(GetLastError() == WSAENOTCONN,
-            "Incorrect error returned from getpeername on Unix socket: %ld\n",
-            GetLastError());
-        ok(!memcmp((char[108]){0}, outAddr.sun_path, sizeof(addr.sun_path)),
-            "getpeername returned incorrect path '%s' for provided path '%s'\n",
-            outAddr.sun_path,
-            addr.sun_path);
-        ok(outAddrSize == sizeof(outAddr),
-            "getpeername returned incorrect size '%d' for provided path '%s'\n",
-            outAddrSize,
-            addr.sun_path);
-
-        memset(&outAddr, 0, sizeof(outAddr));
-        outAddrSize = sizeof(outAddr);
-        ret = getpeername(client, (SOCKADDR *)&outAddr, &outAddrSize);
-        ok(!ret, "Could not get info on Unix socket: %lu\n", GetLastError());
-        ok(!memcmp(addr.sun_path, outAddr.sun_path, sizeof(addr.sun_path)),
-            "getpeername returned incorrect path '%s' for provided path '%s'\n",
-            outAddr.sun_path,
-            addr.sun_path);
-        ok(outAddrSize == sizeof(outAddr),
-            "getpeername returned incorrect size '%d' for provided path '%s'\n",
-            outAddrSize,
-            addr.sun_path);
-
-        memset(&outAddr, 0, sizeof(outAddr));
-        outAddrSize = sizeof(outAddr);
-        ret = getpeername(server, (SOCKADDR *)&outAddr, &outAddrSize);
-        ok(!ret, "Could not get info on Unix socket: %lu\n", GetLastError());
-        ok(!memcmp((char[108]){0}, outAddr.sun_path, sizeof(addr.sun_path)),
-            "getpeername returned incorrect path '%s' for provided path '%s'\n",
-            outAddr.sun_path,
-            addr.sun_path);
-        ok(outAddrSize == sizeof(outAddr),
-            "getpeername returned incorrect size '%d' for provided path '%s'\n",
-            outAddrSize,
-            addr.sun_path);
-
-        closesocket(listener);
-        closesocket(client);
-        closesocket(server);
-
-        ret = DeleteFileA(addr.sun_path);
-        ok(ret, "DeleteFileA on socket file failed: %lu\n", GetLastError());
-        ok(GetFileAttributesA(addr.sun_path) == INVALID_FILE_ATTRIBUTES &&
-            GetLastError() == ERROR_FILE_NOT_FOUND,
-            "Failed to delete socket file at path '%s'\n",
-            addr.sun_path);
-    }
-}
-
-static void test_valid_handle(void)
-{
-    HANDLE duplicated, invalid;
-    SOCKET client, server;
-    char buffer[1];
-    WSABUF wsabuf;
-    DWORD size;
-    int ret;
-
-    /* Unlike WSAGetOverlappedResult(), duplicated handles are allowed. */
-
-    tcp_socketpair(&client, &server);
-    ret = DuplicateHandle(GetCurrentProcess(), (HANDLE)client,
-            GetCurrentProcess(), &duplicated, 0, FALSE, DUPLICATE_SAME_ACCESS);
-    ok(ret, "got error %lu\n", GetLastError());
-    invalid = CreateEventA(NULL, TRUE, TRUE, NULL);
-
-    ret = send((SOCKET)duplicated, buffer, 1, 0);
-    ok(ret == 1, "got %d\n", ret);
-
-    ret = sendto((SOCKET)duplicated, buffer, 1, 0, NULL, 0);
-    ok(ret == 1, "got %d\n", ret);
-
-    wsabuf.buf = buffer;
-    wsabuf.len = 1;
-
-    ret = WSASend((SOCKET)duplicated, &wsabuf, 1, NULL, 0, NULL, NULL);
-    ok(ret == -1, "got %d\n", ret);
-    ok(WSAGetLastError() == WSAEFAULT, "got error %u\n", WSAGetLastError());
-
-    ret = WSASend((SOCKET)duplicated, &wsabuf, 1, &size, 0, NULL, NULL);
-    ok(!ret, "got %d\n", ret);
-
-    ret = WSASend((SOCKET)invalid, &wsabuf, 1, NULL, 0, NULL, NULL);
-    ok(ret == -1, "got %d\n", ret);
-    ok(WSAGetLastError() == WSAENOTSOCK, "got error %u\n", WSAGetLastError());
-
-    ret = WSASend(INVALID_SOCKET, &wsabuf, 1, NULL, 0, NULL, NULL);
-    ok(ret == -1, "got %d\n", ret);
-    ok(WSAGetLastError() == WSAENOTSOCK, "got error %u\n", WSAGetLastError());
-
-    CloseHandle(invalid);
-    CloseHandle(duplicated);
-    closesocket(client);
-    closesocket(server);
-}
-
 START_TEST( sock )
 {
     int i;
@@ -14883,7 +14423,6 @@ START_TEST( sock )
     test_connect_completion_port();
     test_shutdown_completion_port();
     test_bind();
-    test_bind_bluetooth();
     test_connecting_socket();
     test_WSAGetOverlappedResult();
     test_nonblocking_async_recv();
@@ -14896,8 +14435,6 @@ START_TEST( sock )
     test_tcp_sendto_recvfrom();
     test_broadcast();
     test_send_buffering();
-    test_afunix();
-    test_valid_handle();
 
     /* There is apparently an obscure interaction between this test and
      * test_WSAGetOverlappedResult().

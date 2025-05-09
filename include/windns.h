@@ -236,7 +236,7 @@ typedef struct _IP4_ARRAY
 #define DNS_RCODE_NAME_ERROR       DNS_RCODE_NXDOMAIN
 #define DNS_RCODE_NOT_IMPLEMENTED  DNS_RCODE_NOTIMPL
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 typedef struct _DNS_HEADER
 {
     WORD Xid;
@@ -255,7 +255,7 @@ typedef struct _DNS_HEADER
     WORD NameServerCount;
     WORD AdditionalCount;
 } DNS_HEADER, *PDNS_HEADER;
-#pragma pack(pop)
+#include <poppack.h>
 
 typedef struct _DNS_MESSAGE_BUFFER
 {
@@ -692,7 +692,7 @@ typedef struct _DnsRRSet
 
 #define DNS_ADDR_MAX_SOCKADDR_LENGTH 32
 
-#pragma pack(push,1)
+#include <pshpack1.h>
 
 typedef struct _DnsAddr
 {
@@ -716,7 +716,7 @@ typedef struct _DnsAddrArray
     DNS_ADDR AddrArray[1];
 } DNS_ADDR_ARRAY, *PDNS_ADDR_ARRAY;
 
-#pragma pack(pop)
+#include <poppack.h>
 
 #define DNS_QUERY_RESULTS_VERSION1  0x1
 
@@ -760,27 +760,6 @@ typedef struct _DNS_CACHE_ENTRY
     ULONG Flags;
 } DNS_CACHE_ENTRY, *PDNS_CACHE_ENTRY;
 
-typedef void WINAPI DNS_SERVICE_BROWSE_CALLBACK(DWORD, void *, PDNS_RECORD);
-typedef DNS_SERVICE_BROWSE_CALLBACK *PDNS_SERVICE_BROWSE_CALLBACK;
-
-typedef struct _DNS_SERVICE_BROWSE_REQUEST
-{
-    ULONG Version;
-    ULONG InterfaceIndex;
-    const WCHAR *QueryName;
-    union
-    {
-        PDNS_SERVICE_BROWSE_CALLBACK pBrowseCallback;
-        DNS_QUERY_COMPLETION_ROUTINE *pBrowseCallbackV2;
-    };
-    void *pQueryContext;
-} DNS_SERVICE_BROWSE_REQUEST, *PDNS_SERVICE_BROWSE_REQUEST;
-
-typedef struct _DNS_SERVICE_CANCEL
-{
-    void *reserved;
-} DNS_SERVICE_CANCEL, *PDNS_SERVICE_CANCEL;
-
 DNS_STATUS WINAPI DnsAcquireContextHandle_A(DWORD,PVOID,PHANDLE);
 DNS_STATUS WINAPI DnsAcquireContextHandle_W(DWORD,PVOID,PHANDLE);
 #define DnsAcquireContextHandle WINELIB_NAME_AW(DnsAcquireContextHandle_)
@@ -812,7 +791,6 @@ DNS_STATUS WINAPI DnsReplaceRecordSetA(PDNS_RECORDA,DWORD,HANDLE,PVOID,PVOID);
 DNS_STATUS WINAPI DnsReplaceRecordSetW(PDNS_RECORDW,DWORD,HANDLE,PVOID,PVOID);
 DNS_STATUS WINAPI DnsReplaceRecordSetUTF8(PDNS_RECORDA,DWORD,HANDLE,PVOID,PVOID);
 #define DnsReplaceRecordSet WINELIB_NAME_AW(DnsReplaceRecordSet)
-DNS_STATUS WINAPI DnsServiceBrowse(PDNS_SERVICE_BROWSE_REQUEST, PDNS_SERVICE_CANCEL);
 DNS_STATUS WINAPI DnsValidateName_A(PCSTR,DNS_NAME_FORMAT);
 DNS_STATUS WINAPI DnsValidateName_W(PCWSTR, DNS_NAME_FORMAT);
 DNS_STATUS WINAPI DnsValidateName_UTF8(PCSTR,DNS_NAME_FORMAT);

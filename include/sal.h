@@ -21,7 +21,6 @@
 
 #define _Always_(exp)
 
-#define _Analysis_assume_(x)
 #define _Analysis_noreturn_
 
 #define _At_(a, b)
@@ -90,7 +89,6 @@
 #define _Inout_
 #define _Inout_bytecap_x_(count)
 #define _Inout_cap_(count)
-#define _Inout_cap_c_(count)
 #define _Inout_opt_
 #define _Inout_opt_cap_c_(count)
 #define _Inout_opt_z_
@@ -111,8 +109,6 @@
 
 #define _Null_
 #define _Null_terminated_
-
-#define _On_failure_(d)
 
 #define _Out_
 #define _Outptr_
@@ -148,7 +144,6 @@
 #define _Out_opt_z_cap_x_(count)
 #define _Out_opt_z_cap_post_count_(count1, count2)
 #define _Out_ptrdiff_cap_(count)
-#define _Out_range_(x, y)
 #define _Out_writes_(count)
 #define _Out_writes_all_(count)
 #define _Out_writes_bytes_(count)
@@ -175,7 +170,6 @@
 #define _Outptr_opt_
 #define _Outptr_opt_result_buffer_(count)
 #define _Outptr_opt_result_maybenull_
-#define _Outptr_opt_result_maybenull_z_
 #define _Outptr_opt_result_z_
 #define _Outptr_result_buffer_(count)
 #define _Outptr_result_buffer_all_maybenull_(ptr)
@@ -224,7 +218,6 @@
 #define _Ret_opt_z_cap_(count)
 #define _Ret_range_(exp,exp2)
 #define _Ret_writes_bytes_maybenull_(count)
-#define _Ret_writes_maybenull_(count)
 #define _Ret_writes_z_(count)
 #define _Ret_z_
 

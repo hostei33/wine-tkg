@@ -1,10 +1,10 @@
-@ stdcall WebSocketAbortHandle(long)
+@ stub WebSocketAbortHandle
 @ stub WebSocketBeginClientHandshake
 @ stub WebSocketBeginServerHandshake
 @ stub WebSocketCompleteAction
-@ stdcall WebSocketCreateClientHandle(ptr long ptr)
+@ stub WebSocketCreateClientHandle
 @ stub WebSocketCreateServerHandle
-@ stdcall WebSocketDeleteHandle(long)
+@ stub WebSocketDeleteHandle
 @ stub WebSocketEndClientHandshake
 @ stub WebSocketEndServerHandshake
 @ stub WebSocketGetAction

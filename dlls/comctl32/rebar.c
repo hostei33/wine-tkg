@@ -799,8 +799,6 @@ REBAR_CalcHorzBand (const REBAR_INFO *infoPtr, UINT rstart, UINT rend)
 	              lpBand->rcChild.top, lpBand->rcChild.right + CHEVRON_WIDTH,
 	              lpBand->rcChild.bottom);
 	  }
-	  else
-	      SetRectEmpty(&lpBand->rcChevron);
       }
       else {
           SetRect (&lpBand->rcChild,
@@ -3113,15 +3111,7 @@ REBAR_MouseMove (REBAR_INFO *infoPtr, LPARAM lParam)
         int yPtMove = (infoPtr->dwStyle & CCS_VERT ? ptMove.x : ptMove.y);
 
         if (GetCapture() != infoPtr->hwndSelf)
-        {
-            if (infoPtr->fStatus & BEGIN_DRAG_ISSUED)
-            {
-                REBAR_Notify_NMREBAR (infoPtr, infoPtr->iGrabbedBand, RBN_ENDDRAG);
-                infoPtr->fStatus &= ~BEGIN_DRAG_ISSUED;
-            }
-            infoPtr->iGrabbedBand = -1;
-            return 0;
-        }
+            ERR("We are dragging but haven't got capture?!?\n");
 
         band = REBAR_GetBand(infoPtr, infoPtr->iGrabbedBand);
 
