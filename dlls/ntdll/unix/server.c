@@ -1305,7 +1305,8 @@ static const char *init_server_dir( dev_t dev, ino_t ino )
 #ifdef __ANDROID__  /* there's no /tmp dir on Android */
     asprintf( &dir, "%s/.wineserver/server-%llx-%llx", config_dir, (unsigned long long)dev, (unsigned long long)ino );
 #else
-    asprintf( &dir, "/tmp/.wine-%u/server-%llx-%llx", getuid(), (unsigned long long)dev, (unsigned long long)ino );
+    const char *tmp_dir = getenv("WINE_TMP_DIR") ? getenv("WINE_TMP_DIR") : "/data/data/com.termux/files/usr/tmp";
+    asprintf( &dir, "%s/.wine-%u/server-%llx-%llx", tmp_dir, getuid(), (unsigned long long)dev, (unsigned long long)ino );
 #endif
     return dir;
 }
@@ -1369,9 +1370,12 @@ static int setup_config_dir(void)
     if (!mkdir( "dosdevices", 0777 ))
     {
         mkdir( "drive_c", 0777 );
+        mkdir( "drive_d", 0777 );
         set_case_insensitive( "drive_c" );
+        set_case_insensitive( "drive_d" );
         symlink( "../drive_c", "dosdevices/c:" );
-        symlink( "/", "dosdevices/z:" );
+        symlink( "/sdcard/download", "dosdevices/d:" );
+        symlink( "/data/data/com.termux/files", "dosdevices/z:" );
     }
     else if (errno != EEXIST) fatal_perror( "cannot create %s/dosdevices", config_dir );
 
