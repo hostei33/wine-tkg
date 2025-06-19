@@ -42,7 +42,6 @@
 #define AsyncStatus_Closed 4
 
 #define SPERR_WINRT_INTERNAL_ERROR 0x800455a0
-#define SPERR_WINRT_INCORRECT_FORMAT 0x80131537
 
 #define IHandler_RecognitionResult ITypedEventHandler_SpeechContinuousRecognitionSession_SpeechContinuousRecognitionResultGeneratedEventArgs
 #define IHandler_RecognitionResultVtbl ITypedEventHandler_SpeechContinuousRecognitionSession_SpeechContinuousRecognitionResultGeneratedEventArgsVtbl
@@ -203,7 +202,23 @@ HRESULT WINAPI recognition_result_handler_Invoke( IHandler_RecognitionResult *if
                                                   ISpeechContinuousRecognitionSession *sender,
                                                   ISpeechContinuousRecognitionResultGeneratedEventArgs *args )
 {
-    trace("iface %p, sender %p, args %p.\n", iface, sender, args);
+    ISpeechRecognitionResult *result;
+    HSTRING hstring;
+    HRESULT hr;
+
+    if (!args) return S_OK;
+
+    hr = ISpeechContinuousRecognitionResultGeneratedEventArgs_get_Result(args, &result);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    hr = ISpeechRecognitionResult_get_Text(result, &hstring);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    trace("iface %p, sender %p, args %p, text %s.\n", iface, sender, args, debugstr_w(WindowsGetStringRawBuffer(hstring, NULL)));
+
+    WindowsDeleteString(hstring);
+    ISpeechRecognitionResult_Release(result);
+
     return S_OK;
 }
 
@@ -1082,7 +1097,7 @@ static void test_SpeechSynthesizer(void)
     operation_ss_stream = (void *)0xdeadbeef;
     hr = ISpeechSynthesizer_SynthesizeSsmlToStreamAsync(synthesizer, str, &operation_ss_stream);
     /* Broken on Win 8 + 8.1 */
-    ok(hr == S_OK || broken(hr == SPERR_WINRT_INCORRECT_FORMAT), "ISpeechSynthesizer_SynthesizeSsmlToStreamAsync failed, hr %#lx\n", hr);
+    ok(hr == S_OK || broken(hr == COR_E_FORMAT), "ISpeechSynthesizer_SynthesizeSsmlToStreamAsync failed, hr %#lx\n", hr);
 
     if (hr == S_OK)
     {
@@ -1308,7 +1323,7 @@ static void test_SpeechRecognizer(void)
     ok(ref == 1, "Got unexpected ref %lu.\n", ref);
 
     hr = RoActivateInstance(hstr, &inspectable);
-    ok(hr == S_OK || broken(hr == SPERR_WINRT_INTERNAL_ERROR), "Got unexpected hr %#lx.\n", hr);
+    ok(hr == S_OK || hr == SPERR_WINRT_INTERNAL_ERROR, "Got unexpected hr %#lx.\n", hr);
 
     if (hr == S_OK)
     {
@@ -1527,7 +1542,7 @@ skip_operation:
     }
     else if (hr == SPERR_WINRT_INTERNAL_ERROR) /* Not sure when this triggers. Probably if a language pack is not installed. */
     {
-        win_skip("Could not init SpeechRecognizer with default language!\n");
+        skip("Could not init SpeechRecognizer with default language!\n");
     }
 
 done:
@@ -1703,7 +1718,7 @@ static void test_Recognition(void)
     static const WCHAR *list_constraint_name = L"Windows.Media.SpeechRecognition.SpeechRecognitionListConstraint";
     static const WCHAR *recognizer_name = L"Windows.Media.SpeechRecognition.SpeechRecognizer";
     static const WCHAR *speech_constraint_tag = L"test_message";
-    static const WCHAR *speech_constraints[] = { L"This is a test.", L"Number 5!", L"What time is it?" };
+    static const WCHAR *speech_constraints[] = { L"This is a test", L"Number 5", L"What time is it" };
     ISpeechRecognitionListConstraintFactory *listconstraint_factory = NULL;
     IAsyncOperation_SpeechRecognitionCompilationResult *operation = NULL;
     IVector_ISpeechRecognitionConstraint *constraints = NULL;
@@ -1744,12 +1759,12 @@ static void test_Recognition(void)
     ok(hr == S_OK, "WindowsCreateString failed, hr %#lx.\n", hr);
 
     hr = RoActivateInstance(hstr, &inspectable);
-    ok(hr == S_OK || broken(hr == SPERR_WINRT_INTERNAL_ERROR || hr == REGDB_E_CLASSNOTREG), "Got unexpected hr %#lx.\n", hr);
+    ok(hr == S_OK || hr == SPERR_WINRT_INTERNAL_ERROR || broken(hr == REGDB_E_CLASSNOTREG), "Got unexpected hr %#lx.\n", hr);
     WindowsDeleteString(hstr);
 
-    if (FAILED(hr))  /* Win 8 and 8.1 and Win10 without enabled SR. */
+    if (FAILED(hr))  /* Win 8 and 8.1 and Win10 without enabled SR. Wine with missing Unix side dependencies. */
     {
-        win_skip("SpeechRecognizer cannot be activated!\n");
+        skip("SpeechRecognizer cannot be activated!\n");
         goto done;
     }
 
@@ -1866,6 +1881,8 @@ static void test_Recognition(void)
     ok(hr == S_OK, "ISpeechRecognizer2_get_State failed, hr %#lx.\n", hr);
     ok(recog_state == SpeechRecognizerState_Capturing || broken(recog_state == SpeechRecognizerState_Idle), "recog_state was %u.\n", recog_state);
 
+
+    Sleep(10000);
     /*
      * TODO: Use a loopback device together with prerecorded audio files to test the recognizer's functionality.
      */

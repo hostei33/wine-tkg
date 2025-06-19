@@ -79,6 +79,7 @@ MAKE_FUNCPTR(SDL_JoystickInstanceID);
 MAKE_FUNCPTR(SDL_JoystickName);
 MAKE_FUNCPTR(SDL_JoystickNumAxes);
 MAKE_FUNCPTR(SDL_JoystickOpen);
+MAKE_FUNCPTR(SDL_JoystickPath);
 MAKE_FUNCPTR(SDL_WaitEventTimeout);
 MAKE_FUNCPTR(SDL_JoystickNumButtons);
 MAKE_FUNCPTR(SDL_JoystickNumBalls);
@@ -551,6 +552,16 @@ static NTSTATUS sdl_device_haptics_stop(struct unix_device *iface)
     return STATUS_SUCCESS;
 }
 
+static void sdl_device_set_autocenter(struct sdl_device *impl, BOOL enabled)
+{
+    const char *devnode = pSDL_JoystickPath(impl->sdl_joystick);
+    BYTE percent = enabled ? get_devnode_autocenter(devnode) * 100 / 65535 : 0;
+
+    TRACE("impl %p, enabled %u.\n", impl, enabled);
+
+    pSDL_HapticSetAutocenter(impl->sdl_haptic, percent);
+}
+
 static NTSTATUS sdl_device_physical_device_control(struct unix_device *iface, USAGE control)
 {
     struct sdl_device *impl = impl_from_unix_device(iface);
@@ -570,7 +581,7 @@ static NTSTATUS sdl_device_physical_device_control(struct unix_device *iface, US
         return STATUS_SUCCESS;
     case PID_USAGE_DC_STOP_ALL_EFFECTS:
         pSDL_HapticStopAll(impl->sdl_haptic);
-        pSDL_HapticSetAutocenter(impl->sdl_haptic, 0);
+        sdl_device_set_autocenter(impl, FALSE);
         return STATUS_SUCCESS;
     case PID_USAGE_DC_DEVICE_RESET:
         pSDL_HapticStopAll(impl->sdl_haptic);
@@ -580,7 +591,7 @@ static NTSTATUS sdl_device_physical_device_control(struct unix_device *iface, US
             pSDL_HapticDestroyEffect(impl->sdl_haptic, impl->effect_ids[i]);
             impl->effect_ids[i] = -1;
         }
-        pSDL_HapticSetAutocenter(impl->sdl_haptic, 100);
+        sdl_device_set_autocenter(impl, TRUE);
         return STATUS_SUCCESS;
     case PID_USAGE_DC_DEVICE_PAUSE:
         pSDL_HapticPause(impl->sdl_haptic);
@@ -1047,7 +1058,8 @@ static void sdl_add_device(unsigned int index)
         desc.is_gamepad = (axis_count == 6  && button_count >= 14);
     }
 
-    for (axis_offset = 0; axis_offset < axis_count; axis_offset += (options.split_controllers ? 6 : axis_count))
+    axis_offset = 0;
+    do
     {
         NTSTATUS status;
 
@@ -1074,7 +1086,9 @@ static void sdl_add_device(unsigned int index)
         }
 
         bus_event_queue_device_created(&event_queue, &impl->unix_device, &desc);
+        axis_offset += (options.split_controllers ? 6 : axis_count);
     }
+    while (axis_offset < axis_count);
 }
 
 static void process_device_event(SDL_Event *event)
@@ -1157,6 +1171,7 @@ NTSTATUS sdl_bus_init(void *args)
     LOAD_FUNCPTR(SDL_JoystickName);
     LOAD_FUNCPTR(SDL_JoystickNumAxes);
     LOAD_FUNCPTR(SDL_JoystickOpen);
+    LOAD_FUNCPTR(SDL_JoystickPath);
     LOAD_FUNCPTR(SDL_WaitEventTimeout);
     LOAD_FUNCPTR(SDL_JoystickNumButtons);
     LOAD_FUNCPTR(SDL_JoystickNumBalls);

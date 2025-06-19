@@ -82,6 +82,7 @@ static const unsigned int net_wm_state_atoms[NB_NET_WM_STATES] =
     XATOM__KDE_NET_WM_STATE_SKIP_SWITCHER,
     XATOM__NET_WM_STATE_FULLSCREEN,
     XATOM__NET_WM_STATE_ABOVE,
+    XATOM__NET_WM_STATE_BELOW,
     XATOM__NET_WM_STATE_MAXIMIZED_VERT,
     XATOM__NET_WM_STATE_SKIP_PAGER,
     XATOM__NET_WM_STATE_SKIP_TASKBAR
@@ -316,12 +317,11 @@ static HWND hwnd_from_window( Display *display, Window window )
 {
     unsigned long count, remaining;
     unsigned long *xhwnd;
-    HWND hwnd = (HWND)-1;
+    HWND hwnd = 0;
     int format;
     Atom type;
 
-    if (!window) return 0;
-    if (!XFindContext( display, window, winContext, (char **)&hwnd )) return hwnd;
+    if (!window || !XFindContext( display, window, winContext, (char **)&hwnd )) return hwnd;
 
     X11DRV_expect_error( display, host_window_error, NULL );
     if (!XGetWindowProperty( display, window, x11drv_atom(_WINE_HWND), 0, 65536, False, XA_CARDINAL,
@@ -330,7 +330,7 @@ static HWND hwnd_from_window( Display *display, Window window )
         if (type == XA_CARDINAL && format == 32) hwnd = ULongToHandle(*xhwnd);
         XFree( xhwnd );
     }
-    if (X11DRV_check_error()) return (HWND)-1;
+    if (X11DRV_check_error()) return 0;
     return hwnd;
 }
 
@@ -990,12 +990,6 @@ static void set_mwm_hints( struct x11drv_win_data *data, UINT style, UINT ex_sty
         }
     }
 
-    /* MWM functions changes can interacts with NET_WM_STATE changes with Mutter and may end
-     * up with unexpected NET_WM_STATE replies. We don't decorate windows with Mutter, there's
-     * no need to control MWM functions either.
-     */
-    if (X11DRV_HasWindowManager( "Mutter" )) mwm_hints.functions = MWM_FUNC_ALL;
-
     mwm_hints.flags = MWM_HINTS_FUNCTIONS | MWM_HINTS_DECORATIONS;
     mwm_hints.input_mode = 0;
     mwm_hints.status = 0;
@@ -1410,7 +1404,12 @@ static void window_set_config( struct x11drv_win_data *data, const RECT *new_rec
         mask |= CWX | CWY;
     }
 
-    if (above)
+    if (data->force_below_hack)
+    {
+        changes.stack_mode = Below;
+        mask |= CWStackMode;
+    }
+    else if (above)
     {
         changes.stack_mode = Above;
         mask |= CWStackMode;
@@ -1457,7 +1456,9 @@ static void update_net_wm_states( struct x11drv_win_data *data )
         new_state |= (1 << NET_WM_STATE_MAXIMIZED);
 
     ex_style = NtUserGetWindowLongW( data->hwnd, GWL_EXSTYLE );
-    if ((ex_style & WS_EX_TOPMOST) &&
+    if (data->force_below_hack)
+        new_state |= (1 << NET_WM_STATE_BELOW);
+    else if ((ex_style & WS_EX_TOPMOST) &&
         /* This workaround was initially targetting some mutter and KDE issues, but
          * removing it causes failure to focus out from exclusive fullscreen windows.
          *
@@ -1852,7 +1853,7 @@ BOOL X11DRV_GetWindowStateUpdates( HWND hwnd, UINT *state_cmd, UINT *config_cmd,
         !thread_data->net_active_window_serial && (window = thread_data->current_net_active_window))
     {
         *foreground = hwnd_from_window( thread_data->display, window );
-        if (*foreground == (HWND)-1) *foreground = NtUserGetDesktopWindow();
+        if (*foreground == 0) *foreground = NtUserGetDesktopWindow();
         if (*foreground == old_foreground) *foreground = 0;
     }
 
@@ -1988,7 +1989,7 @@ void net_active_window_notify( unsigned long serial, Window value, Time time )
     received = wine_dbg_sprintf( "_NET_ACTIVE_WINDOW %p/%lx serial %lu time %lu", hwnd, value, serial, time );
     expected = *expect_serial ? wine_dbg_sprintf( ", expected %p/%lx serial %lu", expect_hwnd, *pending, *expect_serial ) : "";
 
-    if (hwnd == (HWND)-1) value = root_window;
+    if (hwnd == 0) value = root_window;
     handle_state_change( serial, expect_serial, sizeof(value), &value, desired, pending,
                          current, expected, "", received, NULL );
 }
@@ -1997,7 +1998,7 @@ void net_active_window_init( struct x11drv_thread_data *data )
 {
     Window window = get_net_active_window( data->display, &data->active_window );
 
-    if (hwnd_from_window( data->display, window ) == (HWND)-1) window = root_window;
+    if (hwnd_from_window( data->display, window ) == 0) window = root_window;
     data->desired_net_active_window = window;
     data->pending_net_active_window = window;
     data->current_net_active_window = window;
@@ -3266,6 +3267,21 @@ BOOL X11DRV_GetWindowStyleMasks( HWND hwnd, UINT style, UINT ex_style, UINT *sty
     return TRUE;
 }
 
+static int use_force_below_hack(void)
+{
+    static int cached = -1;
+
+    if (cached == -1)
+    {
+        char const *sgi = getenv( "SteamGameId" );
+
+        cached = sgi && (
+                 !strcmp(sgi, "1293830")
+                 || !strcmp(sgi, "1551360")
+                 );
+    }
+    return cached;
+}
 
 /***********************************************************************
  *		WindowPosChanged   (X11DRV.@)
@@ -3297,6 +3313,15 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
            debugstr_window_rects(new_rects), new_style, swp_flags, fullscreen );
 
     XFlush( gdi_display );  /* make sure painting is done before we move the window */
+
+    if (use_force_below_hack())
+    {
+        if (insert_after != HWND_BOTTOM && insert_after != HWND_NOTOPMOST && insert_after != HWND_TOP && insert_after != HWND_TOPMOST)
+        {
+            WARN( "%p/%#lx setting force_below_hack.\n", hwnd, data->whole_window );
+            data->force_below_hack = 1;
+        }
+    }
 
     sync_client_position( data, &old_rects );
 
@@ -3782,7 +3807,7 @@ static Window get_net_supporting_wm_check( Display *display, Window window )
     Atom type;
 
     if (!XGetWindowProperty( display, window, x11drv_atom(_NET_SUPPORTING_WM_CHECK), 0, 65536 / sizeof(CARD32),
-                             False, XA_WINDOW, &type, &format, &count, &remaining, (unsigned char **)&tmp ))
+                             False, XA_WINDOW, &type, &format, &count, &remaining, (unsigned char **)&tmp ) && tmp)
     {
         support = *tmp;
         free( tmp );
@@ -3827,7 +3852,8 @@ void net_supporting_wm_check_init( struct x11drv_thread_data *data )
 {
     Window window = None, other;
 
-    window = get_net_supporting_wm_check( data->display, DefaultRootWindow( data->display ) );
+    if (!(window = get_net_supporting_wm_check( data->display, DefaultRootWindow( data->display ) ))) return;
+
     /* the window itself must have the property set too */
     X11DRV_expect_error( data->display, host_window_error, NULL );
     other = get_net_supporting_wm_check( data->display, window );

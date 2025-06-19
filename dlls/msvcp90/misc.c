@@ -19,6 +19,7 @@
 #include <stdarg.h>
 #include <limits.h>
 #include <errno.h>
+#include <process.h>
 
 #include "msvcp90.h"
 
@@ -715,10 +716,10 @@ unsigned int __cdecl _Random_device(void)
 typedef struct
 {
     DWORD flags;
-    cs cs;
 #if _MSVCP_VER >= 140
     ULONG_PTR unknown;
 #endif
+    cs cs;
     DWORD thread_id;
     DWORD count;
 } *_Mtx_t;
@@ -739,6 +740,9 @@ void __cdecl _Mtx_init_in_situ(_Mtx_t mtx, int flags)
         FIXME("unknown flags ignored: %x\n", flags);
 
     mtx->flags = flags;
+#if _MSVCP_VER >= 140
+    mtx->unknown = 0;
+#endif
     cs_init(&mtx->cs);
     mtx->thread_id = -1;
     mtx->count = 0;
@@ -829,6 +833,9 @@ void __cdecl _Mtx_reset_owner(_Mtx_arg_t mtx)
 
 typedef struct
 {
+#if _MSVCP_VER >= 140
+    ULONG_PTR unknown;
+#endif
     cv cv;
 } *_Cnd_t;
 
@@ -844,6 +851,9 @@ typedef _Cnd_t *_Cnd_arg_t;
 
 void __cdecl _Cnd_init_in_situ(_Cnd_t cnd)
 {
+#if _MSVCP_VER >= 140
+    cnd->unknown = 0;
+#endif
     cv_init(&cnd->cv);
 }
 
@@ -1311,7 +1321,8 @@ int __cdecl _Thrd_join(_Thrd_t thr, int *code)
 int __cdecl _Thrd_start(_Thrd_t *thr, LPTHREAD_START_ROUTINE proc, void *arg)
 {
     TRACE("(%p %p %p)\n", thr, proc, arg);
-    thr->hnd = CreateThread(NULL, 0, proc, arg, 0, &thr->id);
+
+    thr->hnd = (HANDLE)_beginthreadex(NULL, 0, (_beginthreadex_start_routine_t)proc, arg, 0, (unsigned int *)&thr->id);
     return thr->hnd ? 0 : _THRD_ERROR;
 }
 

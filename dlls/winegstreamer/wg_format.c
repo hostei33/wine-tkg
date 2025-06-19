@@ -151,8 +151,12 @@ static enum wg_video_format wg_video_format_from_gst(GstVideoFormat format)
             return WG_VIDEO_FORMAT_AYUV;
         case GST_VIDEO_FORMAT_I420:
             return WG_VIDEO_FORMAT_I420;
+        case GST_VIDEO_FORMAT_I420_10LE:
+            return WG_VIDEO_FORMAT_P010_10LE;
         case GST_VIDEO_FORMAT_NV12:
             return WG_VIDEO_FORMAT_NV12;
+        case GST_VIDEO_FORMAT_P010_10LE:
+            return WG_VIDEO_FORMAT_P010_10LE;
         case GST_VIDEO_FORMAT_UYVY:
             return WG_VIDEO_FORMAT_UYVY;
         case GST_VIDEO_FORMAT_YUY2:
@@ -583,15 +587,19 @@ void wg_format_from_caps(struct wg_format *format, const GstCaps *caps)
     {
         GstAudioInfo info;
 
-        if (gst_audio_info_from_caps(&info, caps))
+        if (gst_caps_is_fixed(caps) && gst_audio_info_from_caps(&info, caps))
             wg_format_from_audio_info(format, &info);
+        else
+            GST_WARNING("Unable to get audio info from caps");
     }
     else if (!strcmp(name, "video/x-raw"))
     {
         GstVideoInfo info;
 
-        if (gst_video_info_from_caps(&info, caps))
+        if (gst_caps_is_fixed(caps) && gst_video_info_from_caps(&info, caps))
             wg_format_from_video_info(format, &info);
+        else
+            GST_WARNING("Unable to get video info from caps");
     }
     else if (!strcmp(name, "audio/mpeg") && gst_structure_get_boolean(structure, "parsed", &parsed) && parsed)
     {
@@ -771,6 +779,7 @@ static GstVideoFormat wg_video_format_to_gst(enum wg_video_format format)
         case WG_VIDEO_FORMAT_YUY2:  return GST_VIDEO_FORMAT_YUY2;
         case WG_VIDEO_FORMAT_YV12:  return GST_VIDEO_FORMAT_YV12;
         case WG_VIDEO_FORMAT_YVYU:  return GST_VIDEO_FORMAT_YVYU;
+        case WG_VIDEO_FORMAT_P010_10LE: return GST_VIDEO_FORMAT_P010_10LE;
         default: return GST_VIDEO_FORMAT_UNKNOWN;
     }
 }

@@ -471,9 +471,16 @@ static BOOL is_hidraw_enabled(WORD vid, WORD pid, const USAGE_AND_PAGE *usages, 
     if (!RtlQueryEnvironmentVariable(NULL, L"PROTON_DISABLE_HIDRAW", 20, value, ARRAY_SIZE(value) - 1, &len))
     {
         value[len] = 0;
-        if (wcscmp(value, L"1")) return FALSE;
+        if (!wcscmp(value, L"1")) return FALSE;
         swprintf(vidpid, ARRAY_SIZE(vidpid), L"0x%04X/0x%04X", vid, pid);
         if (wcscasestr(value, vidpid)) return FALSE;
+    }
+    if (!RtlQueryEnvironmentVariable(NULL, L"PROTON_ENABLE_HIDRAW", 20, value, ARRAY_SIZE(value) - 1, &len))
+    {
+        value[len] = 0;
+        if (!wcscmp(value, L"1")) return TRUE;
+        swprintf(vidpid, ARRAY_SIZE(vidpid), L"0x%04X/0x%04X", vid, pid);
+        if (wcscasestr(value, vidpid)) return TRUE;
     }
 
     if (usages->UsagePage == HID_USAGE_PAGE_DIGITIZER)
@@ -482,15 +489,12 @@ static BOOL is_hidraw_enabled(WORD vid, WORD pid, const USAGE_AND_PAGE *usages, 
         return FALSE;
     }
     if (usages->UsagePage != HID_USAGE_PAGE_GENERIC) return TRUE;
-    if (usages->Usage != HID_USAGE_GENERIC_GAMEPAD && usages->Usage != HID_USAGE_GENERIC_JOYSTICK) return TRUE;
-
-    if (!RtlQueryEnvironmentVariable(NULL, L"PROTON_ENABLE_HIDRAW", 20, value, ARRAY_SIZE(value) - 1, &len))
+    if (usages->Usage == HID_USAGE_GENERIC_MOUSE || usages->Usage == HID_USAGE_GENERIC_KEYBOARD)
     {
-        value[len] = 0;
-        if (wcscmp(value, L"1")) return TRUE;
-        swprintf(vidpid, ARRAY_SIZE(vidpid), L"0x%04X/0x%04X", vid, pid);
-        if (wcscasestr(value, vidpid)) return TRUE;
+        WARN("Ignoring unsupported %04X:%04X hidraw mouse/keyboard\n", vid, pid);
+        return FALSE;
     }
+    if (usages->Usage != HID_USAGE_GENERIC_GAMEPAD && usages->Usage != HID_USAGE_GENERIC_JOYSTICK) return TRUE;
 
     if (!check_bus_option(L"Enable SDL", 1) && check_bus_option(L"DisableInput", 0))
         prefer_hidraw = TRUE;
@@ -514,6 +518,15 @@ static BOOL is_hidraw_enabled(WORD vid, WORD pid, const USAGE_AND_PAGE *usages, 
     case 0x0eb7:
         if (pid == 0x183b) prefer_hidraw = TRUE; /* Fanatec ClubSport Pedals v3 */
         if (pid == 0x1839) prefer_hidraw = TRUE; /* Fanatec ClubSport Pedals v1/v2 */
+        if (pid == 0x0e03) prefer_hidraw = TRUE; /* Fanatec CSL Elite */
+        if (pid == 0x0005) prefer_hidraw = TRUE; /* Fanatec CSL Elite PS4 */
+        if (pid == 0x0020) prefer_hidraw = TRUE; /* Fanatec CSL DD / DD Pro / ClubSport DD */
+        if (pid == 0x0001) prefer_hidraw = TRUE; /* Fanatec ClubSport V2 */
+        if (pid == 0x0004) prefer_hidraw = TRUE; /* Fanatec ClubSport V2.5 */
+        if (pid == 0x0006) prefer_hidraw = TRUE; /* Fanatec Podium DD1 */
+        if (pid == 0x0007) prefer_hidraw = TRUE; /* Fanatec Podium DD2 */
+        if (pid == 0x0011) prefer_hidraw = TRUE; /* Fanatec CSR Elite / Forza Motorsport */
+        if (pid == 0xe0fe) prefer_hidraw = TRUE; /* CS-WB-DD (FW update mode) */
         break;
     case 0x231d:
         /* comes with 128 buttons in the default configuration */

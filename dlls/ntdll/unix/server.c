@@ -1266,7 +1266,7 @@ static const char *init_server_dir( dev_t dev, ino_t ino )
 #ifdef __ANDROID__  /* there's no /tmp dir on Android */
     asprintf( &dir, "%s/.wineserver/server-%llx-%llx", config_dir, (unsigned long long)dev, (unsigned long long)ino );
 #else
-    asprintf( &dir, "/data/data/com.winlator/files/rootfs/tmp/.wine-%u/server-%llx-%llx", getuid(), (unsigned long long)dev, (unsigned long long)ino );
+    asprintf( &dir, "/tmp/.wine-%u/server-%llx-%llx", getuid(), (unsigned long long)dev, (unsigned long long)ino );
 #endif
     return dir;
 }
@@ -1309,7 +1309,7 @@ static int setup_config_dir(void)
     {
         mkdir( "drive_c", 0777 );
         symlink( "../drive_c", "dosdevices/c:" );
-        symlink( "/data/data/com.winlator/files/rootfs", "dosdevices/z:" );
+        symlink( "/", "dosdevices/z:" );
     }
     else if (errno != EEXIST) fatal_perror( "cannot create %s/dosdevices", config_dir );
 
@@ -1550,6 +1550,7 @@ void process_exit_wrapper( int status )
  */
 size_t server_init_process(void)
 {
+    struct cpu_topology_override *cpu_override;
     const char *arch = getenv( "WINEARCH" );
     const char *env_socket = getenv( "WINESERVERSOCKET" );
     obj_handle_t version;
@@ -1621,8 +1622,13 @@ size_t server_init_process(void)
 
     reply_pipe = init_thread_pipe();
 
+    fill_cpu_override();
+    cpu_override = get_cpu_topology_override();
+
     SERVER_START_REQ( init_first_thread )
     {
+        if (cpu_override)
+            wine_server_add_data( req, cpu_override, sizeof(*cpu_override) );
         req->unix_pid    = getpid();
         req->unix_tid    = get_unix_tid();
         req->reply_fd    = reply_pipe;
@@ -1679,7 +1685,6 @@ size_t server_init_process(void)
  */
 void server_init_process_done(void)
 {
-    struct cpu_topology_override *cpu_override = get_cpu_topology_override();
     void *teb;
     unsigned int status;
     int suspend;
@@ -1704,8 +1709,6 @@ void server_init_process_done(void)
     /* Signal the parent process to continue */
     SERVER_START_REQ( init_process_done )
     {
-        if (cpu_override)
-            wine_server_add_data( req, cpu_override, sizeof(*cpu_override) );
         req->teb      = wine_server_client_ptr( teb );
         req->peb      = NtCurrentTeb64() ? NtCurrentTeb64()->Peb : wine_server_client_ptr( peb );
 #ifdef __i386__

@@ -644,7 +644,7 @@ static UINT SHELL_FindExecutable(LPCWSTR lpPath, LPCWSTR lpFile, LPCWSTR lpVerb,
         }
         if (!found)
         {
-            lstrcpyW(xlpFile, lpFile);
+            wcsncpy_s(xlpFile, ARRAY_SIZE(xlpFile), lpFile, _TRUNCATE);
             if (PathFileExistsDefExtW(xlpFile, 0xbf) || PathFileExistsW(xlpFile))
             {
                 GetFullPathNameW(xlpFile, ARRAY_SIZE(xlpFile), xlpFile, NULL);
@@ -654,7 +654,7 @@ static UINT SHELL_FindExecutable(LPCWSTR lpPath, LPCWSTR lpFile, LPCWSTR lpVerb,
         if (found)
         {
             lpFile = xlpFile;
-            lstrcpyW(lpResult, xlpFile);
+            wcsncpy_s(lpResult, resultLen, xlpFile, _TRUNCATE);
         }
         else
             xlpFile[0] = '\0';
@@ -668,13 +668,13 @@ static UINT SHELL_FindExecutable(LPCWSTR lpPath, LPCWSTR lpFile, LPCWSTR lpVerb,
         }
         else
             search_paths[0] = curdir;
-        lstrcpyW(xlpFile, lpFile);
+        wcsncpy_s(xlpFile, ARRAY_SIZE(xlpFile), lpFile, _TRUNCATE);
         if (PathResolveW(xlpFile, search_paths, PRF_TRYPROGRAMEXTENSIONS | PRF_VERIFYEXISTS) ||
             PathFindOnPathW(xlpFile, search_paths))
         {
             TRACE("PathResolveAW returned non-zero\n");
             lpFile = xlpFile;
-            lstrcpyW(lpResult, xlpFile);
+            wcsncpy_s(lpResult, resultLen, xlpFile, _TRUNCATE);
             /* The file was found in lpPath or one of the directories in the system-wide search path */
         }
         else
@@ -800,16 +800,16 @@ static UINT SHELL_FindExecutable(LPCWSTR lpPath, LPCWSTR lpFile, LPCWSTR lpVerb,
         {
             if (*command)
             {
-                lstrcpyW(lpResult, command);
+                wcsncpy_s(lpResult, resultLen, command, _TRUNCATE);
                 tok = wcschr(lpResult, '^'); /* should be ^.extension? */
                 if (tok != NULL)
                 {
                     tok[0] = '\0';
-                    lstrcatW(lpResult, xlpFile); /* what if no dir in xlpFile? */
+                    wcscat_s(lpResult, resultLen, xlpFile); /* what if no dir in xlpFile? */
                     tok = wcschr(command, '^'); /* see above */
                     if ((tok != NULL) && (lstrlenW(tok)>5))
                     {
-                        lstrcatW(lpResult, &tok[5]);
+                        wcscat_s(lpResult, resultLen, &tok[5]);
                     }
                 }
                 retval = 33; /* FIXME - see above */

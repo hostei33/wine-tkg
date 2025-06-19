@@ -620,8 +620,7 @@ static const char * const CRYPT_knownLocations[] = {
  "/usr/share/ca-certificates/ca-bundle.crt",
  "/usr/local/share/certs/",
  "/etc/sfw/openssl/certs",
- "/etc/security/cacerts",
-"/data/data/com.winlator/files/rootfs/etc/ca-certificates/cacert.pem",  /* Android */
+ "/etc/security/cacerts",  /* Android */
 };
 
 static void load_root_certs(void)
