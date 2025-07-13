@@ -356,6 +356,10 @@ static  BOOL	MMDRV_InitPerType(LPWINE_MM_DRIVER lpDrv, UINT type, UINT wMsg)
     /* got some drivers */
     if (lpDrv->bIsMapper) {
         llTypes[type].nMapper = MMDrvsHi;
+        if (type == MMDRV_MIDIIN || type == MMDRV_MIDIOUT) {
+            llTypes[type].wMaxId = 1;
+            part->nIDMax = 1;
+        }
     } else {
 	if (count == 0)
 	    return FALSE;
