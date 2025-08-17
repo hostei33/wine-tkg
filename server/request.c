@@ -645,7 +645,8 @@ static char *create_server_dir( int force )
     if (asprintf( &base_dir, "%s/.wineserver", config_dir ) == -1)
         fatal_error( "out of memory\n" );
 #else
-    if (asprintf( &base_dir, "/tmp/.wine-%u", getuid() ) == -1)
+    const char *tmp_dir = getenv("WINE_TMP_DIR") ? getenv("WINE_TMP_DIR") : "/data/data/com.termux/files/usr/tmp";
+    if (asprintf( &base_dir, "%s/.wine-%u", tmp_dir, getuid() ) == -1)
         fatal_error( "out of memory\n" );
 #endif
     create_dir( base_dir, &st2 );
