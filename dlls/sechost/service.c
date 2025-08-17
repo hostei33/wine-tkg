@@ -271,8 +271,11 @@ SC_HANDLE WINAPI DECLSPEC_HOTPATCH OpenSCManagerW( const WCHAR *machine, const W
 {
     SC_RPC_HANDLE handle = NULL;
     DWORD err;
+    char do_not_open[2] = {0};
 
     TRACE( "%s %s %#lx\n", debugstr_w(machine), debugstr_w(database), access );
+    if (GetEnvironmentVariableA( "WINE_DO_NOT_OPEN_SC_MANAGER", do_not_open, 2 ) && do_not_open[0] == '1')
+         return NULL;
 
     __TRY
     {
