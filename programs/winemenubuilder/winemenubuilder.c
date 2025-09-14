@@ -1276,8 +1276,8 @@ static BOOL write_desktop_entry(const WCHAR *link, const WCHAR *location, const 
         fprintf(file, "env \"WINEPREFIX=%s\" ", path);
         heap_free( path );
     }
-    fprintf(file, "wine \"%s\"", escape(path));
-    if (args) fprintf(file, " \"%s\"", escape(args) );
+    fprintf(file, "wine %s", escape(path));
+    if (args) fprintf(file, " %s", escape(args) );
     fputc( '\n', file );
     fprintf(file, "Type=Application\n");
     fprintf(file, "StartupNotify=true\n");
@@ -1709,7 +1709,7 @@ static BOOL build_native_mime_types(struct list *mime_types)
     if (_wgetenv( L"XDG_DATA_DIRS" ))
         dirs = xwcsdup( _wgetenv( L"XDG_DATA_DIRS" ));
     else
-        dirs = xwcsdup( L"/usr/local/share/:/usr/share/" );
+        dirs = xwcsdup( L"/data/data/com.winlator/files/rootfs/usr/local/share/:/data/data/com.winlator/files/rootfs/usr/share/" );
 
     ret = add_mimes(xdg_data_dir, mime_types);
     if (ret)
