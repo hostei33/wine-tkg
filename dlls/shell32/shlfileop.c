@@ -1082,10 +1082,6 @@ static void parse_file_list(FILE_LIST *flList, LPCWSTR szFiles, BOOL parse_wildc
         else
         {
             lstrcpyW(szCurFile, ptr);
-            if (wcslen(szCurFile) == 2 && szCurFile[1] == L':')
-            {
-            wcscat(szCurFile, L"\\");
-            }
         }
 
         for (p = szCurFile; *p; p++) if (*p == '/') *p = '\\';
