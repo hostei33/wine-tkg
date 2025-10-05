@@ -1,0 +1,12 @@
+--- server/timer.c
++++ server/timer.c
+@@ -109,6 +113,9 @@ static struct timer *create_timer( struct object *root, const struct unicode_str
+             timer->thread   = NULL;
+             timer->esync_fd = -1;
+ 
++            if (do_fsync())
++                timer->fsync_idx = fsync_alloc_shm( 0, 0 );
++
+             if (do_esync())
+                 timer->esync_fd = esync_create_fd( 0, 0 );
+         }

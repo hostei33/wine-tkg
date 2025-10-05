@@ -1,0 +1,28 @@
+--- server/console.c
++++ server/console.c
+@@ -138,6 +140,7 @@ struct console_server
+     int                   term_fd;     /* UNIX terminal fd */
+     struct termios        termios;     /* original termios */
+     int                   esync_fd;
++    unsigned int          fsync_idx;
+ };
+ 
+ static void console_server_dump( struct object *obj, int verbose );
+@@ -148,6 +151,7 @@ static struct object *console_server_lookup_name( struct object *obj, struct uni
+ static void console_server_destroy( struct object *obj );
+ static int console_server_signaled( struct object *obj, struct wait_queue_entry *entry );
+ static int console_server_get_esync_fd( struct object *obj, enum esync_type *type );
++static unsigned int console_server_get_fsync_idx( struct object *obj, enum fsync_type *type );
+ static struct fd *console_server_get_fd( struct object *obj );
+ static struct object *console_server_lookup_name( struct object *obj, struct unicode_str *name, unsigned int attr );
+ static struct object *console_server_open_file( struct object *obj, unsigned int access,
+@@ -826,6 +848,9 @@ static struct object *create_console_server( void )
+     }
+     allow_fd_caching(server->fd);
+ 
++    if (do_fsync())
++        server->fsync_idx = fsync_alloc_shm( 0, 0 );
++
+     if (do_esync())
+         server->esync_fd = esync_create_fd( 0, 0 );
+ 

@@ -72,7 +72,6 @@ static const struct object_ops semaphore_sync_ops =
     semaphore_sync_satisfied,      /* satisfied */
     no_signal,                     /* signal */
     no_get_fd,                     /* get_fd */
-    default_get_sync,              /* get_sync */
     default_map_access,            /* map_access */
     default_get_sd,                /* get_sd */
     default_set_sd,                /* set_sd */
@@ -175,8 +174,9 @@ static const struct object_ops semaphore_ops =
     no_open_file,                  /* open_file */
     no_kernel_obj_list,            /* get_kernel_obj_list */
     no_close_handle,               /* close_handle */
-    semaphore_destroy,             /* destroy */
+    no_destroy                     /* destroy */
 };
+
 
 static struct semaphore *create_semaphore( struct object *root, const struct unicode_str *name,
                                            unsigned int attr, unsigned int initial, unsigned int max,

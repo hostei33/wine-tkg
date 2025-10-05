@@ -1,0 +1,194 @@
+--- server/mutex.c
++++ server/mutex.c
+@@ -105,104 +107,15 @@ static void do_grab( struct mutex_sync *mutex, struct thread *thread )
+ }
+ 
+ /* release a mutex once the recursion count is 0 */
+-static int do_release( struct mutex_sync *mutex, struct thread *thread, int count )
+-{
+-    if (!mutex->count || (mutex->owner != thread))
+-    {
+-        set_error( STATUS_MUTANT_NOT_OWNED );
+-        return 0;
+-    }
+-    if (!(mutex->count -= count))
+-    {
+-        /* remove the mutex from the thread list of owned mutexes */
+-        list_remove( &mutex->entry );
+-        mutex->owner = NULL;
+-        wake_up( &mutex->obj, 0 );
+-        release_object( mutex );
+-    }
+-    return 1;
+-}
+-
+-static void mutex_sync_dump( struct object *obj, int verbose )
+-{
+-    struct mutex_sync *mutex = (struct mutex_sync *)obj;
+-    assert( obj->ops == &mutex_sync_ops );
+-    fprintf( stderr, "Mutex count=%u owner=%p\n", mutex->count, mutex->owner );
+-}
+-
+-static void mutex_sync_destroy( struct object *obj )
++static void do_release( struct mutex *mutex )
+ {
+-    struct mutex_sync *mutex = (struct mutex_sync *)obj;
+-    assert( obj->ops == &mutex_sync_ops );
+-    assert( !mutex->count );
+-}
+-
+-static int mutex_sync_signaled( struct object *obj, struct wait_queue_entry *entry )
+-{
+-    struct mutex_sync *mutex = (struct mutex_sync *)obj;
+-    assert( obj->ops == &mutex_sync_ops );
+-    return (!mutex->count || (mutex->owner == get_wait_queue_thread( entry )));
+-}
+-
+-static void mutex_sync_satisfied( struct object *obj, struct wait_queue_entry *entry )
+-{
+-    struct mutex_sync *mutex = (struct mutex_sync *)obj;
+-    assert( obj->ops == &mutex_sync_ops );
+-
+-    do_grab( mutex, get_wait_queue_thread( entry ));
+-    if (mutex->abandoned) make_wait_abandoned( entry );
+-    mutex->abandoned = 0;
+-}
+-
+-static struct mutex_sync *create_mutex_sync( int owned )
+-{
+-    struct mutex_sync *mutex;
+-
+-    if (!(mutex = alloc_object( &mutex_sync_ops ))) return NULL;
+-    mutex->count = 0;
++    assert( !mutex->count );
++    /* remove the mutex from the thread list of owned mutexes */
++    list_remove( &mutex->entry );
+     mutex->owner = NULL;
+-    mutex->abandoned = 0;
+-    if (owned) do_grab( mutex, current );
+-
+-    return mutex;
++    wake_up( &mutex->obj, 0 );
+ }
+ 
+-struct mutex
+-{
+-    struct object       obj;             /* object header */
+-    struct mutex_sync  *sync;            /* mutex sync object */
+-};
+-
+-static void mutex_dump( struct object *obj, int verbose );
+-static struct object *mutex_get_sync( struct object *obj );
+-static int mutex_signal( struct object *obj, unsigned int access );
+-static void mutex_destroy( struct object *obj );
+-
+-static const struct object_ops mutex_ops =
+-{
+-    sizeof(struct mutex),      /* size */
+-    &mutex_type,               /* type */
+-    mutex_dump,                /* dump */
+-    NULL,                      /* add_queue */
+-    NULL,                      /* remove_queue */
+-    NULL,                      /* signaled */
+-    NULL,                      /* satisfied */
+-    mutex_signal,              /* signal */
+-    no_get_fd,                 /* get_fd */
+-    mutex_get_sync,            /* get_sync */
+-    default_map_access,        /* map_access */
+-    default_get_sd,            /* get_sd */
+-    default_set_sd,            /* set_sd */
+-    default_get_full_name,     /* get_full_name */
+-    no_lookup_name,            /* lookup_name */
+-    directory_link_name,       /* link_name */
+-    default_unlink_name,       /* unlink_name */
+-    no_open_file,              /* open_file */
+-    no_kernel_obj_list,        /* get_kernel_obj_list */
+-    no_close_handle,           /* close_handle */
+-    mutex_destroy,             /* destroy */
+-};
+-
+ static struct mutex *create_mutex( struct object *root, const struct unicode_str *name,
+                                    unsigned int attr, int owned, const struct security_descriptor *sd )
+ {
+@@ -240,14 +151,24 @@ static void mutex_dump( struct object *obj, int verbose )
+ {
+     struct mutex *mutex = (struct mutex *)obj;
+     assert( obj->ops == &mutex_ops );
+-    mutex->sync->obj.ops->dump( &mutex->sync->obj, verbose );
++    fprintf( stderr, "Mutex count=%u owner=%p\n", mutex->count, mutex->owner );
+ }
+ 
+-static struct object *mutex_get_sync( struct object *obj )
++static int mutex_signaled( struct object *obj, struct wait_queue_entry *entry )
+ {
+     struct mutex *mutex = (struct mutex *)obj;
+     assert( obj->ops == &mutex_ops );
+-    return grab_object( mutex->sync );
++    return (!mutex->count || (mutex->owner == get_wait_queue_thread( entry )));
++}
++
++static void mutex_satisfied( struct object *obj, struct wait_queue_entry *entry )
++{
++    struct mutex *mutex = (struct mutex *)obj;
++    assert( obj->ops == &mutex_ops );
++
++    do_grab( mutex, get_wait_queue_thread( entry ));
++    if (mutex->abandoned) make_wait_abandoned( entry );
++    mutex->abandoned = 0;
+ }
+ 
+ static int mutex_signal( struct object *obj, unsigned int access )
+@@ -260,14 +181,23 @@ static int mutex_signal( struct object *obj, unsigned int access )
+         set_error( STATUS_ACCESS_DENIED );
+         return 0;
+     }
+-    return do_release( mutex->sync, current, 1 );
++    if (!mutex->count || (mutex->owner != current))
++    {
++        set_error( STATUS_MUTANT_NOT_OWNED );
++        return 0;
++    }
++    if (!--mutex->count) do_release( mutex );
++    return 1;
+ }
+ 
+ static void mutex_destroy( struct object *obj )
+ {
+     struct mutex *mutex = (struct mutex *)obj;
+     assert( obj->ops == &mutex_ops );
+-    if (mutex->sync) release_object( mutex->sync );
++
++    if (!mutex->count) return;
++    mutex->count = 0;
++    do_release( mutex );
+ }
+ 
+ /* create a mutex */
+@@ -311,8 +241,12 @@ DECL_HANDLER(release_mutex)
+     if ((mutex = (struct mutex *)get_handle_obj( current->process, req->handle,
+                                                  0, &mutex_ops )))
+     {
+-        reply->prev_count = mutex->sync->count;
+-        do_release( mutex->sync, current, 1 );
++        if (!mutex->count || (mutex->owner != current)) set_error( STATUS_MUTANT_NOT_OWNED );
++        else
++        {
++            reply->prev_count = mutex->count;
++            if (!--mutex->count) do_release( mutex );
++        }
+         release_object( mutex );
+     }
+ }
+@@ -325,9 +259,9 @@ DECL_HANDLER(query_mutex)
+     if ((mutex = (struct mutex *)get_handle_obj( current->process, req->handle,
+                                                  MUTANT_QUERY_STATE, &mutex_ops )))
+     {
+-        reply->count = mutex->sync->count;
+-        reply->owned = (mutex->sync->owner == current);
+-        reply->abandoned = mutex->sync->abandoned;
++        reply->count = mutex->count;
++        reply->owned = (mutex->owner == current);
++        reply->abandoned = mutex->abandoned;
+ 
+         release_object( mutex );
+     }

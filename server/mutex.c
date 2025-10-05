@@ -50,32 +50,34 @@ struct type_descr mutex_type =
     },
 };
 
-struct mutex_sync
+struct mutex
 {
-    struct object       obj;                /* object header */
-    struct thread      *owner;              /* mutex owner */
-    unsigned int        count;              /* recursion count */
-    int                 abandoned;          /* has it been abandoned? */
-    struct list         entry;              /* entry in owner thread mutex list */
+    struct object  obj;             /* object header */
+    struct thread *owner;           /* mutex owner */
+    unsigned int   count;           /* recursion count */
+    int            abandoned;       /* has it been abandoned? */
+    struct list    entry;           /* entry in owner thread mutex list */
 };
 
-static void mutex_sync_dump( struct object *obj, int verbose );
-static int mutex_sync_signaled( struct object *obj, struct wait_queue_entry *entry );
-static void mutex_sync_satisfied( struct object *obj, struct wait_queue_entry *entry );
-static void mutex_sync_destroy( struct object *obj );
+static void mutex_dump( struct object *obj, int verbose );
+static int mutex_signaled( struct object *obj, struct wait_queue_entry *entry );
+static void mutex_satisfied( struct object *obj, struct wait_queue_entry *entry );
+static void mutex_destroy( struct object *obj );
+static int mutex_signal( struct object *obj, unsigned int access );
 
-static const struct object_ops mutex_sync_ops =
+static const struct object_ops mutex_ops =
 {
-    sizeof(struct mutex_sync), /* size */
-    &no_type,                  /* type */
-    mutex_sync_dump,           /* dump */
+    sizeof(struct mutex),      /* size */
+    &mutex_type,               /* type */
+    mutex_dump,                /* dump */
     add_queue,                 /* add_queue */
     remove_queue,              /* remove_queue */
-    mutex_sync_signaled,       /* signaled */
-    mutex_sync_satisfied,      /* satisfied */
-    no_signal,                 /* signal */
+    mutex_signaled,            /* signaled */
+    NULL,                      /* get_esync_fd */
+    NULL,                      /* get_fsync_idx */
+    mutex_satisfied,           /* satisfied */
+    mutex_signal,              /* signal */
     no_get_fd,                 /* get_fd */
-    default_get_sync,          /* get_sync */
     default_map_access,        /* map_access */
     default_get_sd,            /* get_sd */
     default_set_sd,            /* set_sd */
@@ -86,11 +88,12 @@ static const struct object_ops mutex_sync_ops =
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
     no_close_handle,           /* close_handle */
-    mutex_sync_destroy,        /* destroy */
+    mutex_destroy              /* destroy */
 };
 
+
 /* grab a mutex for a given thread */
-static void do_grab( struct mutex_sync *mutex, struct thread *thread )
+static void do_grab( struct mutex *mutex, struct thread *thread )
 {
     assert( !mutex->count || (mutex->owner == thread) );
 
@@ -214,13 +217,10 @@ static struct mutex *create_mutex( struct object *root, const struct unicode_str
         if (get_error() != STATUS_OBJECT_NAME_EXISTS)
         {
             /* initialize it if it didn't already exist */
-            mutex->sync = NULL;
-
-            if (!(mutex->sync = create_mutex_sync( owned )))
-            {
-                release_object( mutex );
-                return NULL;
-            }
+            mutex->count = 0;
+            mutex->owner = NULL;
+            mutex->abandoned = 0;
+            if (owned) do_grab( mutex, current );
         }
     }
     return mutex;
@@ -232,10 +232,11 @@ void abandon_mutexes( struct thread *thread )
 
     while ((ptr = list_head( &thread->mutex_list )) != NULL)
     {
-        struct mutex_sync *mutex = LIST_ENTRY( ptr, struct mutex_sync, entry );
+        struct mutex *mutex = LIST_ENTRY( ptr, struct mutex, entry );
         assert( mutex->owner == thread );
+        mutex->count = 0;
         mutex->abandoned = 1;
-        do_release( mutex, thread, mutex->count );
+        do_release( mutex );
     }
 
     abandon_inproc_mutexes( thread->id );

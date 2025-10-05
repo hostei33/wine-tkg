@@ -35,6 +35,8 @@
 #include "thread.h"
 #include "request.h"
 #include "security.h"
+#include "esync.h"
+#include "fsync.h"
 
 static const WCHAR event_name[] = {'E','v','e','n','t'};
 
@@ -185,7 +187,7 @@ static const struct object_ops event_ops =
     no_open_file,              /* open_file */
     event_get_kernel_obj_list, /* get_kernel_obj_list */
     no_close_handle,           /* close_handle */
-    event_destroy,             /* destroy */
+    event_destroy              /* destroy */
 };
 
 
@@ -219,10 +221,11 @@ static const struct object_ops keyed_event_ops =
     add_queue,                   /* add_queue */
     remove_queue,                /* remove_queue */
     keyed_event_signaled,        /* signaled */
+    NULL,                        /* get_esync_fd */
+    NULL,                        /* get_fsync_idx */
     no_satisfied,                /* satisfied */
     no_signal,                   /* signal */
     no_get_fd,                   /* get_fd */
-    default_get_sync,            /* get_sync */
     default_map_access,          /* map_access */
     default_get_sd,              /* get_sd */
     default_set_sd,              /* set_sd */
@@ -248,14 +251,15 @@ struct event *create_event( struct object *root, const struct unicode_str *name,
         if (get_error() != STATUS_OBJECT_NAME_EXISTS)
         {
             /* initialize it if it didn't already exist */
-            event->sync = NULL;
             list_init( &event->kernel_object );
+            event->manual_reset = manual_reset;
+            event->signaled     = initial_state;
 
-            if (!(event->sync = create_event_sync( manual_reset, initial_state )))
-            {
-                release_object( event );
-                return NULL;
-            }
+            if (do_fsync())
+                event->fsync_idx = fsync_alloc_shm( initial_state, 0 );
+
+            if (do_esync())
+                event->esync_fd = esync_create_fd( initial_state, 0 );
         }
     }
     return event;
@@ -263,6 +267,14 @@ struct event *create_event( struct object *root, const struct unicode_str *name,
 
 struct event *get_event_obj( struct process *process, obj_handle_t handle, unsigned int access )
 {
+    struct object *obj;
+
+    if (do_fsync() && (obj = get_handle_obj( process, handle, access, &fsync_ops)))
+        return (struct event *)obj; /* even though it's not an event */
+
+    if (do_esync() && (obj = get_handle_obj( process, handle, access, &esync_ops)))
+        return (struct event *)obj; /* even though it's not an event */
+
     return (struct event *)get_handle_obj( process, handle, access, &event_ops );
 }
 
@@ -316,9 +328,12 @@ static struct list *event_get_kernel_obj_list( struct object *obj )
 static void event_destroy( struct object *obj )
 {
     struct event *event = (struct event *)obj;
-    assert( obj->ops == &event_ops );
 
-    if (event->sync) release_object( event->sync );
+    if (do_fsync())
+        fsync_clear( &event->obj );
+
+    if (do_esync())
+        close( event->esync_fd );
 }
 
 struct keyed_event *create_keyed_event( struct object *root, const struct unicode_str *name,

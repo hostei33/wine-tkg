@@ -55,10 +55,11 @@ static const struct object_ops d3dkmt_object_ops =
     no_add_queue,                   /* add_queue */
     NULL,                           /* remove_queue */
     NULL,                           /* signaled */
+    NULL,                           /* get_esync_fd */
+    NULL,                           /* get_fsync_fd */
     NULL,                           /* satisfied */
     no_signal,                      /* signal */
     no_get_fd,                      /* get_fd */
-    default_get_sync,               /* get_sync */
     default_map_access,             /* map_access */
     default_get_sd,                 /* get_sd */
     default_set_sd,                 /* set_sd */
@@ -108,9 +109,10 @@ static const struct object_ops dxgk_shared_sync_ops =
     NULL,                               /* remove_queue */
     NULL,                               /* signaled */
     NULL,                               /* satisfied */
+    NULL,                               /* get_esync_fd */
+    NULL,                               /* get_fsync_fd */
     no_signal,                          /* signal */
     no_get_fd,                          /* get_fd */
-    default_get_sync,                   /* get_sync */
     default_map_access,                 /* map_access */
     default_get_sd,                     /* get_sd */
     default_set_sd,                     /* set_sd */
@@ -174,10 +176,11 @@ static const struct object_ops dxgk_shared_resource_ops =
     no_add_queue,                           /* add_queue */
     NULL,                                   /* remove_queue */
     NULL,                                   /* signaled */
+    NULL,                                   /* get_esync_fd */
+    NULL,                                   /* get_fsync_fd */
     NULL,                                   /* satisfied */
     no_signal,                              /* signal */
     no_get_fd,                              /* get_fd */
-    default_get_sync,                       /* get_sync */
     default_map_access,                     /* map_access */
     default_get_sd,                         /* get_sd */
     default_set_sd,                         /* set_sd */

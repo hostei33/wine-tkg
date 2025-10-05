@@ -78,14 +78,16 @@ struct object_ops
     void (*remove_queue)(struct object *,struct wait_queue_entry *);
     /* is object signaled? */
     int  (*signaled)(struct object *,struct wait_queue_entry *);
+    /* return the esync fd for this object */
+    int (*get_esync_fd)(struct object *, enum esync_type *type);
+    /* return the fsync shm idx for this object */
+    unsigned int (*get_fsync_idx)(struct object *, enum fsync_type *type);
     /* wait satisfied */
     void (*satisfied)(struct object *,struct wait_queue_entry *);
     /* signal/reset an object */
     int  (*signal)(struct object *,unsigned int,int);
     /* return an fd object that can be used to read/write from the object */
     struct fd *(*get_fd)(struct object *);
-    /* return a sync that can be used to wait/signal the object */
-    struct object *(*get_sync)(struct object *);
     /* map access rights to the specific rights for this object */
     unsigned int (*map_access)(struct object *, unsigned int);
     /* returns the security descriptor of the object */
@@ -172,8 +174,6 @@ extern int no_add_queue( struct object *obj, struct wait_queue_entry *entry );
 extern void no_satisfied( struct object *obj, struct wait_queue_entry *entry );
 extern int no_signal( struct object *obj, unsigned int access, int signal );
 extern struct fd *no_get_fd( struct object *obj );
-extern struct object *default_get_sync( struct object *obj );
-static inline struct object *get_obj_sync( struct object *obj ) { return obj->ops->get_sync( obj ); }
 extern unsigned int default_map_access( struct object *obj, unsigned int access );
 extern struct security_descriptor *default_get_sd( struct object *obj );
 extern int default_set_sd( struct object *obj, const struct security_descriptor *sd, unsigned int set_info );

@@ -1,0 +1,197 @@
+--- dlls/ntdll/unix/sync.c
++++ dlls/ntdll/unix/sync.c
+@@ -309,9 +309,9 @@ static unsigned int validate_open_object_attributes( const OBJECT_ATTRIBUTES *at
+ 
+ struct inproc_sync
+ {
+-    int            fd;        /* unix file descriptor */
+-    unsigned int   access;    /* handle access rights */
+-    unsigned int   type;      /* enum inproc_sync_type */
++    int fd;
++    unsigned int access;
++    unsigned int type : 2;
+ };
+ 
+ static void release_inproc_sync( struct inproc_sync *sync )
+@@ -355,18 +355,6 @@ static NTSTATUS get_inproc_sync( HANDLE handle, ACCESS_MASK desired_access, stru
+     return STATUS_SUCCESS;
+ }
+ 
+-extern NTSTATUS check_signal_access( struct inproc_sync *sync )
+-{
+-    switch (sync->type)
+-    {
+-    case INPROC_SYNC_INTERNAL:
+-        return STATUS_OBJECT_TYPE_MISMATCH;
+-    }
+-
+-    assert( 0 );
+-    return STATUS_OBJECT_TYPE_MISMATCH;
+-}
+-
+ static NTSTATUS inproc_release_semaphore( HANDLE handle, ULONG count, ULONG *prev_count )
+ {
+     if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+@@ -441,26 +429,7 @@ static NTSTATUS inproc_wait( DWORD count, const HANDLE *handles, BOOLEAN wait_an
+ static NTSTATUS inproc_signal_and_wait( HANDLE signal, HANDLE wait,
+                                         BOOLEAN alertable, const LARGE_INTEGER *timeout )
+ {
+-    struct inproc_sync stack_signal, stack_wait, *signal_sync = &stack_signal, *wait_sync = &stack_wait;
+-    NTSTATUS ret;
+-
+     if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-
+-    if ((ret = get_inproc_sync( signal, 0, signal_sync ))) return ret;
+-    if ((ret = check_signal_access( signal_sync )))
+-    {
+-        release_inproc_sync( signal_sync );
+-        return ret;
+-    }
+-
+-    if ((ret = get_inproc_sync( wait, SYNCHRONIZE, wait_sync )))
+-    {
+-        release_inproc_sync( signal_sync );
+-        return ret;
+-    }
+-
+-    release_inproc_sync( signal_sync );
+-    release_inproc_sync( wait_sync );
+     return STATUS_NOT_IMPLEMENTED;
+ }
+ 
+--- dlls/ntdll/unix/sync.c
++++ dlls/ntdll/unix/sync.c
+@@ -301,133 +295,6 @@ static unsigned int validate_open_object_attributes( const OBJECT_ATTRIBUTES *at
+ }
+ 
+ 
+-struct inproc_sync
+-{
+-    int fd;
+-    unsigned int access;
+-    unsigned int type : 2;
+-};
+-
+-static void release_inproc_sync( struct inproc_sync *sync )
+-{
+-    close( sync->fd );
+-}
+-
+-static NTSTATUS get_inproc_sync( HANDLE handle, ACCESS_MASK desired_access, struct inproc_sync *sync )
+-{
+-    sigset_t sigset;
+-    NTSTATUS ret;
+-
+-    /* We need to use fd_cache_mutex here to protect against races with
+-     * other threads trying to receive fds for the fd cache,
+-     * and we need to use an uninterrupted section to prevent reentrancy. */
+-    server_enter_uninterrupted_section( &fd_cache_mutex, &sigset );
+-
+-    SERVER_START_REQ( get_inproc_sync_fd )
+-    {
+-        req->handle = wine_server_obj_handle( handle );
+-        if (!(ret = wine_server_call( req )))
+-        {
+-            obj_handle_t fd_handle;
+-            sync->fd = wine_server_receive_fd( &fd_handle );
+-            assert( wine_server_ptr_handle(fd_handle) == handle );
+-            sync->access = reply->access;
+-            sync->type = reply->type;
+-        }
+-    }
+-    SERVER_END_REQ;
+-
+-    server_leave_uninterrupted_section( &fd_cache_mutex, &sigset );
+-
+-    if (ret) return ret;
+-    if ((sync->access & desired_access) != desired_access)
+-    {
+-        release_inproc_sync( sync );
+-        return STATUS_ACCESS_DENIED;
+-    }
+-
+-    return STATUS_SUCCESS;
+-}
+-
+-static NTSTATUS inproc_release_semaphore( HANDLE handle, ULONG count, ULONG *prev_count )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_query_semaphore( HANDLE handle, SEMAPHORE_BASIC_INFORMATION *info )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_set_event( HANDLE handle, LONG *prev_state )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_reset_event( HANDLE handle, LONG *prev_state )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_pulse_event( HANDLE handle, LONG *prev_state )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_query_event( HANDLE handle, EVENT_BASIC_INFORMATION *info )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_release_mutex( HANDLE handle, LONG *prev_count )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_query_mutex( HANDLE handle, MUTANT_BASIC_INFORMATION *info )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_wait( DWORD count, const HANDLE *handles, BOOLEAN wait_any,
+-                             BOOLEAN alertable, const LARGE_INTEGER *timeout )
+-{
+-    struct inproc_sync *syncs[64], stack[ARRAY_SIZE(syncs)];
+-    NTSTATUS ret;
+-
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-
+-    assert( count <= ARRAY_SIZE(syncs) );
+-    for (int i = 0; i < count; ++i)
+-    {
+-        if ((ret = get_inproc_sync( handles[i], SYNCHRONIZE, stack + i )))
+-        {
+-            while (i--) release_inproc_sync( syncs[i] );
+-            return ret;
+-        }
+-        syncs[i] = stack + i;
+-    }
+-
+-    while (count--) release_inproc_sync( syncs[count] );
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-static NTSTATUS inproc_signal_and_wait( HANDLE signal, HANDLE wait,
+-                                        BOOLEAN alertable, const LARGE_INTEGER *timeout )
+-{
+-    if (inproc_device_fd < 0) return STATUS_NOT_IMPLEMENTED;
+-    return STATUS_NOT_IMPLEMENTED;
+-}
+-
+-
+ /******************************************************************************
+  *              NtCreateSemaphore (NTDLL.@)
+  */

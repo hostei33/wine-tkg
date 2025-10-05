@@ -35,6 +35,8 @@
 #include "file.h"
 #include "handle.h"
 #include "request.h"
+#include "esync.h"
+#include "fsync.h"
 
 static const WCHAR timer_name[] = {'T','i','m','e','r'};
 
@@ -62,10 +64,15 @@ struct timer
     struct thread       *thread;    /* thread that set the APC function */
     client_ptr_t         callback;  /* callback APC function */
     client_ptr_t         arg;       /* callback argument */
+    int                  esync_fd;  /* esync file descriptor */
+    unsigned int         fsync_idx; /* fsync shm index */
 };
 
 static void timer_dump( struct object *obj, int verbose );
-static struct object *timer_get_sync( struct object *obj );
+static int timer_signaled( struct object *obj, struct wait_queue_entry *entry );
+static int timer_get_esync_fd( struct object *obj, enum esync_type *type );
+static unsigned int timer_get_fsync_idx( struct object *obj, enum fsync_type *type );
+static void timer_satisfied( struct object *obj, struct wait_queue_entry *entry );
 static void timer_destroy( struct object *obj );
 
 static const struct object_ops timer_ops =
@@ -73,13 +80,14 @@ static const struct object_ops timer_ops =
     sizeof(struct timer),      /* size */
     &timer_type,               /* type */
     timer_dump,                /* dump */
-    NULL,                      /* add_queue */
-    NULL,                      /* remove_queue */
-    NULL,                      /* signaled */
-    NULL,                      /* satisfied */
+    add_queue,                 /* add_queue */
+    remove_queue,              /* remove_queue */
+    timer_signaled,            /* signaled */
+    timer_get_esync_fd,        /* get_esync_fd */
+    timer_get_fsync_idx,       /* get_fsync_idx */
+    timer_satisfied,           /* satisfied */
     no_signal,                 /* signal */
     no_get_fd,                 /* get_fd */
-    timer_get_sync,            /* get_sync */
     default_map_access,        /* map_access */
     default_get_sd,            /* get_sd */
     default_set_sd,            /* set_sd */
@@ -157,8 +165,9 @@ static void timer_callback( void *private )
     }
     else timer->timeout = NULL;
 
+    /* wake up waiters */
     timer->signaled = 1;
-    signal_sync( timer->sync );
+    wake_up( &timer->obj, 0 );
 }
 
 /* cancel a running timer */
@@ -189,7 +198,12 @@ static int set_timer( struct timer *timer, timeout_t expire, unsigned int period
     {
         period = 0;  /* period doesn't make any sense for a manual timer */
         timer->signaled = 0;
-        reset_sync( timer->sync );
+
+        if (do_fsync())
+            fsync_clear( &timer->obj );
+
+        if (do_esync())
+            esync_clear( timer->esync_fd );
     }
     timer->when     = (expire <= 0) ? expire - monotonic_time : max( expire, current_time );
     timer->period   = period;
@@ -210,11 +224,32 @@ static void timer_dump( struct object *obj, int verbose )
              timer->manual, get_timeout_str(timeout), timer->period );
 }
 
-static struct object *timer_get_sync( struct object *obj )
+static int timer_signaled( struct object *obj, struct wait_queue_entry *entry )
 {
     struct timer *timer = (struct timer *)obj;
     assert( obj->ops == &timer_ops );
-    return grab_object( timer->sync );
+    return timer->signaled;
+}
+
+static int timer_get_esync_fd( struct object *obj, enum esync_type *type )
+{
+    struct timer *timer = (struct timer *)obj;
+    *type = timer->manual ? ESYNC_MANUAL_SERVER : ESYNC_AUTO_SERVER;
+    return timer->esync_fd;
+}
+
+static unsigned int timer_get_fsync_idx( struct object *obj, enum fsync_type *type )
+{
+    struct timer *timer = (struct timer *)obj;
+    *type = timer->manual ? FSYNC_MANUAL_SERVER : FSYNC_AUTO_SERVER;
+    return timer->fsync_idx;
+}
+
+static void timer_satisfied( struct object *obj, struct wait_queue_entry *entry )
+{
+    struct timer *timer = (struct timer *)obj;
+    assert( obj->ops == &timer_ops );
+    if (!timer->manual) timer->signaled = 0;
 }
 
 static void timer_destroy( struct object *obj )
@@ -224,7 +259,7 @@ static void timer_destroy( struct object *obj )
 
     if (timer->timeout) remove_timeout_user( timer->timeout );
     if (timer->thread) release_object( timer->thread );
-    if (timer->sync) release_object( timer->sync );
+    if (do_esync()) close( timer->esync_fd );
 }
 
 /* create a timer */

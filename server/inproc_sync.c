@@ -252,7 +252,7 @@ int get_inproc_sync_fd( struct inproc_sync *sync )
     return -1;
 }
 
-struct inproc_sync *create_inproc_internal_sync( int manual, int signaled )
+struct inproc_sync *create_inproc_event_sync( int manual, int signaled )
 {
     return NULL;
 }

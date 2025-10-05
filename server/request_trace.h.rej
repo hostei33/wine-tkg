@@ -1,0 +1,54 @@
+--- server/request_trace.h
++++ server/request_trace.h
+@@ -1382,6 +1382,7 @@ static void dump_set_queue_mask_request( const struct set_queue_mask_request *re
+ {
+     fprintf( stderr, " wake_mask=%08x", req->wake_mask );
+     fprintf( stderr, ", changed_mask=%08x", req->changed_mask );
++    fprintf( stderr, ", skip_wait=%d", req->skip_wait );
+ }
+ 
+ static void dump_set_queue_mask_reply( const struct set_queue_mask_reply *req )
+--- server/request_trace.h
++++ server/request_trace.h
+@@ -3383,17 +3382,6 @@ static void dump_set_keyboard_repeat_reply( const struct set_keyboard_repeat_rep
+     fprintf( stderr, " enable=%d", req->enable );
+ }
+ 
+-static void dump_get_inproc_sync_fd_request( const struct get_inproc_sync_fd_request *req )
+-{
+-    fprintf( stderr, " handle=%04x", req->handle );
+-}
+-
+-static void dump_get_inproc_sync_fd_reply( const struct get_inproc_sync_fd_reply *req )
+-{
+-    fprintf( stderr, " type=%d", req->type );
+-    fprintf( stderr, ", access=%08x", req->access );
+-}
+-
+ static void dump_d3dkmt_object_create_request( const struct d3dkmt_object_create_request *req )
+ {
+     fprintf( stderr, " type=%08x", req->type );
+@@ -3695,7 +3683,6 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
+     (dump_func)dump_get_next_process_request,
+     (dump_func)dump_get_next_thread_request,
+     (dump_func)dump_set_keyboard_repeat_request,
+-    (dump_func)dump_get_inproc_sync_fd_request,
+     (dump_func)dump_d3dkmt_object_create_request,
+     (dump_func)dump_d3dkmt_object_query_request,
+ };
+@@ -3997,7 +3984,6 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
+     (dump_func)dump_get_next_process_reply,
+     (dump_func)dump_get_next_thread_reply,
+     (dump_func)dump_set_keyboard_repeat_reply,
+-    (dump_func)dump_get_inproc_sync_fd_reply,
+     (dump_func)dump_d3dkmt_object_create_reply,
+     (dump_func)dump_d3dkmt_object_query_reply,
+ };
+@@ -4299,7 +4285,6 @@ static const char * const req_names[REQ_NB_REQUESTS] =
+     "get_next_process",
+     "get_next_thread",
+     "set_keyboard_repeat",
+-    "get_inproc_sync_fd",
+     "d3dkmt_object_create",
+     "d3dkmt_object_query",
+ };
