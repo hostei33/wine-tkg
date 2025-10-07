@@ -1104,7 +1104,6 @@ static void contexts_from_server( CONTEXT *context, struct context_data server_c
  */
 static DECLSPEC_NORETURN void pthread_exit_wrapper( int status )
 {
-    close( ntdll_get_thread_data()->alert_fd );
     close( ntdll_get_thread_data()->wait_fd[0] );
     close( ntdll_get_thread_data()->wait_fd[1] );
     close( ntdll_get_thread_data()->reply_fd );
@@ -1844,14 +1843,7 @@ NTSTATUS get_thread_context( HANDLE handle, void *context, BOOL *self, USHORT ma
 
     if (ret == STATUS_PENDING)
     {
-        sigset_t sigset;
-
         NtWaitForSingleObject( context_handle, FALSE, NULL );
-
-        server_enter_uninterrupted_section( &fd_cache_mutex, &sigset );
-
-        /* remove the handle from the cache, get_thread_context will close it for us */
-        close_inproc_sync( context_handle );
 
         SERVER_START_REQ( get_thread_context )
         {
@@ -1860,12 +1852,10 @@ NTSTATUS get_thread_context( HANDLE handle, void *context, BOOL *self, USHORT ma
             req->machine = machine;
             req->native_flags = flags & get_native_context_flags( native_machine, machine );
             wine_server_set_reply( req, server_contexts, sizeof(server_contexts) );
-            ret = server_call_unlocked( req );
+            ret = wine_server_call( req );
             count = wine_server_reply_size( reply ) / sizeof(server_contexts[0]);
         }
         SERVER_END_REQ;
-
-        server_leave_uninterrupted_section( &fd_cache_mutex, &sigset );
     }
     if (!ret && count)
     {

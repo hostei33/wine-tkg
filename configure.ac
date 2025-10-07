@@ -675,13 +675,13 @@ AC_CHECK_HEADERS(\
 	link.h \
 	linux/cdrom.h \
 	linux/filter.h \
+	linux/futex.h \
 	linux/fs.h \
 	linux/hdreg.h \
 	linux/hidraw.h \
 	linux/input.h \
 	linux/ioctl.h \
 	linux/major.h \
-	linux/ntsync.h \
 	linux/param.h \
 	linux/seccomp.h \
 	linux/serial.h \
@@ -712,6 +712,7 @@ AC_CHECK_HEADERS(\
 	sys/cdio.h \
 	sys/epoll.h \
 	sys/event.h \
+	sys/eventfd.h \
 	sys/extattr.h \
 	sys/filio.h \
 	sys/ipc.h \
@@ -1697,7 +1698,7 @@ WINE_NOTICE_WITH(ffmpeg,[test "x$FFMPEG_LIBS" = x],
 dnl **** Check for gstreamer ****
 if test "x$with_gstreamer" != "xno"
 then
-    WINE_PACKAGE_FLAGS(GSTREAMER,[gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0],,,,
+    WINE_PACKAGE_FLAGS(GSTREAMER,[gstreamer-1.0 gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-tag-1.0 gstreamer-gl-1.0],,,,
         [AC_CHECK_HEADER([gst/gst.h],
             [AC_MSG_CHECKING([whether gint64 defined by gst/gst.h is indeed 64-bit])
               AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <gst/gst.h>]],
@@ -2074,13 +2075,7 @@ fi
 
 dnl **** Platform-specific checks ****
 
-case "$HOST_ARCH,$PE_ARCHS" in
-  x86_64,i386) wine_binary="wine" ;;
-  x86_64,*) wine_binary="wine64" ;;
-  *) wine_binary="wine" ;;
-esac
-test "$wine_binary" = wine || WINE_IGNORE_FILE(loader/wine)
-AC_SUBST(WINELOADER_PROGRAMS,"$wine_binary")
+AC_SUBST(WINELOADER_PROGRAMS,"wine")
 
 case $host_os in
   linux*)
@@ -2093,8 +2088,7 @@ esac
 
 if test "$wine_use_preloader" = "yes"
 then
-  test "$wine_binary" = wine || WINE_IGNORE_FILE(loader/wine-preloader)
-  WINELOADER_PROGRAMS="$WINELOADER_PROGRAMS $wine_binary-preloader"
+  WINELOADER_PROGRAMS="$WINELOADER_PROGRAMS wine-preloader"
   AC_DEFINE(HAVE_WINE_PRELOADER, 1, [Define to 1 if the Wine preloader is being used.])
 fi
 
@@ -2124,6 +2118,7 @@ AC_CHECK_FUNCS(\
 	port_create \
 	posix_fadvise \
 	posix_fallocate \
+	ppoll \
 	prctl \
 	sched_getcpu \
 	sched_yield \
@@ -2142,6 +2137,12 @@ dnl Check for clock_gettime which may be in -lrt
 ac_save_LIBS=$LIBS
 AC_SEARCH_LIBS(clock_gettime, rt,
                [AC_DEFINE(HAVE_CLOCK_GETTIME, 1, [Define to 1 if you have the 'clock_gettime' function.])
+                test "$ac_res" = "none required" || AC_SUBST(RT_LIBS,"$ac_res")])
+LIBS=$ac_save_LIBS
+
+ac_save_LIBS=$LIBS
+AC_SEARCH_LIBS(shm_open, rt,
+               [AC_DEFINE(HAVE_SHM_OPEN, 1, [Define to 1 if you have the `shm_open' function.])
                 test "$ac_res" = "none required" || AC_SUBST(RT_LIBS,"$ac_res")])
 LIBS=$ac_save_LIBS
 
@@ -3156,6 +3157,7 @@ WINE_CONFIG_MAKEFILE(dlls/setupapi/tests)
 WINE_CONFIG_MAKEFILE(dlls/setupx.dll16)
 WINE_CONFIG_MAKEFILE(dlls/sfc)
 WINE_CONFIG_MAKEFILE(dlls/sfc_os)
+WINE_CONFIG_MAKEFILE(dlls/sharedgpures.sys)
 WINE_CONFIG_MAKEFILE(dlls/shcore)
 WINE_CONFIG_MAKEFILE(dlls/shcore/tests)
 WINE_CONFIG_MAKEFILE(dlls/shdoclc)
@@ -3523,7 +3525,6 @@ WINE_CONFIG_MAKEFILE(po)
 WINE_CONFIG_MAKEFILE(programs/arp)
 WINE_CONFIG_MAKEFILE(programs/aspnet_regiis)
 WINE_CONFIG_MAKEFILE(programs/attrib)
-WINE_CONFIG_MAKEFILE(programs/belauncher)
 WINE_CONFIG_MAKEFILE(programs/cabarc)
 WINE_CONFIG_MAKEFILE(programs/cacls)
 WINE_CONFIG_MAKEFILE(programs/certutil)
@@ -3757,7 +3758,7 @@ dnl Rules for generated source files
 
 WINE_APPEND_RULE(
 [dlls/ntdll/unix/version.c: dummy
-	@version=\`(echo \"wine-10.16.r0.g265554a9\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
+	@version=\`(echo \"wine-10.16.r0.g265554a9\") | sed -n -e '\$\$s/\(.*\)/const char wine_build[[]] = \"\\1  ( TkG Staging Esync Fsync )\";/p'\` && (echo \$\$version | cmp -s - \$[@]) || echo \$\$version >\$[@] || (rm -f \$[@] && exit 1)
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg

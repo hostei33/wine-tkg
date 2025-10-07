@@ -109,10 +109,11 @@ static const struct object_ops apc_reserve_ops =
     no_add_queue,               /* add_queue */
     NULL,                       /* remove_queue */
     NULL,                       /* signaled */
+    NULL,                       /* get_esync_fd */
+    NULL,                       /* get_fsync_idx */
     no_satisfied,               /* satisfied */
     no_signal,                  /* signal */
     no_get_fd,                  /* get_fd */
-    default_get_sync,           /* get_sync */
     default_map_access,         /* map_access */
     default_get_sd,             /* get_sd */
     default_set_sd,             /* set_sd */
@@ -134,10 +135,11 @@ static const struct object_ops completion_reserve_ops =
     no_add_queue,              /* add_queue */
     NULL,                      /* remove_queue */
     NULL,                      /* signaled */
+    NULL,                      /* get_esync_fd */
+    NULL,                      /* get_fsync_idx */
     no_satisfied,              /* satisfied */
     no_signal,                 /* signal */
     no_get_fd,                 /* get_fd */
-    default_get_sync,          /* get_sync */
     default_map_access,        /* map_access */
     default_get_sd,            /* get_sd */
     default_set_sd,            /* set_sd */
@@ -630,7 +632,7 @@ void no_satisfied( struct object *obj, struct wait_queue_entry *entry )
 {
 }
 
-int no_signal( struct object *obj, unsigned int access, int signal )
+int no_signal( struct object *obj, unsigned int access )
 {
     set_error( STATUS_OBJECT_TYPE_MISMATCH );
     return 0;
@@ -640,11 +642,6 @@ struct fd *no_get_fd( struct object *obj )
 {
     set_error( STATUS_OBJECT_TYPE_MISMATCH );
     return NULL;
-}
-
-struct object *default_get_sync( struct object *obj )
-{
-    return grab_object( obj );
 }
 
 unsigned int default_map_access( struct object *obj, unsigned int access )

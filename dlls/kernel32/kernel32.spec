@@ -622,7 +622,7 @@
 @ stdcall -import GetConsoleProcessList(ptr long)
 @ stdcall -import GetConsoleScreenBufferInfo(long ptr)
 @ stdcall -import GetConsoleScreenBufferInfoEx(long ptr)
-@ stdcall -import GetConsoleSelectionInfo(ptr)
+# @ stub GetConsoleSelectionInfo
 @ stdcall -import GetConsoleTitleA(ptr long)
 @ stdcall -import GetConsoleTitleW(ptr long)
 @ stdcall -import GetConsoleWindow()

@@ -191,9 +191,9 @@ static void *address_space_start = (void *)0x110000; /* keep DOS area clear */
 static void *address_space_start = (void *)0x10000;
 #endif
 #ifdef _WIN64
-static void *address_space_limit = (void *)0x7fffffff0000;  /* top of the total available address space */
-static void *user_space_limit    = (void *)0x7fffffff0000;  /* top of the user address space */
-static void *working_set_limit   = (void *)0x7fffffff0000;  /* top of the current working set */
+static void *address_space_limit = (void *)0x7fffff0000;  /* top of the total available address space */
+static void *user_space_limit    = (void *)0x7fffff0000;  /* top of the user address space */
+static void *working_set_limit   = (void *)0x7fffff0000;  /* top of the current working set */
 #else
 static void *address_space_limit = (void *)0xc0000000;
 static void *user_space_limit    = (void *)0x7fff0000;
@@ -4034,11 +4034,12 @@ static TEB *init_teb( void *ptr, BOOL is_wow )
     teb->StaticUnicodeString.Buffer = teb->StaticUnicodeBuffer;
     teb->StaticUnicodeString.MaximumLength = sizeof(teb->StaticUnicodeBuffer);
     thread_data = (struct ntdll_thread_data *)&teb->GdiTebBatch;
+    thread_data->esync_apc_fd = -1;
+    thread_data->fsync_apc_futex = NULL;
     thread_data->request_fd = -1;
     thread_data->reply_fd   = -1;
     thread_data->wait_fd[0] = -1;
     thread_data->wait_fd[1] = -1;
-    thread_data->alert_fd   = -1;
     list_add_head( &teb_list, &thread_data->entry );
     return teb;
 }
