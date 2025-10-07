@@ -1400,7 +1400,7 @@ static void dump_set_queue_mask_request( const struct set_queue_mask_request *re
 {
     fprintf( stderr, " wake_mask=%08x", req->wake_mask );
     fprintf( stderr, ", changed_mask=%08x", req->changed_mask );
-    fprintf( stderr, ", poll_events=%d", req->poll_events );
+    fprintf( stderr, ", skip_wait=%d", req->skip_wait );
 }
 
 static void dump_set_queue_mask_reply( const struct set_queue_mask_reply *req )
@@ -3437,26 +3437,6 @@ static void dump_set_keyboard_repeat_reply( const struct set_keyboard_repeat_rep
     fprintf( stderr, " enable=%d", req->enable );
 }
 
-static void dump_get_inproc_sync_fd_request( const struct get_inproc_sync_fd_request *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-}
-
-static void dump_get_inproc_sync_fd_reply( const struct get_inproc_sync_fd_reply *req )
-{
-    fprintf( stderr, " type=%d", req->type );
-    fprintf( stderr, ", access=%08x", req->access );
-}
-
-static void dump_get_inproc_alert_fd_request( const struct get_inproc_alert_fd_request *req )
-{
-}
-
-static void dump_get_inproc_alert_fd_reply( const struct get_inproc_alert_fd_reply *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-}
-
 static void dump_d3dkmt_object_create_request( const struct d3dkmt_object_create_request *req )
 {
     fprintf( stderr, " type=%08x", req->type );
@@ -3890,8 +3870,6 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_esync_fd_request,
     (dump_func)dump_esync_msgwait_request,
     (dump_func)dump_set_keyboard_repeat_request,
-    (dump_func)dump_get_inproc_sync_fd_request,
-    (dump_func)dump_get_inproc_alert_fd_request,
     (dump_func)dump_d3dkmt_object_create_request,
     (dump_func)dump_d3dkmt_object_query_request,
     (dump_func)dump_d3dkmt_object_open_request,
@@ -4208,8 +4186,6 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_esync_fd_reply,
     NULL,
     (dump_func)dump_set_keyboard_repeat_reply,
-    (dump_func)dump_get_inproc_sync_fd_reply,
-    (dump_func)dump_get_inproc_alert_fd_reply,
     (dump_func)dump_d3dkmt_object_create_reply,
     (dump_func)dump_d3dkmt_object_query_reply,
     (dump_func)dump_d3dkmt_object_open_reply,
@@ -4526,8 +4502,6 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "get_esync_fd",
     "esync_msgwait",
     "set_keyboard_repeat",
-    "get_inproc_sync_fd",
-    "get_inproc_alert_fd",
     "d3dkmt_object_create",
     "d3dkmt_object_query",
     "d3dkmt_object_open",
@@ -4638,7 +4612,6 @@ static const struct
     { "NO_IMPERSONATION_TOKEN",      STATUS_NO_IMPERSONATION_TOKEN },
     { "NO_MEMORY",                   STATUS_NO_MEMORY },
     { "NO_MORE_ENTRIES",             STATUS_NO_MORE_ENTRIES },
-    { "NO_MORE_FILES",               STATUS_NO_MORE_FILES },
     { "NO_SUCH_DEVICE",              STATUS_NO_SUCH_DEVICE },
     { "NO_SUCH_FILE",                STATUS_NO_SUCH_FILE },
     { "NO_TOKEN",                    STATUS_NO_TOKEN },

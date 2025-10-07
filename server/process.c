@@ -144,16 +144,15 @@ static const struct fd_ops process_fd_ops =
 
 struct startup_info
 {
-    struct object               obj;            /* object header */
-    struct object              *sync;           /* sync object for wait/signal */
-    struct process             *process;        /* created process */
-    data_size_t                 info_size;      /* size of startup info */
-    data_size_t                 data_size;      /* size of whole startup data */
-    struct startup_info_data   *data;           /* data for startup info */
+    struct object       obj;          /* object header */
+    struct process     *process;      /* created process */
+    data_size_t         info_size;    /* size of startup info */
+    data_size_t         data_size;    /* size of whole startup data */
+    struct startup_info_data *data;   /* data for startup info */
 };
 
 static void startup_info_dump( struct object *obj, int verbose );
-static struct object *startup_info_get_sync( struct object *obj );
+static int startup_info_signaled( struct object *obj, struct wait_queue_entry *entry );
 static void startup_info_destroy( struct object *obj );
 
 static const struct object_ops startup_info_ops =
@@ -199,24 +198,24 @@ struct type_descr job_type =
 };
 
 static void job_dump( struct object *obj, int verbose );
-static struct object *job_get_sync( struct object *obj );
+static int job_signaled( struct object *obj, struct wait_queue_entry *entry );
 static int job_close_handle( struct object *obj, struct process *process, obj_handle_t handle );
 static void job_destroy( struct object *obj );
 
 struct job
 {
-    struct object        obj;               /* object header */
-    struct object       *sync;              /* sync object for wait/signal */
-    struct list          process_list;      /* list of processes */
-    int                  num_processes;     /* count of running processes */
-    int                  total_processes;   /* count of processes which have been assigned */
-    unsigned int         limit_flags;       /* limit flags */
-    int                  terminating;       /* job is terminating */
-    struct completion   *completion_port;   /* associated completion port */
-    apc_param_t          completion_key;    /* key to send with completion messages */
-    struct job          *parent;
-    struct list          parent_job_entry;  /* list entry for parent job */
-    struct list          child_job_list;    /* list of child jobs */
+    struct object obj;             /* object header */
+    struct list process_list;      /* list of processes */
+    int num_processes;             /* count of running processes */
+    int total_processes;           /* count of processes which have been assigned */
+    unsigned int limit_flags;      /* limit flags */
+    int terminating;               /* job is terminating */
+    int signaled;                  /* job is signaled */
+    struct completion *completion_port; /* associated completion port */
+    apc_param_t completion_key;    /* key to send with completion messages */
+    struct job *parent;
+    struct list parent_job_entry;  /* list entry for parent job */
+    struct list child_job_list;    /* list of child jobs */
 };
 
 static const struct object_ops job_ops =
@@ -255,22 +254,16 @@ static struct job *create_job_object( struct object *root, const struct unicode_
         if (get_error() != STATUS_OBJECT_NAME_EXISTS)
         {
             /* initialize it if it didn't already exist */
-            job->sync = NULL;
             list_init( &job->process_list );
             list_init( &job->child_job_list );
             job->num_processes = 0;
             job->total_processes = 0;
             job->limit_flags = 0;
             job->terminating = 0;
+            job->signaled = 0;
             job->completion_port = NULL;
             job->completion_key = 0;
             job->parent = NULL;
-
-            if (!(job->sync = create_internal_sync( 1, 0 )))
-            {
-                release_object( job );
-                return NULL;
-            }
         }
     }
     return job;
@@ -728,7 +721,6 @@ struct process *create_process( int fd, struct process *parent, unsigned int fla
         goto error;
     }
     if (!(process->msg_fd = create_anonymous_fd( &process_fd_ops, fd, &process->obj, 0 ))) goto error;
-    if (!(process->sync = create_internal_sync( 1, 0 ))) goto error;
 
     /* create the handle table */
     if (!parent)
@@ -1241,15 +1233,8 @@ DECL_HANDLER(new_process)
         release_object( parent );
         return;
     }
-    info->sync     = NULL;
     info->process  = NULL;
     info->data     = NULL;
-
-    if (!(info->sync = create_internal_sync( 1, 0 )))
-    {
-        close( socket_fd );
-        goto done;
-    }
 
     info_ptr = get_req_data_after_objattr( objattr, &info->data_size );
 
@@ -1742,7 +1727,7 @@ static void set_process_disable_boost( struct process *process, int disable_boos
 
     LIST_FOR_EACH_ENTRY( thread, &process->thread_list, struct thread, proc_entry )
     {
-        thread->disable_boost = disable_boost;
+        set_thread_disable_boost( thread, disable_boost );
     }
 }
 
@@ -2125,7 +2110,7 @@ DECL_HANDLER(list_processes)
             thread_info->start_time = thread->creation_time;
             thread_info->tid = thread->id;
             thread_info->base_priority = thread->base_priority;
-            thread_info->current_priority = thread->priority;
+            thread_info->current_priority = get_effective_thread_priority( thread );
             thread_info->unix_tid = thread->unix_tid;
             thread_info->entry_point = thread->entry_point;
             thread_info->teb = thread->teb;

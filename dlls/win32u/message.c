@@ -40,10 +40,6 @@ WINE_DEFAULT_DEBUG_CHANNEL(msg);
 WINE_DECLARE_DEBUG_CHANNEL(key);
 WINE_DECLARE_DEBUG_CHANNEL(relay);
 
-#define QS_DRIVER       0x80000000
-#define QS_HARDWARE     0x40000000
-#define QS_INTERNAL     (QS_DRIVER | QS_HARDWARE)
-
 #define MAX_WINPROC_RECURSION  64
 
 #define WM_NCMOUSEFIRST WM_NCMOUSEMOVE
@@ -3133,44 +3129,6 @@ static HANDLE get_server_queue_handle(void)
         if (!ret) ERR( "Cannot get server thread queue\n" );
     }
     return ret;
-}
-
-static BOOL has_hardware_messages(void)
-{
-    struct object_lock lock = OBJECT_LOCK_INIT;
-    const queue_shm_t *queue_shm;
-    BOOL signaled = FALSE;
-    UINT status;
-
-    while ((status = get_shared_queue( &lock, &queue_shm )) == STATUS_PENDING)
-        signaled = queue_shm->internal_bits & QS_HARDWARE;
-    if (status) return FALSE;
-
-    return signaled;
-}
-
-BOOL process_driver_events( UINT mask )
-{
-    if (user_driver->pProcessEvents( mask ))
-    {
-        SERVER_START_REQ( set_queue_mask )
-        {
-            req->poll_events = 1;
-            wine_server_call( req );
-        }
-        SERVER_END_REQ;
-    }
-
-    return has_hardware_messages();
-}
-
-void check_for_events( UINT flags )
-{
-    struct peek_message_filter filter = {.internal = TRUE, .flags = PM_REMOVE};
-    MSG msg;
-
-    if (!process_driver_events( flags )) flush_window_surfaces( TRUE );
-    peek_message( &msg, &filter );
 }
 
 /* monotonic timer tick for throttling driver event checks */

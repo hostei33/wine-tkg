@@ -50,8 +50,6 @@ struct inflight_fd
 struct thread
 {
     struct object          obj;           /* object header */
-    struct object         *sync;          /* sync object for wait/signal */
-    struct inproc_sync    *alert_sync;    /* inproc sync for user apc alerts */
     struct list            entry;         /* entry in system-wide thread list */
     struct list            proc_entry;    /* entry in per-process thread list */
     struct list            desktop_entry; /* entry in per-desktop thread list */
@@ -132,8 +130,10 @@ extern void thread_cancel_apc( struct thread *thread, struct object *owner, enum
 extern int thread_add_inflight_fd( struct thread *thread, int client, int server );
 extern int thread_get_inflight_fd( struct thread *thread, int client );
 extern struct token *thread_get_impersonation_token( struct thread *thread );
+extern int get_effective_thread_priority( struct thread *thread );
 extern unsigned int set_thread_priority( struct thread *thread, int priority );
 extern unsigned int set_thread_base_priority( struct thread *thread, int base_priority );
+extern void set_thread_disable_boost( struct thread *thread, int disable_boost );
 extern int set_thread_affinity( struct thread *thread, affinity_t affinity );
 extern int suspend_thread( struct thread *thread );
 extern int resume_thread( struct thread *thread );

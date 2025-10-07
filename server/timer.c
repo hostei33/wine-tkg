@@ -55,7 +55,6 @@ struct type_descr timer_type =
 struct timer
 {
     struct object        obj;       /* object header */
-    struct object       *sync;      /* sync object for wait/signal */
     int                  manual;    /* manual reset */
     int                  signaled;  /* current signaled state */
     unsigned int         period;    /* timer period in ms */
@@ -113,19 +112,19 @@ static struct timer *create_timer( struct object *root, const struct unicode_str
         if (get_error() != STATUS_OBJECT_NAME_EXISTS)
         {
             /* initialize it if it didn't already exist */
-            timer->sync     = NULL;
             timer->manual   = manual;
             timer->signaled = 0;
             timer->when     = 0;
             timer->period   = 0;
             timer->timeout  = NULL;
             timer->thread   = NULL;
+            timer->esync_fd = -1;
 
-            if (!(timer->sync = create_internal_sync( manual, 0 )))
-            {
-                release_object( timer );
-                return NULL;
-            }
+            if (do_fsync())
+                timer->fsync_idx = fsync_alloc_shm( 0, 0 );
+
+            if (do_esync())
+                timer->esync_fd = esync_create_fd( 0, 0 );
         }
     }
     return timer;

@@ -136,7 +136,6 @@ struct fd
 {
     struct object        obj;         /* object header */
     const struct fd_ops *fd_ops;      /* file descriptor operations */
-    struct object       *sync;        /* sync object for wait/signal */
     struct inode        *inode;       /* inode that this fd belongs to */
     struct list          inode_entry; /* entry in inode fd list */
     struct closed_fd    *closed;      /* structure to store the unix fd at destroy time */
@@ -285,7 +284,6 @@ static const struct object_ops inode_ops =
 struct file_lock
 {
     struct object       obj;         /* object header */
-    struct object      *sync;        /* sync object for wait/signal */
     struct fd          *fd;          /* fd owning this lock */
     struct list         fd_entry;    /* entry in list of locks on a given fd */
     struct list         inode_entry; /* entry in inode list of locks */
@@ -1514,24 +1512,22 @@ static struct file_lock *add_lock( struct fd *fd, int shared, file_pos_t start, 
     struct file_lock *lock;
 
     if (!(lock = alloc_object( &file_lock_ops ))) return NULL;
-    lock->sync    = NULL;
     lock->shared  = shared;
     lock->start   = start;
     lock->end     = end;
     lock->fd      = fd;
     lock->process = current->process;
 
-    if (!(lock->sync = create_internal_sync( 1, 0 ))) goto error;
     /* now try to set a Unix lock */
-    if (!set_unix_lock( lock->fd, lock->start, lock->end, lock->shared ? F_RDLCK : F_WRLCK )) goto error;
+    if (!set_unix_lock( lock->fd, lock->start, lock->end, lock->shared ? F_RDLCK : F_WRLCK ))
+    {
+        release_object( lock );
+        return NULL;
+    }
     list_add_tail( &fd->locks, &lock->fd_entry );
     list_add_tail( &fd->inode->locks, &lock->inode_entry );
     list_add_tail( &lock->process->locks, &lock->proc_entry );
     return lock;
-
-error:
-    release_object( lock );
-    return NULL;
 }
 
 /* remove an existing lock */
@@ -1802,14 +1798,18 @@ static struct fd *alloc_fd_object(void)
     list_init( &fd->inode_entry );
     list_init( &fd->locks );
 
-    if (!(fd->sync = create_internal_sync( 1, 1 ))) goto error;
-    if ((fd->poll_index = add_poll_user( fd )) == -1) goto error;
+    if (do_esync())
+        fd->esync_fd = esync_create_fd( 1, 0 );
 
+    if (do_fsync())
+        fd->fsync_idx = fsync_alloc_shm( 1, 0 );
+
+    if ((fd->poll_index = add_poll_user( fd )) == -1)
+    {
+        release_object( fd );
+        return NULL;
+    }
     return fd;
-
-error:
-    release_object( fd );
-    return NULL;
 }
 
 /* allocate a pseudo fd object, for objects that need to behave like files but don't have a unix fd */
@@ -1839,17 +1839,20 @@ struct fd *alloc_pseudo_fd( const struct fd_ops *fd_user_ops, struct object *use
     fd->completion = NULL;
     fd->comp_flags = 0;
     fd->no_fd_status = STATUS_BAD_DEVICE_TYPE;
+    fd->esync_fd   = -1;
+    fd->fsync_idx  = 0;
     init_async_queue( &fd->read_q );
     init_async_queue( &fd->write_q );
     init_async_queue( &fd->wait_q );
     list_init( &fd->inode_entry );
     list_init( &fd->locks );
 
-    if (!(fd->sync = create_internal_sync( 1, 1 )))
-    {
-        release_object( fd );
-        return NULL;
-    }
+    if (do_fsync())
+        fd->fsync_idx = fsync_alloc_shm( 0, 0 );
+
+    if (do_esync())
+        fd->esync_fd = esync_create_fd( 0, 0 );
+
     return fd;
 }
 

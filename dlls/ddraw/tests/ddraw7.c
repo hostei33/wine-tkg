@@ -18240,6 +18240,7 @@ static void test_caps(void)
 
     for (unsigned int i = 0; i < ARRAY_SIZE(depth_caps); ++i)
     {
+        bool supported = (hal_caps.dwZBufferBitDepths & depth_caps[i].flag);
         IDirectDrawSurface7 *surface;
         DDSURFACEDESC2 desc =
         {
@@ -18259,17 +18260,15 @@ static void test_caps(void)
         /* dwZBufferBitDepths sometimes reports false negatives,
          * but it has not been known to report false positives. */
         hr = IDirectDraw7_CreateSurface(ddraw, &desc, &surface, NULL);
-        ok(hr == S_OK || (!(hal_caps.dwZBufferBitDepths & depth_caps[i].flag) && hr == DDERR_INVALIDPIXELFORMAT),
-                "Got hr %#lx.\n", hr);
+        ok(hr == S_OK || (!supported && hr == DDERR_INVALIDPIXELFORMAT), "Got hr %#lx.\n", hr);
 
         if (hr == S_OK)
         {
             hr = IDirectDrawSurface7_GetSurfaceDesc(surface, &desc);
             ok(hr == S_OK, "Got hr %#lx.\n", hr);
-            todo_wine_if (depth_caps[i].depth == 32)
-                ok(desc.ddsCaps.dwCaps == (DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM | DDSCAPS_ZBUFFER)
-                        || (ddraw_is_warp(ddraw) && desc.ddsCaps.dwCaps == (DDSCAPS_SYSTEMMEMORY | DDSCAPS_ZBUFFER)),
-                        "Got caps %#lx.\n", desc.ddsCaps.dwCaps);
+            ok(desc.ddsCaps.dwCaps == (DDSCAPS_VIDEOMEMORY | DDSCAPS_LOCALVIDMEM | DDSCAPS_ZBUFFER)
+                    || (!supported && desc.ddsCaps.dwCaps == (DDSCAPS_SYSTEMMEMORY | DDSCAPS_ZBUFFER)),
+                    "Got caps %#lx.\n", desc.ddsCaps.dwCaps);
             IDirectDrawSurface7_Release(surface);
         }
 
@@ -19891,11 +19890,16 @@ static void test_filling_convention(void)
     DestroyWindow(window);
 }
 
+static unsigned int enum_devices_index;
+
 static HRESULT WINAPI test_enum_devices_caps_callback(char *device_desc, char *device_name,
         D3DDEVICEDESC7 *device_desc7, void *ctx)
 {
     if (IsEqualGUID(&device_desc7->deviceGUID, &IID_IDirect3DTnLHalDevice))
     {
+        ok(enum_devices_index == 2, "Expected index %u.\n", enum_devices_index);
+        todo_wine ok(!strcmp(device_name, "Direct3D T&L HAL"), "Got name %s.\n", debugstr_a(device_name));
+
         ok(device_desc7->dwDevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT,
            "TnLHal Device device caps does not have D3DDEVCAPS_HWTRANSFORMANDLIGHT set\n");
         ok(device_desc7->dwDevCaps & D3DDEVCAPS_DRAWPRIMITIVES2EX,
@@ -19903,6 +19907,9 @@ static HRESULT WINAPI test_enum_devices_caps_callback(char *device_desc, char *d
     }
     else if (IsEqualGUID(&device_desc7->deviceGUID, &IID_IDirect3DHALDevice))
     {
+        ok(enum_devices_index == 1, "Expected index %u.\n", enum_devices_index);
+        ok(!strcmp(device_name, "Direct3D HAL"), "Got name %s.\n", debugstr_a(device_name));
+
         ok((device_desc7->dwDevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) == 0,
            "HAL Device device caps has D3DDEVCAPS_HWTRANSFORMANDLIGHT set\n");
         ok(device_desc7->dwDevCaps & D3DDEVCAPS_DRAWPRIMITIVES2EX,
@@ -19910,6 +19917,9 @@ static HRESULT WINAPI test_enum_devices_caps_callback(char *device_desc, char *d
     }
     else if (IsEqualGUID(&device_desc7->deviceGUID, &IID_IDirect3DRGBDevice))
     {
+        ok(enum_devices_index == 0, "Expected index %u.\n", enum_devices_index);
+        ok(!strcmp(device_name, "RGB Emulation"), "Got name %s.\n", debugstr_a(device_name));
+
         ok((device_desc7->dwDevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) == 0,
            "RGB Device device caps has D3DDEVCAPS_HWTRANSFORMANDLIGHT set\n");
         ok((device_desc7->dwDevCaps & D3DDEVCAPS_DRAWPRIMITIVES2EX) == 0,
@@ -19922,6 +19932,7 @@ static HRESULT WINAPI test_enum_devices_caps_callback(char *device_desc, char *d
         ok(FALSE, "Unexpected device enumerated: \"%s\" \"%s\"\n", device_desc, device_name);
     }
 
+    ++enum_devices_index;
     return DDENUMRET_OK;
 }
 

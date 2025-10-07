@@ -87,7 +87,6 @@ struct thread_wait
 struct thread_apc
 {
     struct object       obj;      /* object header */
-    struct object      *sync;     /* sync object for wait/signal */
     struct list         entry;    /* queue linked list */
     struct thread      *caller;   /* thread that queued this apc */
     struct object      *owner;    /* object that queued this apc */
@@ -133,10 +132,9 @@ static const struct object_ops thread_apc_ops =
 
 struct context
 {
-    struct object           obj;        /* object header */
-    struct object          *sync;       /* sync object for wait/signal */
-    unsigned int            status;     /* status of the context */
-    struct context_data     regs[2];    /* context data */
+    struct object   obj;        /* object header */
+    unsigned int    status;     /* status of the context */
+    struct context_data regs[2];/* context data */
 };
 #define CTX_NATIVE  0  /* context for native machine */
 #define CTX_WOW     1  /* context if thread is inside WoW */
@@ -261,9 +259,10 @@ void init_threading(void)
     if (nice_limit < 0 && debug_level) fprintf(stderr, "wine: Using setpriority to control niceness in the [%d,%d] range\n", nice_limit, -nice_limit );
 }
 
-static void apply_thread_priority( struct thread *thread, int effective_priority )
+static void apply_thread_priority( struct thread *thread )
 {
     int min = -nice_limit, max = nice_limit, range = max - min, niceness;
+    int effective_priority = get_effective_thread_priority( thread );
 
     if (nice_limit >= 0) return;
 
@@ -297,7 +296,7 @@ static int get_mach_importance( int effective_priority )
     return min + (effective_priority - 1) * range / 14;
 }
 
-static void apply_thread_priority( struct thread *thread, int effective_priority )
+static void apply_thread_priority( struct thread *thread )
 {
     kern_return_t kr;
     mach_msg_type_name_t type;
@@ -305,6 +304,7 @@ static void apply_thread_priority( struct thread *thread, int effective_priority
     struct thread_extended_policy thread_extended_policy;
     struct thread_precedence_policy thread_precedence_policy;
     mach_port_t thread_port, process_port = thread->process->trace_data;
+    int effective_priority = get_effective_thread_priority( thread );
 
     if (!process_port) return;
     kr = mach_port_extract_right( process_port, thread->unix_tid,
@@ -341,7 +341,7 @@ static void apply_thread_priority( struct thread *thread, int effective_priority
         break;
     }
     /* QOS_UNSPECIFIED is assigned the highest tier available, so it does not provide a limit */
-    if (effective_priority >= LOW_REALTIME_PRIORITY)
+    if (effective_priority >= LOW_REALTIME_PRIORITY || effective_priority > thread->priority)
     {
         throughput_qos = THROUGHPUT_QOS_TIER_UNSPECIFIED;
         latency_qos = LATENCY_QOS_TIER_UNSPECIFIED;
@@ -391,7 +391,7 @@ void init_threading(void)
 {
 }
 
-static void apply_thread_priority( struct thread *thread, int effective_priority )
+static void apply_thread_priority( struct thread *thread )
 {
 }
 
@@ -472,35 +472,20 @@ static void dump_context( struct object *obj, int verbose )
 }
 
 
-static struct object *context_get_sync( struct object *obj )
+static int context_signaled( struct object *obj, struct wait_queue_entry *entry )
 {
     struct context *context = (struct context *)obj;
-    assert( obj->ops == &context_ops );
-    return grab_object( context->sync );
+    return context->status != STATUS_PENDING;
 }
 
-static void context_destroy( struct object *obj )
-{
-    struct context *context = (struct context *)obj;
-    assert( obj->ops == &context_ops );
-    if (context->sync) release_object( context->sync );
-}
 
 static struct context *create_thread_context( struct thread *thread )
 {
     struct context *context;
     if (!(context = alloc_object( &context_ops ))) return NULL;
-    context->sync   = NULL;
     context->status = STATUS_PENDING;
     memset( &context->regs, 0, sizeof(context->regs) );
     context->regs[CTX_NATIVE].machine = native_machine;
-
-    if (!(context->sync = create_internal_sync( 1, 0 )))
-    {
-        release_object( context );
-        return NULL;
-    }
-
     return context;
 }
 
@@ -567,9 +552,11 @@ struct thread *create_thread( int fd, struct process *process, const struct secu
         release_object( thread );
         return NULL;
     }
-    if (!(thread->request_fd = create_anonymous_fd( &thread_fd_ops, fd, &thread->obj, 0 ))) goto error;
-    if (!(thread->sync = create_internal_sync( 1, 0 ))) goto error;
-    if (get_inproc_device_fd() >= 0 && !(thread->alert_sync = create_inproc_internal_sync( 1, 0 ))) goto error;
+    if (!(thread->request_fd = create_anonymous_fd( &thread_fd_ops, fd, &thread->obj, 0 )))
+    {
+        release_object( thread );
+        return NULL;
+    }
 
     if (process->desktop)
     {
@@ -761,12 +748,6 @@ static struct thread_apc *create_apc( struct object *owner, const union apc_call
         apc->executed    = 0;
         apc->result.type = APC_NONE;
         if (owner) grab_object( owner );
-
-        if (!(apc->sync = create_internal_sync( 1, 0 )))
-        {
-            release_object( apc );
-            return NULL;
-        }
     }
 
     return apc;
@@ -852,6 +833,19 @@ affinity_t get_thread_affinity( struct thread *thread )
     return mask;
 }
 
+int get_effective_thread_priority( struct thread *thread )
+{
+    int priority = thread->priority;
+
+    if (thread->disable_boost || priority >= LOW_REALTIME_PRIORITY)
+        return priority;
+
+    if (get_process_first_thread( thread->process ) == thread)
+        priority++;
+
+    return min( priority, LOW_REALTIME_PRIORITY - 1 );
+}
+
 unsigned int set_thread_priority( struct thread *thread, int priority )
 {
     int priority_class = thread->process->priority;
@@ -862,7 +856,7 @@ unsigned int set_thread_priority( struct thread *thread, int priority )
     thread->priority = priority;
 
     /* if thread is gone or hasn't started yet, this will be called again from init_thread with a unix_tid */
-    if (thread->state == RUNNING && thread->unix_tid != -1) apply_thread_priority( thread, priority );
+    if (thread->state == RUNNING && thread->unix_tid != -1) apply_thread_priority( thread );
 
     return STATUS_SUCCESS;
 }
@@ -903,6 +897,12 @@ unsigned int set_thread_base_priority( struct thread *thread, int base_priority 
     return set_thread_priority( thread, priority );
 }
 
+void set_thread_disable_boost( struct thread *thread, int disable_boost )
+{
+    thread->disable_boost = disable_boost;
+    apply_thread_priority( thread );
+}
+
 /* set all information about a thread */
 static void set_thread_info( struct thread *thread,
                              const struct set_thread_info_request *req )
@@ -933,7 +933,7 @@ static void set_thread_info( struct thread *thread,
     if (req->mask & SET_THREAD_INFO_DBG_HIDDEN)
         thread->dbg_hidden = 1;
     if (req->mask & SET_THREAD_INFO_DISABLE_BOOST)
-        thread->disable_boost = req->disable_boost;
+        set_thread_disable_boost( thread, req->disable_boost );
     if (req->mask & SET_THREAD_INFO_DESCRIPTION)
     {
         WCHAR *desc;
@@ -1031,46 +1031,6 @@ void make_wait_abandoned( struct wait_queue_entry *entry )
 void set_wait_status( struct wait_queue_entry *entry, int status )
 {
     entry->wait->status = status;
-}
-
-static void object_sync_satisfied( struct object *obj, struct wait_queue_entry *entry )
-{
-    struct object *sync = get_obj_sync( obj );
-    sync->ops->satisfied( sync, entry );
-    release_object( sync );
-}
-
-static void object_sync_remove_queue( struct object *obj, struct wait_queue_entry *entry )
-{
-    struct object *sync = get_obj_sync( obj );
-    sync->ops->remove_queue( sync, entry );
-    release_object( sync );
-}
-
-static int object_sync_add_queue( struct object *obj, struct wait_queue_entry *entry )
-{
-    struct object *sync = get_obj_sync( obj );
-    int ret = sync->ops->add_queue( sync, entry );
-    release_object( sync );
-    return ret;
-}
-
-static int object_sync_signaled( struct object *obj, struct wait_queue_entry *entry )
-{
-    struct object *sync = get_obj_sync( obj );
-    int ret = sync->ops->signaled( sync, entry );
-    release_object( sync );
-    return ret;
-}
-
-void signal_sync( struct object *obj )
-{
-    obj->ops->signal( obj, 0, 1 );
-}
-
-void reset_sync( struct object *obj )
-{
-    obj->ops->signal( obj, 0, 0 );
 }
 
 /* finish waiting */
@@ -1306,7 +1266,7 @@ static int signal_object( obj_handle_t handle )
     obj = get_handle_obj( current->process, handle, 0, NULL );
     if (obj)
     {
-        ret = obj->ops->signal( obj, get_handle_access( current->process, handle ), -1 );
+        ret = obj->ops->signal( obj, get_handle_access( current->process, handle ));
         release_object( obj );
     }
     return ret;
@@ -1890,7 +1850,7 @@ DECL_HANDLER(get_thread_info)
         reply->teb            = thread->teb;
         reply->entry_point    = thread->entry_point;
         reply->exit_code      = (thread->state == TERMINATED) ? thread->exit_code : STATUS_PENDING;
-        reply->priority       = thread->priority;
+        reply->priority       = get_effective_thread_priority( thread );
         reply->base_priority  = thread->base_priority;
         reply->affinity       = thread->affinity;
         reply->suspend_count  = thread->suspend;
@@ -2431,18 +2391,4 @@ DECL_HANDLER(get_next_thread)
     }
     set_error( STATUS_NO_MORE_ENTRIES );
     release_object( process );
-}
-
-
-/* Get the in-process synchronization fd for the current thread user APC alerts */
-DECL_HANDLER(get_inproc_alert_fd)
-{
-    int fd;
-
-    if ((fd = get_inproc_sync_fd( current->alert_sync )) < 0) set_error( STATUS_INVALID_PARAMETER );
-    else
-    {
-        reply->handle = get_thread_id( current ) | 1; /* arbitrary token */
-        send_client_fd( current->process, fd, reply->handle );
-    }
 }

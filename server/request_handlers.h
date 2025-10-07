@@ -308,8 +308,6 @@ DECL_HANDLER(open_esync);
 DECL_HANDLER(get_esync_fd);
 DECL_HANDLER(esync_msgwait);
 DECL_HANDLER(set_keyboard_repeat);
-DECL_HANDLER(get_inproc_sync_fd);
-DECL_HANDLER(get_inproc_alert_fd);
 DECL_HANDLER(d3dkmt_object_create);
 DECL_HANDLER(d3dkmt_object_query);
 DECL_HANDLER(d3dkmt_object_open);
@@ -626,8 +624,6 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_get_esync_fd,
     (req_handler)req_esync_msgwait,
     (req_handler)req_set_keyboard_repeat,
-    (req_handler)req_get_inproc_sync_fd,
-    (req_handler)req_get_inproc_alert_fd,
     (req_handler)req_d3dkmt_object_create,
     (req_handler)req_d3dkmt_object_query,
     (req_handler)req_d3dkmt_object_open,
@@ -1342,7 +1338,7 @@ C_ASSERT( offsetof(struct set_queue_fd_request, handle) == 12 );
 C_ASSERT( sizeof(struct set_queue_fd_request) == 16 );
 C_ASSERT( offsetof(struct set_queue_mask_request, wake_mask) == 12 );
 C_ASSERT( offsetof(struct set_queue_mask_request, changed_mask) == 16 );
-C_ASSERT( offsetof(struct set_queue_mask_request, poll_events) == 20 );
+C_ASSERT( offsetof(struct set_queue_mask_request, skip_wait) == 20 );
 C_ASSERT( sizeof(struct set_queue_mask_request) == 24 );
 C_ASSERT( offsetof(struct set_queue_mask_reply, wake_bits) == 8 );
 C_ASSERT( offsetof(struct set_queue_mask_reply, changed_bits) == 12 );
@@ -2352,14 +2348,6 @@ C_ASSERT( offsetof(struct set_keyboard_repeat_request, period) == 20 );
 C_ASSERT( sizeof(struct set_keyboard_repeat_request) == 24 );
 C_ASSERT( offsetof(struct set_keyboard_repeat_reply, enable) == 8 );
 C_ASSERT( sizeof(struct set_keyboard_repeat_reply) == 16 );
-C_ASSERT( offsetof(struct get_inproc_sync_fd_request, handle) == 12 );
-C_ASSERT( sizeof(struct get_inproc_sync_fd_request) == 16 );
-C_ASSERT( offsetof(struct get_inproc_sync_fd_reply, type) == 8 );
-C_ASSERT( offsetof(struct get_inproc_sync_fd_reply, access) == 12 );
-C_ASSERT( sizeof(struct get_inproc_sync_fd_reply) == 16 );
-C_ASSERT( sizeof(struct get_inproc_alert_fd_request) == 16 );
-C_ASSERT( offsetof(struct get_inproc_alert_fd_reply, handle) == 8 );
-C_ASSERT( sizeof(struct get_inproc_alert_fd_reply) == 16 );
 C_ASSERT( offsetof(struct d3dkmt_object_create_request, type) == 12 );
 C_ASSERT( sizeof(struct d3dkmt_object_create_request) == 16 );
 C_ASSERT( offsetof(struct d3dkmt_object_create_reply, global) == 8 );

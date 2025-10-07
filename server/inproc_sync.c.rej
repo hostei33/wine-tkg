@@ -1,30 +1,69 @@
 --- server/inproc_sync.c
 +++ server/inproc_sync.c
-@@ -87,21 +87,15 @@ static const struct object_ops inproc_sync_ops =
-     inproc_sync_destroy,        /* destroy */
- };
- 
--struct inproc_sync *create_inproc_internal_sync( int manual, int signaled )
-+struct inproc_sync *create_inproc_event_sync( int manual, int signaled )
- {
-     struct ntsync_event_args args = {.signaled = signaled, .manual = manual};
-     struct inproc_sync *event;
- 
-     if (!(event = alloc_object( &inproc_sync_ops ))) return NULL;
--    event->type = INPROC_SYNC_INTERNAL;
--    event->fd   = ioctl( get_inproc_device_fd(), NTSYNC_IOC_CREATE_EVENT, &args );
-+    event->type = INPROC_SYNC_EVENT;
-+    event->fd = ioctl( get_inproc_device_fd(), NTSYNC_IOC_CREATE_EVENT, &args );
- 
--    if (event->fd == -1)
--    {
--        set_error( STATUS_TOO_MANY_OPENED_FILES );
--        release_object( event );
--        return NULL;
--    }
+@@ -105,63 +94,6 @@ struct inproc_sync *create_inproc_internal_sync( int manual, int signaled )
      return event;
  }
  
+-struct inproc_sync *create_inproc_event_sync( int manual, int signaled )
+-{
+-    struct ntsync_event_args args = {.signaled = signaled, .manual = manual};
+-    struct inproc_sync *event;
+-
+-    if (!(event = alloc_object( &inproc_sync_ops ))) return NULL;
+-    event->type = INPROC_SYNC_EVENT;
+-    event->fd   = ioctl( get_inproc_device_fd(), NTSYNC_IOC_CREATE_EVENT, &args );
+-    list_init( &event->entry );
+-
+-    if (event->fd == -1)
+-    {
+-        set_error( STATUS_NO_MORE_FILES );
+-        release_object( event );
+-        return NULL;
+-    }
+-    return event;
+-}
+-
+-struct inproc_sync *create_inproc_mutex_sync( thread_id_t owner, unsigned int count )
+-{
+-    struct ntsync_mutex_args args = {.owner = owner, .count = count};
+-    struct inproc_sync *mutex;
+-
+-    if (!(mutex = alloc_object( &inproc_sync_ops ))) return NULL;
+-    mutex->type = INPROC_SYNC_MUTEX;
+-    mutex->fd   = ioctl( get_inproc_device_fd(), NTSYNC_IOC_CREATE_MUTEX, &args );
+-    list_add_tail( &inproc_mutexes, &mutex->entry );
+-
+-    if (mutex->fd == -1)
+-    {
+-        set_error( STATUS_NO_MORE_FILES );
+-        release_object( mutex );
+-        return NULL;
+-    }
+-    return mutex;
+-}
+-
+-struct inproc_sync *create_inproc_semaphore_sync( unsigned int initial, unsigned int max )
+-{
+-    struct ntsync_sem_args args = {.count = initial, .max = max};
+-    struct inproc_sync *sem;
+-
+-    if (!(sem = alloc_object( &inproc_sync_ops ))) return NULL;
+-    sem->type = INPROC_SYNC_SEMAPHORE;
+-    sem->fd   = ioctl( get_inproc_device_fd(), NTSYNC_IOC_CREATE_SEM, &args );
+-    list_init( &sem->entry );
+-
+-    if (sem->fd == -1)
+-    {
+-        set_error( STATUS_NO_MORE_FILES );
+-        release_object( sem );
+-        return NULL;
+-    }
+-    return sem;
+-}
+-
+ static void inproc_sync_dump( struct object *obj, int verbose )
+ {
+     struct inproc_sync *sync = (struct inproc_sync *)obj;
 --- server/inproc_sync.c
 +++ server/inproc_sync.c
 @@ -1,190 +0,0 @@

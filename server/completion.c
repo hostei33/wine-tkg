@@ -72,11 +72,11 @@ struct completion_wait
 
 struct completion
 {
-    struct object       obj;
-    struct object      *sync;
-    struct list         queue;
-    struct list         wait_queue;
-    unsigned int        depth;
+    struct object  obj;
+    struct list    queue;
+    struct list    wait_queue;
+    unsigned int   depth;
+    int            closed;
 };
 
 static void completion_wait_dump( struct object*, int );
@@ -275,16 +275,10 @@ static struct completion *create_completion( struct object *root, const struct u
     {
         if (get_error() != STATUS_OBJECT_NAME_EXISTS)
         {
-            completion->sync = NULL;
             list_init( &completion->queue );
             list_init( &completion->wait_queue );
             completion->depth = 0;
-
-            if (!(completion->sync = create_internal_sync( 1, 0 )))
-            {
-                release_object( completion );
-                return NULL;
-            }
+            completion->closed = 0;
         }
     }
 

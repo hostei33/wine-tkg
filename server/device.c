@@ -92,7 +92,6 @@ static const struct object_ops irp_call_ops =
 struct device_manager
 {
     struct object          obj;            /* object header */
-    struct object         *sync;           /* sync object for wait/signal */
     struct list            devices;        /* list of devices */
     struct list            requests;       /* list of pending irps across all devices */
     struct irp_call       *current_call;   /* call currently executed on client side */
@@ -871,17 +870,16 @@ static struct device_manager *create_device_manager(void)
 
     if ((manager = alloc_object( &device_manager_ops )))
     {
-        manager->sync         = NULL;
         manager->current_call = NULL;
         list_init( &manager->devices );
         list_init( &manager->requests );
         wine_rb_init( &manager->kernel_objects, compare_kernel_object );
 
-        if (!(manager->sync = create_internal_sync( 1, 0 )))
-        {
-            release_object( manager );
-            return NULL;
-        }
+        if (do_fsync())
+            manager->fsync_idx = fsync_alloc_shm( 0, 0 );
+
+        if (do_esync())
+            manager->esync_fd = esync_create_fd( 0, 0 );
     }
     return manager;
 }

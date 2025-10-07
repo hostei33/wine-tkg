@@ -2318,7 +2318,7 @@ enum prefix_type
 @REQ(set_queue_mask)
     unsigned int wake_mask;    /* wakeup bits mask */
     unsigned int changed_mask; /* changed bits mask */
-    int          poll_events;  /* whether to poll queue fd */
+    int          skip_wait;    /* will we skip waiting if signaled? */
 @REPLY
     unsigned int wake_bits;    /* current wake bits */
     unsigned int changed_bits; /* current changed bits */
@@ -4199,31 +4199,6 @@ enum esync_type
     int period;                /* auto-repeat period in ms */
 @REPLY
     int enable;                /* previous state of auto-repeat enable */
-@END
-
-
-enum inproc_sync_type
-{
-    INPROC_SYNC_UNKNOWN   = 0,
-    INPROC_SYNC_INTERNAL  = 1,
-    INPROC_SYNC_EVENT     = 2,
-    INPROC_SYNC_MUTEX     = 3,
-    INPROC_SYNC_SEMAPHORE = 4,
-};
-
-/* Get the in-process synchronization fd associated with the waitable handle */
-@REQ(get_inproc_sync_fd)
-    obj_handle_t handle;        /* handle to the object */
-@REPLY
-    int           type;         /* inproc sync type */
-    unsigned int access;        /* handle access rights */
-@END
-
-
-/* Get the in-process synchronization fd for the current thread user APC alerts */
-@REQ(get_inproc_alert_fd)
-@REPLY
-    obj_handle_t handle;        /* alert fd is in flight with this handle */
 @END
 
 
