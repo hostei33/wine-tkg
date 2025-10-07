@@ -1276,8 +1276,8 @@ static BOOL write_desktop_entry(const WCHAR *link, const WCHAR *location, const 
         fprintf(file, "env \"WINEPREFIX=%s\" ", path);
         heap_free( path );
     }
-    fprintf(file, "wine \"%s\"", escape(path));
-    if (args) fprintf(file, " \"%s\"", escape(args) );
+    fprintf(file, "wine %s", escape(path));
+    if (args) fprintf(file, " %s", escape(args) );
     fputc( '\n', file );
     fprintf(file, "Type=Application\n");
     fprintf(file, "StartupNotify=true\n");
