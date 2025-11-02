@@ -2200,6 +2200,16 @@ static LRESULT handle_internal_message( HWND hwnd, UINT msg, WPARAM wparam, LPAR
     case WM_WINE_UPDATEWINDOWSTATE:
         update_window_state( hwnd );
         return 0;
+    case WM_WINE_TRACKMOUSEEVENT:
+    {
+        TRACKMOUSEEVENT info;
+
+        info.cbSize = sizeof(info);
+        info.hwndTrack = hwnd;
+        info.dwFlags = wparam;
+        info.dwHoverTime = lparam;
+        return NtUserTrackMouseEvent( &info );
+    }
     default:
         if (msg >= WM_WINE_FIRST_DRIVER_MSG && msg <= WM_WINE_LAST_DRIVER_MSG)
             return user_driver->pWindowMessage( hwnd, msg, wparam, lparam );
@@ -2519,14 +2529,14 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
     {
         HWND orig = msg->hwnd;
 
-        msg->hwnd = window_from_point( msg->hwnd, msg->pt, &hittest );
+        msg->hwnd = window_from_point( msg->hwnd, msg->pt, &hittest, TRUE );
         if (!msg->hwnd) /* As a heuristic, try the next window if it's the owner of orig */
         {
             HWND next = get_window_relative( orig, GW_HWNDNEXT );
 
             if (next && get_window_relative( orig, GW_OWNER ) == next &&
                 is_current_thread_window( next ))
-                msg->hwnd = window_from_point( next, msg->pt, &hittest );
+                msg->hwnd = window_from_point( next, msg->pt, &hittest, TRUE );
         }
     }
 
@@ -2535,6 +2545,7 @@ static BOOL process_mouse_message( MSG *msg, UINT hw_id, ULONG_PTR extra_info, H
         accept_hardware_message( hw_id );
         return FALSE;
     }
+    update_current_mouse_window( msg->hwnd, hittest, msg->pt );
 
     msg->pt = point_phys_to_win_dpi( msg->hwnd, msg->pt );
     set_thread_dpi_awareness_context( get_window_dpi_awareness_context( msg->hwnd ));

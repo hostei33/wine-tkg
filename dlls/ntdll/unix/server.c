@@ -84,7 +84,6 @@
 #include "wine/debug.h"
 #include "unix_private.h"
 #include "esync.h"
-#include "fsync.h"
 #include "ddk/wdm.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(server);
@@ -837,6 +836,21 @@ unsigned int server_wait( const union select_op *select_op, data_size_t size, UI
        boost as well.  This seems to model that behavior the closest.  */
     if (ret == STATUS_TIMEOUT) NtYieldExecution();
     return ret;
+}
+
+
+/* helper function to perform a server-side wait on an internal handle without
+ * using the fast synchronization path */
+unsigned int server_wait_for_object( HANDLE handle, BOOL alertable, const LARGE_INTEGER *timeout )
+{
+    union select_op select_op;
+    UINT flags = SELECT_INTERRUPTIBLE;
+
+    if (alertable) flags |= SELECT_ALERTABLE;
+
+    select_op.wait.op = SELECT_WAIT;
+    select_op.wait.handles[0] = wine_server_obj_handle( handle );
+    return server_wait( &select_op, offsetof( union select_op, wait.handles[1] ), flags, timeout );
 }
 
 
@@ -1769,11 +1783,8 @@ void server_init_process_done(void)
     /* Signal the parent process to continue */
     SERVER_START_REQ( init_process_done )
     {
-        req->teb      = wine_server_client_ptr( teb );
-        req->peb      = NtCurrentTeb64() ? NtCurrentTeb64()->Peb : wine_server_client_ptr( peb );
-#ifdef __i386__
-        req->ldt_copy = wine_server_client_ptr( &__wine_ldt_copy );
-#endif
+        req->teb = wine_server_client_ptr( teb );
+        req->peb = NtCurrentTeb64() ? NtCurrentTeb64()->Peb : wine_server_client_ptr( peb );
         status = wine_server_call( req );
         suspend = reply->suspend;
     }
@@ -1946,9 +1957,6 @@ NTSTATUS WINAPI NtClose( HANDLE handle )
     /* always remove the cached fd; if the server request fails we'll just
      * retrieve it again */
     fd = remove_fd_from_cache( handle );
-
-    if (do_fsync())
-        fsync_close( handle );
 
     if (do_esync())
         esync_close( handle );

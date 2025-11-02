@@ -8,6 +8,7 @@ SOURCES = \
 	clipboard.c \
 	completion.c \
 	console.c \
+	d3dkmt.c \
 	debugger.c \
 	device.c \
 	directory.c \
@@ -15,7 +16,6 @@ SOURCES = \
 	event.c \
 	fd.c \
 	file.c \
-	fsync.c \
 	handle.c \
 	hook.c \
 	mach.c \
