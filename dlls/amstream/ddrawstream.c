@@ -121,7 +121,7 @@ static HRESULT copy_sample(struct ddraw_sample *sample, int stride, BYTE *pointe
         STREAM_TIME start_time, STREAM_TIME end_time)
 {
     DDSURFACEDESC desc;
-    DWORD row_size;
+    DWORD row_size, x;
     const BYTE *src_row;
     BYTE *dst_row;
     DWORD row;
@@ -137,7 +137,7 @@ static HRESULT copy_sample(struct ddraw_sample *sample, int stride, BYTE *pointe
     dst_row = desc.lpSurface;
     for (row = sample->rect.top; row < sample->rect.bottom; ++row)
     {
-        memcpy(dst_row, src_row, row_size);
+        for (x = 0; x < row_size; x++) dst_row[x] = src_row[x];
         src_row += stride;
         dst_row += desc.lPitch;
     }
