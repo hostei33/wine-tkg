@@ -125,7 +125,6 @@ static void dump_init_process_done_request( const struct init_process_done_reque
 {
     dump_uint64( " teb=", &req->teb );
     dump_uint64( ", peb=", &req->peb );
-    dump_uint64( ", ldt_copy=", &req->ldt_copy );
 }
 
 static void dump_init_process_done_reply( const struct init_process_done_reply *req )
@@ -1315,19 +1314,6 @@ static void dump_set_thread_context_reply( const struct set_thread_context_reply
     fprintf( stderr, " self=%d", req->self );
 }
 
-static void dump_get_selector_entry_request( const struct get_selector_entry_request *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", entry=%d", req->entry );
-}
-
-static void dump_get_selector_entry_reply( const struct get_selector_entry_reply *req )
-{
-    fprintf( stderr, " base=%08x", req->base );
-    fprintf( stderr, ", limit=%08x", req->limit );
-    fprintf( stderr, ", flags=%02x", req->flags );
-}
-
 static void dump_add_atom_request( const struct add_atom_request *req )
 {
     dump_varargs_unicode_str( " name=", cur_size );
@@ -2417,7 +2403,8 @@ static void dump_create_class_request( const struct create_class_request *req )
 
 static void dump_create_class_reply( const struct create_class_reply *req )
 {
-    fprintf( stderr, " atom=%04x", req->atom );
+    dump_obj_locator( " locator=", &req->locator );
+    fprintf( stderr, ", atom=%04x", req->atom );
 }
 
 static void dump_destroy_class_request( const struct destroy_class_request *req )
@@ -3450,65 +3437,75 @@ static void dump_set_keyboard_repeat_reply( const struct set_keyboard_repeat_rep
     fprintf( stderr, " enable=%d", req->enable );
 }
 
-static void dump_get_esync_apc_fd_request( const struct get_esync_apc_fd_request *req )
+static void dump_d3dkmt_object_create_request( const struct d3dkmt_object_create_request *req )
 {
+    fprintf( stderr, " type=%08x", req->type );
+    dump_varargs_bytes( ", runtime=", cur_size );
 }
 
-static void dump_create_fsync_request( const struct create_fsync_request *req )
+static void dump_d3dkmt_object_create_reply( const struct d3dkmt_object_create_reply *req )
 {
-    fprintf( stderr, " access=%08x", req->access );
-    fprintf( stderr, ", low=%d", req->low );
-    fprintf( stderr, ", high=%d", req->high );
-    fprintf( stderr, ", type=%d", req->type );
+    fprintf( stderr, " global=%08x", req->global );
+    fprintf( stderr, ", handle=%04x", req->handle );
+}
+
+static void dump_d3dkmt_object_query_request( const struct d3dkmt_object_query_request *req )
+{
+    fprintf( stderr, " type=%08x", req->type );
+    fprintf( stderr, ", global=%08x", req->global );
+    fprintf( stderr, ", handle=%04x", req->handle );
+}
+
+static void dump_d3dkmt_object_query_reply( const struct d3dkmt_object_query_reply *req )
+{
+    fprintf( stderr, " runtime_size=%u", req->runtime_size );
+}
+
+static void dump_d3dkmt_object_open_request( const struct d3dkmt_object_open_request *req )
+{
+    fprintf( stderr, " type=%08x", req->type );
+    fprintf( stderr, ", global=%08x", req->global );
+    fprintf( stderr, ", handle=%04x", req->handle );
+}
+
+static void dump_d3dkmt_object_open_reply( const struct d3dkmt_object_open_reply *req )
+{
+    fprintf( stderr, " global=%08x", req->global );
+    fprintf( stderr, ", handle=%04x", req->handle );
+    fprintf( stderr, ", runtime_size=%u", req->runtime_size );
+    dump_varargs_bytes( ", runtime=", cur_size );
+}
+
+static void dump_d3dkmt_share_objects_request( const struct d3dkmt_share_objects_request *req )
+{
+    fprintf( stderr, " resource=%08x", req->resource );
+    fprintf( stderr, ", mutex=%08x", req->mutex );
+    fprintf( stderr, ", sync=%08x", req->sync );
+    fprintf( stderr, ", access=%08x", req->access );
     dump_varargs_object_attributes( ", objattr=", cur_size );
 }
 
-static void dump_create_fsync_reply( const struct create_fsync_reply *req )
+static void dump_d3dkmt_share_objects_reply( const struct d3dkmt_share_objects_reply *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
 }
 
-static void dump_open_fsync_request( const struct open_fsync_request *req )
+static void dump_d3dkmt_object_open_name_request( const struct d3dkmt_object_open_name_request *req )
 {
-    fprintf( stderr, " access=%08x", req->access );
+    fprintf( stderr, " type=%08x", req->type );
+    fprintf( stderr, ", access=%08x", req->access );
     fprintf( stderr, ", attributes=%08x", req->attributes );
     fprintf( stderr, ", rootdir=%04x", req->rootdir );
-    fprintf( stderr, ", type=%d", req->type );
     dump_varargs_unicode_str( ", name=", cur_size );
 }
 
-static void dump_open_fsync_reply( const struct open_fsync_reply *req )
-{
-    fprintf( stderr, " handle=%04x", req->handle );
-    fprintf( stderr, ", type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_get_fsync_idx_request( const struct get_fsync_idx_request *req )
+static void dump_d3dkmt_object_open_name_reply( const struct d3dkmt_object_open_name_reply *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
 }
 
-static void dump_get_fsync_idx_reply( const struct get_fsync_idx_reply *req )
+static void dump_get_esync_apc_fd_request( const struct get_esync_apc_fd_request *req )
 {
-    fprintf( stderr, " type=%d", req->type );
-    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
-}
-
-static void dump_fsync_msgwait_request( const struct fsync_msgwait_request *req )
-{
-    fprintf( stderr, " in_msgwait=%d", req->in_msgwait );
-}
-
-static void dump_get_fsync_apc_idx_request( const struct get_fsync_apc_idx_request *req )
-{
-}
-
-static void dump_get_fsync_apc_idx_reply( const struct get_fsync_apc_idx_reply *req )
-{
-    fprintf( stderr, " shm_idx=%08x", req->shm_idx );
 }
 
 typedef void (*dump_func)( const void *req );
@@ -3623,7 +3620,6 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_timer_info_request,
     (dump_func)dump_get_thread_context_request,
     (dump_func)dump_set_thread_context_request,
-    (dump_func)dump_get_selector_entry_request,
     (dump_func)dump_add_atom_request,
     (dump_func)dump_delete_atom_request,
     (dump_func)dump_find_atom_request,
@@ -3817,12 +3813,12 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_esync_fd_request,
     (dump_func)dump_esync_msgwait_request,
     (dump_func)dump_set_keyboard_repeat_request,
+    (dump_func)dump_d3dkmt_object_create_request,
+    (dump_func)dump_d3dkmt_object_query_request,
+    (dump_func)dump_d3dkmt_object_open_request,
+    (dump_func)dump_d3dkmt_share_objects_request,
+    (dump_func)dump_d3dkmt_object_open_name_request,
     (dump_func)dump_get_esync_apc_fd_request,
-    (dump_func)dump_create_fsync_request,
-    (dump_func)dump_open_fsync_request,
-    (dump_func)dump_get_fsync_idx_request,
-    (dump_func)dump_fsync_msgwait_request,
-    (dump_func)dump_get_fsync_apc_idx_request,
 };
 
 static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
@@ -3935,7 +3931,6 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_timer_info_reply,
     (dump_func)dump_get_thread_context_reply,
     (dump_func)dump_set_thread_context_reply,
-    (dump_func)dump_get_selector_entry_reply,
     (dump_func)dump_add_atom_reply,
     NULL,
     (dump_func)dump_find_atom_reply,
@@ -4129,12 +4124,12 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_get_esync_fd_reply,
     NULL,
     (dump_func)dump_set_keyboard_repeat_reply,
+    (dump_func)dump_d3dkmt_object_create_reply,
+    (dump_func)dump_d3dkmt_object_query_reply,
+    (dump_func)dump_d3dkmt_object_open_reply,
+    (dump_func)dump_d3dkmt_share_objects_reply,
+    (dump_func)dump_d3dkmt_object_open_name_reply,
     NULL,
-    (dump_func)dump_create_fsync_reply,
-    (dump_func)dump_open_fsync_reply,
-    (dump_func)dump_get_fsync_idx_reply,
-    NULL,
-    (dump_func)dump_get_fsync_apc_idx_reply,
 };
 
 static const char * const req_names[REQ_NB_REQUESTS] =
@@ -4247,7 +4242,6 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "get_timer_info",
     "get_thread_context",
     "set_thread_context",
-    "get_selector_entry",
     "add_atom",
     "delete_atom",
     "find_atom",
@@ -4441,12 +4435,12 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "get_esync_fd",
     "esync_msgwait",
     "set_keyboard_repeat",
+    "d3dkmt_object_create",
+    "d3dkmt_object_query",
+    "d3dkmt_object_open",
+    "d3dkmt_share_objects",
+    "d3dkmt_object_open_name",
     "get_esync_apc_fd",
-    "create_fsync",
-    "open_fsync",
-    "get_fsync_idx",
-    "fsync_msgwait",
-    "get_fsync_apc_idx",
 };
 
 static const struct

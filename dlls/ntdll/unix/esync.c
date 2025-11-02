@@ -51,7 +51,6 @@
 
 #include "unix_private.h"
 #include "esync.h"
-#include "fsync.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(esync);
 
@@ -61,7 +60,7 @@ int do_esync(void)
     static int do_esync_cached = -1;
 
     if (do_esync_cached == -1)
-        do_esync_cached = getenv("WINEESYNC") && atoi(getenv("WINEESYNC")) && !do_fsync();
+        do_esync_cached = getenv("WINEESYNC") && atoi(getenv("WINEESYNC"));
 
     return do_esync_cached;
 #else
@@ -529,9 +528,6 @@ NTSTATUS esync_set_event( HANDLE handle )
     if ((ret = get_object( handle, &obj ))) return ret;
     event = obj->shm;
 
-    if (obj->type != ESYNC_MANUAL_EVENT && obj->type != ESYNC_AUTO_EVENT)
-        return STATUS_OBJECT_TYPE_MISMATCH;
-
     if (obj->type == ESYNC_MANUAL_EVENT)
     {
         /* Acquire the spinlock. */
@@ -865,7 +861,7 @@ static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles,
             return ret;
     }
 
-    if (count && objs[count - 1] && objs[count - 1]->type == ESYNC_QUEUE)
+    if (objs[count - 1] && objs[count - 1]->type == ESYNC_QUEUE)
         msgwait = TRUE;
 
     if (has_esync && has_server)
@@ -894,7 +890,7 @@ static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles,
         }
     }
 
-    if (wait_any || count <= 1)
+    if (wait_any || count == 1)
     {
         /* Try to check objects now, so we can obviate poll() at least. */
         for (i = 0; i < count; i++)
@@ -954,8 +950,6 @@ static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles,
 
                     if (event->signaled)
                     {
-                        if (ac_odyssey && alertable)
-                            usleep( 0 );
                         if ((size = read( obj->fd, &value, sizeof(value) )) == sizeof(value))
                         {
                             TRACE("Woken up by handle %p [%d].\n", handles[i], i);
@@ -971,12 +965,6 @@ static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles,
 
                     if (event->signaled)
                     {
-                        if (ac_odyssey && alertable)
-                        {
-                            usleep( 0 );
-                            if (!event->signaled)
-                                break;
-                        }
                         TRACE("Woken up by handle %p [%d].\n", handles[i], i);
                         return i;
                     }
@@ -1005,9 +993,6 @@ static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles,
 
         while (1)
         {
-            if (ac_odyssey && alertable)
-                usleep( 0 );
-
             ret = do_poll( fds, pollcount, timeout ? &end : NULL );
             if (ret > 0)
             {
