@@ -19,12 +19,10 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
-
 #include <assert.h>
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
-
 #include "windef.h"
 #include "winbase.h"
 #include "winerror.h"
@@ -34,26 +32,23 @@
 #include "winnls.h"
 #include "winternl.h"
 #include "winsock2.h"
-
 #include "dbt.h"
 #include "setupapi.h"
 #include "initguid.h"
 #include "devguid.h"
 #include "xinput.h"
-
 #include "wine/debug.h"
 
 /* Not defined in the headers, used only by XInputGetStateEx */
 #define XINPUT_GAMEPAD_GUIDE 0x0400
-
+/* Network Communication Config */
 #define SERVER_PORT 7949
 #define CLIENT_PORT 7947
 #define BUFFER_SIZE 64
-
 #define REQUEST_CODE_GET_GAMEPAD 8
 #define REQUEST_CODE_GET_GAMEPAD_STATE 9
 #define REQUEST_CODE_RELEASE_GAMEPAD 10
-
+/* Button Index Mapping */
 #define IDX_BUTTON_A 0
 #define IDX_BUTTON_B 1
 #define IDX_BUTTON_X 2
@@ -66,6 +61,7 @@
 #define IDX_BUTTON_START 7
 #define IDX_BUTTON_L3 8
 #define IDX_BUTTON_R3 9
+#define IDX_BUTTON_GUIDE 12
 
 WINE_DEFAULT_DEBUG_CHANNEL(xinput);
 
@@ -87,7 +83,6 @@ static CRITICAL_SECTION_DEBUG controller_critsect_debug =
     {&controller_critsect_debug.ProcessLocksList, &controller_critsect_debug.ProcessLocksList},
     0, 0, {(DWORD_PTR)(__FILE__ ": controller.crit")}
 };
-
 static struct xinput_controller controller = 
 {
     .crit = {&controller_critsect_debug, -1, 0, 0, 0, 0},
@@ -98,10 +93,9 @@ static struct xinput_controller controller =
 
 static HANDLE start_event;
 static BOOL thread_running = FALSE;
-
 static SOCKET server_sock = INVALID_SOCKET;
 static BOOL winsock_loaded = FALSE;
-static char xinput_min_index = 3;
+static char xinput_min_index = XUSER_MAX_COUNT;
 
 static void close_server_socket(void) 
 {
@@ -129,29 +123,44 @@ static BOOL create_server_socket(void)
     close_server_socket();
     
     winsock_loaded = WSAStartup(MAKEWORD(2,2), &wsa_data) == NO_ERROR;
-    if (!winsock_loaded) return FALSE;
+    if (!winsock_loaded) 
+    {
+        ERR("WSAStartup failed, error %lu\n", WSAGetLastError());
+        return FALSE;
+    }
     
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     server_addr.sin_port = htons(SERVER_PORT);
     
     server_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (server_sock == INVALID_SOCKET) return FALSE;
+    if (server_sock == INVALID_SOCKET) 
+    {
+        ERR("Create socket failed, error %lu\n", WSAGetLastError());
+        return FALSE;
+    }
     
     res = setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse_addr, sizeof(reuse_addr));
-    if (res == SOCKET_ERROR) return FALSE;
+    if (res == SOCKET_ERROR) 
+    {
+        ERR("Set socket reuse addr failed, error %lu\n", WSAGetLastError());
+        return FALSE;
+    }
     
     ioctlsocket(server_sock, FIONBIO, &non_blocking);
-
     res = bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
-    if (res == SOCKET_ERROR) return FALSE;
+    if (res == SOCKET_ERROR) 
+    {
+        ERR("Socket bind failed, error %lu\n", WSAGetLastError());
+        return FALSE;
+    }
     
     return TRUE;
 }
 
 static void get_gamepad_request(void)
 {
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = {0};
     struct sockaddr_in client_addr;
     
     client_addr.sin_family = AF_INET;
@@ -162,13 +171,15 @@ static void get_gamepad_request(void)
     buffer[1] = 1;
     buffer[2] = 1;
     *(int*)(buffer + 3) = GetCurrentProcessId();
-
-    sendto(server_sock, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&client_addr, sizeof(client_addr));
+    if (sendto(server_sock, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&client_addr, sizeof(client_addr)) == SOCKET_ERROR)
+    {
+        WARN("Send get gamepad request failed, error %lu\n", WSAGetLastError());
+    }
 }
 
 static void release_gamepad_request(void)
 {
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = {0};
     struct sockaddr_in client_addr;
     
     client_addr.sin_family = AF_INET;
@@ -176,7 +187,10 @@ static void release_gamepad_request(void)
     client_addr.sin_port = htons(CLIENT_PORT);
     
     buffer[0] = REQUEST_CODE_RELEASE_GAMEPAD;
-    sendto(server_sock, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&client_addr, sizeof(client_addr));
+    if (sendto(server_sock, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&client_addr, sizeof(client_addr)) == SOCKET_ERROR)
+    {
+        WARN("Send release gamepad request failed, error %lu\n", WSAGetLastError());
+    }
 }
 
 static BOOL controller_check_caps(void)
@@ -191,9 +205,9 @@ static BOOL controller_check_caps(void)
     caps->Gamepad.sThumbLY = (1u << (sizeof(caps->Gamepad.sThumbLY) + 1)) - 1;
     caps->Gamepad.sThumbRX = (1u << (sizeof(caps->Gamepad.sThumbRX) + 1)) - 1;
     caps->Gamepad.sThumbRY = (1u << (sizeof(caps->Gamepad.sThumbRY) + 1)) - 1;
-
     caps->Type = XINPUT_DEVTYPE_GAMEPAD;
     caps->SubType = XINPUT_DEVSUBTYPE_GAMEPAD;
+    caps->Flags = 0;
     return TRUE;
 }
 
@@ -202,21 +216,27 @@ static void controller_destroy(void)
     EnterCriticalSection(&controller.crit);
     thread_running = FALSE;
     release_gamepad_request();
-    xinput_min_index = 3;
+    xinput_min_index = XUSER_MAX_COUNT;
     
     controller.enabled = FALSE;
     controller.connected = FALSE;
+    memset(&controller.state, 0, sizeof(controller.state));
+    memset(&controller.last_keystroke, 0, sizeof(controller.last_keystroke));
     
     close_server_socket();
     LeaveCriticalSection(&controller.crit);
+    DeleteCriticalSection(&controller.crit);
 }
 
 static void controller_init(void)
 {
+    EnterCriticalSection(&controller.crit);
     memset(&controller.state, 0, sizeof(controller.state));
+    memset(&controller.last_keystroke, 0, sizeof(controller.last_keystroke));
     controller_check_caps();
     controller.connected = TRUE;
     controller.enabled = TRUE;
+    LeaveCriticalSection(&controller.crit);
 }
 
 static void controller_update_state(char *buffer)
@@ -246,7 +266,8 @@ static void controller_update_state(char *buffer)
     thumb_ry = *(short*)(buffer + 15);
 
     state->Gamepad.wButtons = 0;
-    for (i = 0; i < 10; i++)
+    /* Standard Buttons Mapping */
+    for (i = 0; i < 13; i++)
     {    
         if ((buttons & (1<<i))) {
             switch (i)
@@ -261,13 +282,16 @@ static void controller_update_state(char *buffer)
             case IDX_BUTTON_START: state->Gamepad.wButtons |= XINPUT_GAMEPAD_START; break;
             case IDX_BUTTON_L3: state->Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_THUMB; break;
             case IDX_BUTTON_R3: state->Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_THUMB; break;
+            case IDX_BUTTON_GUIDE: state->Gamepad.wButtons |= XINPUT_GAMEPAD_GUIDE; break;
             }
         }
     }
     
-    state->Gamepad.bLeftTrigger = (buttons & (1<<10)) ? 255 : 0;
-    state->Gamepad.bRightTrigger = (buttons & (1<<11)) ? 255 : 0;
+    /* Trigger Mapping */
+    state->Gamepad.bLeftTrigger = (buttons & (1<<IDX_BUTTON_L2)) ? 255 : 0;
+    state->Gamepad.bRightTrigger = (buttons & (1<<IDX_BUTTON_R2)) ? 255 : 0;
 
+    /* D-Pad Mapping */
     switch (dpad)
     {
     case 0: state->Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_UP; break;
@@ -280,6 +304,7 @@ static void controller_update_state(char *buffer)
     case 7: state->Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_LEFT | XINPUT_GAMEPAD_DPAD_UP; break;
     }
 
+    /* Joystick Axis Mapping (Fix Y Axis Direction) */
     state->Gamepad.sThumbLX = thumb_lx;
     state->Gamepad.sThumbLY = -thumb_ly;
     state->Gamepad.sThumbRX = thumb_rx;
@@ -291,7 +316,7 @@ static void controller_update_state(char *buffer)
 
 static DWORD WINAPI controller_read_thread_proc(void *param) {
     int res;
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE] = {0};
     BOOL started = FALSE;
     DWORD curr_time, last_time;
     
@@ -303,15 +328,20 @@ static DWORD WINAPI controller_read_thread_proc(void *param) {
     }
     
     get_gamepad_request();
-    
     last_time = GetCurrentTime();
+
     while (thread_running)
     {
         res = recvfrom(server_sock, buffer, BUFFER_SIZE, 0, NULL, NULL);
         if (res <= 0)
         {
-            if (WSAGetLastError() != WSAEWOULDBLOCK) break;
+            if (WSAGetLastError() != WSAEWOULDBLOCK) 
+            {
+                ERR("Socket recv failed, error %lu, thread exit\n", WSAGetLastError());
+                break;
+            }
             
+            /* Heartbeat & Reconnect */
             curr_time = GetCurrentTime();
             if ((curr_time - last_time) >= 2000) {
                 get_gamepad_request();
@@ -322,10 +352,10 @@ static DWORD WINAPI controller_read_thread_proc(void *param) {
             continue;
         }
         
+        /* Parse Network Packet */
         if (buffer[0] == REQUEST_CODE_GET_GAMEPAD) 
         {
-            int gamepad_id;
-            gamepad_id = *(int*)(buffer + 1);
+            int gamepad_id = *(int*)(buffer + 1);
             
             EnterCriticalSection(&controller.crit);
             if (gamepad_id > 0) 
@@ -350,8 +380,11 @@ static DWORD WINAPI controller_read_thread_proc(void *param) {
         {
             controller_update_state(buffer);
         }
+
+        memset(buffer, 0, BUFFER_SIZE);
     }
     
+    controller_destroy();
     return 0;
 }
 
@@ -360,17 +393,25 @@ static BOOL WINAPI start_read_thread_once(INIT_ONCE *once, void *param, void **c
     HANDLE thread;
     
     thread_running = TRUE;
-
     start_event = CreateEventA(NULL, FALSE, FALSE, NULL);
-    if (!start_event) ERR("failed to create start event, error %lu\n", GetLastError());   
+    if (!start_event) 
+    {
+        ERR("Failed to create start event, error %lu\n", GetLastError());
+        return FALSE;
+    }   
     
     thread = CreateThread(NULL, 0, controller_read_thread_proc, NULL, 0, NULL);
-    if (!thread) ERR("failed to create read thread, error %lu\n", GetLastError());
+    if (!thread) 
+    {
+        ERR("Failed to create read thread, error %lu\n", GetLastError());
+        CloseHandle(start_event);
+        thread_running = FALSE;
+        return FALSE;
+    }
     CloseHandle(thread);
     
     WaitForSingleObject(start_event, 2000);
     CloseHandle(start_event);
-    
     return TRUE;
 }
 
@@ -384,7 +425,7 @@ static BOOL controller_is_connected(DWORD index)
 {
     BOOL connected;
     EnterCriticalSection(&controller.crit);
-    connected = index == 0 && controller.connected;
+    connected = index == 0 && controller.connected && controller.enabled;
     LeaveCriticalSection(&controller.crit);
     return connected;
 }
@@ -392,7 +433,6 @@ static BOOL controller_is_connected(DWORD index)
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
 {
     TRACE("inst %p, reason %lu, reserved %p.\n", inst, reason, reserved);
-
     switch (reason)
     {
     case DLL_PROCESS_ATTACH:
@@ -409,26 +449,24 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
 void WINAPI DECLSPEC_HOTPATCH XInputEnable(BOOL enable)
 {
     TRACE("enable %d.\n", enable);
-
-    /* Setting to false will stop messages from XInputSetState being sent
-    to the controllers. Setting to true will send the last vibration
-    value (sent to XInputSetState) to the controller and allow messages to
-    be sent */
     start_read_thread();
 
-    if (!controller.connected) return;
-    controller.enabled = enable;    
+    EnterCriticalSection(&controller.crit);
+    if (controller.connected)
+        controller.enabled = enable;
+    LeaveCriticalSection(&controller.crit);
 }
 
 DWORD WINAPI DECLSPEC_HOTPATCH XInputSetState(DWORD index, XINPUT_VIBRATION *vibration)
 {
     TRACE("index %lu, vibration %p.\n", index, vibration);
-
     start_read_thread();
 
     if (index >= XUSER_MAX_COUNT) return ERROR_BAD_ARGUMENTS;
+    if (!vibration) return ERROR_BAD_ARGUMENTS;
     if (!controller_is_connected(index)) return ERROR_DEVICE_NOT_CONNECTED;
 
+    /* Reserved for vibration implementation via network */
     return ERROR_SUCCESS;
 }
 
@@ -437,7 +475,6 @@ DWORD WINAPI DECLSPEC_HOTPATCH XInputSetState(DWORD index, XINPUT_VIBRATION *vib
 static DWORD xinput_get_state(DWORD index, XINPUT_STATE *state)
 {
     if (!state) return ERROR_BAD_ARGUMENTS;
-
     start_read_thread();
 
     if (index >= XUSER_MAX_COUNT) return ERROR_BAD_ARGUMENTS;
@@ -454,22 +491,18 @@ static DWORD xinput_get_state(DWORD index, XINPUT_STATE *state)
 DWORD WINAPI DECLSPEC_HOTPATCH XInputGetState(DWORD index, XINPUT_STATE *state)
 {
     DWORD ret;
-
     TRACE("index %lu, state %p.\n", index, state);
-
     ret = xinput_get_state(index, state);
     if (ret != ERROR_SUCCESS) return ret;
 
-    /* The main difference between this and the Ex version is the media guide button */
+    /* Standard XInputGetState hides Guide Button */
     state->Gamepad.wButtons &= ~XINPUT_GAMEPAD_GUIDE;
-
     return ERROR_SUCCESS;
 }
 
 DWORD WINAPI DECLSPEC_HOTPATCH XInputGetStateEx(DWORD index, XINPUT_STATE *state)
 {
     TRACE("index %lu, state %p.\n", index, state);
-
     return xinput_get_state(index, state);
 }
 
@@ -488,21 +521,20 @@ static WORD js_vk_offs(const int x, const int y)
 {
     if (y == JS_STATE_OFF)
     {
-      /*if (x == JS_STATE_OFF) shouldn't get here */
         if (x == JS_STATE_LOW) return 3; /* LEFT */
-      /*if (x == JS_STATE_HIGH)*/ return 2; /* RIGHT */
+        return 2; /* RIGHT */
     }
     if (y == JS_STATE_HIGH)
     {
         if (x == JS_STATE_OFF) return 0; /* UP */
         if (x == JS_STATE_LOW) return 4; /* UPLEFT */
-      /*if (x == JS_STATE_HIGH)*/ return 5; /* UPRIGHT */
+        return 5; /* UPRIGHT */
     }
-  /*if (y == JS_STATE_LOW)*/
+    /* y == JS_STATE_LOW */
     {
         if (x == JS_STATE_OFF) return 1; /* DOWN */
         if (x == JS_STATE_LOW) return 7; /* DOWNLEFT */
-      /*if (x == JS_STATE_HIGH)*/ return 6; /* DOWNRIGHT */
+        return 6; /* DOWNRIGHT */
     }
 }
 
@@ -526,37 +558,26 @@ static DWORD check_joystick_keystroke(XINPUT_KEYSTROKE *keystroke, const SHORT *
     {
         if (last_vk)
         {
-            /* joystick was set, and now different. send a KEYUP event, and set
-             * last pos to centered, so the appropriate KEYDOWN event will be
-             * sent on the next call. */
             keystroke->VirtualKey = last_vk;
-            keystroke->Unicode = 0; /* unused */
+            keystroke->Unicode = 0;
             keystroke->Flags = XINPUT_KEYSTROKE_KEYUP;
             keystroke->UserIndex = 0;
             keystroke->HidCode = 0;
-
             *last_x = 0;
             *last_y = 0;
-
             return ERROR_SUCCESS;
         }
-
-        /* joystick was unset, send KEYDOWN. */
         keystroke->VirtualKey = cur_vk;
-        keystroke->Unicode = 0; /* unused */
+        keystroke->Unicode = 0;
         keystroke->Flags = XINPUT_KEYSTROKE_KEYDOWN;
         keystroke->UserIndex = 0;
         keystroke->HidCode = 0;
-
         *last_x = *cur_x;
         *last_y = *cur_y;
-
         return ERROR_SUCCESS;
     }
-
     *last_x = *cur_x;
     *last_y = *cur_y;
-
     return ERROR_EMPTY;
 }
 
@@ -570,7 +591,6 @@ static DWORD check_for_keystroke(XINPUT_KEYSTROKE *keystroke)
     const XINPUT_GAMEPAD *cur;
     DWORD ret = ERROR_EMPTY;
     int i;
-
     static const struct
     {
         int mask;
@@ -590,18 +610,18 @@ static DWORD check_for_keystroke(XINPUT_KEYSTROKE *keystroke)
         { XINPUT_GAMEPAD_B, VK_PAD_B },
         { XINPUT_GAMEPAD_X, VK_PAD_X },
         { XINPUT_GAMEPAD_Y, VK_PAD_Y },
-        /* note: guide button does not send an event */
     };
 
+    EnterCriticalSection(&controller.crit);
     cur = &controller.state.Gamepad;
 
-    /*** buttons ***/
+    /* Buttons Event Check */
     for (i = 0; i < ARRAY_SIZE(buttons); ++i)
     {
         if ((cur->wButtons & buttons[i].mask) ^ (controller.last_keystroke.wButtons & buttons[i].mask))
         {
             keystroke->VirtualKey = buttons[i].vk;
-            keystroke->Unicode = 0; /* unused */
+            keystroke->Unicode = 0;
             if (cur->wButtons & buttons[i].mask)
             {
                 keystroke->Flags = XINPUT_KEYSTROKE_KEYDOWN;
@@ -619,11 +639,11 @@ static DWORD check_for_keystroke(XINPUT_KEYSTROKE *keystroke)
         }
     }
 
-    /*** triggers ***/
+    /* Triggers Event Check */
     if (trigger_is_on(cur->bLeftTrigger) ^ trigger_is_on(controller.last_keystroke.bLeftTrigger))
     {
         keystroke->VirtualKey = VK_PAD_LTRIGGER;
-        keystroke->Unicode = 0; /* unused */
+        keystroke->Unicode = 0;
         keystroke->Flags = trigger_is_on(cur->bLeftTrigger) ? XINPUT_KEYSTROKE_KEYDOWN : XINPUT_KEYSTROKE_KEYUP;
         keystroke->UserIndex = 0;
         keystroke->HidCode = 0;
@@ -631,11 +651,10 @@ static DWORD check_for_keystroke(XINPUT_KEYSTROKE *keystroke)
         ret = ERROR_SUCCESS;
         goto done;
     }
-
     if (trigger_is_on(cur->bRightTrigger) ^ trigger_is_on(controller.last_keystroke.bRightTrigger))
     {
         keystroke->VirtualKey = VK_PAD_RTRIGGER;
-        keystroke->Unicode = 0; /* unused */
+        keystroke->Unicode = 0;
         keystroke->Flags = trigger_is_on(cur->bRightTrigger) ? XINPUT_KEYSTROKE_KEYDOWN : XINPUT_KEYSTROKE_KEYUP;
         keystroke->UserIndex = 0;
         keystroke->HidCode = 0;
@@ -644,13 +663,12 @@ static DWORD check_for_keystroke(XINPUT_KEYSTROKE *keystroke)
         goto done;
     }
 
-    /*** joysticks ***/
+    /* Joysticks Event Check */
     ret = check_joystick_keystroke(keystroke, &cur->sThumbLX, &cur->sThumbLY,
             &controller.last_keystroke.sThumbLX,
             &controller.last_keystroke.sThumbLY, VK_PAD_LTHUMB_UP);
     if (ret == ERROR_SUCCESS)
         goto done;
-
     ret = check_joystick_keystroke(keystroke, &cur->sThumbRX, &cur->sThumbRY,
             &controller.last_keystroke.sThumbRX,
             &controller.last_keystroke.sThumbRY, VK_PAD_RTHUMB_UP);
@@ -658,15 +676,15 @@ static DWORD check_for_keystroke(XINPUT_KEYSTROKE *keystroke)
         goto done;
 
 done:
-
+    LeaveCriticalSection(&controller.crit);
     return ret;
 }
 
 DWORD WINAPI DECLSPEC_HOTPATCH XInputGetKeystroke(DWORD index, DWORD reserved, PXINPUT_KEYSTROKE keystroke)
 {    
     TRACE("index %lu, reserved %lu, keystroke %p.\n", index, reserved, keystroke);
-
     if (index >= XUSER_MAX_COUNT && index != XUSER_INDEX_ANY) return ERROR_BAD_ARGUMENTS;
+    if (!keystroke) return ERROR_BAD_ARGUMENTS;
     if (!controller_is_connected(index != XUSER_INDEX_ANY ? index : 0)) return ERROR_DEVICE_NOT_CONNECTED;
   
     return check_for_keystroke(keystroke);
@@ -678,47 +696,47 @@ DWORD WINAPI DECLSPEC_HOTPATCH XInputGetCapabilities(DWORD index, DWORD flags, X
     DWORD ret;
 
     ret = XInputGetCapabilitiesEx(1, index, flags, &caps_ex);
-
     if (!ret) *capabilities = caps_ex.Capabilities;
     return ret;
 }
 
 DWORD WINAPI DECLSPEC_HOTPATCH XInputGetDSoundAudioDeviceGuids(DWORD index, GUID *render_guid, GUID *capture_guid)
 {
-    if (index >= XUSER_MAX_COUNT || !render_guid || !capture_guid) return ERROR_BAD_ARGUMENTS;
+    if (index >= XUSER_MAX_COUNT) return ERROR_BAD_ARGUMENTS;
+    if (!render_guid || !capture_guid) return ERROR_BAD_ARGUMENTS;
     if (!controller_is_connected(index)) return ERROR_DEVICE_NOT_CONNECTED;
-
     return ERROR_NOT_SUPPORTED;
 }
 
 DWORD WINAPI DECLSPEC_HOTPATCH XInputGetBatteryInformation(DWORD index, BYTE type, XINPUT_BATTERY_INFORMATION* battery)
 {
     if (index >= XUSER_MAX_COUNT) return ERROR_BAD_ARGUMENTS;
+    if (!battery) return ERROR_BAD_ARGUMENTS;
     if (!controller_is_connected(index)) return ERROR_DEVICE_NOT_CONNECTED;
-
     return ERROR_NOT_SUPPORTED;
 }
 
 DWORD WINAPI DECLSPEC_HOTPATCH XInputGetCapabilitiesEx(DWORD unk, DWORD index, DWORD flags, XINPUT_CAPABILITIES_EX *caps)
 {
     TRACE("unk %lu, index %lu, flags %#lx, capabilities %p.\n", unk, index, flags, caps);
-
     start_read_thread();
 
     if (index >= XUSER_MAX_COUNT) return ERROR_BAD_ARGUMENTS;
+    if (!caps) return ERROR_BAD_ARGUMENTS;
     if (!controller_is_connected(index)) return ERROR_DEVICE_NOT_CONNECTED;
     
     EnterCriticalSection(&controller.crit);
-
     if (flags & XINPUT_FLAG_GAMEPAD && controller.caps.SubType != XINPUT_DEVSUBTYPE_GAMEPAD) 
-        return ERROR_DEVICE_NOT_CONNECTED;
-    else
     {
-        caps->Capabilities = controller.caps;
-        caps->VendorId = 0x045E; // Wireless Xbox 360 Controller
-        caps->ProductId = 0x02A1;
+        LeaveCriticalSection(&controller.crit);
+        return ERROR_DEVICE_NOT_CONNECTED;
     }
 
+    caps->Capabilities = controller.caps;
+    caps->VendorId = 0x045E; /* Xbox 360 Controller VID */
+    caps->ProductId = 0x02A1; /* Xbox 360 Wireless Controller PID */
+    caps->VersionNumber = 0x0001;
     LeaveCriticalSection(&controller.crit);
+
     return ERROR_SUCCESS;
 }
