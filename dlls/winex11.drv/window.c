@@ -1021,9 +1021,9 @@ static void set_initial_wm_hints( Display *display, Window window, HWND hwnd )
 
     /* set the WM_CLIENT_MACHINE and WM_LOCALE_NAME properties */
     XSetWMProperties(display, window, NULL, NULL, NULL, 0, NULL, NULL, NULL);
-    pid = GetCurrentProcessId();
+    NtUserGetWindowThread( hwnd, &pid );
     XChangeProperty(display, window, x11drv_atom(_NET_WM_PID),
-                    XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&pid, 1);
+                XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&pid, 1);
     if (!NtQueryInformationProcess( GetCurrentProcess(), ProcessWow64Information, &pbi, sizeof(pbi), NULL )) is_wow64 = !!pbi;
     XChangeProperty( display, window, x11drv_atom(_NET_WM_WOW64),
                      XA_CARDINAL, 8, PropModeReplace, (unsigned char *)&is_wow64, 1 );
