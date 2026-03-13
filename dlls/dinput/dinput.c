@@ -379,6 +379,7 @@ static HRESULT WINAPI dinput8_EnumDevices( IDirectInput8W *iface, DWORD type, LP
             if (hr == DI_OK && try_enum_device( device_type, callback, &instance, context, flags ) == DIENUM_STOP)
                 return DI_OK;
         } while (SUCCEEDED(hr));
+
         hr = gamepad_enum_device( type, flags, &instance, impl->dwVersion );
         if (hr == DI_OK && try_enum_device( device_type, callback, &instance, context, flags ) == DIENUM_STOP)
             return DI_OK;

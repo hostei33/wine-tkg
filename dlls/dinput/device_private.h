@@ -128,8 +128,6 @@ extern void dinput_device_internal_addref( struct dinput_device *device );
 extern void dinput_device_internal_release( struct dinput_device *device );
 
 extern HRESULT dinput_device_init_device_format( IDirectInputDevice8W *iface );
-extern HRESULT gamepad_enum_device( DWORD type, DWORD flags, DIDEVICEINSTANCEW *instance, DWORD version );
-extern HRESULT gamepad_create_device( struct dinput *dinput, const GUID *guid, IDirectInputDevice8W **out );
 extern int dinput_device_object_index_from_id( IDirectInputDevice8W *iface, DWORD id );
 extern BOOL device_object_matches_semantic( const DIDEVICEINSTANCEW *instance, const DIOBJECTDATAFORMAT *object,
                                             DWORD semantic, BOOL exact );
@@ -140,5 +138,9 @@ extern BOOL device_instance_is_disabled( DIDEVICEINSTANCEW *instance, BOOL *over
 extern void queue_event( IDirectInputDevice8W *iface, int index, DWORD data, DWORD time, DWORD seq );
 
 extern const GUID dinput_pidvid_guid;
+
+/* Gamepad device functions */
+extern HRESULT gamepad_enum_device( DWORD type, DWORD flags, DIDEVICEINSTANCEW *instance, DWORD version );
+extern HRESULT gamepad_create_device( struct dinput *dinput, const GUID *guid, IDirectInputDevice8W **out );
 
 #endif /* __WINE_DLLS_DINPUT_DINPUTDEVICE_PRIVATE_H */
